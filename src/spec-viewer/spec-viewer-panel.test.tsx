@@ -52,19 +52,32 @@ describe('SpecViewerPanel', () => {
     }
   }
 
-  it('renders markdown and toc for active spec', () => {
+  it('renders markdown and keeps toc collapsed by default', () => {
     renderPanel()
 
     expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
       'docs/spec.md',
     )
     expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent('Title')
-    const toc = screen.getByTestId('spec-viewer-toc')
-    expect(within(toc).getByRole('link', { name: 'Title' })).toHaveAttribute(
+    expect(screen.getByTestId('spec-viewer-toc')).toBeInTheDocument()
+    expect(screen.getByTestId('spec-viewer-toc-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.queryByTestId('spec-viewer-toc-list')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('spec-viewer-toc-toggle'))
+
+    expect(screen.getByTestId('spec-viewer-toc-toggle')).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    const tocList = screen.getByTestId('spec-viewer-toc-list')
+    expect(within(tocList).getByRole('link', { name: 'Title' })).toHaveAttribute(
       'href',
       '#title',
     )
-    expect(within(toc).getByRole('link', { name: 'Intro' })).toHaveAttribute(
+    expect(within(tocList).getByRole('link', { name: 'Intro' })).toHaveAttribute(
       'href',
       '#intro',
     )

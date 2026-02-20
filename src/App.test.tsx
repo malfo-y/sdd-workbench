@@ -161,7 +161,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.queryByRole('button', { name: 'auth.ts' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'README.md' })).not.toBeInTheDocument()
 
-    expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
       'No active file',
     )
 
@@ -173,8 +173,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'auth.ts' }))
 
-    expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/auth.ts')
-    expect(screen.getByTestId('active-file-path')).toHaveAttribute(
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/auth.ts')
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveAttribute(
       'title',
       'src/auth.ts',
     )
@@ -824,7 +824,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
     await waitFor(() => {
-      expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/a.ts')
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/a.ts')
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
@@ -840,7 +840,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
     await waitFor(() => {
-      expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/b.ts')
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/b.ts')
     })
 
     const workspaceSelect = screen.getByTestId(
@@ -1009,7 +1009,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'app.ts' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/app.ts')
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/app.ts')
     })
     expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
       'const value = 1',
@@ -1105,7 +1105,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Open Overview' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
         'src/overview.ts',
       )
     })
@@ -1204,7 +1204,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Open Plain' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
         'src/plain.ts',
       )
     })
@@ -1349,7 +1349,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Open Shared' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
         'src/shared.ts',
       )
     })

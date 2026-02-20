@@ -1,4 +1,10 @@
-import { useCallback, useState, useMemo, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useMemo,
+  type MouseEvent,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
@@ -38,6 +44,11 @@ export function SpecViewerPanel({
   const [linkPopoverState, setLinkPopoverState] = useState<LinkPopoverState | null>(
     null,
   )
+  const [isTocExpanded, setIsTocExpanded] = useState(false)
+
+  useEffect(() => {
+    setIsTocExpanded(false)
+  }, [activeSpecPath, markdownContent])
 
   const closeLinkPopover = useCallback(() => {
     setLinkPopoverState(null)
@@ -140,17 +151,32 @@ export function SpecViewerPanel({
         <div className="spec-viewer-body">
           {tocHeadings.length > 0 && (
             <nav className="spec-viewer-toc" data-testid="spec-viewer-toc">
-              <p className="label spec-viewer-toc-label">Table of Contents</p>
-              <ol className="spec-viewer-toc-list">
-                {tocHeadings.map((heading) => (
-                  <li
-                    className={`spec-viewer-toc-item depth-${heading.depth}`}
-                    key={`${heading.id}-${heading.depth}`}
-                  >
-                    <a href={`#${heading.id}`}>{heading.text}</a>
-                  </li>
-                ))}
-              </ol>
+              <button
+                aria-expanded={isTocExpanded}
+                className="spec-viewer-toc-toggle"
+                data-testid="spec-viewer-toc-toggle"
+                onClick={() => {
+                  setIsTocExpanded((previous) => !previous)
+                }}
+                type="button"
+              >
+                <span className="label spec-viewer-toc-label">Table of Contents</span>
+                <span className="spec-viewer-toc-chevron" aria-hidden="true">
+                  {isTocExpanded ? '▾' : '▸'}
+                </span>
+              </button>
+              {isTocExpanded && (
+                <ol className="spec-viewer-toc-list" data-testid="spec-viewer-toc-list">
+                  {tocHeadings.map((heading) => (
+                    <li
+                      className={`spec-viewer-toc-item depth-${heading.depth}`}
+                      key={`${heading.id}-${heading.depth}`}
+                    >
+                      <a href={`#${heading.id}`}>{heading.text}</a>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </nav>
           )}
 

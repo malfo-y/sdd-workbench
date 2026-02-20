@@ -94,7 +94,6 @@ function App() {
   const displayPath = rootPath
     ? abbreviateWorkspacePath(rootPath)
     : 'No workspace selected'
-  const displayActiveFile = activeFile ?? 'No active file'
   const canCopyActiveFilePath =
     activeWorkspaceId !== null && activeFile !== null
   const canCopySelectedLines =
@@ -333,15 +332,27 @@ function App() {
         style={workspaceLayoutStyle}
       >
         <div className="pane-slot">
-          <FileTreePanel
-            activeFile={activeFile}
-            expandedDirectories={expandedDirectories}
-            fileTree={fileTree}
-            isIndexing={isIndexing}
-            onExpandedDirectoriesChange={setExpandedDirectories}
-            onSelectFile={selectFile}
-            rootPath={rootPath}
-          />
+          <section className="file-panel" data-testid="file-panel">
+            <div className="workspace-summary">
+              <p className="label">Current Workspace</p>
+              <p
+                className="path workspace-summary-path"
+                data-testid="workspace-path"
+                title={rootPath ?? ''}
+              >
+                {displayPath}
+              </p>
+            </div>
+            <FileTreePanel
+              activeFile={activeFile}
+              expandedDirectories={expandedDirectories}
+              fileTree={fileTree}
+              isIndexing={isIndexing}
+              onExpandedDirectoriesChange={setExpandedDirectories}
+              onSelectFile={selectFile}
+              rootPath={rootPath}
+            />
+          </section>
         </div>
 
         <div
@@ -377,17 +388,6 @@ function App() {
 
         <div className="pane-slot">
           <section className="workspace-card spec-panel" data-testid="spec-panel">
-            <p className="label">Current Workspace</p>
-            <p className="path" data-testid="workspace-path" title={rootPath ?? ''}>
-              {displayPath}
-            </p>
-            <p
-              className="path active-file-path"
-              data-testid="active-file-path"
-              title={activeFile ?? ''}
-            >
-              {displayActiveFile}
-            </p>
             <SpecViewerPanel
               activeSpecPath={activeSpec}
               isLoading={isReadingSpec}
