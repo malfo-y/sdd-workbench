@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 
 const INITIAL_RENDER_NODE_LIMIT = 500
 
@@ -6,8 +6,10 @@ type FileTreePanelProps = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
   activeFile: string | null
+  expandedDirectories: string[]
   isIndexing: boolean
   onSelectFile: (relativePath: string) => void
+  onExpandedDirectoriesChange: (expandedDirectories: string[]) => void
 }
 
 type RenderBudget = {
@@ -103,27 +105,25 @@ export function FileTreePanel({
   rootPath,
   fileTree,
   activeFile,
+  expandedDirectories,
   isIndexing,
   onSelectFile,
+  onExpandedDirectoriesChange,
 }: FileTreePanelProps) {
-  const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(
-    () => new Set(),
+  const expandedDirectoriesSet = useMemo(
+    () => new Set(expandedDirectories),
+    [expandedDirectories],
   )
 
-  useEffect(() => {
-    setExpandedDirectories(new Set())
-  }, [rootPath])
-
   const toggleDirectory = (relativePath: string) => {
-    setExpandedDirectories((previous) => {
-      const next = new Set(previous)
-      if (next.has(relativePath)) {
-        next.delete(relativePath)
-      } else {
-        next.add(relativePath)
-      }
-      return next
-    })
+    const nextExpandedDirectories = new Set(expandedDirectoriesSet)
+    if (nextExpandedDirectories.has(relativePath)) {
+      nextExpandedDirectories.delete(relativePath)
+    } else {
+      nextExpandedDirectories.add(relativePath)
+    }
+
+    onExpandedDirectoriesChange([...nextExpandedDirectories])
   }
 
   if (!rootPath) {
@@ -165,7 +165,7 @@ export function FileTreePanel({
         renderBudget,
         activeFile,
         onSelectFile,
-        expandedDirectories,
+        expandedDirectoriesSet,
         toggleDirectory,
         showRootFiles,
       )}

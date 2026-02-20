@@ -6,13 +6,22 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-
-export type LineSelectionRange = {
-  startLine: number
-  endLine: number
-}
+import {
+  addOrFocusWorkspace,
+  closeWorkspace as closeWorkspaceInState,
+  createEmptyWorkspaceState,
+  createWorkspaceId,
+  listWorkspaces,
+  setActiveWorkspace as setActiveWorkspaceInState,
+  updateWorkspaceSession,
+  type LineSelectionRange,
+  type WorkspaceId,
+} from './workspace-model'
 
 type WorkspaceContextValue = {
+  workspaceOrder: WorkspaceId[]
+  workspaces: Array<{ id: WorkspaceId; rootPath: string }>
+  activeWorkspaceId: WorkspaceId | null
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
   activeFile: string | null
@@ -22,10 +31,14 @@ type WorkspaceContextValue = {
   readFileError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
+  expandedDirectories: string[]
   bannerMessage: string | null
   openWorkspace: () => Promise<void>
+  setActiveWorkspace: (workspaceId: WorkspaceId) => void
+  closeWorkspace: (workspaceId: WorkspaceId) => void
   selectFile: (relativePath: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
+  setExpandedDirectories: (expandedDirectories: string[]) => void
   clearBanner: () => void
 }
 
@@ -38,64 +51,86 @@ type WorkspaceProviderProps = {
 }
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
-  const [rootPath, setRootPath] = useState<string | null>(null)
-  const [fileTree, setFileTree] = useState<WorkspaceFileNode[]>([])
-  const [activeFile, setActiveFile] = useState<string | null>(null)
-  const [activeFileContent, setActiveFileContent] = useState<string | null>(null)
-  const [isIndexing, setIsIndexing] = useState(false)
-  const [isReadingFile, setIsReadingFile] = useState(false)
-  const [readFileError, setReadFileError] = useState<string | null>(null)
-  const [previewUnavailableReason, setPreviewUnavailableReason] = useState<WorkspacePreviewUnavailableReason | null>(null)
-  const [selectionRange, setSelectionRange] = useState<LineSelectionRange | null>(
-    null,
-  )
+  const [workspaceState, setWorkspaceState] = useState(createEmptyWorkspaceState)
+  const workspaceStateRef = useRef(workspaceState)
+  workspaceStateRef.current = workspaceState
+
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
-  const readFileRequestIdRef = useRef(0)
+  const indexRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
+  const readFileRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
 
   const clearBanner = useCallback(() => {
     setBannerMessage(null)
   }, [])
 
-  const resetActiveFileState = useCallback(() => {
-    readFileRequestIdRef.current += 1
-    setActiveFile(null)
-    setActiveFileContent(null)
-    setReadFileError(null)
-    setPreviewUnavailableReason(null)
-    setSelectionRange(null)
-    setIsReadingFile(false)
-  }, [])
-
   const loadWorkspaceIndex = useCallback(
-    async (nextRootPath: string) => {
-      setIsIndexing(true)
-      setFileTree([])
-      resetActiveFileState()
+    async (workspaceId: WorkspaceId, rootPath: string) => {
+    const requestId = (indexRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+    indexRequestIdByWorkspaceRef.current[workspaceId] = requestId
 
-      try {
-        const indexResult = await window.workspace.index(nextRootPath)
-        if (!indexResult.ok) {
-          setBannerMessage(
-            indexResult.error
-              ? `Failed to index workspace: ${indexResult.error}`
-              : 'Failed to index workspace.',
-          )
-          return
-        }
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+        ...currentSession,
+        isIndexing: true,
+        fileTree: [],
+        activeFile: null,
+        activeFileContent: null,
+        isReadingFile: false,
+        readFileError: null,
+        previewUnavailableReason: null,
+        selectionRange: null,
+        expandedDirectories: [],
+      })),
+    )
 
-        setFileTree(indexResult.fileTree)
-        setBannerMessage(null)
-      } catch (error) {
+    try {
+      const indexResult = await window.workspace.index(rootPath)
+      if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+        return
+      }
+
+      if (!indexResult.ok) {
         setBannerMessage(
-          error instanceof Error
-            ? `Failed to index workspace: ${error.message}`
+          indexResult.error
+            ? `Failed to index workspace: ${indexResult.error}`
             : 'Failed to index workspace.',
         )
-      } finally {
-        setIsIndexing(false)
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            isIndexing: false,
+          })),
+        )
+        return
       }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          fileTree: indexResult.fileTree,
+          isIndexing: false,
+        })),
+      )
+      setBannerMessage(null)
+    } catch (error) {
+      if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+        return
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          isIndexing: false,
+        })),
+      )
+      setBannerMessage(
+        error instanceof Error
+          ? `Failed to index workspace: ${error.message}`
+          : 'Failed to index workspace.',
+      )
+    }
     },
-    [resetActiveFileState],
+    [],
   )
 
   const openWorkspace = useCallback(async () => {
@@ -116,8 +151,22 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
-      setRootPath(result.selectedPath)
-      await loadWorkspaceIndex(result.selectedPath)
+      const selectedPath = result.selectedPath
+      const selectedWorkspaceId = createWorkspaceId(selectedPath)
+      const isExistingWorkspace =
+        workspaceStateRef.current.workspacesById[selectedWorkspaceId] !== undefined
+
+      setWorkspaceState((previous) => {
+        const addResult = addOrFocusWorkspace(previous, selectedPath)
+        return addResult.state
+      })
+
+      if (isExistingWorkspace) {
+        setBannerMessage(null)
+        return
+      }
+
+      await loadWorkspaceIndex(selectedWorkspaceId, selectedPath)
     } catch (error) {
       setBannerMessage(
         error instanceof Error
@@ -127,94 +176,190 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [loadWorkspaceIndex])
 
-  const selectFile = useCallback(
-    (relativePath: string) => {
-      setActiveFile(relativePath)
-      setActiveFileContent(null)
-      setSelectionRange(null)
-      setReadFileError(null)
-      setPreviewUnavailableReason(null)
+  const setActiveWorkspace = useCallback((workspaceId: WorkspaceId) => {
+    setWorkspaceState((previous) =>
+      setActiveWorkspaceInState(previous, workspaceId),
+    )
+  }, [])
 
-      if (!rootPath) {
-        setReadFileError('No workspace is currently selected.')
+  const closeWorkspace = useCallback((workspaceId: WorkspaceId) => {
+    delete indexRequestIdByWorkspaceRef.current[workspaceId]
+    delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+    setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
+  }, [])
+
+  const selectFile = useCallback((relativePath: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    const activeSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!activeSession) {
+      return
+    }
+
+    const requestId =
+      (readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] ?? 0) + 1
+    readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] = requestId
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+        ...currentSession,
+        activeFile: relativePath,
+        activeFileContent: null,
+        selectionRange: null,
+        readFileError: null,
+        previewUnavailableReason: null,
+        isReadingFile: true,
+      })),
+    )
+
+    void (async () => {
+      try {
+        const readResult = await window.workspace.readFile(
+          activeSession.rootPath,
+          relativePath,
+        )
+        if (
+          readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] !== requestId
+        ) {
+          return
+        }
+
+        if (!readResult.ok) {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(
+              previous,
+              activeWorkspaceId,
+              (currentSession) => ({
+                ...currentSession,
+                readFileError: readResult.error
+                  ? `Failed to read file: ${readResult.error}`
+                  : 'Failed to read file.',
+                isReadingFile: false,
+              }),
+            ),
+          )
+          return
+        }
+
+        if (readResult.previewUnavailableReason) {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(
+              previous,
+              activeWorkspaceId,
+              (currentSession) => ({
+                ...currentSession,
+                previewUnavailableReason: readResult.previewUnavailableReason ?? null,
+                isReadingFile: false,
+              }),
+            ),
+          )
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            activeFileContent: readResult.content ?? '',
+            isReadingFile: false,
+          })),
+        )
+      } catch (error) {
+        if (
+          readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] !== requestId
+        ) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            readFileError:
+              error instanceof Error
+                ? `Failed to read file: ${error.message}`
+                : 'Failed to read file.',
+            isReadingFile: false,
+          })),
+        )
+      }
+    })()
+  }, [])
+
+  const setSelectionRange = useCallback(
+    (selectionRange: LineSelectionRange | null) => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
         return
       }
 
-      const requestId = readFileRequestIdRef.current + 1
-      readFileRequestIdRef.current = requestId
-      setIsReadingFile(true)
-
-      void (async () => {
-        try {
-          const readResult = await window.workspace.readFile(rootPath, relativePath)
-          if (requestId !== readFileRequestIdRef.current) {
-            return
-          }
-
-          if (!readResult.ok) {
-            setReadFileError(
-              readResult.error
-                ? `Failed to read file: ${readResult.error}`
-                : 'Failed to read file.',
-            )
-            return
-          }
-
-          if (readResult.previewUnavailableReason) {
-            setPreviewUnavailableReason(readResult.previewUnavailableReason)
-            return
-          }
-
-          setActiveFileContent(readResult.content ?? '')
-        } catch (error) {
-          if (requestId !== readFileRequestIdRef.current) {
-            return
-          }
-          setReadFileError(
-            error instanceof Error
-              ? `Failed to read file: ${error.message}`
-              : 'Failed to read file.',
-          )
-        } finally {
-          if (requestId === readFileRequestIdRef.current) {
-            setIsReadingFile(false)
-          }
-        }
-      })()
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          selectionRange,
+        })),
+      )
     },
-    [rootPath],
+    [],
   )
+
+  const setExpandedDirectories = useCallback(
+    (expandedDirectories: string[]) => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
+        return
+      }
+
+      const nextExpandedDirectories = Array.from(new Set(expandedDirectories))
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          expandedDirectories: nextExpandedDirectories,
+        })),
+      )
+    },
+    [],
+  )
+
+  const activeWorkspace = workspaceState.activeWorkspaceId
+    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
+    : null
 
   const value = useMemo(
     () => ({
-      rootPath,
-      fileTree,
-      activeFile,
-      activeFileContent,
-      isIndexing,
-      isReadingFile,
-      readFileError,
-      previewUnavailableReason,
-      selectionRange,
+      workspaceOrder: workspaceState.workspaceOrder,
+      workspaces: listWorkspaces(workspaceState),
+      activeWorkspaceId: workspaceState.activeWorkspaceId,
+      rootPath: activeWorkspace?.rootPath ?? null,
+      fileTree: activeWorkspace?.fileTree ?? [],
+      activeFile: activeWorkspace?.activeFile ?? null,
+      activeFileContent: activeWorkspace?.activeFileContent ?? null,
+      isIndexing: activeWorkspace?.isIndexing ?? false,
+      isReadingFile: activeWorkspace?.isReadingFile ?? false,
+      readFileError: activeWorkspace?.readFileError ?? null,
+      previewUnavailableReason: activeWorkspace?.previewUnavailableReason ?? null,
+      selectionRange: activeWorkspace?.selectionRange ?? null,
+      expandedDirectories: activeWorkspace?.expandedDirectories ?? [],
       bannerMessage,
       openWorkspace,
+      setActiveWorkspace,
+      closeWorkspace,
       selectFile,
       setSelectionRange,
+      setExpandedDirectories,
       clearBanner,
     }),
     [
-      rootPath,
-      fileTree,
-      activeFile,
-      activeFileContent,
-      isIndexing,
-      isReadingFile,
-      readFileError,
-      previewUnavailableReason,
-      selectionRange,
+      workspaceState,
+      activeWorkspace,
       bannerMessage,
       openWorkspace,
+      setActiveWorkspace,
+      closeWorkspace,
       selectFile,
+      setSelectionRange,
+      setExpandedDirectories,
       clearBanner,
     ],
   )

@@ -269,6 +269,173 @@ describe('F01/F02/F03 workspace flow', () => {
     )
   })
 
+  it('supports multi-workspace switch, duplicate focus, close, and selection reset', async () => {
+    const projectARoot = '/Users/tester/project-a'
+    const projectBRoot = '/Users/tester/project-b'
+    const projectATree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.ts',
+            relativePath: 'src/app.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+    const projectBTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'note.md',
+            relativePath: 'docs/note.md',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectBRoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === projectARoot) {
+        return {
+          ok: true,
+          fileTree: projectATree,
+        }
+      }
+
+      if (rootPath === projectBRoot) {
+        return {
+          ok: true,
+          fileTree: projectBTree,
+        }
+      }
+
+      return {
+        ok: false,
+        fileTree: [],
+        error: 'unknown workspace',
+      }
+    })
+
+    readFileMock.mockImplementation(async (rootPath, relativePath) => {
+      if (rootPath === projectARoot && relativePath === 'src/app.ts') {
+        return {
+          ok: true,
+          content: 'export const name = "project-a"\nconsole.log(name)',
+        }
+      }
+
+      if (rootPath === projectBRoot && relativePath === 'docs/note.md') {
+        return {
+          ok: true,
+          content: '# project-b',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+        error: 'missing file',
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'app.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'app.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('code-line-2'))
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L2-L2',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'note.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'note.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    const workspaceSelect = screen.getByTestId(
+      'workspace-switcher-select',
+    ) as HTMLSelectElement
+    expect(workspaceSelect.options).toHaveLength(2)
+
+    fireEvent.change(workspaceSelect, { target: { value: projectARoot } })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectARoot,
+      )
+    })
+    expect(screen.getByRole('button', { name: 'app.ts' })).toBeInTheDocument()
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: none',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectARoot,
+      )
+    })
+    expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectBRoot,
+      )
+    })
+
+    expect(
+      (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement)
+        .options,
+    ).toHaveLength(1)
+  })
+
   it('shows read error message when workspace.readFile returns failure', async () => {
     const indexedTree: WorkspaceFileNode[] = [
       {

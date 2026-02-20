@@ -3,9 +3,12 @@ import { CodeViewerPanel } from './code-viewer/code-viewer-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import { abbreviateWorkspacePath } from './workspace/path-format'
 import { useWorkspace } from './workspace/use-workspace'
+import { WorkspaceSwitcher } from './workspace/workspace-switcher'
 
 function App() {
   const {
+    workspaces,
+    activeWorkspaceId,
     rootPath,
     fileTree,
     activeFile,
@@ -15,10 +18,14 @@ function App() {
     readFileError,
     previewUnavailableReason,
     selectionRange,
+    expandedDirectories,
     bannerMessage,
     openWorkspace,
+    setActiveWorkspace,
+    closeWorkspace,
     selectFile,
     setSelectionRange,
+    setExpandedDirectories,
     clearBanner,
   } = useWorkspace()
   const displayPath = rootPath
@@ -30,7 +37,15 @@ function App() {
     <main className="app-shell">
       <header className="app-header">
         <h1>SDD Workbench</h1>
-        <button onClick={() => void openWorkspace()}>Open Workspace</button>
+        <div className="app-header-actions">
+          <WorkspaceSwitcher
+            activeWorkspaceId={activeWorkspaceId}
+            onCloseWorkspace={closeWorkspace}
+            onSelectWorkspace={setActiveWorkspace}
+            workspaces={workspaces}
+          />
+          <button onClick={() => void openWorkspace()}>Open Workspace</button>
+        </div>
       </header>
 
       {bannerMessage && (
@@ -43,8 +58,10 @@ function App() {
       <section className="workspace-layout">
         <FileTreePanel
           activeFile={activeFile}
+          expandedDirectories={expandedDirectories}
           fileTree={fileTree}
           isIndexing={isIndexing}
+          onExpandedDirectoriesChange={setExpandedDirectories}
           onSelectFile={selectFile}
           rootPath={rootPath}
         />

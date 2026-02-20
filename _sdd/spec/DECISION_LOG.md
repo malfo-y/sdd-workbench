@@ -156,3 +156,62 @@
 - Impact / follow-up:
   - `main.md`의 F03.5 포함/제외/수용 기준/리스크 항목을 본 결정 기준으로 갱신한다.
   - `feature_draft_f03_5_multi_workspace_foundation_and_support.md`의 Open Questions를 해소 상태로 업데이트한다.
+
+## 2026-02-20 - F03.5 구현 완료 반영(멀티 워크스페이스 동작 고정)
+
+- Context:
+  - F03.5 구현이 완료되어 정책 수준 합의(추가/중복 포커스/전환/닫기)를 실제 코드 기준으로 확정해야 했음.
+  - 사용자 수동 스모크와 자동 테스트(`npm test`, `npm run lint`, `npm run build`)까지 모두 통과했음.
+- Decision:
+  - F03.5를 스펙 상태 `✅ Done`으로 전환한다.
+  - Workspace 상태 모델을 `activeWorkspaceId`, `workspaceOrder`, `workspacesById` 기반의 구현 상태로 확정한다.
+  - 워크스페이스별 `expandedDirectories` 복원, 전환 시 `selectionRange` 리셋, 중복 경로 재오픈 시 기존 포커스를 제품 기본 동작으로 고정한다.
+- Rationale:
+  - 구현/테스트/수동 확인이 모두 완료된 항목을 Planned로 유지하면 스펙 드리프트가 발생한다.
+  - 멀티 워크스페이스 정책을 명시적으로 Done 처리해야 후속 F04+ 설계의 전제가 안정화된다.
+- Alternatives considered:
+  - F03.5를 Partial 상태로 유지
+  - 전환 시 `selectionRange`를 유지하도록 정책 변경
+- Impact / follow-up:
+  - `main.md`의 구현 상태/수용 기준/우선순위 실행 순서를 F03.5 완료 기준으로 동기화한다.
+  - 후속 우선순위는 `F04 -> F05 -> F06 -> F07` 순으로 진행한다.
+
+## 2026-02-20 - F04~F07 멀티 워크스페이스 영향 기준 리라이트
+
+- Context:
+  - F03.5 완료 이후 F04~F07 스펙이 단일 워크스페이스 관점으로 일부 서술되어 해석 충돌 가능성이 있었음.
+  - 사용자 요청으로 스펙 리라이트를 통해 영향 구간을 정리해야 했음.
+- Decision:
+  - F04~F07 공통 기준을 `active workspace` 우선 정책으로 고정한다.
+  - 링크/경로 해석은 활성 워크스페이스 기준으로 처리하고 cross-workspace 자동 fallback은 MVP에서 제외한다.
+  - watcher 관련 planned IPC payload에 `workspaceId`를 포함해 세션 오염을 방지한다.
+  - 미확정 항목은 `main.md`의 `Open Questions (F04~F07 선결)`로 분리한다.
+- Rationale:
+  - 구현 전 기준을 명시하지 않으면 F04~F07에서 상태 누수/경로 충돌/리소스 누수가 발생하기 쉽다.
+  - 공통 규칙을 먼저 고정하면 feature-draft/implementation 범위 산정이 단순해진다.
+- Alternatives considered:
+  - F04~F07에서 각 기능별로 개별 정책을 뒤늦게 정하는 방식
+  - 활성 워크스페이스 실패 시 다른 워크스페이스 자동 탐색을 기본 정책으로 채택하는 방식
+- Impact / follow-up:
+  - `main.md`가 F04~F07 구현 준비 문서로 바로 사용 가능해짐.
+  - 다음 feature-draft는 `Open Questions`의 선택지를 결정사항으로 전환하는 작업을 포함한다.
+
+## 2026-02-20 - F04~F07 Open Questions 결정 고정
+
+- Context:
+  - F04~F07 준비 과정에서 남겨둔 선택지(Open Questions)를 구현 전에 확정해야 범위 변동을 줄일 수 있었음.
+- Decision:
+  - F04: `activeSpec`만 워크스페이스별 복원한다(TOC/스크롤/activeHeading 복원은 후속).
+  - F05: 활성 워크스페이스에서 링크 해석 실패 시 오류만 표시한다(자동 cross-workspace 탐색 없음).
+  - F07: watcher는 `openWorkspace` 시점에 즉시 시작하고 `closeWorkspace` 시 즉시 정리한다.
+  - F06/F08: 액션 가드는 공통 레이어를 도입하지 않고 기능별 개별 구현을 유지한다.
+- Rationale:
+  - 현재 우선순위는 구현 속도와 정책 명확성 확보이며, 공통화/고급 복원은 후속 확장으로 분리하는 편이 안정적이다.
+- Alternatives considered:
+  - F04에서 스크롤/heading까지 동시 복원
+  - F05에서 실패 시 다른 워크스페이스 탐색 보조 UX 제공
+  - F07 watcher 지연 시작
+  - F06/F08 공통 guard layer 선도입
+- Impact / follow-up:
+  - `main.md`의 `Open Questions`는 해소 상태로 전환한다.
+  - 다음 `feature-draft`는 본 결정들을 전제로 수용 기준/테스트 시나리오를 작성한다.

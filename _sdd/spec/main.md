@@ -2,13 +2,13 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.6.1`
+- 문서 버전: `0.8.0`
 - 마지막 업데이트: `2026-02-20`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
   - UI 스케치: `/_sdd/spec/ui_sketch.png`
-  - 코드베이스: Electron + React + F01/F02/F03/F03.1(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩) 구현 상태
+  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스) 구현 상태
 
 ---
 
@@ -29,7 +29,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 ### 2.1 MVP 포함 범위
 
-- 워크스페이스 열기/활성 전환/제거(F03.5 계획 포함)
+- 워크스페이스 열기/활성 전환/제거
 - 파일 트리 탐색
 - 코드 읽기 뷰어(읽기 중심)
 - Markdown 렌더링 뷰어
@@ -53,18 +53,21 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + 좌측 파일 트리 + center 코드 뷰어 통합 + 우측 placeholder | Implemented (F01/F02/F03) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 통합 + 우측 placeholder | Implemented (F01/F02/F03/F03.5) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
-| `src/workspace/workspace-context.tsx` | `rootPath`, `fileTree`, `activeFile`, `activeFileContent`, 읽기/선택/배너 상태 관리 | Implemented (F01/F02/F03) |
+| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/배너 상태 관리 | Implemented (F01/F02/F03/F03.5) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
+| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) | Implemented (F03.5) |
+| `src/workspace/workspace-switcher.tsx` | 활성 워크스페이스 선택 + 닫기/제거 UI | Implemented (F03.5) |
 | `src/workspace/path-format.ts` | UI 표시용 경로 축약 유틸(`~`) | Implemented (F01) |
-| `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) | Implemented (F02) |
+| `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 | Implemented (F02/F03.5) |
 | `src/code-viewer/code-viewer-panel.tsx` | 라인 단위 코드 프리뷰 + 선택 범위 + preview-unavailable 표시 + language 라벨 | Implemented (F03/F03.1) |
 | `src/code-viewer/line-selection.ts` | 1-based 라인 선택/Shift 확장 유틸 | Implemented (F03) |
 | `src/code-viewer/language-map.ts` | 확장자 -> 하이라이트 언어 매핑(`.py` 포함) | Implemented (F03.1) |
 | `src/code-viewer/syntax-highlight.ts` | Prism 기반 라인 하이라이트 어댑터 + plaintext escape fallback | Implemented (F03.1) |
-| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어 + 토큰 컬러 스타일 | Implemented (F02/F03/F03.1) |
-| `src/App.test.tsx` | F01/F02/F03/F03.1 통합 플로우 테스트(9건) | Implemented (F01/F02/F03/F03.1) |
+| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어 + 워크스페이스 switcher 스타일 + 토큰 컬러 스타일 | Implemented (F02/F03/F03.1/F03.5) |
+| `src/App.test.tsx` | F01/F02/F03/F03.1/F03.5 통합 플로우 테스트(10건) | Implemented (F01/F02/F03/F03.1/F03.5) |
+| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(5건) | Implemented (F03.5) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
 | `src/code-viewer/language-map.test.ts` | 확장자 매핑/ fallback 테스트(2건) | Implemented (F03.1) |
 | `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + 선택 콜백 테스트(2건) | Implemented (F03.1) |
@@ -81,7 +84,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 요구사항 | 상태 | 근거 |
 |---|---|---|
-| 4.1 Workspace Management | Partial | 단일 워크스페이스 선택 + 인덱싱 + 파일 읽기(`workspace:readFile`) 구현, 멀티 워크스페이스(F03.5) 및 watcher는 미구현 |
+| 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 구현(F03.5), 세션 영속화는 Non-Goal |
 | 4.2 File Browser | Partial | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 구현, changed indicator는 미구현 |
 | 4.3 Code Viewer | Partial | 코드 프리뷰/라인 선택/preview-unavailable/확장자 색상 코딩(F03/F03.1) 구현, 점프/복사 연계는 미구현 |
 | 4.4 Spec Viewer | Planned | Markdown 렌더러/TOC/섹션 추적 미구현 |
@@ -91,7 +94,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
 | Renderer <-> Main 브리지 기본 틀 | Partial | `openDialog()`/`index()`/`readFile()` 구현, watcher/system 채널은 미구현 |
 
-요약: F01/F02/F03/F03.1은 완료되었고, 다음 우선순위는 F03.5(멀티 워크스페이스 기반/전환) 이후 F04+ 영역이다.
+요약: F01/F02/F03/F03.1/F03.5는 완료되었고, 다음 우선순위는 F04+ 영역이다. F04~F07은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -151,21 +154,21 @@ Renderer (React)
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | 워크스페이스 루트 선택 + 인덱싱 + 활성 파일 본문/선택 상태와 배너 피드백 관리 (F03.5에서 멀티 워크스페이스 세션 관리로 확장) |
+| Purpose | 멀티 워크스페이스 세션 관리 + 워크스페이스별 인덱싱/파일 본문/선택 상태와 배너 피드백 관리 |
 | Input | `window.workspace.openDialog()`, `window.workspace.index(rootPath)`, `window.workspace.readFile(rootPath, relativePath)` 결과 |
-| Output | `rootPath`, `fileTree`, `activeFile`, `activeFileContent`, `isIndexing`, `isReadingFile`, `readFileError`, `previewUnavailableReason`, `selectionRange`, `bannerMessage`, `openWorkspace()`, `selectFile()`, `setSelectionRange()`, `clearBanner()` (F03.5 예정: `activeWorkspaceId`, `workspaceOrder`, `workspacesById`, `setActiveWorkspace()`) |
+| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `activeFile`, `activeFileContent`, `isIndexing`, `isReadingFile`, `readFileError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
 | Dependencies | `workspace:openDialog`, `workspace:index`, `workspace:readFile` IPC + preload 브리지 |
-| 상태 | Partial (F01/F02/F03 Implemented, F03.5 Planned, F04+ 확장 예정) |
+| 상태 | Implemented (F01/F02/F03/F03.5) |
 
 ### 6.2 FileTreePanel
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | 좌측 파일 트리 표시 + 디렉터리 토글 탐색 + active file 표시 |
-| Input | 파일 트리 모델, activeFile, isIndexing |
-| Output | 파일 선택 이벤트 |
+| Purpose | 좌측 파일 트리 표시 + 디렉터리 토글 탐색 + active file 표시 + 워크스페이스별 펼침 상태 연동 |
+| Input | 파일 트리 모델, activeFile, isIndexing, expandedDirectories |
+| Output | 파일 선택 이벤트, expandedDirectories 변경 이벤트 |
 | Dependencies | WorkspaceProvider |
-| 상태 | Partial (F02 Implemented, F07 changed marker 예정) |
+| 상태 | Partial (F02/F03.5 Implemented, F07 changed marker 예정) |
 
 ### 6.3 CodeViewerPanel
 
@@ -197,6 +200,16 @@ Renderer (React)
 | Dependencies | WorkspaceProvider, IPC/Clipboard API |
 | 상태 | Planned |
 
+### 6.6 WorkspaceSwitcher
+
+| 항목 | 내용 |
+|---|---|
+| Purpose | 활성 워크스페이스 선택 및 닫기/제거 UX 제공 |
+| Input | `workspaces`, `activeWorkspaceId` |
+| Output | `setActiveWorkspace(id)`, `closeWorkspace(id)` 이벤트 |
+| Dependencies | WorkspaceProvider, 경로 축약 유틸(`abbreviateWorkspacePath`) |
+| 상태 | Implemented (F03.5) |
+
 ---
 
 ## 7. 상태 모델 (초안)
@@ -217,14 +230,15 @@ type WorkspaceSession = {
   readFileError: string | null // F03 구현
   previewUnavailableReason: 'file_too_large' | 'binary_file' | null // F03 구현
   selectionRange: SelectionState // F03 구현
+  expandedDirectories: string[] // F03.5 구현
   activeSpec: string | null // F04 예정
   changedFiles: string[] // F07 예정 (내부 구현은 Set 권장)
 }
 
 type WorkspaceState = {
-  activeWorkspaceId: string | null // F03.5 예정
-  workspaceOrder: string[] // F03.5 예정
-  workspacesById: Record<string, WorkspaceSession> // F03.5 예정
+  activeWorkspaceId: string | null // F03.5 구현
+  workspaceOrder: string[] // F03.5 구현 (최근 활성 순서 기반)
+  workspacesById: Record<string, WorkspaceSession> // F03.5 구현
   bannerMessage: string | null
 }
 
@@ -265,7 +279,7 @@ F03.1 기준 상태/표시 규칙:
 2. 지원 확장자(`.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.css`, `.md`, `.py`) 외에는 `plaintext` fallback을 사용한다.
 3. `.py`는 필수 지원 확장자로 `python` 하이라이트를 적용한다.
 
-F03.5 기준 상태 전이 규칙(Planned):
+F03.5 기준 상태 전이 규칙(Implemented):
 
 1. `openWorkspace()`는 항상 추가 동작을 수행한다(기존 워크스페이스 교체 금지).
 2. 이미 열린 `rootPath`를 다시 열면 신규 세션을 만들지 않고 기존 워크스페이스를 활성화한다.
@@ -287,9 +301,10 @@ F03.5 기준 상태 전이 규칙(Planned):
 
 규칙:
 
-1. 경로는 `workspaceRoot` 기준 상대경로만 허용
-2. 지원 형식이면 내부 라우팅(파일 열기 + 라인 이동/하이라이트)
-3. 그 외 링크는 일반 링크 처리(외부 URL은 시스템 브라우저)
+1. 경로는 `active workspace rootPath` 기준 상대경로만 허용
+2. 지원 형식이면 내부 라우팅(활성 워크스페이스에서 파일 열기 + 라인 이동/하이라이트)
+3. 현재 활성 워크스페이스에서 경로를 해석할 수 없으면 다른 워크스페이스로 자동 fallback하지 않고 오류 피드백을 표시한다.
+4. 외부 URL은 시스템 브라우저로 위임한다.
 
 ---
 
@@ -308,8 +323,8 @@ F03.5 기준 상태 전이 규칙(Planned):
 | `workspace:openDialog` | Renderer -> Main (`invoke`) | 없음 -> `{ canceled: boolean, selectedPath: string \| null, error?: string }` | Implemented (F01) |
 | `workspace:index` | Renderer -> Main (`invoke`) | `{ rootPath }` -> `{ ok, fileTree, error? }` | Implemented (F02) |
 | `workspace:readFile` | Renderer -> Main (`invoke`) | `{ rootPath, relativePath }` -> `{ ok, content, error?, previewUnavailableReason? }` | Implemented (F03) |
-| `workspace:watchStart` | Renderer -> Main (`invoke`) | `{ rootPath }` | Planned |
-| `workspace:watchEvent` | Main -> Renderer (`send`) | `{ changedRelativePaths[] }` | Planned |
+| `workspace:watchStart` | Renderer -> Main (`invoke`) | `{ workspaceId, rootPath }` | Planned |
+| `workspace:watchEvent` | Main -> Renderer (`send`) | `{ workspaceId, changedRelativePaths[] }` | Planned |
 | `system:openInIterm` | Renderer -> Main (`invoke`) | `{ rootPath }` | Planned |
 
 구현 메모:
@@ -317,6 +332,7 @@ F03.5 기준 상태 전이 규칙(Planned):
 - Renderer는 generic `invoke`를 직접 사용하지 않고 `window.workspace.openDialog()` 래퍼를 통해 호출한다.
 - 인덱싱은 `window.workspace.index(rootPath)` 래퍼를 통해 호출한다.
 - 파일 본문 읽기는 `window.workspace.readFile(rootPath, relativePath)` 래퍼를 통해 호출한다.
+- watcher 이벤트(`workspace:watchEvent`)는 `workspaceId`를 포함해 세션 오염 없이 라우팅한다.
 
 ---
 
@@ -348,6 +364,7 @@ F03.5 기준 상태 전이 규칙(Planned):
 - F02에서 인덱싱 실패/권한 오류 시 배너로 오류를 노출하고 앱 상태를 유지한다.
 - F03에서 파일 읽기 실패 시 center 패널에 오류를 표시하고 앱 상태를 유지한다.
 - F03에서 2MB 초과/바이너리 파일은 preview unavailable 상태로 안전하게 처리한다.
+- F03.5에서 워크스페이스 전환/중복 재오픈/닫기 시 세션 정합성(`workspaceOrder`, `activeWorkspaceId`)을 유지한다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
 
 ---
@@ -364,6 +381,20 @@ F03.5 기준 상태 전이 규칙(Planned):
 - 코드 뷰어 고도화(후속): Prism 확장 유지 vs `monaco-editor`/`codemirror` 전환 검토
 - Markdown: `react-markdown`, `remark-gfm`, `rehype-sanitize`
 - 파일 워처: Node native watcher 또는 `chokidar`
+
+### 11.3 멀티 워크스페이스 공통 규칙 (F04~F07 적용)
+
+1. F04~F07 기능은 기본적으로 `activeWorkspaceId` 기준으로만 동작한다.
+2. 활성 워크스페이스가 없으면 기능을 실행하지 않고 UI를 disabled 상태로 표시한다.
+3. 워크스페이스 간 자동 fallback(다른 워크스페이스에서 경로 탐색)은 MVP 범위에서 허용하지 않는다.
+4. 워크스페이스 전환 시 공유되면 안 되는 상태(예: line selection)는 리셋하고, 세션 상태(예: 파일 트리 펼침/active 문서)는 워크스페이스별로 유지한다.
+5. 후속 기능 테스트는 단일 워크스페이스 시나리오 + 다중 워크스페이스 전환 회귀 시나리오를 모두 포함한다.
+
+결정 고정(2026-02-20):
+- F04: 워크스페이스 전환 시 `activeSpec`만 복원한다.
+- F05: 활성 워크스페이스에서 링크 해석 실패 시 오류만 표시한다.
+- F07: watcher는 `openWorkspace` 시점에 즉시 시작한다.
+- F06/F08: 액션 가드는 기능별 개별 구현을 기본으로 한다(공통 guard layer는 보류).
 
 ---
 
@@ -510,20 +541,25 @@ F03.5 기준 상태 전이 규칙(Planned):
   - `src/App.css`
   - `src/App.test.tsx`
   - `src/workspace/workspace-model.test.ts` (신규)
-- 상태: `📋 Planned`
+- 상태: `✅ Done (2026-02-20)`
 
 #### F04. Markdown 듀얼 뷰 (raw + rendered) (P0, 크기 M)
 
 - 포함:
   - `.md` 선택 시 center(raw) + right(rendered) 동시 표시
   - GFM 렌더 + 기본 TOC 표시
+  - `activeSpec`를 워크스페이스별 세션 상태로 분리
 - 제외:
+  - TOC/스크롤/activeHeading의 워크스페이스별 복원
   - 섹션 active tracking 정밀화
   - 링크 인터셉트
+  - 워크스페이스 간 문서 상태 공유
 - 완료 기준:
   - `.md` 파일 선택 시 우측 렌더 패널이 정상 출력됨
+  - A/B 워크스페이스를 전환해도 각 워크스페이스의 `activeSpec` 상태가 섞이지 않음
 - 예상 변경 파일:
   - `src/App.tsx`
+  - `src/workspace/workspace-context.tsx`
   - `src/*` (SpecViewerPanel, markdown util)
   - `package.json` (markdown 관련 deps)
 - 상태: `📋 Planned`
@@ -532,12 +568,16 @@ F03.5 기준 상태 전이 규칙(Planned):
 
 - 포함:
   - `path`, `#Lx`, `#Lx-Ly` 파싱
-  - 링크 클릭 시 파일 열기 + 라인 점프 + 하이라이트
+  - 링크 클릭 시 활성 워크스페이스 기준 파일 열기 + 라인 점프 + 하이라이트
 - 제외:
   - 지원 포맷 외 특수 링크 확장
+  - 다른 워크스페이스 자동 검색/점프
 - 완료 기준:
   - `path.ts#L10-L20` 클릭 시 해당 파일로 이동/강조됨
+  - 같은 상대경로가 여러 워크스페이스에 있어도 활성 워크스페이스 기준으로 일관 동작
+  - 활성 워크스페이스에서 파일을 찾지 못하면 오류 피드백만 표시됨(자동 cross-workspace 탐색 없음)
 - 예상 변경 파일:
+  - `src/workspace/workspace-context.tsx`
   - `src/*` (SpecViewerPanel, CodeViewerPanel, parser util, state wiring)
 - 상태: `📋 Planned`
 
@@ -546,29 +586,37 @@ F03.5 기준 상태 전이 규칙(Planned):
 - 포함:
   - Copy Active File Path
   - Copy Selected Lines (`relative/path:Lx-Ly` 포맷)
+  - 활성 워크스페이스가 없을 때 disabled/가드 처리
+  - 가드는 기능별 개별 구현(공통 guard layer 미도입)
 - 제외:
   - Copy Current Spec Section
   - Open in iTerm
 - 완료 기준:
   - 두 버튼 모두 클립보드 결과 포맷이 요구사항과 일치
+  - 워크스페이스 전환 후 복사 결과가 현재 활성 워크스페이스 기준으로 바뀜
 - 예상 변경 파일:
   - `src/App.tsx`
+  - `src/workspace/workspace-context.tsx`
   - `src/*` (Toolbar, clipboard util)
 - 상태: `📋 Planned`
 
 #### F07. 파일 watcher + changed indicator (P0, 크기 M)
 
 - 포함:
-  - 워처 시작/종료 라이프사이클
-  - debounce + `changedFiles` 관리
+  - 워크스페이스별 워처 시작/종료 라이프사이클(`openWorkspace` 즉시 시작, `closeWorkspace` 즉시 정리)
+  - workspace 단위 debounce + `changedFiles` 관리
   - 트리 내 변경 표시(`●`)
 - 제외:
   - diff 뷰
 - 완료 기준:
   - 외부 편집 시 해당 파일에 변경 표시가 반영됨
+  - 워크스페이스 전환 시 각 워크스페이스의 변경 표시가 분리되어 유지됨
+  - 워크스페이스 제거 시 해당 watcher가 정리됨
 - 예상 변경 파일:
   - `electron/main.ts`
   - `electron/preload.ts`
+  - `electron/electron-env.d.ts`
+  - `src/workspace/workspace-model.ts`
   - `src/*` (provider, FileTreePanel)
 - 상태: `📋 Planned`
 
@@ -577,6 +625,7 @@ F03.5 기준 상태 전이 규칙(Planned):
 - 포함:
   - 툴바 버튼 + macOS iTerm 실행 IPC
   - 실패 시 사용자 피드백
+  - 액션 가드는 F06과 동일하게 기능별 개별 처리
 - 제외:
   - Terminal.app fallback
 - 완료 기준:
@@ -618,7 +667,7 @@ F03.5 기준 상태 전이 규칙(Planned):
 
 ### 12.3 Feature-draft 실행 순서 (권장)
 
-1. `F03.5` -> `F04` -> `F05` -> `F06` -> `F07` (`F01`, `F02`, `F03`, `F03.1` 완료)
+1. `F04` -> `F05` -> `F06` -> `F07` (`F01`, `F02`, `F03`, `F03.1`, `F03.5` 완료)
 2. MVP 필수 기능 완료 후 `F08`, `F09` 진행
 3. 마지막에 `F10`으로 안정화
 
@@ -639,7 +688,7 @@ F03.5 기준 상태 전이 규칙(Planned):
 - [x] file tree에서 파일 열기 가능 (F03 완료, 2026-02-20)
 - [x] 코드 뷰어 라인 선택 범위 추적 가능 (F03 완료, 2026-02-20)
 - [x] 주요 확장자(`.py` 포함) 색상 코딩 + `plaintext` fallback (F03.1 완료, 2026-02-20)
-- [ ] 멀티 워크스페이스 추가/전환/제거 가능 (`Open Workspace`=항상 추가, 중복 경로=기존 포커스, 전환 시 selection 리셋, 트리 펼침 상태 복원)
+- [x] 멀티 워크스페이스 추가/전환/제거 가능 (`Open Workspace`=항상 추가, 중복 경로=기존 포커스, 전환 시 selection 리셋, 트리 펼침 상태 복원) (F03.5 완료, 2026-02-20)
 - [ ] `.md` 파일 선택 시 center(raw) + right(rendered) 동작
 - [ ] `path.ts#L10-L20` 클릭 시 점프 및 하이라이트
 - [ ] 툴바 액션 4종 정상 동작
@@ -650,28 +699,36 @@ F03.5 기준 상태 전이 규칙(Planned):
 1. 링크 파싱/라인 변환 로직 단위 테스트
 2. 파일 트리/상태 전이 통합 테스트
 3. 주요 IPC 계약 스모크 테스트
+4. F04~F07 공통 멀티 워크스페이스 회귀 테스트
 
-현재 검증 결과(F01/F02/F03/F03.1):
+현재 검증 결과(F01/F02/F03/F03.1/F03.5):
 
-- 자동 테스트: 총 18건 통과(`npm test`)
-  - `src/App.test.tsx` 9건
+- 자동 테스트: 총 24건 통과(`npm test`)
+  - `src/App.test.tsx` 10건
+  - `src/workspace/workspace-model.test.ts` 5건
   - `src/code-viewer/line-selection.test.ts` 5건
   - `src/code-viewer/language-map.test.ts` 2건
   - `src/code-viewer/code-viewer-panel.test.tsx` 2건
 - 품질 게이트: `npm run lint`, `npm run build` 통과
-- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1, 2026-02-20)
+- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5, 2026-02-20)
 
 ---
 
 ## 14. 리스크 및 미확정 사항
 
-1. VS Code급 상세 syntax highlighting/semantic token 지원은 MVP 범위 밖이며 후속 결정 필요
-2. 파일 워처 구현 방식(native vs chokidar) 미확정
-3. Markdown 섹션 감지 정확도는 MVP에서 best-effort 범위
-4. iTerm 연동 실패 시 fallback(Terminal.app) 여부는 후순위
+1. F04는 `activeSpec`만 복원하도록 고정했기 때문에 TOC/스크롤/activeHeading 복원이 필요해지면 후속 확장 비용이 발생한다.
+2. F05는 링크 해석 실패 시 오류만 표시하므로, 파일을 찾는 보조 UX는 후속 Feature로 남는다.
+3. F07 watcher를 워크스페이스별로 운영할 때 시스템 리소스 상한(동시 watcher 수, debounce 전략) 튜닝이 필요하다.
+4. `system:openInIterm` 실패 시 fallback(Terminal.app) 정책이 확정되지 않았다.
 
 ---
 
-## 15. 결론
+## 15. Open Questions (F04~F07 선결)
 
-이 문서는 F01/F02/F03/F03.1 구현 결과와 F03.5 계획 범위까지 반영된 스펙이다. 현재 기준에서 워크스페이스 부트스트랩/파일 트리/코드 뷰어(기본 + 확장자 색상 코딩)는 완료됐고, 다음 단계는 섹션 12 순서대로 `F03.5`를 구현한 뒤 `F04+`를 확장하는 것이다.
+- 현재 없음 (2026-02-20 결정 반영 완료)
+
+---
+
+## 16. 결론
+
+이 문서는 F01/F02/F03/F03.1/F03.5 구현 결과를 반영한 스펙이며, F04~F07을 멀티 워크스페이스 기준으로 재정렬하고 주요 의사결정을 고정했다. 다음 단계는 고정된 정책을 기준으로 섹션 12 순서대로 F04+를 확장하는 것이다.
