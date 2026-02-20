@@ -306,6 +306,10 @@ function registerIpcHandlers() {
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    width: 1440,
+    height: 900,
+    minWidth: 1100,
+    minHeight: 720,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },

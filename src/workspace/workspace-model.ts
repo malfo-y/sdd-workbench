@@ -9,6 +9,7 @@ export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
   activeFile: string | null
+  activeSpec: string | null
   activeFileContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
@@ -61,6 +62,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     rootPath,
     fileTree: [],
     activeFile: null,
+    activeSpec: null,
     activeFileContent: null,
     isIndexing: false,
     isReadingFile: false,

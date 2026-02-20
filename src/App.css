@@ -1,7 +1,13 @@
 .app-shell {
-  margin: 0 auto;
-  max-width: 1320px;
+  margin: 0;
+  max-width: none;
   padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-header {
@@ -46,21 +52,65 @@
 }
 
 .workspace-layout {
+  --pane-left: 25%;
+  --pane-center: 50%;
+  --pane-right: 25%;
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(220px, 1fr) minmax(360px, 2fr) minmax(220px, 1fr);
+  align-items: stretch;
+  grid-template-columns:
+    minmax(220px, var(--pane-left))
+    12px
+    minmax(360px, var(--pane-center))
+    12px
+    minmax(220px, var(--pane-right));
   margin-top: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane-slot {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.pane-resizer {
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+}
+
+.pane-resizer::before {
+  background: #3f3f3f;
+  border-radius: 999px;
+  content: '';
+  height: 100%;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 2px;
+}
+
+.pane-resizer:hover::before,
+.pane-resizer.is-active::before {
+  background: #7bb6e8;
 }
 
 .workspace-card {
   border: 1px solid #484848;
   border-radius: 8px;
-  min-height: 280px;
   padding: 16px;
+  height: 100%;
+  min-height: 0;
 }
 
-.spec-placeholder {
+.spec-panel {
   min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .label {
@@ -81,6 +131,175 @@
   color: #9cd2ff;
   font-size: 0.9rem;
   margin-top: 8px;
+}
+
+.spec-viewer-panel {
+  border-top: 1px solid #3f3f3f;
+  margin-top: 12px;
+  padding-top: 12px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.spec-viewer-active-spec {
+  color: #c2e2ff;
+  font-size: 0.85rem;
+}
+
+.spec-viewer-empty,
+.spec-viewer-loading,
+.spec-viewer-unavailable {
+  color: #9e9e9e;
+  font-size: 0.9rem;
+  margin: 8px 0 0;
+}
+
+.spec-viewer-error {
+  color: #f09696;
+  font-size: 0.9rem;
+  margin: 8px 0 0;
+}
+
+.spec-viewer-body {
+  display: grid;
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  margin-top: 10px;
+  min-height: 0;
+  flex: 1;
+}
+
+.spec-viewer-toc {
+  border: 1px solid #3f3f3f;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.spec-viewer-toc-label {
+  margin-bottom: 6px;
+}
+
+.spec-viewer-toc-list {
+  list-style: none;
+  margin: 0;
+  max-height: 140px;
+  overflow: auto;
+  padding: 0;
+}
+
+.spec-viewer-toc-item {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.spec-viewer-toc-item a {
+  color: #9cd2ff;
+  text-decoration: none;
+}
+
+.spec-viewer-toc-item a:hover {
+  text-decoration: underline;
+}
+
+.spec-viewer-toc-item.depth-2 {
+  padding-left: 10px;
+}
+
+.spec-viewer-toc-item.depth-3 {
+  padding-left: 20px;
+}
+
+.spec-viewer-content {
+  border: 1px solid #3f3f3f;
+  border-radius: 6px;
+  overflow: auto;
+  padding: 12px;
+  min-height: 0;
+  height: 100%;
+}
+
+.spec-viewer-content :first-child {
+  margin-top: 0;
+}
+
+.spec-viewer-content :last-child {
+  margin-bottom: 0;
+}
+
+.spec-viewer-content code {
+  background: #222;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  padding: 1px 4px;
+}
+
+.spec-viewer-content pre {
+  background: #1d1d1d;
+  border: 1px solid #313131;
+  border-radius: 6px;
+  overflow: auto;
+  padding: 10px;
+}
+
+.spec-viewer-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.spec-viewer-content table {
+  border-collapse: collapse;
+  display: block;
+  overflow: auto;
+  width: 100%;
+}
+
+.spec-viewer-content th,
+.spec-viewer-content td {
+  border: 1px solid #3f3f3f;
+  padding: 6px 8px;
+}
+
+.spec-link-popover {
+  background: #171717;
+  border: 1px solid #4b4b4b;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  max-width: 280px;
+  padding: 10px;
+  position: fixed;
+  z-index: 40;
+}
+
+.spec-link-popover-title {
+  color: #c0c0c0;
+  font-size: 0.78rem;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.spec-link-popover-href {
+  color: #d5d5d5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.78rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.spec-link-popover-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.spec-link-popover-actions button {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 0.45em 0.7em;
 }
 
 .text-banner {
@@ -107,9 +326,11 @@
 .file-tree-panel {
   border: 1px solid #484848;
   border-radius: 8px;
-  min-height: 280px;
   overflow: auto;
   padding: 12px;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .tree-list {
@@ -180,10 +401,12 @@
 .code-viewer-panel {
   border: 1px solid #484848;
   border-radius: 8px;
-  min-height: 280px;
   min-width: 0;
   overflow: auto;
   padding: 12px;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .code-viewer-header {
@@ -339,6 +562,12 @@
   }
 
   .workspace-layout {
+    gap: 16px;
     grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .pane-resizer {
+    display: none;
   }
 }

@@ -25,6 +25,7 @@ type WorkspaceContextValue = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
   activeFile: string | null
+  activeSpec: string | null
   activeFileContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
@@ -37,6 +38,7 @@ type WorkspaceContextValue = {
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
   closeWorkspace: (workspaceId: WorkspaceId) => void
   selectFile: (relativePath: string) => void
+  showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
   clearBanner: () => void
@@ -48,6 +50,10 @@ const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(
 
 type WorkspaceProviderProps = {
   children: ReactNode
+}
+
+function isMarkdownFile(relativePath: string) {
+  return relativePath.toLowerCase().endsWith('.md')
 }
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
@@ -63,6 +69,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     setBannerMessage(null)
   }, [])
 
+  const showBanner = useCallback((message: string) => {
+    setBannerMessage(message)
+  }, [])
+
   const loadWorkspaceIndex = useCallback(
     async (workspaceId: WorkspaceId, rootPath: string) => {
     const requestId = (indexRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
@@ -74,6 +84,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         isIndexing: true,
         fileTree: [],
         activeFile: null,
+        activeSpec: null,
         activeFileContent: null,
         isReadingFile: false,
         readFileError: null,
@@ -207,6 +218,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
         ...currentSession,
         activeFile: relativePath,
+        activeSpec: isMarkdownFile(relativePath)
+          ? relativePath
+          : currentSession.activeSpec,
         activeFileContent: null,
         selectionRange: null,
         readFileError: null,
@@ -334,6 +348,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       rootPath: activeWorkspace?.rootPath ?? null,
       fileTree: activeWorkspace?.fileTree ?? [],
       activeFile: activeWorkspace?.activeFile ?? null,
+      activeSpec: activeWorkspace?.activeSpec ?? null,
       activeFileContent: activeWorkspace?.activeFileContent ?? null,
       isIndexing: activeWorkspace?.isIndexing ?? false,
       isReadingFile: activeWorkspace?.isReadingFile ?? false,
@@ -346,6 +361,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setActiveWorkspace,
       closeWorkspace,
       selectFile,
+      showBanner,
       setSelectionRange,
       setExpandedDirectories,
       clearBanner,
@@ -358,6 +374,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setActiveWorkspace,
       closeWorkspace,
       selectFile,
+      showBanner,
       setSelectionRange,
       setExpandedDirectories,
       clearBanner,

@@ -215,3 +215,41 @@
 - Impact / follow-up:
   - `main.md`의 `Open Questions`는 해소 상태로 전환한다.
   - 다음 `feature-draft`는 본 결정들을 전제로 수용 기준/테스트 시나리오를 작성한다.
+
+## 2026-02-20 - F04 구현 완료 반영(Markdown 듀얼 뷰 + workspace별 activeSpec 복원)
+
+- Context:
+  - F04 구현 후 사용자 수동 스모크와 자동 검증(`npm test`, `npm run lint`, `npm run build`)이 모두 통과했음.
+  - 기존 스펙에는 F04가 Planned로 남아 있어 구현 상태와 문서 상태가 불일치했음.
+- Decision:
+  - F04를 `✅ Done`으로 전환한다.
+  - `.md` 선택 시 center(raw)+right(rendered) 동시 표시를 기본 동작으로 고정한다.
+  - `activeSpec`는 워크스페이스 세션별로 분리 복원하고, TOC/스크롤/activeHeading 복원은 후속으로 유지한다.
+- Rationale:
+  - 완료된 기능을 Planned로 유지하면 우선순위 큐/테스트 기준이 왜곡된다.
+  - F05 이후 링크 점프 기능은 F04 기반 렌더 패널을 전제로 하므로 상태를 명확히 고정해야 한다.
+- Alternatives considered:
+  - F04를 Partial 상태로 유지
+  - TOC/스크롤 복원까지 포함해 F04 범위를 확대
+- Impact / follow-up:
+  - `main.md`의 커버리지 매트릭스/컴포넌트 상태/Feature Queue/수용 기준을 F04 완료 상태로 동기화한다.
+  - 다음 우선순위는 F04.1(링크 안전화) 이후 F05로 진행한다.
+
+## 2026-02-20 - F04.1 구현 완료 반영(링크 안전 인터셉트 + copy popover, 글로벌 배너 미사용)
+
+- Context:
+  - rendered markdown 링크 클릭 시 renderer가 이동/리로드되는 문제가 있었고, F04.1에서 안전 인터셉트가 구현됨.
+  - 후속 사용자 피드백으로 링크 클릭 시 상단 텍스트 배너는 UX 노이즈가 커서 제거 요청이 있었음.
+- Decision:
+  - F04.1을 `✅ Done`으로 전환한다.
+  - same-workspace 상대 링크는 파일 열기로 처리하고, external/unresolved 링크는 이동 없이 copy popover를 표시한다.
+  - 링크 액션 피드백은 글로벌 배너를 사용하지 않고 popover 중심으로 처리한다.
+- Rationale:
+  - 기본 네비게이션 차단으로 앱 상태 리셋 리스크를 제거하면서 링크 주소 복사 흐름을 유지할 수 있다.
+  - 링크 클릭마다 글로벌 배너를 노출하지 않으면 반복 사용 시 시각적 잡음을 줄일 수 있다.
+- Alternatives considered:
+  - 외부 링크를 시스템 브라우저로 즉시 오픈
+  - external/unresolved 링크에서 배너 + popover를 동시 유지
+- Impact / follow-up:
+  - `main.md`의 링크/경로 규칙(섹션 8)과 F05 범위를 재정의해 line jump 미구현 범위를 명확히 분리한다.
+  - F05에서 `#Lx`, `#Lx-Ly` 점프/하이라이트를 F04.1 인터셉트 경로 위에 확장한다.

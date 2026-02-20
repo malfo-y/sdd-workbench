@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import App from './App'
 import { WorkspaceProvider } from './workspace/workspace-context'
 
-describe('F01/F02/F03 workspace flow', () => {
+describe('F01/F02/F03/F04 workspace flow', () => {
   const openDialogMock = vi.fn<() => Promise<WorkspaceOpenDialogResult>>()
   const indexWorkspaceMock =
     vi.fn<(rootPath: string) => Promise<WorkspaceIndexResult>>()
@@ -569,6 +569,325 @@ describe('F01/F02/F03 workspace flow', () => {
     expect(screen.getByTestId('code-viewer-language')).toHaveTextContent(
       'Language: python',
     )
+  })
+
+  it('renders markdown in right spec panel when .md file is selected', async () => {
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'README.md',
+        relativePath: 'README.md',
+        kind: 'file',
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: '# Title\n\n## Intro\nbody',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toBeInTheDocument()
+    })
+
+    expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+      'README.md',
+    )
+    expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent('Title')
+    expect(screen.getByTestId('spec-viewer-toc')).toBeInTheDocument()
+  })
+
+  it('opens same-workspace markdown links from rendered spec content', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+          {
+            name: 'overview.md',
+            relativePath: 'docs/overview.md',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: '# Main\n\n[Open Overview](./overview.md)',
+        }
+      }
+
+      if (relativePath === 'docs/overview.md') {
+        return {
+          ok: true,
+          content: '# Overview',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open Overview' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+        'docs/overview.md',
+      )
+    })
+    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'docs/overview.md')
+    expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+      'title',
+      workspaceRoot,
+    )
+  })
+
+  it('shows copy popover for external markdown links without resetting workspace', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: '# Main\n\n[External Link](https://example.com/docs)',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: 'External Link' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+        'https://example.com/docs',
+      )
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+      'title',
+      workspaceRoot,
+    )
+  })
+
+  it('restores activeSpec per workspace when switching', async () => {
+    const projectARoot = '/Users/tester/spec-project-a'
+    const projectBRoot = '/Users/tester/spec-project-b'
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectBRoot,
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === projectARoot) {
+        return {
+          ok: true,
+          fileTree: [
+            {
+              name: 'SPEC_A.md',
+              relativePath: 'SPEC_A.md',
+              kind: 'file',
+            },
+          ],
+        }
+      }
+
+      if (rootPath === projectBRoot) {
+        return {
+          ok: true,
+          fileTree: [
+            {
+              name: 'SPEC_B.md',
+              relativePath: 'SPEC_B.md',
+              kind: 'file',
+            },
+          ],
+        }
+      }
+
+      return {
+        ok: false,
+        fileTree: [],
+      }
+    })
+
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'SPEC_A.md') {
+        return {
+          ok: true,
+          content: '# Workspace A',
+        }
+      }
+
+      if (relativePath === 'SPEC_B.md') {
+        return {
+          ok: true,
+          content: '# Workspace B',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'SPEC_A.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'SPEC_A.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'SPEC_A.md',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'SPEC_B.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'SPEC_B.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'SPEC_B.md',
+      )
+    })
+
+    const workspaceSelect = screen.getByTestId(
+      'workspace-switcher-select',
+    ) as HTMLSelectElement
+
+    fireEvent.change(workspaceSelect, { target: { value: projectARoot } })
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'SPEC_A.md',
+      )
+    })
+
+    fireEvent.change(workspaceSelect, { target: { value: projectBRoot } })
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'SPEC_B.md',
+      )
+    })
   })
 
   it('shows preview unavailable state for binary files', async () => {

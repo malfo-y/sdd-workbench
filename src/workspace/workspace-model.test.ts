@@ -100,4 +100,27 @@ describe('workspace-model', () => {
       createWorkspaceId('C:/Users/tester/project-a'),
     )
   })
+
+  it('keeps activeSpec separated by workspace', () => {
+    const workspaceAId = createWorkspaceId(ROOT_A)
+    const workspaceBId = createWorkspaceId(ROOT_B)
+
+    let state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    state = updateWorkspaceSession(state, workspaceAId, (session) => ({
+      ...session,
+      activeSpec: 'docs/spec-a.md',
+    }))
+
+    state = addOrFocusWorkspace(state, ROOT_B).state
+    state = updateWorkspaceSession(state, workspaceBId, (session) => ({
+      ...session,
+      activeSpec: 'docs/spec-b.md',
+    }))
+
+    state = setActiveWorkspace(state, workspaceAId)
+    expect(state.workspacesById[workspaceAId]?.activeSpec).toBe('docs/spec-a.md')
+
+    state = setActiveWorkspace(state, workspaceBId)
+    expect(state.workspacesById[workspaceBId]?.activeSpec).toBe('docs/spec-b.md')
+  })
 })
