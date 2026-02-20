@@ -618,7 +618,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('spec-viewer-toc')).toBeInTheDocument()
   })
 
-  it('opens same-workspace markdown links from rendered spec content', async () => {
+  it('opens line-range markdown links from rendered spec content and applies selection', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [
       {
@@ -631,9 +631,16 @@ describe('F01/F02/F03/F04 workspace flow', () => {
             relativePath: 'docs/README.md',
             kind: 'file',
           },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
           {
-            name: 'overview.md',
-            relativePath: 'docs/overview.md',
+            name: 'overview.ts',
+            relativePath: 'src/overview.ts',
             kind: 'file',
           },
         ],
@@ -652,14 +659,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       if (relativePath === 'docs/README.md') {
         return {
           ok: true,
-          content: '# Main\n\n[Open Overview](./overview.md)',
+          content: '# Main\n\n[Open Overview](../src/overview.ts#L2-L3)',
         }
       }
 
-      if (relativePath === 'docs/overview.md') {
+      if (relativePath === 'src/overview.ts') {
         return {
           ok: true,
-          content: '# Overview',
+          content: 'line1\nline2\nline3\nline4',
         }
       }
 
@@ -697,14 +704,257 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('active-file-path')).toHaveTextContent(
-        'docs/overview.md',
+        'src/overview.ts',
       )
     })
-    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'docs/overview.md')
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L2-L3',
+    )
+    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/overview.ts')
     expect(screen.getByTestId('workspace-path')).toHaveAttribute(
       'title',
       workspaceRoot,
     )
+  })
+
+  it('opens markdown links without line hash and keeps selection empty', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'plain.ts',
+            relativePath: 'src/plain.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: '# Main\n\n[Open Plain](../src/plain.ts)',
+        }
+      }
+
+      if (relativePath === 'src/plain.ts') {
+        return {
+          ok: true,
+          content: 'const value = 1',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open Plain' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+        'src/plain.ts',
+      )
+    })
+
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: none',
+    )
+  })
+
+  it('opens line links using the currently active workspace after switching', async () => {
+    const projectARoot = '/Users/tester/projects/workspace-a'
+    const projectBRoot = '/Users/tester/projects/workspace-b'
+    const workspaceTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'shared.ts',
+            relativePath: 'src/shared.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectBRoot,
+      })
+
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: workspaceTree,
+    })
+
+    readFileMock.mockImplementation(async (rootPath, relativePath) => {
+      if (rootPath === projectARoot && relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: '# Workspace A\n\n[Open Shared](../src/shared.ts#L3-L4)',
+        }
+      }
+
+      if (rootPath === projectBRoot && relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: '# Workspace B\n\n[Open Shared](../src/shared.ts#L5-L6)',
+        }
+      }
+
+      if (rootPath === projectARoot && relativePath === 'src/shared.ts') {
+        return {
+          ok: true,
+          content: 'a1\na2\na3\na4\na5',
+        }
+      }
+
+      if (rootPath === projectBRoot && relativePath === 'src/shared.ts') {
+        return {
+          ok: true,
+          content: 'b1\nb2\nb3\nb4\nb5\nb6',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'Workspace A',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectBRoot,
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'Workspace B',
+      )
+    })
+
+    fireEvent.change(screen.getByTestId('workspace-switcher-select'), {
+      target: { value: projectARoot },
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectARoot,
+      )
+    })
+    expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+      'Workspace A',
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open Shared' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-file-path')).toHaveTextContent(
+        'src/shared.ts',
+      )
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L3-L4',
+    )
+    expect(readFileMock).toHaveBeenLastCalledWith(projectARoot, 'src/shared.ts')
   })
 
   it('shows copy popover for external markdown links without resetting workspace', async () => {

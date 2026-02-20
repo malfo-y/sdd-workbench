@@ -25,6 +25,7 @@ describe('resolveSpecLink', () => {
       kind: 'workspace-file',
       href: './apify/01-overview.md',
       targetRelativePath: '_sdd/spec/apify/01-overview.md',
+      lineRange: null,
     })
   })
 
@@ -33,6 +34,7 @@ describe('resolveSpecLink', () => {
       kind: 'workspace-file',
       href: '../README.md',
       targetRelativePath: '_sdd/README.md',
+      lineRange: null,
     })
   })
 
@@ -41,6 +43,50 @@ describe('resolveSpecLink', () => {
       kind: 'workspace-file',
       href: './guide.md?view=full#section',
       targetRelativePath: 'docs/guide.md',
+      lineRange: null,
+    })
+  })
+
+  it('parses single-line hash anchors in workspace file links', () => {
+    expect(resolveSpecLink('./guide.md#L10', 'docs/main.md')).toEqual({
+      kind: 'workspace-file',
+      href: './guide.md#L10',
+      targetRelativePath: 'docs/guide.md',
+      lineRange: {
+        startLine: 10,
+        endLine: 10,
+      },
+    })
+  })
+
+  it('parses line ranges and normalizes descending values', () => {
+    expect(resolveSpecLink('./guide.md#L10-L20', 'docs/main.md')).toEqual({
+      kind: 'workspace-file',
+      href: './guide.md#L10-L20',
+      targetRelativePath: 'docs/guide.md',
+      lineRange: {
+        startLine: 10,
+        endLine: 20,
+      },
+    })
+
+    expect(resolveSpecLink('./guide.md#L20-L10', 'docs/main.md')).toEqual({
+      kind: 'workspace-file',
+      href: './guide.md#L20-L10',
+      targetRelativePath: 'docs/guide.md',
+      lineRange: {
+        startLine: 10,
+        endLine: 20,
+      },
+    })
+  })
+
+  it('ignores non-line hash fragments for workspace file links', () => {
+    expect(resolveSpecLink('./guide.md#overview', 'docs/main.md')).toEqual({
+      kind: 'workspace-file',
+      href: './guide.md#overview',
+      targetRelativePath: 'docs/guide.md',
+      lineRange: null,
     })
   })
 

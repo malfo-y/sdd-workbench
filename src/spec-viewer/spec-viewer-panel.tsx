@@ -4,14 +4,17 @@ import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
 import { extractMarkdownHeadings } from './markdown-utils'
 import { SpecLinkPopover } from './spec-link-popover'
-import { resolveSpecLink } from './spec-link-utils'
+import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 
 type SpecViewerPanelProps = {
   activeSpecPath: string | null
   markdownContent: string | null
   isLoading: boolean
   readError: string | null
-  onOpenRelativePath: (relativePath: string) => boolean
+  onOpenRelativePath: (
+    relativePath: string,
+    lineRange: SpecLinkLineRange | null,
+  ) => boolean
 }
 
 type LinkPopoverState = {
@@ -69,7 +72,10 @@ export function SpecViewerPanel({
       event.preventDefault()
 
       if (resolvedLink.kind === 'workspace-file') {
-        const opened = onOpenRelativePath(resolvedLink.targetRelativePath)
+        const opened = onOpenRelativePath(
+          resolvedLink.targetRelativePath,
+          resolvedLink.lineRange,
+        )
         if (opened) {
           setLinkPopoverState(null)
           return

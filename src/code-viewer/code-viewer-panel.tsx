@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   computeSelectionRange,
   splitPreviewLines,
@@ -7,6 +7,12 @@ import {
 import { getHighlightLanguage } from './language-map'
 import { highlightLineContent } from './syntax-highlight'
 
+export type CodeViewerJumpRequest = {
+  targetRelativePath: string
+  lineNumber: number
+  token: number
+}
+
 type CodeViewerPanelProps = {
   activeFile: string | null
   activeFileContent: string | null
@@ -14,6 +20,7 @@ type CodeViewerPanelProps = {
   readFileError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
+  jumpRequest: CodeViewerJumpRequest | null
   onSelectRange: (range: LineSelectionRange | null) => void
 }
 
@@ -34,9 +41,20 @@ export function CodeViewerPanel({
   readFileError,
   previewUnavailableReason,
   selectionRange,
+  jumpRequest,
   onSelectRange,
 }: CodeViewerPanelProps) {
   const [anchorLine, setAnchorLine] = useState<number | null>(null)
+  const lineButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({})
+  const lastHandledJumpTokenRef = useRef<number | null>(null)
+  const previewLines = useMemo(
+    () => splitPreviewLines(activeFileContent ?? ''),
+    [activeFileContent],
+  )
+  const highlightLanguage = useMemo(
+    () => getHighlightLanguage(activeFile),
+    [activeFile],
+  )
 
   useEffect(() => {
     setAnchorLine(null)
@@ -48,14 +66,39 @@ export function CodeViewerPanel({
     }
   }, [selectionRange])
 
-  const previewLines = useMemo(
-    () => splitPreviewLines(activeFileContent ?? ''),
-    [activeFileContent],
-  )
-  const highlightLanguage = useMemo(
-    () => getHighlightLanguage(activeFile),
-    [activeFile],
-  )
+  useEffect(() => {
+    if (!jumpRequest || !activeFileContent || !activeFile) {
+      return
+    }
+
+    if (lastHandledJumpTokenRef.current === jumpRequest.token) {
+      return
+    }
+
+    if (activeFile !== jumpRequest.targetRelativePath) {
+      return
+    }
+
+    const lineCount = previewLines.length
+    if (lineCount === 0) {
+      return
+    }
+
+    const normalizedLineNumber = Math.min(
+      Math.max(1, jumpRequest.lineNumber),
+      lineCount,
+    )
+
+    const targetLineButton = lineButtonRefs.current[normalizedLineNumber]
+    if (!targetLineButton) {
+      return
+    }
+
+    if (typeof targetLineButton.scrollIntoView === 'function') {
+      targetLineButton.scrollIntoView({ block: 'center' })
+    }
+    lastHandledJumpTokenRef.current = jumpRequest.token
+  }, [activeFile, activeFileContent, jumpRequest, previewLines])
 
   const handleLineClick = (lineNumber: number, extendSelection: boolean) => {
     const nextSelection = computeSelectionRange(
@@ -149,6 +192,9 @@ export function CodeViewerPanel({
                   <button
                     className="code-line-button"
                     data-testid={`code-line-${lineNumber}`}
+                    ref={(element) => {
+                      lineButtonRefs.current[lineNumber] = element
+                    }}
                     onClick={(event) =>
                       handleLineClick(lineNumber, event.shiftKey)
                     }

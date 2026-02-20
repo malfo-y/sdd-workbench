@@ -1,3 +1,8 @@
+export type SpecLinkLineRange = {
+  startLine: number
+  endLine: number
+}
+
 type SpecLinkResolution =
   | {
       kind: 'anchor'
@@ -7,6 +12,7 @@ type SpecLinkResolution =
       kind: 'workspace-file'
       href: string
       targetRelativePath: string
+      lineRange: SpecLinkLineRange | null
     }
   | {
       kind: 'external'
@@ -19,6 +25,7 @@ type SpecLinkResolution =
     }
 
 const EXTERNAL_LINK_PATTERN = /^[a-z][a-z\d+.-]*:/i
+const LINE_RANGE_HASH_PATTERN = /^L(\d+)(?:-L?(\d+))?$/i
 
 function normalizePosixPath(input: string): string {
   const isAbsolute = input.startsWith('/')
@@ -69,6 +76,34 @@ function dirnamePosix(input: string): string {
   return normalized.slice(0, lastSlashIndex) || '.'
 }
 
+function parseLineRangeFromHash(hashFragment: string): SpecLinkLineRange | null {
+  if (!hashFragment) {
+    return null
+  }
+
+  const match = LINE_RANGE_HASH_PATTERN.exec(hashFragment)
+  if (!match) {
+    return null
+  }
+
+  const parsedStartLine = Number.parseInt(match[1], 10)
+  const parsedEndLine = match[2]
+    ? Number.parseInt(match[2], 10)
+    : parsedStartLine
+
+  if (!Number.isFinite(parsedStartLine) || !Number.isFinite(parsedEndLine)) {
+    return null
+  }
+
+  if (parsedStartLine < 1 || parsedEndLine < 1) {
+    return null
+  }
+
+  return parsedStartLine <= parsedEndLine
+    ? { startLine: parsedStartLine, endLine: parsedEndLine }
+    : { startLine: parsedEndLine, endLine: parsedStartLine }
+}
+
 export function resolveSpecLink(
   href: string | null | undefined,
   activeSpecPath: string | null,
@@ -106,6 +141,10 @@ export function resolveSpecLink(
       reason: 'missing_active_spec',
     }
   }
+
+  const hashIndex = normalizedHref.indexOf('#')
+  const hashFragment =
+    hashIndex >= 0 ? normalizedHref.slice(hashIndex + 1) : ''
 
   const [pathWithoutHash] = normalizedHref.split('#')
   const [pathWithoutQuery] = pathWithoutHash.split('?')
@@ -150,5 +189,6 @@ export function resolveSpecLink(
     kind: 'workspace-file',
     href: normalizedHref,
     targetRelativePath: resolvedPath,
+    lineRange: parseLineRangeFromHash(hashFragment),
   }
 }

@@ -7,8 +7,12 @@ import {
   type CSSProperties,
 } from 'react'
 import './App.css'
-import { CodeViewerPanel } from './code-viewer/code-viewer-panel'
+import {
+  CodeViewerPanel,
+  type CodeViewerJumpRequest,
+} from './code-viewer/code-viewer-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
+import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
 import { abbreviateWorkspacePath } from './workspace/path-format'
 import { useWorkspace } from './workspace/use-workspace'
@@ -100,6 +104,9 @@ function App() {
     () => collectWorkspaceFilePaths(fileTree),
     [fileTree],
   )
+  const jumpRequestTokenRef = useRef(0)
+  const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
+    useState<CodeViewerJumpRequest | null>(null)
 
   const workspaceLayoutStyle = useMemo(
     () =>
@@ -210,15 +217,32 @@ function App() {
   }, [activeResizeHandle])
 
   const openSpecRelativePath = useCallback(
-    (relativePath: string) => {
+    (
+      relativePath: string,
+      lineRange: SpecLinkLineRange | null,
+    ) => {
       if (!workspaceFilePathSet.has(relativePath)) {
         return false
       }
 
       selectFile(relativePath)
+      if (lineRange) {
+        setSelectionRange({
+          startLine: lineRange.startLine,
+          endLine: lineRange.endLine,
+        })
+        jumpRequestTokenRef.current += 1
+        setCodeViewerJumpRequest({
+          targetRelativePath: relativePath,
+          lineNumber: lineRange.startLine,
+          token: jumpRequestTokenRef.current,
+        })
+      } else {
+        setCodeViewerJumpRequest(null)
+      }
       return true
     },
-    [workspaceFilePathSet, selectFile],
+    [workspaceFilePathSet, selectFile, setSelectionRange],
   )
 
   return (
@@ -274,6 +298,7 @@ function App() {
             activeFile={activeFile}
             activeFileContent={activeFileContent}
             isReadingFile={isReadingFile}
+            jumpRequest={codeViewerJumpRequest}
             onSelectRange={setSelectionRange}
             previewUnavailableReason={previewUnavailableReason}
             readFileError={readFileError}

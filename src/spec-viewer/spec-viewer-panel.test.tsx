@@ -20,14 +20,22 @@ describe('SpecViewerPanel', () => {
     isLoading = false,
     readError = null,
     onOpenRelativePath = vi
-      .fn<(relativePath: string) => boolean>()
+      .fn<
+        (
+          relativePath: string,
+          lineRange: { startLine: number; endLine: number } | null,
+        ) => boolean
+      >()
       .mockReturnValue(true),
   }: {
     activeSpecPath?: string | null
     markdownContent?: string | null
     isLoading?: boolean
     readError?: string | null
-    onOpenRelativePath?: (relativePath: string) => boolean
+    onOpenRelativePath?: (
+      relativePath: string,
+      lineRange: { startLine: number; endLine: number } | null,
+    ) => boolean
   } = {}) {
     render(
       <SpecViewerPanel
@@ -85,7 +93,12 @@ describe('SpecViewerPanel', () => {
 
   it('opens same-workspace relative links and prevents default navigation', () => {
     const onOpenRelativePath = vi
-      .fn<(relativePath: string) => boolean>()
+      .fn<
+        (
+          relativePath: string,
+          lineRange: { startLine: number; endLine: number } | null,
+        ) => boolean
+      >()
       .mockReturnValue(true)
     renderPanel({
       markdownContent: '[Open Guide](./guide.md)',
@@ -102,12 +115,52 @@ describe('SpecViewerPanel', () => {
     link.dispatchEvent(clickEvent)
 
     expect(clickEvent.defaultPrevented).toBe(true)
-    expect(onOpenRelativePath).toHaveBeenCalledWith('docs/guide.md')
+    expect(onOpenRelativePath).toHaveBeenCalledWith('docs/guide.md', null)
+  })
+
+  it('passes single-line and range line hashes for workspace file links', () => {
+    const onOpenRelativePath = vi
+      .fn<
+        (
+          relativePath: string,
+          lineRange: { startLine: number; endLine: number } | null,
+        ) => boolean
+      >()
+      .mockReturnValue(true)
+    renderPanel({
+      markdownContent:
+        '[Line](./guide.md#L10)\n\n[Range](./guide.md#L10-L20)',
+      onOpenRelativePath,
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Line' }), {
+      clientX: 80,
+      clientY: 120,
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Range' }), {
+      clientX: 110,
+      clientY: 160,
+    })
+
+    expect(onOpenRelativePath).toHaveBeenNthCalledWith(1, 'docs/guide.md', {
+      startLine: 10,
+      endLine: 10,
+    })
+    expect(onOpenRelativePath).toHaveBeenNthCalledWith(2, 'docs/guide.md', {
+      startLine: 10,
+      endLine: 20,
+    })
   })
 
   it('keeps default behavior for same-document anchor links', () => {
     const onOpenRelativePath = vi
-      .fn<(relativePath: string) => boolean>()
+      .fn<
+        (
+          relativePath: string,
+          lineRange: { startLine: number; endLine: number } | null,
+        ) => boolean
+      >()
       .mockReturnValue(true)
     renderPanel({
       markdownContent: '[Jump](#title)\n\n# Title',

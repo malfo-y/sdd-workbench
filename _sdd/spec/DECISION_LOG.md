@@ -253,3 +253,23 @@
 - Impact / follow-up:
   - `main.md`의 링크/경로 규칙(섹션 8)과 F05 범위를 재정의해 line jump 미구현 범위를 명확히 분리한다.
   - F05에서 `#Lx`, `#Lx-Ly` 점프/하이라이트를 F04.1 인터셉트 경로 위에 확장한다.
+
+## 2026-02-20 - F05 구현 완료 반영(spec 링크 라인 점프 고정)
+
+- Context:
+  - F05 구현에서 `#Lx`, `#Lx-Ly` 링크 파싱, lineRange 전달, code viewer 점프/하이라이트가 완료됨.
+  - 자동 검증(`npm test`, `npm run lint`, `npm run build`)과 사용자 수동 스모크가 모두 통과함.
+- Decision:
+  - F05를 스펙 상태 `✅ Done`으로 전환한다.
+  - spec 링크 라인 점프는 active workspace 범위에서만 처리하고 cross-workspace fallback은 도입하지 않는다.
+  - non-line hash(`path.md#heading`)는 파일 열기만 수행하고 heading 위치 스크롤은 후속(F09)으로 유지한다.
+- Rationale:
+  - 구현 완료 항목을 Planned로 유지하면 feature queue와 수용 기준이 실제 코드와 어긋난다.
+  - active workspace 경계 정책을 명확히 고정해야 멀티 워크스페이스 상태 오염을 방지할 수 있다.
+- Alternatives considered:
+  - F05를 Partial 상태로 유지
+  - 링크 해석 실패 시 다른 워크스페이스 자동 탐색/전환 도입
+  - non-line hash를 즉시 heading 스크롤까지 포함해 확장
+- Impact / follow-up:
+  - `main.md`의 커버리지 매트릭스/컴포넌트 상태/링크 규칙/Feature Queue/수용 기준을 F05 완료 상태로 동기화한다.
+  - 다음 우선순위는 F06/F07로 이동한다.

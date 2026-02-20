@@ -2,13 +2,13 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.9.0`
+- 문서 버전: `0.10.0`
 - 마지막 업데이트: `2026-02-20`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
   - UI 스케치: `/_sdd/spec/ui_sketch.png`
-  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover) 구현 상태
+  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프) 구현 상태
 
 ---
 
@@ -53,7 +53,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합 + same-workspace spec 링크 파일 열기 wiring | Implemented (F01/F02/F03/F03.5/F04/F04.1) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합 + same-workspace spec 링크 파일 열기/라인 점프 wiring | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
 | `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec`/배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
@@ -61,23 +61,23 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/workspace/workspace-switcher.tsx` | 활성 워크스페이스 선택 + 닫기/제거 UI | Implemented (F03.5) |
 | `src/workspace/path-format.ts` | UI 표시용 경로 축약 유틸(`~`) | Implemented (F01) |
 | `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 | Implemented (F02/F03.5) |
-| `src/code-viewer/code-viewer-panel.tsx` | 라인 단위 코드 프리뷰 + 선택 범위 + preview-unavailable 표시 + language 라벨 | Implemented (F03/F03.1) |
+| `src/code-viewer/code-viewer-panel.tsx` | 라인 단위 코드 프리뷰 + 선택 범위 + preview-unavailable 표시 + language 라벨 + spec 링크 점프 스크롤 | Implemented (F03/F03.1/F05) |
 | `src/code-viewer/line-selection.ts` | 1-based 라인 선택/Shift 확장 유틸 | Implemented (F03) |
 | `src/code-viewer/language-map.ts` | 확장자 -> 하이라이트 언어 매핑(`.py` 포함) | Implemented (F03.1) |
 | `src/code-viewer/syntax-highlight.ts` | Prism 기반 라인 하이라이트 어댑터 + plaintext escape fallback | Implemented (F03.1) |
 | `src/spec-viewer/markdown-utils.ts` | markdown heading 추출 + TOC id 생성 유틸 | Implemented (F04) |
-| `src/spec-viewer/spec-viewer-panel.tsx` | rendered spec 패널 + TOC + markdown 링크 인터셉트 + 링크 popover 연동 | Implemented (F04/F04.1) |
-| `src/spec-viewer/spec-link-utils.ts` | spec 링크 분류(anchor/workspace-file/external/unresolved) + activeSpec 기준 경로 해석 | Implemented (F04.1) |
+| `src/spec-viewer/spec-viewer-panel.tsx` | rendered spec 패널 + TOC + markdown 링크 인터셉트 + lineRange 전달 + 링크 popover 연동 | Implemented (F04/F04.1/F05) |
+| `src/spec-viewer/spec-link-utils.ts` | spec 링크 분류(anchor/workspace-file/external/unresolved) + activeSpec 기준 경로 해석 + `#Lx/#Lx-Ly` 파싱 | Implemented (F04.1/F05) |
 | `src/spec-viewer/spec-link-popover.tsx` | 커서 기준 링크 액션 popover(`Copy Link Address`, `Close`) | Implemented (F04.1) |
 | `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크 popover 스타일 + 토큰 컬러 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1) |
-| `src/App.test.tsx` | F01/F02/F03/F03.1/F03.5/F04/F04.1 통합 플로우 테스트(14건) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1) |
+| `src/App.test.tsx` | F01/F02/F03/F03.1/F03.5/F04/F04.1/F05 통합 플로우 테스트(16건) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05) |
 | `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(6건) | Implemented (F03.5/F04) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
 | `src/code-viewer/language-map.test.ts` | 확장자 매핑/ fallback 테스트(2건) | Implemented (F03.1) |
-| `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + 선택 콜백 테스트(2건) | Implemented (F03.1) |
+| `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + jump 스크롤 테스트(3건) | Implemented (F03.1/F05) |
 | `src/spec-viewer/markdown-utils.test.ts` | markdown heading/TOC 유틸 테스트(2건) | Implemented (F04) |
-| `src/spec-viewer/spec-link-utils.test.ts` | 링크 해석/경계/외부 URL 분류 테스트(8건) | Implemented (F04.1) |
-| `src/spec-viewer/spec-viewer-panel.test.tsx` | rendered panel 상태/링크 인터셉트/popover 테스트(7건) | Implemented (F04/F04.1) |
+| `src/spec-viewer/spec-link-utils.test.ts` | 링크 해석/경계/외부 URL 분류 + lineRange 파싱 테스트(11건) | Implemented (F04.1/F05) |
+| `src/spec-viewer/spec-viewer-panel.test.tsx` | rendered panel 상태/링크 인터셉트/popover + lineRange 전달 테스트(8건) | Implemented (F04/F04.1/F05) |
 | `src/test/setup.ts` | RTL matcher setup (`jest-dom`) | Implemented (F01) |
 | `electron/main.ts` | BrowserWindow 부팅 + `workspace:openDialog`/`workspace:index`/`workspace:readFile` IPC handler | Implemented (F01/F02/F03) |
 | `electron/preload.ts` | `window.workspace.openDialog()`/`index()`/`readFile()` API 노출 | Implemented (F01/F02/F03) |
@@ -93,15 +93,15 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 |---|---|---|
 | 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 구현(F03.5), 세션 영속화는 Non-Goal |
 | 4.2 File Browser | Partial | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 구현, changed indicator는 미구현 |
-| 4.3 Code Viewer | Partial | 코드 프리뷰/라인 선택/preview-unavailable/확장자 색상 코딩(F03/F03.1) 구현, 점프/복사 연계는 미구현 |
+| 4.3 Code Viewer | Partial | 코드 프리뷰/라인 선택/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) 구현, 툴바 복사 연계는 미구현 |
 | 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 구현(F04) |
-| 4.5 Spec -> Code Navigation | Partial | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover 구현(F04.1), `#Lx/#Lx-Ly` 라인 점프는 미구현(F05 예정) |
+| 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) 구현 |
 | 4.6 Context Toolbar | Planned | 4개 액션 버튼 미구현 |
 | 4.7 File Change Detection | Planned | 파일 시스템 watcher 미구현 |
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
 | Renderer <-> Main 브리지 기본 틀 | Partial | `openDialog()`/`index()`/`readFile()` 구현, watcher/system 채널은 미구현 |
 
-요약: F01/F02/F03/F03.1/F03.5/F04/F04.1은 완료되었고, 다음 우선순위는 F05+ 영역이다. F05~F07은 `active workspace` 기준 동작을 기본 정책으로 한다.
+요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05는 완료되었고, 다음 우선순위는 F06+ 영역이다. F06~F07은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -185,17 +185,17 @@ Renderer (React)
 | Input | activeFilePath, fileContent, isReadingFile, readFileError, previewUnavailableReason, selectionRange |
 | Output | selectedLineRange |
 | Dependencies | `line-selection` 유틸, Prism 기반 하이라이트 어댑터 |
-| 상태 | Partial (F03/F03.1 Implemented, F05/F06 연계 예정) |
+| 상태 | Partial (F03/F03.1/F05 Implemented, F06 연계 예정) |
 
 ### 6.4 SpecViewerPanel
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | Markdown 렌더링, TOC 표시, markdown 링크 인터셉트/안전 처리(동일 문서 anchor 허용 + same-workspace 파일 열기 + external/unresolved copy popover) |
-| Input | `activeSpecPath`, markdown content, `onOpenRelativePath()` |
-| Output | TOC anchor 링크, `onOpenRelativePath(relativePath)` 호출, link popover UI |
+| Purpose | Markdown 렌더링, TOC 표시, markdown 링크 인터셉트/안전 처리(동일 문서 anchor 허용 + same-workspace 파일 열기 + lineRange 전달 + external/unresolved copy popover) |
+| Input | `activeSpecPath`, markdown content, `onOpenRelativePath(relativePath, lineRange)` |
+| Output | TOC anchor 링크, `onOpenRelativePath(relativePath, lineRange)` 호출, link popover UI |
 | Dependencies | `react-markdown`, `remark-gfm`, `rehype-slug`, `spec-link-utils`, `spec-link-popover` |
-| 상태 | Partial (F04/F04.1 Implemented, activeHeading 추적/line jump는 F05 예정) |
+| 상태 | Partial (F04/F04.1/F05 Implemented, activeHeading 추적은 F09 예정) |
 
 ### 6.5 Toolbar
 
@@ -304,12 +304,8 @@ F03.5 기준 상태 전이 규칙(Implemented):
 
 - `#heading-id` (same document anchor)
 - `./path/to/file.md`, `../path/to/file.md` (activeSpec 기준 상대 링크)
+- `path/to/file.ts#L10`, `path/to/file.ts#L10-L20` (same-workspace line jump)
 - `https://...`, `mailto:...` 등 외부 링크
-
-후속(F05) 대상:
-
-- `path/to/file.ts#L10`
-- `path/to/file.ts#L10-L20`
 
 규칙:
 
@@ -318,7 +314,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 3. same-workspace 상대 파일 링크는 내부 라우팅으로 파일을 연다(`selectFile` 경로).
 4. 현재 활성 워크스페이스에서 해석할 수 없는 링크 및 외부 링크는 자동 이동하지 않고 링크 주소 copy popover를 표시한다.
 5. 워크스페이스 간 자동 fallback(다른 워크스페이스 탐색)은 허용하지 않는다.
-6. 코드 라인 점프(`Lx`, `Lx-Ly`) 파싱/하이라이트는 F05에서 구현한다.
+6. 코드 라인 점프(`Lx`, `Lx-Ly`)는 same-workspace 링크에서 파싱/하이라이트를 적용한다.
 
 ---
 
@@ -381,6 +377,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 - F03.5에서 워크스페이스 전환/중복 재오픈/닫기 시 세션 정합성(`workspaceOrder`, `activeWorkspaceId`)을 유지한다.
 - F04에서 `.md` 선택 시 center(raw)+right(rendered)가 동시에 표시되고 `activeSpec`가 워크스페이스별로 분리 복원된다.
 - F04.1에서 rendered markdown 링크 클릭 시 renderer 이동/리로드를 차단하고, same-workspace 링크는 파일을 열며 external/unresolved 링크는 copy popover로 처리한다.
+- F05에서 `path#Lx`/`path#Lx-Ly` 링크 클릭 시 active workspace 기준으로 파일 열기 + 라인 선택/하이라이트 + best-effort 점프 스크롤이 동작한다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
 
 ---
@@ -409,7 +406,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 결정 고정(2026-02-20):
 - F04: 워크스페이스 전환 시 `activeSpec`만 복원한다.
 - F04.1: same-workspace 상대 링크는 파일을 열고, external/unresolved 링크는 copy popover로 처리한다(자동 브라우저 이동 없음).
-- F05: `#Lx`/`#Lx-Ly` 라인 점프/하이라이트를 추가한다.
+- F05: `#Lx`/`#Lx-Ly` 라인 점프/하이라이트는 active workspace 범위에서만 처리한다.
 - F07: watcher는 `openWorkspace` 시점에 즉시 시작한다.
 - F06/F08: 액션 가드는 기능별 개별 구현을 기본으로 한다(공통 guard layer는 보류).
 
@@ -621,9 +618,15 @@ F03.5 기준 상태 전이 규칙(Implemented):
   - `path.ts#L10-L20` 클릭 시 해당 파일로 이동/강조됨
   - 같은 상대경로가 여러 워크스페이스에 있어도 활성 워크스페이스 기준으로 일관 동작
 - 예상 변경 파일:
-  - `src/workspace/workspace-context.tsx`
-  - `src/*` (SpecViewerPanel, CodeViewerPanel, parser util, state wiring)
-- 상태: `📋 Planned`
+  - `src/spec-viewer/spec-link-utils.ts`
+  - `src/spec-viewer/spec-viewer-panel.tsx`
+  - `src/App.tsx`
+  - `src/code-viewer/code-viewer-panel.tsx`
+  - `src/spec-viewer/spec-link-utils.test.ts`
+  - `src/spec-viewer/spec-viewer-panel.test.tsx`
+  - `src/App.test.tsx`
+  - `src/code-viewer/code-viewer-panel.test.tsx`
+- 상태: `✅ Done (2026-02-20)`
 
 #### F06. 툴바 복사 액션 2종 (Path/Selected Lines) (P0, 크기 S)
 
@@ -711,7 +714,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 
 ### 12.3 Feature-draft 실행 순서 (권장)
 
-1. `F05` -> `F06` -> `F07` (`F01`, `F02`, `F03`, `F03.1`, `F03.5`, `F04`, `F04.1` 완료)
+1. `F06` -> `F07` (`F01`, `F02`, `F03`, `F03.1`, `F03.5`, `F04`, `F04.1`, `F05` 완료)
 2. MVP 필수 기능 완료 후 `F08`, `F09` 진행
 3. 마지막에 `F10`으로 안정화
 
@@ -735,7 +738,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 - [x] 멀티 워크스페이스 추가/전환/제거 가능 (`Open Workspace`=항상 추가, 중복 경로=기존 포커스, 전환 시 selection 리셋, 트리 펼침 상태 복원) (F03.5 완료, 2026-02-20)
 - [x] `.md` 파일 선택 시 center(raw) + right(rendered) 동작 (F04 완료, 2026-02-20)
 - [x] rendered markdown 링크 클릭 시 same-workspace 파일 열기 + external/unresolved copy popover 동작 (F04.1 완료, 2026-02-20)
-- [ ] `path.ts#L10-L20` 클릭 시 점프 및 하이라이트
+- [x] `path.ts#L10-L20` 클릭 시 점프 및 하이라이트 (F05 완료, 2026-02-20)
 - [ ] 툴바 액션 4종 정상 동작
 - [ ] 외부 파일 변경이 changed indicator에 반영
 
@@ -746,19 +749,19 @@ F03.5 기준 상태 전이 규칙(Implemented):
 3. 주요 IPC 계약 스모크 테스트
 4. F04~F07 공통 멀티 워크스페이스 회귀 테스트
 
-현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1):
+현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05):
 
-- 자동 테스트: 총 46건 통과(`npm test`)
-  - `src/App.test.tsx` 14건
+- 자동 테스트: 총 53건 통과(`npm test`)
+  - `src/App.test.tsx` 16건
   - `src/workspace/workspace-model.test.ts` 6건
   - `src/code-viewer/line-selection.test.ts` 5건
   - `src/code-viewer/language-map.test.ts` 2건
-  - `src/code-viewer/code-viewer-panel.test.tsx` 2건
+  - `src/code-viewer/code-viewer-panel.test.tsx` 3건
   - `src/spec-viewer/markdown-utils.test.ts` 2건
-  - `src/spec-viewer/spec-link-utils.test.ts` 8건
-  - `src/spec-viewer/spec-viewer-panel.test.tsx` 7건
+  - `src/spec-viewer/spec-link-utils.test.ts` 11건
+  - `src/spec-viewer/spec-viewer-panel.test.tsx` 8건
 - 품질 게이트: `npm run lint`, `npm run build` 통과
-- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1, 2026-02-20)
+- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05, 2026-02-20)
 
 ---
 
@@ -766,7 +769,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 
 1. F04는 `activeSpec`만 복원하도록 고정했기 때문에 TOC/스크롤/activeHeading 복원이 필요해지면 후속 확장 비용이 발생한다.
 2. F04.1은 external/unresolved 링크를 popover 복사 UX로만 처리하므로, 시스템 브라우저 열기/보조 탐색 UX는 후속 Feature로 남는다.
-3. F05의 `#Lx`, `#Lx-Ly` 라인 점프/강조는 아직 미구현이다.
+3. 파일 링크의 non-line hash(`path.md#heading`)는 현재 파일 열기만 수행하고 heading 위치 스크롤은 미지원(F09 범위)이다.
 4. F07 watcher를 워크스페이스별로 운영할 때 시스템 리소스 상한(동시 watcher 수, debounce 전략) 튜닝이 필요하다.
 5. `system:openInIterm` 실패 시 fallback(Terminal.app) 정책이 확정되지 않았다.
 
@@ -780,4 +783,4 @@ F03.5 기준 상태 전이 규칙(Implemented):
 
 ## 16. 결론
 
-이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1 구현 결과를 반영한 스펙이며, F05~F07을 멀티 워크스페이스 기준으로 재정렬하고 주요 의사결정을 고정했다. 다음 단계는 고정된 정책을 기준으로 섹션 12 순서대로 F05+를 확장하는 것이다.
+이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 F06+를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F06/F07을 구현하고 툴바/changed indicator를 완성하는 것이다.
