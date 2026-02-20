@@ -13,6 +13,7 @@ const INITIAL_RENDER_NODE_LIMIT = 500
 type FileTreePanelProps = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
+  changedFiles: string[]
   activeFile: string | null
   expandedDirectories: string[]
   isIndexing: boolean
@@ -31,6 +32,7 @@ function renderFileTreeNodes(
   depth: number,
   budget: RenderBudget,
   activeFile: string | null,
+  changedFileSet: Set<string>,
   onSelectFile: (relativePath: string) => void,
   onNodeContextMenu: (
     event: MouseEvent<HTMLButtonElement>,
@@ -80,6 +82,7 @@ function renderFileTreeNodes(
               depth + 1,
               budget,
               activeFile,
+              changedFileSet,
               onSelectFile,
               onNodeContextMenu,
               expandedDirectories,
@@ -96,6 +99,7 @@ function renderFileTreeNodes(
     }
 
     const isActive = activeFile === node.relativePath
+    const isChanged = changedFileSet.has(node.relativePath)
     rendered.push(
       <li
         className={`tree-node tree-node-file ${isActive ? 'is-active' : ''}`}
@@ -108,7 +112,17 @@ function renderFileTreeNodes(
           onClick={() => onSelectFile(node.relativePath)}
           type="button"
         >
-          {node.name}
+          <span className="tree-file-name">{node.name}</span>
+          {isChanged && (
+            <span
+              aria-hidden
+              className="tree-file-changed-indicator"
+              data-testid={`tree-changed-indicator-${node.relativePath}`}
+              title="Changed"
+            >
+              ●
+            </span>
+          )}
         </button>
       </li>,
     )
@@ -120,6 +134,7 @@ function renderFileTreeNodes(
 export function FileTreePanel({
   rootPath,
   fileTree,
+  changedFiles,
   activeFile,
   expandedDirectories,
   isIndexing,
@@ -136,6 +151,7 @@ export function FileTreePanel({
     () => new Set(expandedDirectories),
     [expandedDirectories],
   )
+  const changedFilesSet = useMemo(() => new Set(changedFiles), [changedFiles])
 
   useEffect(() => {
     setContextMenuState(null)
@@ -206,6 +222,7 @@ export function FileTreePanel({
         0,
         renderBudget,
         activeFile,
+        changedFilesSet,
         onSelectFile,
         handleNodeContextMenu,
         expandedDirectoriesSet,

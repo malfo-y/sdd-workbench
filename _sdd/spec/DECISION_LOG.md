@@ -356,3 +356,27 @@
 - Impact / follow-up:
   - `main.md` 코드베이스 인벤토리/커버리지 매트릭스/상태 규칙/Feature Queue/수용 기준/검증 수치를 최신 구현 기준으로 동기화한다.
   - 다음 우선순위는 `F07 -> F08 -> F09`로 조정한다.
+
+## 2026-02-21 - F07 구현 완료 반영(watcher changed indicator + clear 시점 고정)
+
+- Context:
+  - F07 구현으로 워크스페이스 단위 파일 watcher와 파일 트리 changed indicator(`●`)가 동작하기 시작했음.
+  - 사용자 피드백으로 marker clear 시점은 "파일을 연 순간"이 아니라 "해당 파일을 떠나는 순간"으로 조정이 필요했음.
+  - 워크스페이스 전환만으로 marker가 사라지면 변경 확인 흐름이 깨질 수 있어 clear 예외 규칙이 필요했음.
+- Decision:
+  - F07을 스펙 상태 `✅ Done`으로 전환한다.
+  - watcher lifecycle은 `openWorkspace -> watchStart`, `closeWorkspace/unmount -> watchStop`으로 고정한다.
+  - watch 이벤트에 active file이 포함되면 코드 뷰어 본문을 자동 re-read한다.
+  - changed marker는 같은 워크스페이스에서 다른 파일을 열어 이전 파일을 떠나는 시점에만 clear한다.
+  - 워크스페이스 전환만으로는 changed marker를 clear하지 않는다.
+- Rationale:
+  - 변경 감지와 본문 갱신을 자동화해야 수동 새로고침 없이 최신 상태를 확인할 수 있다.
+  - marker clear 타이밍을 "읽고 떠날 때"로 고정하면 아직 검토하지 않은 변경 신호를 보존할 수 있다.
+  - workspace switch는 파일 검토 완료 의미가 아니므로 clear 트리거로 쓰기 부적합하다.
+- Alternatives considered:
+  - 파일을 여는 즉시 marker clear
+  - 워크스페이스 전환 시 marker clear
+  - active file 자동 re-read 없이 marker만 표시
+- Impact / follow-up:
+  - `main.md`의 F07 상태, 상호작용 규칙, 수용 기준, 테스트 수치를 구현 기준으로 동기화한다.
+  - 다음 우선순위는 `F08/F09`로 유지하고, F07.1(파일 히스토리/뒤로가기)은 별도 feature로 관리한다.

@@ -2,13 +2,13 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.10.4`
+- 문서 버전: `0.11.0`
 - 마지막 업데이트: `2026-02-21`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
   - UI 스케치: `/_sdd/spec/ui_sketch.png`
-  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합) 구현 상태
+  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator) 구현 상태
 
 ---
 
@@ -41,7 +41,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 - IDE급 편집 기능(멀티탭, LSP, 리팩터링, 프로젝트 검색)
 - 내장 터미널/PTY
-- 복수 워크스페이스 고급 기능(세션 영속화, 워크스페이스별 watcher 운영)
+- 복수 워크스페이스 고급 기능(세션 영속화)
 - 플러그인 시스템
 - Git diff/commit UI
 
@@ -53,14 +53,14 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
-| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + 배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04) |
+| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + watcher lifecycle(`watchStart`/`watchStop`) + `changedFiles` 라우팅/active file auto-refresh + 배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04/F07) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
-| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 정의 | Implemented (F03.5/F04) |
+| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 + `changedFiles` 정의 | Implemented (F03.5/F04/F07) |
 | `src/workspace/workspace-switcher.tsx` | 활성 워크스페이스 선택 + 닫기/제거 UI | Implemented (F03.5) |
 | `src/workspace/path-format.ts` | UI 표시용 경로 축약 유틸(`~`) | Implemented (F01) |
-| `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 + 파일/디렉터리 우클릭 경로 복사 | Implemented (F02/F03.5/F06.1/F06.2) |
+| `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 + 파일/디렉터리 우클릭 경로 복사 + changed marker(`●`) 렌더 | Implemented (F02/F03.5/F06.1/F06.2/F07) |
 | `src/code-viewer/code-viewer-panel.tsx` | 라인 단위 코드 프리뷰 + 선택 범위(Shift+Click/드래그) + preview-unavailable 표시 + language 라벨 + spec 링크 점프 스크롤 + 우클릭 복사 액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) | Implemented (F03/F03.1/F05/F06.1/F06.2) |
 | `src/code-viewer/line-selection.ts` | 1-based 라인 선택/Shift 확장 유틸 | Implemented (F03) |
 | `src/code-viewer/language-map.ts` | 확장자 -> 하이라이트 언어 매핑(`.py` 포함) | Implemented (F03.1) |
@@ -71,9 +71,9 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/spec-viewer/spec-link-popover.tsx` | 커서 기준 링크 액션 popover(`Copy Link Address`, `Close`) | Implemented (F04.1) |
 | `src/context-copy/copy-payload.ts` | 컨텍스트 복사 재사용 payload 유틸(`relative/path`, `relative/path:Lx-Ly`, selected content) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.tsx` | 코드/트리 우클릭 복사 액션 popover 공통 컴포넌트 | Implemented (F06.1) |
-| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트 popover 스타일 + 토큰 컬러 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2) |
-| `src/App.test.tsx` | F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2 통합 플로우 테스트(22건, multi-workspace/spec 유지 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2) |
-| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(6건) | Implemented (F03.5/F04) |
+| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트 popover 스타일 + 토큰 컬러 스타일 + file-tree changed marker 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2/F07) |
+| `src/App.test.tsx` | F01~F07 통합 플로우 테스트(26건, multi-workspace/spec/watcher 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07) |
+| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(7건, `changedFiles` 분리 포함) | Implemented (F03.5/F04/F07) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
 | `src/code-viewer/language-map.test.ts` | 확장자 매핑/ fallback 테스트(2건) | Implemented (F03.1) |
 | `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + jump 스크롤 + 드래그 선택/우클릭 3액션 테스트(6건) | Implemented (F03.1/F05/F06.1/F06.2) |
@@ -82,14 +82,14 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/spec-viewer/spec-viewer-panel.test.tsx` | rendered panel 상태/링크 인터셉트/popover + lineRange 전달 테스트(8건) | Implemented (F04/F04.1/F05) |
 | `src/context-copy/copy-payload.test.ts` | 복사 payload 포맷/경계값/정규화 테스트(8건) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.test.tsx` | copy action popover dismiss/액션 테스트(3건) | Implemented (F06.1) |
-| `src/file-tree/file-tree-panel.test.tsx` | 파일/디렉터리 우클릭 복사 + 토글 회귀 테스트(2건) | Implemented (F06.1/F06.2) |
+| `src/file-tree/file-tree-panel.test.tsx` | 파일/디렉터리 우클릭 복사 + 토글 + changed marker 회귀 테스트(2건) | Implemented (F06.1/F06.2/F07) |
 | `src/test/setup.ts` | RTL matcher setup (`jest-dom`) | Implemented (F01) |
-| `electron/main.ts` | BrowserWindow 부팅 + `workspace:openDialog`/`workspace:index`/`workspace:readFile` IPC handler | Implemented (F01/F02/F03) |
-| `electron/preload.ts` | `window.workspace.openDialog()`/`index()`/`readFile()` API 노출 | Implemented (F01/F02/F03) |
-| `electron/electron-env.d.ts` | Renderer 전역 workspace 타입 계약(openDialog/index/readFile) | Implemented (F01/F02/F03) |
+| `electron/main.ts` | BrowserWindow 부팅 + `workspace:openDialog`/`workspace:index`/`workspace:readFile` + watcher IPC(`workspace:watchStart`/`workspace:watchStop`/`workspace:watchEvent`) + watcher registry/debounce/cleanup | Implemented (F01/F02/F03/F07) |
+| `electron/preload.ts` | `window.workspace.openDialog()`/`index()`/`readFile()` + watcher bridge(`watchStart`/`watchStop`/`onWatchEvent`) API 노출 | Implemented (F01/F02/F03/F07) |
+| `electron/electron-env.d.ts` | Renderer 전역 workspace 타입 계약(openDialog/index/readFile + watcher API/event payload) | Implemented (F01/F02/F03/F07) |
 | `vitest.config.ts` | `jsdom` 기반 테스트 환경 설정 | Implemented (F01) |
 | `vite.config.ts` | Vite + Electron 빌드 설정 | Implemented |
-| `package.json` | dev/build/test 스크립트 + Prism 하이라이트 + markdown 렌더 의존성(`react-markdown`, `remark-gfm`, `rehype-slug`) 포함 | Implemented |
+| `package.json` | dev/build/test 스크립트 + Prism 하이라이트 + markdown 렌더 의존성 + watcher 의존성(`chokidar`) 포함 | Implemented |
 | `/_sdd/spec/user_spec.md` | 기능 요구사항 원문 | Implemented (문서) |
 
 ### 3.2 기능 요구사항 커버리지 매트릭스
@@ -97,16 +97,16 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | 요구사항 | 상태 | 근거 |
 |---|---|---|
 | 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 구현(F03.5), 세션 영속화는 Non-Goal |
-| 4.2 File Browser | Partial | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 + 파일/디렉터리 우클릭 상대경로 복사 구현(F02/F03.5/F06.1/F06.2), changed indicator(F07)는 Planned |
+| 4.2 File Browser | Implemented (MVP) | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 + 파일/디렉터리 우클릭 상대경로 복사(F02/F03.5/F06.1/F06.2) + changed indicator(`●`) 반영(F07) + 파일 떠날 때 marker clear 정책 적용(F07 follow-up) |
 | 4.3 Code Viewer | Implemented (Core) | 코드 프리뷰/라인 선택(Shift+Click + drag)/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) + 우클릭 복사 3액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) 구현(F06.1/F06.2) |
 | 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 + 코드 파일 선택 시 우측 spec 유지 구현(F04) |
 | 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) 구현 |
 | 4.6 Context Toolbar/Actions | Partial | F06 툴바 복사 2종은 F06.2에서 제거 완료, 현재는 코드/트리 컨텍스트 복사 중심 구조이며 workspace/spec 액션(F08/F09)은 Planned |
-| 4.7 File Change Detection | Planned | 파일 시스템 watcher 미구현 |
+| 4.7 File Change Detection | Implemented (Core) | workspace watcher lifecycle(open/start, close/stop), debounce된 changed event 라우팅, 파일 트리 marker 표시, active file auto-refresh(F07) 구현 |
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
-| Renderer <-> Main 브리지 기본 틀 | Partial | `openDialog()`/`index()`/`readFile()` 구현, watcher/system 채널은 미구현 |
+| Renderer <-> Main 브리지 기본 틀 | Partial | `openDialog()`/`index()`/`readFile()` + `watchStart()`/`watchStop()`/`onWatchEvent()` 구현, system 채널(`openInIterm`)은 미구현 |
 
-요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2는 완료되었고, 다음 우선순위는 F07/F08/F09 영역이다. F07/F08/F09는 `active workspace` 기준 동작을 기본 정책으로 한다.
+요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07은 완료되었고, 다음 우선순위는 F08/F09 영역이다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -169,11 +169,11 @@ Renderer (React)
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | 멀티 워크스페이스 세션 관리 + 워크스페이스별 인덱싱/파일 본문/선택 상태와 배너 피드백 관리 |
-| Input | `window.workspace.openDialog()`, `window.workspace.index(rootPath)`, `window.workspace.readFile(rootPath, relativePath)` 결과 |
-| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `activeFile`, `activeFileContent`, `activeSpec`, `activeSpecContent`, `isIndexing`, `isReadingFile`, `isReadingSpec`, `readFileError`, `activeSpecReadError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
-| Dependencies | `workspace:openDialog`, `workspace:index`, `workspace:readFile` IPC + preload 브리지 |
-| 상태 | Implemented (F01/F02/F03/F03.5/F04) |
+| Purpose | 멀티 워크스페이스 세션 관리 + 워크스페이스별 인덱싱/파일 본문/선택/변경상태(`changedFiles`) 관리 + watcher 이벤트 라우팅 + 배너 피드백 관리 |
+| Input | `window.workspace.openDialog()`, `window.workspace.index(rootPath)`, `window.workspace.readFile(rootPath, relativePath)`, `window.workspace.watchStart(workspaceId, rootPath)`, `window.workspace.watchStop(workspaceId)`, `window.workspace.onWatchEvent(listener)` 결과 |
+| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `changedFiles`, `activeFile`, `activeFileContent`, `activeSpec`, `activeSpecContent`, `isIndexing`, `isReadingFile`, `isReadingSpec`, `readFileError`, `activeSpecReadError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
+| Dependencies | `workspace:openDialog`, `workspace:index`, `workspace:readFile`, `workspace:watchStart`, `workspace:watchStop`, `workspace:watchEvent` IPC + preload 브리지 |
+| 상태 | Implemented (F01/F02/F03/F03.5/F04/F07) |
 
 ### 6.2 FileTreePanel
 
@@ -183,7 +183,7 @@ Renderer (React)
 | Input | 파일 트리 모델, activeFile, isIndexing, expandedDirectories |
 | Output | 파일 선택 이벤트, expandedDirectories 변경 이벤트, 파일/디렉터리 우클릭 복사 액션 이벤트 |
 | Dependencies | WorkspaceProvider |
-| 상태 | Partial (F02/F03.5/F06.1/F06.2 Implemented, F07 changed marker 예정) |
+| 상태 | Implemented (F02/F03.5/F06.1/F06.2/F07) |
 
 ### 6.3 CodeViewerPanel
 
@@ -250,7 +250,7 @@ type WorkspaceSession = {
   previewUnavailableReason: 'file_too_large' | 'binary_file' | null // F03 구현
   selectionRange: SelectionState // F03 구현
   expandedDirectories: string[] // F03.5 구현
-  changedFiles: string[] // F07 예정 (내부 구현은 Set 권장)
+  changedFiles: string[] // F07 구현 (내부 구현은 Set 권장)
 }
 
 type WorkspaceState = {
@@ -323,6 +323,15 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 5. CodeViewer 우클릭 복사 액션은 `Copy Selected Content`, `Copy Both`, `Copy Relative Path` 3개로 고정한다.
 6. FileTree 우클릭 복사는 파일/디렉터리 모두에서 `Copy Relative Path`를 지원한다.
 
+F07 기준 상태/상호작용 규칙(Implemented):
+
+1. `openWorkspace`로 신규 워크스페이스가 추가되면 해당 workspace watcher를 즉시 시작한다.
+2. `closeWorkspace` 또는 provider unmount 시 해당 watcher를 즉시 정리한다.
+3. `workspace:watchEvent`는 `workspaceId` 기준으로 해당 세션의 `changedFiles`에만 합집합 반영한다.
+4. watch 이벤트에 현재 active file이 포함되면 active file 본문을 자동으로 re-read한다.
+5. changed marker는 파일을 여는 순간이 아니라, 같은 워크스페이스에서 다른 파일을 열어 이전 파일을 떠날 때 제거한다.
+6. 워크스페이스 전환만으로는 changed marker를 제거하지 않는다.
+
 ---
 
 ## 8. 링크/경로 파싱 규칙 (MVP 고정)
@@ -360,8 +369,9 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 | `workspace:openDialog` | Renderer -> Main (`invoke`) | 없음 -> `{ canceled: boolean, selectedPath: string \| null, error?: string }` | Implemented (F01) |
 | `workspace:index` | Renderer -> Main (`invoke`) | `{ rootPath }` -> `{ ok, fileTree, error? }` | Implemented (F02) |
 | `workspace:readFile` | Renderer -> Main (`invoke`) | `{ rootPath, relativePath }` -> `{ ok, content, error?, previewUnavailableReason? }` | Implemented (F03) |
-| `workspace:watchStart` | Renderer -> Main (`invoke`) | `{ workspaceId, rootPath }` | Planned |
-| `workspace:watchEvent` | Main -> Renderer (`send`) | `{ workspaceId, changedRelativePaths[] }` | Planned |
+| `workspace:watchStart` | Renderer -> Main (`invoke`) | `{ workspaceId, rootPath }` | Implemented (F07) |
+| `workspace:watchStop` | Renderer -> Main (`invoke`) | `{ workspaceId }` | Implemented (F07) |
+| `workspace:watchEvent` | Main -> Renderer (`send`) | `{ workspaceId, changedRelativePaths[] }` | Implemented (F07) |
 | `system:openInIterm` | Renderer -> Main (`invoke`) | `{ rootPath }` | Planned |
 
 구현 메모:
@@ -369,6 +379,7 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 - Renderer는 generic `invoke`를 직접 사용하지 않고 `window.workspace.openDialog()` 래퍼를 통해 호출한다.
 - 인덱싱은 `window.workspace.index(rootPath)` 래퍼를 통해 호출한다.
 - 파일 본문 읽기는 `window.workspace.readFile(rootPath, relativePath)` 래퍼를 통해 호출한다.
+- watcher lifecycle은 `window.workspace.watchStart()`/`watchStop()` 래퍼를 통해 호출한다.
 - watcher 이벤트(`workspace:watchEvent`)는 `workspaceId`를 포함해 세션 오염 없이 라우팅한다.
 
 ---
@@ -405,6 +416,8 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 - F04에서 `.md` 선택 시 center(raw)+right(rendered)가 동시에 표시되고 `activeSpec`가 워크스페이스별로 분리 복원되며, 코드 파일 선택 후에도 우측 rendered spec이 유지된다.
 - F04.1에서 rendered markdown 링크 클릭 시 renderer 이동/리로드를 차단하고, same-workspace 링크는 파일을 열며 external/unresolved 링크는 copy popover로 처리한다.
 - F05에서 `path#Lx`/`path#Lx-Ly` 링크 클릭 시 active workspace 기준으로 파일 열기 + 라인 선택/하이라이트 + best-effort 점프 스크롤이 동작한다.
+- F07에서 워크스페이스별 watcher가 open/close lifecycle과 연동되고, changed indicator(`●`)가 파일 트리에 반영된다.
+- F07에서 active file 변경 이벤트는 자동 re-read로 본문을 갱신하며, changed marker는 파일을 떠날 때 clear되고 워크스페이스 전환만으로는 clear되지 않는다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
 
 ---
@@ -413,14 +426,13 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 
 ### 11.1 현재 의존성 (코드 기준)
 
-- Runtime: `react`, `react-dom`, `prismjs`, `react-markdown`, `remark-gfm`, `rehype-slug`
+- Runtime: `react`, `react-dom`, `prismjs`, `react-markdown`, `remark-gfm`, `rehype-slug`, `chokidar`
 - Dev/Build/Test: `electron`, `vite`, `vite-plugin-electron`, `typescript`, `eslint`, `electron-builder`, `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`
 
 ### 11.2 MVP 구현 시 추가 검토 의존성
 
 - 코드 뷰어 고도화(후속): Prism 확장 유지 vs `monaco-editor`/`codemirror` 전환 검토
 - Markdown 보안 보강(후속): `rehype-sanitize` 검토
-- 파일 워처: Node native watcher 또는 `chokidar`
 
 ### 11.3 멀티 워크스페이스 공통 규칙 (F04~F07/F06.1/F06.2 적용)
 
@@ -430,12 +442,13 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 4. 워크스페이스 전환 시 공유되면 안 되는 상태(예: line selection)는 리셋하고, 세션 상태(예: 파일 트리 펼침/active 문서)는 워크스페이스별로 유지한다.
 5. 후속 기능 테스트는 단일 워크스페이스 시나리오 + 다중 워크스페이스 전환 회귀 시나리오를 모두 포함한다.
 
-결정 고정(2026-02-20):
+결정 고정(2026-02-20~2026-02-21):
 
 - F04: 워크스페이스 전환 시 `activeSpec`만 복원한다.
 - F04.1: same-workspace 상대 링크는 파일을 열고, external/unresolved 링크는 copy popover로 처리한다(자동 브라우저 이동 없음).
 - F05: `#Lx`/`#Lx-Ly` 라인 점프/하이라이트는 active workspace 범위에서만 처리한다.
 - F07: watcher는 `openWorkspace` 시점에 즉시 시작한다.
+- F07 후속: changed marker는 파일을 여는 즉시가 아니라 해당 파일을 떠날 때 clear한다(워크스페이스 전환만으로는 clear하지 않음).
 - F06/F08/F09: 액션 가드는 기능별 개별 구현을 기본으로 한다(공통 guard layer는 보류).
 - F06.1: 우클릭 복사 액션은 `relative path` 고정이며, CodeViewer 우클릭은 selection 범위 안/밖 정책(유지/단일 선택 전환)을 따른다.
 - F06.2: CodeViewer는 드래그 선택을 추가하고 우클릭 복사 액션을 `Copy Selected Content`, `Copy Both`, `Copy Relative Path`로 통합한다.
@@ -752,19 +765,23 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
   - 워크스페이스별 워처 시작/종료 라이프사이클(`openWorkspace` 즉시 시작, `closeWorkspace` 즉시 정리)
   - workspace 단위 debounce + `changedFiles` 관리
   - 트리 내 변경 표시(`●`)
+  - watch 이벤트에 active file이 포함되면 코드 뷰어 본문 자동 재로딩
+  - changed marker clear 시점은 같은 워크스페이스에서 파일을 떠나는 순간으로 고정
 - 제외:
   - diff 뷰
 - 완료 기준:
   - 외부 편집 시 해당 파일에 변경 표시가 반영됨
   - 워크스페이스 전환 시 각 워크스페이스의 변경 표시가 분리되어 유지됨
   - 워크스페이스 제거 시 해당 watcher가 정리됨
+  - active file이 외부 수정되면 코드 뷰어 본문이 자동 반영됨
+  - changed marker는 파일을 떠날 때 제거되고 워크스페이스 전환만으로는 제거되지 않음
 - 예상 변경 파일:
   - `electron/main.ts`
   - `electron/preload.ts`
   - `electron/electron-env.d.ts`
   - `src/workspace/workspace-model.ts`
   - `src/*` (provider, FileTreePanel)
-- 상태: `📋 Planned`
+- 상태: `✅ Done (2026-02-21)`
 
 #### F08. Open Workspace in iTerm (P1, 크기 S)
 
@@ -820,9 +837,8 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 
 ### 12.3 Feature-draft 실행 순서 (권장)
 
-1. `F07` (`F01`, `F02`, `F03`, `F03.1`, `F03.5`, `F04`, `F04.1`, `F05`, `F06`, `F06.1`, `F06.2` 완료)
-2. MVP 필수 기능 완료 후 `F08`, `F09` 진행
-3. 마지막에 `F10`으로 안정화
+1. `F08`, `F09` 진행 (`F01~F07` 완료)
+2. 마지막에 `F10`으로 안정화
 
 실행 규칙:
 
@@ -849,9 +865,10 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 - [x] 복사 payload 포맷(`relative/path`, `relative/path:Lx-Ly` + 본문)과 실패 배너 처리 규칙이 고정됨 (F06 완료, F06.2에서 툴바 UI 제거, 2026-02-21)
 - [x] 코드 뷰어/파일 트리 우클릭 컨텍스트 메뉴로 선택 내용/상대경로 복사 가능 (F06.1 완료, 2026-02-21)
 - [x] 코드 뷰어 드래그 선택 + `Copy Both` + 파일/디렉터리 우클릭 경로 복사 + 툴바 복사 제거가 반영됨 (F06.2 완료, 2026-02-21)
+- [x] 외부 파일 변경이 changed indicator에 반영됨 (F07 완료, 2026-02-21)
+- [x] active file 외부 변경 시 코드 뷰어 자동 반영 + marker clear 시점(파일 떠날 때) 정책이 반영됨 (F07 follow-up 완료, 2026-02-21)
 - [ ] 워크스페이스 액션에서 `Open Workspace in iTerm` 동작 (F08 Planned)
 - [ ] SpecViewer 액션에서 `Copy Current Spec Section` 동작 (F09 Planned)
-- [ ] 외부 파일 변경이 changed indicator에 반영
 
 ### 13.2 테스트 우선순위
 
@@ -860,11 +877,11 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 3. 주요 IPC 계약 스모크 테스트
 4. F04~F07/F06.1/F06.2 공통 멀티 워크스페이스 회귀 테스트
 
-현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2):
+현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07):
 
-- 자동 테스트: 총 75건 통과(`npm test`)
-  - `src/App.test.tsx` 22건
-  - `src/workspace/workspace-model.test.ts` 6건
+- 자동 테스트: 총 80건 통과(`npm test`)
+  - `src/App.test.tsx` 26건
+  - `src/workspace/workspace-model.test.ts` 7건
   - `src/code-viewer/line-selection.test.ts` 5건
   - `src/code-viewer/language-map.test.ts` 2건
   - `src/code-viewer/code-viewer-panel.test.tsx` 6건
@@ -875,7 +892,7 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
   - `src/context-menu/copy-action-popover.test.tsx` 3건
   - `src/file-tree/file-tree-panel.test.tsx` 2건
 - 품질 게이트: `npm run lint`, `npm run build` 통과
-- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2, 2026-02-21)
+- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07, 2026-02-21)
 
 ---
 
@@ -899,4 +916,4 @@ F06.1/F06.2 기준 상태/상호작용 규칙(Implemented):
 
 ## 16. 결론
 
-이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 다음 단계(F07/F08/F09)를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F07(파일 변경 표시)을 구현한 뒤 F08/F09 액션을 진행하는 것이다.
+이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 다음 단계(F08/F09)를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 workspace/spec 액션(F08/F09)을 구현하는 것이다.

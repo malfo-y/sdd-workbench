@@ -8,6 +8,7 @@ export type LineSelectionRange = {
 export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
+  changedFiles: string[]
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
@@ -64,6 +65,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
   return {
     rootPath,
     fileTree: [],
+    changedFiles: [],
     activeFile: null,
     activeSpec: null,
     activeFileContent: null,

@@ -11,17 +11,50 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     vi.fn<
       (rootPath: string, relativePath: string) => Promise<WorkspaceReadFileResult>
     >()
+  const watchStartMock =
+    vi.fn<
+      (
+        workspaceId: string,
+        rootPath: string,
+      ) => Promise<WorkspaceWatchControlResult>
+    >()
+  const watchStopMock =
+    vi.fn<(workspaceId: string) => Promise<WorkspaceWatchControlResult>>()
+  const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
+  const onWatchEventMock =
+    vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
 
   beforeEach(() => {
     openDialogMock.mockReset()
     indexWorkspaceMock.mockReset()
     readFileMock.mockReset()
+    watchStartMock.mockReset()
+    watchStopMock.mockReset()
+    onWatchEventMock.mockReset()
+    watchListeners.clear()
+    watchStartMock.mockResolvedValue({ ok: true })
+    watchStopMock.mockResolvedValue({ ok: true })
+    onWatchEventMock.mockImplementation((listener) => {
+      watchListeners.add(listener)
+      return () => {
+        watchListeners.delete(listener)
+      }
+    })
     window.workspace = {
       openDialog: openDialogMock,
       index: indexWorkspaceMock,
       readFile: readFileMock,
+      watchStart: watchStartMock,
+      watchStop: watchStopMock,
+      onWatchEvent: onWatchEventMock,
     }
   })
+
+  const emitWatchEvent = (event: WorkspaceWatchEvent) => {
+    for (const listener of watchListeners) {
+      listener(event)
+    }
+  }
 
   afterEach(() => {
     cleanup()
@@ -434,6 +467,250 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement)
         .options,
     ).toHaveLength(1)
+  })
+
+  it('applies watcher changed indicators per workspace', async () => {
+    const projectARoot = '/Users/tester/watch-a'
+    const projectBRoot = '/Users/tester/watch-b'
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectBRoot,
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === projectARoot) {
+        return {
+          ok: true,
+          fileTree: [
+            {
+              name: 'a.ts',
+              relativePath: 'a.ts',
+              kind: 'file',
+            },
+          ],
+        }
+      }
+
+      if (rootPath === projectBRoot) {
+        return {
+          ok: true,
+          fileTree: [
+            {
+              name: 'b.ts',
+              relativePath: 'b.ts',
+              kind: 'file',
+            },
+          ],
+        }
+      }
+
+      return {
+        ok: false,
+        fileTree: [],
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'b.ts' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: projectARoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    expect(
+      screen.queryByTestId('tree-changed-indicator-a.ts'),
+    ).not.toBeInTheDocument()
+
+    const workspaceSelect = screen.getByTestId(
+      'workspace-switcher-select',
+    ) as HTMLSelectElement
+    fireEvent.change(workspaceSelect, { target: { value: projectARoot } })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('tree-changed-indicator-a.ts')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('tree-changed-indicator-b.ts'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps changed indicator while opened and clears it after leaving file', async () => {
+    const workspaceRoot = '/Users/tester/watch-clear-on-open'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'a.ts',
+          relativePath: 'a.ts',
+          kind: 'file',
+        },
+        {
+          name: 'b.ts',
+          relativePath: 'b.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock
+      .mockResolvedValueOnce({
+        ok: true,
+        content: 'const a = 1',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        content: 'const b = 2',
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tree-changed-indicator-a.ts')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent('const a = 1')
+    })
+    expect(screen.getByTestId('tree-changed-indicator-a.ts')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent('const b = 2')
+    })
+    expect(screen.queryByTestId('tree-changed-indicator-a.ts')).not.toBeInTheDocument()
+  })
+
+  it('auto-refreshes opened file content on watcher event and keeps marker until leaving', async () => {
+    const workspaceRoot = '/Users/tester/watch-auto-refresh'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'a.ts',
+          relativePath: 'a.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock
+      .mockResolvedValueOnce({
+        ok: true,
+        content: 'const value = 1',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        content: 'const value = 2',
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'const value = 1',
+      )
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'const value = 2',
+      )
+    })
+    expect(screen.getByTestId('tree-changed-indicator-a.ts')).toBeInTheDocument()
+  })
+
+  it('stops watcher when active workspace is closed', async () => {
+    const workspaceRoot = '/Users/tester/watch-close'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(watchStartMock).toHaveBeenCalledWith(workspaceRoot, workspaceRoot)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
+
+    await waitFor(() => {
+      expect(watchStopMock).toHaveBeenCalledWith(workspaceRoot)
+    })
   })
 
   it('shows read error message when workspace.readFile returns failure', async () => {

@@ -28,6 +28,16 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type WorkspaceWatchControlResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceWatchEvent = {
+  workspaceId: string
+  changedRelativePaths: string[]
+}
+
 const workspaceApi = {
   openDialog() {
     return ipcRenderer.invoke(
@@ -44,6 +54,29 @@ const workspaceApi = {
       rootPath,
       relativePath,
     }) as Promise<WorkspaceReadFileResult>
+  },
+  watchStart(workspaceId: string, rootPath: string) {
+    return ipcRenderer.invoke('workspace:watchStart', {
+      workspaceId,
+      rootPath,
+    }) as Promise<WorkspaceWatchControlResult>
+  },
+  watchStop(workspaceId: string) {
+    return ipcRenderer.invoke('workspace:watchStop', {
+      workspaceId,
+    }) as Promise<WorkspaceWatchControlResult>
+  },
+  onWatchEvent(listener: (event: WorkspaceWatchEvent) => void) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: WorkspaceWatchEvent,
+    ) => {
+      listener(payload)
+    }
+    ipcRenderer.on('workspace:watchEvent', handler)
+    return () => {
+      ipcRenderer.off('workspace:watchEvent', handler)
+    }
   },
 }
 

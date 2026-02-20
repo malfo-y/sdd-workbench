@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import chokidar, { type FSWatcher } from 'chokidar'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -62,6 +63,33 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type WorkspaceWatchStartRequest = {
+  workspaceId: string
+  rootPath: string
+}
+
+type WorkspaceWatchStopRequest = {
+  workspaceId: string
+}
+
+type WorkspaceWatchControlResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceWatchEventPayload = {
+  workspaceId: string
+  changedRelativePaths: string[]
+}
+
+type WorkspaceWatcherEntry = {
+  workspaceId: string
+  rootPath: string
+  watcher: FSWatcher
+  pendingRelativePaths: Set<string>
+  debounceTimer: ReturnType<typeof setTimeout> | null
+}
+
 const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
   '.git',
   'node_modules',
@@ -73,14 +101,25 @@ const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
 ])
 
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
+const WATCH_EVENT_DEBOUNCE_MS = 300
+const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 
 const fileNameCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 })
+const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
 
 function normalizeToWorkspaceRelativePath(absolutePath: string, rootPath: string) {
   return path.relative(rootPath, absolutePath).split(path.sep).join('/')
+}
+
+function hasIgnoredWorkspaceSegment(relativePath: string) {
+  const normalizedPath = relativePath.split(path.sep).join('/')
+  return normalizedPath
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .some((segment) => WORKSPACE_INDEX_IGNORE_NAMES.has(segment))
 }
 
 function isPathInsideWorkspace(rootPath: string, targetPath: string) {
@@ -94,6 +133,21 @@ function isPathInsideWorkspace(rootPath: string, targetPath: string) {
 
 function isLikelyBinaryContent(contentBuffer: Buffer) {
   return contentBuffer.includes(0)
+}
+
+function shouldIgnoreWatchPath(rootPath: string, candidatePath: string) {
+  const resolvedCandidatePath = path.resolve(candidatePath)
+  const relativePath = path.relative(rootPath, resolvedCandidatePath)
+
+  if (relativePath === '') {
+    return false
+  }
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return true
+  }
+
+  return hasIgnoredWorkspaceSegment(relativePath)
 }
 
 function sortWorkspaceTree(nodes: WorkspaceFileNode[]): WorkspaceFileNode[] {
@@ -294,13 +348,200 @@ async function handleWorkspaceReadFile(
   }
 }
 
+function sendWorkspaceWatchEvent(payload: WorkspaceWatchEventPayload) {
+  if (!win || win.isDestroyed()) {
+    return
+  }
+  win.webContents.send('workspace:watchEvent', payload)
+}
+
+function flushWorkspaceWatchEvent(workspaceId: string) {
+  const watchEntry = workspaceWatchers.get(workspaceId)
+  if (!watchEntry) {
+    return
+  }
+
+  watchEntry.debounceTimer = null
+  if (watchEntry.pendingRelativePaths.size === 0) {
+    return
+  }
+
+  const changedRelativePaths = Array.from(watchEntry.pendingRelativePaths).sort()
+  watchEntry.pendingRelativePaths.clear()
+  sendWorkspaceWatchEvent({
+    workspaceId,
+    changedRelativePaths,
+  })
+}
+
+function queueWorkspaceWatchEvent(workspaceId: string, targetPath: string) {
+  const watchEntry = workspaceWatchers.get(workspaceId)
+  if (!watchEntry) {
+    return
+  }
+
+  const resolvedTargetPath = path.resolve(targetPath)
+  if (!isPathInsideWorkspace(watchEntry.rootPath, resolvedTargetPath)) {
+    return
+  }
+
+  if (shouldIgnoreWatchPath(watchEntry.rootPath, resolvedTargetPath)) {
+    return
+  }
+
+  const relativePath = normalizeToWorkspaceRelativePath(
+    resolvedTargetPath,
+    watchEntry.rootPath,
+  )
+  if (!relativePath || relativePath.startsWith('..')) {
+    return
+  }
+
+  watchEntry.pendingRelativePaths.add(relativePath)
+  if (watchEntry.debounceTimer !== null) {
+    return
+  }
+
+  watchEntry.debounceTimer = setTimeout(() => {
+    flushWorkspaceWatchEvent(workspaceId)
+  }, WATCH_EVENT_DEBOUNCE_MS)
+}
+
+async function stopWorkspaceWatcher(workspaceId: string) {
+  const watchEntry = workspaceWatchers.get(workspaceId)
+  if (!watchEntry) {
+    return
+  }
+
+  workspaceWatchers.delete(workspaceId)
+  if (watchEntry.debounceTimer !== null) {
+    clearTimeout(watchEntry.debounceTimer)
+    watchEntry.debounceTimer = null
+  }
+  watchEntry.pendingRelativePaths.clear()
+  await watchEntry.watcher.close()
+}
+
+async function stopAllWorkspaceWatchers() {
+  const workspaceIds = Array.from(workspaceWatchers.keys())
+  await Promise.all(
+    workspaceIds.map(async (workspaceId) => {
+      try {
+        await stopWorkspaceWatcher(workspaceId)
+      } catch (error) {
+        console.error(`Failed to stop watcher for workspace "${workspaceId}".`, error)
+      }
+    }),
+  )
+}
+
+async function handleWorkspaceWatchStart(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWatchStartRequest,
+): Promise<WorkspaceWatchControlResult> {
+  try {
+    const workspaceId = request?.workspaceId?.trim()
+    const rootPath = request?.rootPath
+    if (!workspaceId || !rootPath) {
+      return {
+        ok: false,
+        error: 'workspaceId and rootPath are required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const existingWatchEntry = workspaceWatchers.get(workspaceId)
+    if (existingWatchEntry?.rootPath === resolvedRootPath) {
+      return { ok: true }
+    }
+
+    if (existingWatchEntry) {
+      await stopWorkspaceWatcher(workspaceId)
+    }
+
+    const watcher = chokidar.watch(resolvedRootPath, {
+      ignored: (candidatePath) =>
+        shouldIgnoreWatchPath(resolvedRootPath, candidatePath),
+      ignoreInitial: true,
+      persistent: true,
+      followSymlinks: false,
+      awaitWriteFinish: {
+        stabilityThreshold: 150,
+        pollInterval: 30,
+      },
+    })
+
+    const watchEntry: WorkspaceWatcherEntry = {
+      workspaceId,
+      rootPath: resolvedRootPath,
+      watcher,
+      pendingRelativePaths: new Set(),
+      debounceTimer: null,
+    }
+    workspaceWatchers.set(workspaceId, watchEntry)
+
+    watcher.on('all', (eventName, candidatePath) => {
+      if (!WATCHABLE_FILE_EVENTS.has(eventName)) {
+        return
+      }
+      queueWorkspaceWatchEvent(workspaceId, candidatePath)
+    })
+
+    watcher.on('error', (error) => {
+      console.error(`Workspace watcher error (${workspaceId}).`, error)
+    })
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to start workspace watcher.',
+    }
+  }
+}
+
+async function handleWorkspaceWatchStop(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWatchStopRequest,
+): Promise<WorkspaceWatchControlResult> {
+  try {
+    const workspaceId = request?.workspaceId?.trim()
+    if (!workspaceId) {
+      return {
+        ok: false,
+        error: 'workspaceId is required.',
+      }
+    }
+
+    await stopWorkspaceWatcher(workspaceId)
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to stop workspace watcher.',
+    }
+  }
+}
+
 function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:openDialog')
   ipcMain.removeHandler('workspace:index')
   ipcMain.removeHandler('workspace:readFile')
+  ipcMain.removeHandler('workspace:watchStart')
+  ipcMain.removeHandler('workspace:watchStop')
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
+  ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStart)
+  ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStop)
 }
 
 function createWindow() {
@@ -313,6 +554,11 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
+  })
+
+  win.on('closed', () => {
+    void stopAllWorkspaceWatchers()
+    win = null
   })
 
   // Test active push message to Renderer-process.
@@ -332,10 +578,15 @@ function createWindow() {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  void stopAllWorkspaceWatchers()
   if (process.platform !== 'darwin') {
     app.quit()
     win = null
   }
+})
+
+app.on('before-quit', () => {
+  void stopAllWorkspaceWatchers()
 })
 
 app.on('activate', () => {

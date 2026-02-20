@@ -70,6 +70,7 @@ function App() {
     activeWorkspaceId,
     rootPath,
     fileTree,
+    changedFiles,
     activeFile,
     activeSpec,
     activeFileContent,
@@ -359,6 +360,7 @@ function App() {
               activeFile={activeFile}
               expandedDirectories={expandedDirectories}
               fileTree={fileTree}
+              changedFiles={changedFiles}
               isIndexing={isIndexing}
               onExpandedDirectoriesChange={setExpandedDirectories}
               onRequestCopyRelativePath={handleCopyRelativePath}

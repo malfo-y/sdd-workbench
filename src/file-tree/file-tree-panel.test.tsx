@@ -13,6 +13,7 @@ describe('FileTreePanel context copy', () => {
     render(
       <FileTreePanel
         activeFile={null}
+        changedFiles={['src/auth.ts']}
         expandedDirectories={['src']}
         fileTree={[
           {
@@ -36,6 +37,10 @@ describe('FileTreePanel context copy', () => {
       />,
     )
 
+    expect(
+      screen.getByTestId('tree-changed-indicator-src/auth.ts'),
+    ).toBeInTheDocument()
+
     fireEvent.contextMenu(screen.getByRole('button', { name: 'auth.ts' }), {
       clientX: 120,
       clientY: 160,
@@ -58,6 +63,7 @@ describe('FileTreePanel context copy', () => {
     render(
       <FileTreePanel
         activeFile={null}
+        changedFiles={[]}
         expandedDirectories={[]}
         fileTree={[
           {

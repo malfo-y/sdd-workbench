@@ -1,6 +1,7 @@
 import {
   createContext,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -24,6 +25,7 @@ type WorkspaceContextValue = {
   activeWorkspaceId: WorkspaceId | null
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
+  changedFiles: string[]
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
@@ -69,6 +71,13 @@ function getSpecPreviewUnavailableMessage(
   return 'Failed to render markdown preview: binary file detected.'
 }
 
+function withoutChangedFileMarker(changedFiles: string[], relativePath: string) {
+  if (!changedFiles.includes(relativePath)) {
+    return changedFiles
+  }
+  return changedFiles.filter((path) => path !== relativePath)
+}
+
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [workspaceState, setWorkspaceState] = useState(createEmptyWorkspaceState)
   const workspaceStateRef = useRef(workspaceState)
@@ -77,6 +86,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
   const indexRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readFileRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
+  const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
 
   const clearBanner = useCallback(() => {
     setBannerMessage(null)
@@ -96,6 +106,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         ...currentSession,
         isIndexing: true,
         fileTree: [],
+        changedFiles: [],
         activeFile: null,
         activeSpec: null,
         activeFileContent: null,
@@ -160,6 +171,48 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const startWorkspaceWatch = useCallback(
+    async (workspaceId: WorkspaceId, rootPath: string) => {
+      if (watchedWorkspaceIdsRef.current.has(workspaceId)) {
+        return true
+      }
+
+      try {
+        const watchStartResult = await window.workspace.watchStart(
+          workspaceId,
+          rootPath,
+        )
+        if (!watchStartResult.ok) {
+          setBannerMessage(
+            watchStartResult.error
+              ? `Failed to start watcher: ${watchStartResult.error}`
+              : 'Failed to start watcher.',
+          )
+          return false
+        }
+        watchedWorkspaceIdsRef.current.add(workspaceId)
+        return true
+      } catch (error) {
+        setBannerMessage(
+          error instanceof Error
+            ? `Failed to start watcher: ${error.message}`
+            : 'Failed to start watcher.',
+        )
+        return false
+      }
+    },
+    [],
+  )
+
+  const stopWorkspaceWatch = useCallback(async (workspaceId: WorkspaceId) => {
+    watchedWorkspaceIdsRef.current.delete(workspaceId)
+    try {
+      await window.workspace.watchStop(workspaceId)
+    } catch {
+      // Watcher cleanup is best-effort because workspace close should always proceed.
+    }
+  }, [])
+
   const openWorkspace = useCallback(async () => {
     try {
       const result = await window.workspace.openDialog()
@@ -193,6 +246,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
+      await startWorkspaceWatch(selectedWorkspaceId, selectedPath)
       await loadWorkspaceIndex(selectedWorkspaceId, selectedPath)
     } catch (error) {
       setBannerMessage(
@@ -201,7 +255,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           : 'Failed to open workspace.',
       )
     }
-  }, [loadWorkspaceIndex])
+  }, [loadWorkspaceIndex, startWorkspaceWatch])
 
   const setActiveWorkspace = useCallback((workspaceId: WorkspaceId) => {
     setWorkspaceState((previous) =>
@@ -212,158 +266,192 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const closeWorkspace = useCallback((workspaceId: WorkspaceId) => {
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+    void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
-  }, [])
+  }, [stopWorkspaceWatch])
+
+  const loadWorkspaceFile = useCallback(
+    (
+      workspaceId: WorkspaceId,
+      relativePath: string,
+      mode: 'select' | 'refresh',
+    ) => {
+      const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
+      if (!workspaceSession) {
+        return
+      }
+
+      const requestId = (readFileRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readFileRequestIdByWorkspaceRef.current[workspaceId] = requestId
+      const selectingMarkdown = isMarkdownFile(relativePath)
+      const shouldUpdateSpec = selectingMarkdown && mode === 'select'
+      const shouldRefreshSpec =
+        selectingMarkdown && workspaceSession.activeSpec === relativePath
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+          const leavingActiveFile =
+            mode === 'select' &&
+            currentSession.activeFile !== null &&
+            currentSession.activeFile !== relativePath
+              ? currentSession.activeFile
+              : null
+
+          return {
+            ...currentSession,
+            changedFiles:
+              leavingActiveFile === null
+                ? currentSession.changedFiles
+                : withoutChangedFileMarker(
+                    currentSession.changedFiles,
+                    leavingActiveFile,
+                  ),
+            activeFile: mode === 'select' ? relativePath : currentSession.activeFile,
+            activeSpec: shouldUpdateSpec ? relativePath : currentSession.activeSpec,
+            activeFileContent:
+              mode === 'select' ? null : currentSession.activeFileContent,
+            selectionRange:
+              mode === 'select' ? null : currentSession.selectionRange,
+            readFileError: null,
+            previewUnavailableReason: null,
+            isReadingFile: true,
+            activeSpecContent:
+              shouldUpdateSpec ? null : currentSession.activeSpecContent,
+            activeSpecReadError:
+              shouldUpdateSpec || shouldRefreshSpec
+                ? null
+                : currentSession.activeSpecReadError,
+            isReadingSpec:
+              shouldUpdateSpec || shouldRefreshSpec
+                ? true
+                : currentSession.isReadingSpec,
+          }
+        }),
+      )
+
+      void (async () => {
+        try {
+          const readResult = await window.workspace.readFile(
+            workspaceSession.rootPath,
+            relativePath,
+          )
+          if (readFileRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+            return
+          }
+
+          if (!readResult.ok) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                ...currentSession,
+                readFileError: readResult.error
+                  ? `Failed to read file: ${readResult.error}`
+                  : 'Failed to read file.',
+                isReadingFile: false,
+                activeSpecContent:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? null
+                    : currentSession.activeSpecContent,
+                activeSpecReadError:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? readResult.error
+                      ? `Failed to read file: ${readResult.error}`
+                      : 'Failed to read file.'
+                    : currentSession.activeSpecReadError,
+                isReadingSpec:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? false
+                    : currentSession.isReadingSpec,
+              })),
+            )
+            return
+          }
+
+          if (readResult.previewUnavailableReason) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                ...currentSession,
+                previewUnavailableReason: readResult.previewUnavailableReason ?? null,
+                isReadingFile: false,
+                activeSpecContent:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? null
+                    : currentSession.activeSpecContent,
+                activeSpecReadError:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? getSpecPreviewUnavailableMessage(
+                        readResult.previewUnavailableReason ?? 'binary_file',
+                      )
+                    : currentSession.activeSpecReadError,
+                isReadingSpec:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? false
+                    : currentSession.isReadingSpec,
+              })),
+            )
+            return
+          }
+
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              activeFileContent: readResult.content ?? '',
+              isReadingFile: false,
+              activeSpecContent:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? readResult.content ?? ''
+                  : currentSession.activeSpecContent,
+              activeSpecReadError:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? null
+                  : currentSession.activeSpecReadError,
+              isReadingSpec:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? false
+                  : currentSession.isReadingSpec,
+            })),
+          )
+        } catch (error) {
+          if (readFileRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+            return
+          }
+
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              readFileError:
+                error instanceof Error
+                  ? `Failed to read file: ${error.message}`
+                  : 'Failed to read file.',
+              isReadingFile: false,
+              activeSpecContent:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? null
+                  : currentSession.activeSpecContent,
+              activeSpecReadError:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? error instanceof Error
+                    ? `Failed to read file: ${error.message}`
+                    : 'Failed to read file.'
+                  : currentSession.activeSpecReadError,
+              isReadingSpec:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? false
+                  : currentSession.isReadingSpec,
+            })),
+          )
+        }
+      })()
+    },
+    [],
+  )
 
   const selectFile = useCallback((relativePath: string) => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
       return
     }
-
-    const activeSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
-    if (!activeSession) {
-      return
-    }
-
-    const requestId =
-      (readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] ?? 0) + 1
-    readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] = requestId
-    const selectingMarkdown = isMarkdownFile(relativePath)
-
-    setWorkspaceState((previous) =>
-      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-        ...currentSession,
-        activeFile: relativePath,
-        activeSpec: selectingMarkdown ? relativePath : currentSession.activeSpec,
-        activeFileContent: null,
-        selectionRange: null,
-        readFileError: null,
-        previewUnavailableReason: null,
-        isReadingFile: true,
-        activeSpecContent: selectingMarkdown
-          ? null
-          : currentSession.activeSpecContent,
-        activeSpecReadError: selectingMarkdown
-          ? null
-          : currentSession.activeSpecReadError,
-        isReadingSpec: selectingMarkdown,
-      })),
-    )
-
-    void (async () => {
-      try {
-        const readResult = await window.workspace.readFile(
-          activeSession.rootPath,
-          relativePath,
-        )
-        if (
-          readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] !== requestId
-        ) {
-          return
-        }
-
-        if (!readResult.ok) {
-          setWorkspaceState((previous) =>
-            updateWorkspaceSession(
-              previous,
-              activeWorkspaceId,
-              (currentSession) => ({
-                ...currentSession,
-                readFileError: readResult.error
-                  ? `Failed to read file: ${readResult.error}`
-                  : 'Failed to read file.',
-                isReadingFile: false,
-                activeSpecContent: selectingMarkdown
-                  ? null
-                  : currentSession.activeSpecContent,
-                activeSpecReadError: selectingMarkdown
-                  ? readResult.error
-                    ? `Failed to read file: ${readResult.error}`
-                    : 'Failed to read file.'
-                  : currentSession.activeSpecReadError,
-                isReadingSpec: selectingMarkdown
-                  ? false
-                  : currentSession.isReadingSpec,
-              }),
-            ),
-          )
-          return
-        }
-
-        if (readResult.previewUnavailableReason) {
-          setWorkspaceState((previous) =>
-            updateWorkspaceSession(
-              previous,
-              activeWorkspaceId,
-              (currentSession) => ({
-                ...currentSession,
-                previewUnavailableReason: readResult.previewUnavailableReason ?? null,
-                isReadingFile: false,
-                activeSpecContent: selectingMarkdown
-                  ? null
-                  : currentSession.activeSpecContent,
-                activeSpecReadError: selectingMarkdown
-                  ? getSpecPreviewUnavailableMessage(
-                      readResult.previewUnavailableReason ?? 'binary_file',
-                    )
-                  : currentSession.activeSpecReadError,
-                isReadingSpec: selectingMarkdown
-                  ? false
-                  : currentSession.isReadingSpec,
-              }),
-            ),
-          )
-          return
-        }
-
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            activeFileContent: readResult.content ?? '',
-            isReadingFile: false,
-            activeSpecContent: selectingMarkdown
-              ? readResult.content ?? ''
-              : currentSession.activeSpecContent,
-            activeSpecReadError: selectingMarkdown
-              ? null
-              : currentSession.activeSpecReadError,
-            isReadingSpec: selectingMarkdown
-              ? false
-              : currentSession.isReadingSpec,
-          })),
-        )
-      } catch (error) {
-        if (
-          readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] !== requestId
-        ) {
-          return
-        }
-
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            readFileError:
-              error instanceof Error
-                ? `Failed to read file: ${error.message}`
-                : 'Failed to read file.',
-            isReadingFile: false,
-            activeSpecContent: selectingMarkdown
-              ? null
-              : currentSession.activeSpecContent,
-            activeSpecReadError: selectingMarkdown
-              ? error instanceof Error
-                ? `Failed to read file: ${error.message}`
-                : 'Failed to read file.'
-              : currentSession.activeSpecReadError,
-            isReadingSpec: selectingMarkdown
-              ? false
-              : currentSession.isReadingSpec,
-          })),
-        )
-      }
-    })()
-  }, [])
+    loadWorkspaceFile(activeWorkspaceId, relativePath, 'select')
+  }, [loadWorkspaceFile])
 
   const setSelectionRange = useCallback(
     (selectionRange: LineSelectionRange | null) => {
@@ -400,6 +488,52 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  useEffect(() => {
+    const watchedWorkspaceIds = watchedWorkspaceIdsRef.current
+    const unsubscribe = window.workspace.onWatchEvent((watchEvent) => {
+      if (!watchEvent.workspaceId || watchEvent.changedRelativePaths.length === 0) {
+        return
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[watchEvent.workspaceId]
+      const activeFile = workspaceSession?.activeFile ?? null
+      const shouldRefreshActiveFile =
+        activeFile !== null && watchEvent.changedRelativePaths.includes(activeFile)
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, watchEvent.workspaceId, (currentSession) => {
+          const nextChangedFiles = Array.from(
+            new Set([
+              ...currentSession.changedFiles,
+              ...watchEvent.changedRelativePaths,
+            ]),
+          )
+          if (nextChangedFiles.length === currentSession.changedFiles.length) {
+            return currentSession
+          }
+          return {
+            ...currentSession,
+            changedFiles: nextChangedFiles,
+          }
+        }),
+      )
+
+      if (shouldRefreshActiveFile && activeFile !== null) {
+        loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      const watchedWorkspaceIdList = Array.from(watchedWorkspaceIds)
+      watchedWorkspaceIds.clear()
+      for (const workspaceId of watchedWorkspaceIdList) {
+        void window.workspace.watchStop(workspaceId)
+      }
+    }
+  }, [loadWorkspaceFile])
+
   const activeWorkspace = workspaceState.activeWorkspaceId
     ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
     : null
@@ -411,6 +545,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       activeWorkspaceId: workspaceState.activeWorkspaceId,
       rootPath: activeWorkspace?.rootPath ?? null,
       fileTree: activeWorkspace?.fileTree ?? [],
+      changedFiles: activeWorkspace?.changedFiles ?? [],
       activeFile: activeWorkspace?.activeFile ?? null,
       activeSpec: activeWorkspace?.activeSpec ?? null,
       activeFileContent: activeWorkspace?.activeFileContent ?? null,

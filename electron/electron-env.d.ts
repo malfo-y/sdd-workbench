@@ -49,6 +49,16 @@ interface WorkspaceReadFileResult {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+interface WorkspaceWatchControlResult {
+  ok: boolean
+  error?: string
+}
+
+interface WorkspaceWatchEvent {
+  workspaceId: string
+  changedRelativePaths: string[]
+}
+
 interface Window {
   workspace: {
     openDialog: () => Promise<WorkspaceOpenDialogResult>
@@ -57,5 +67,13 @@ interface Window {
       rootPath: string,
       relativePath: string,
     ) => Promise<WorkspaceReadFileResult>
+    watchStart: (
+      workspaceId: string,
+      rootPath: string,
+    ) => Promise<WorkspaceWatchControlResult>
+    watchStop: (workspaceId: string) => Promise<WorkspaceWatchControlResult>
+    onWatchEvent: (
+      listener: (event: WorkspaceWatchEvent) => void,
+    ) => () => void
   }
 }

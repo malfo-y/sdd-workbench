@@ -440,15 +440,27 @@
 }
 
 .tree-file-button {
+  align-items: center;
   background: transparent;
   border: 0;
   color: #d3d3d3;
   cursor: pointer;
-  display: block;
+  display: inline-flex;
   font: inherit;
+  gap: 6px;
   padding: 3px 0;
   text-align: left;
   width: 100%;
+}
+
+.tree-file-name {
+  min-width: 0;
+}
+
+.tree-file-changed-indicator {
+  color: #f0a057;
+  font-size: 0.72rem;
+  line-height: 1;
 }
 
 .tree-node-file.is-active .tree-file-button {

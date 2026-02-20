@@ -123,4 +123,24 @@ describe('workspace-model', () => {
     state = setActiveWorkspace(state, workspaceBId)
     expect(state.workspacesById[workspaceBId]?.activeSpec).toBe('docs/spec-b.md')
   })
+
+  it('keeps changedFiles separated by workspace', () => {
+    const workspaceAId = createWorkspaceId(ROOT_A)
+    const workspaceBId = createWorkspaceId(ROOT_B)
+
+    let state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    state = updateWorkspaceSession(state, workspaceAId, (session) => ({
+      ...session,
+      changedFiles: ['src/a.ts'],
+    }))
+
+    state = addOrFocusWorkspace(state, ROOT_B).state
+    state = updateWorkspaceSession(state, workspaceBId, (session) => ({
+      ...session,
+      changedFiles: ['docs/b.md'],
+    }))
+
+    expect(state.workspacesById[workspaceAId]?.changedFiles).toEqual(['src/a.ts'])
+    expect(state.workspacesById[workspaceBId]?.changedFiles).toEqual(['docs/b.md'])
+  })
 })
