@@ -11,9 +11,12 @@ export type WorkspaceSession = {
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
+  activeSpecContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
+  isReadingSpec: boolean
   readFileError: string | null
+  activeSpecReadError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
   expandedDirectories: string[]
@@ -64,9 +67,12 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     activeFile: null,
     activeSpec: null,
     activeFileContent: null,
+    activeSpecContent: null,
     isIndexing: false,
     isReadingFile: false,
+    isReadingSpec: false,
     readFileError: null,
+    activeSpecReadError: null,
     previewUnavailableReason: null,
     selectionRange: null,
     expandedDirectories: [],

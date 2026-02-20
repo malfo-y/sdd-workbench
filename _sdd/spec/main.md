@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.10.0`
+- 문서 버전: `0.10.1`
 - 마지막 업데이트: `2026-02-20`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -53,11 +53,11 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합 + same-workspace spec 링크 파일 열기/라인 점프 wiring | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
-| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec`/배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04) |
+| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + 배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
-| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) | Implemented (F03.5) |
+| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 정의 | Implemented (F03.5/F04) |
 | `src/workspace/workspace-switcher.tsx` | 활성 워크스페이스 선택 + 닫기/제거 UI | Implemented (F03.5) |
 | `src/workspace/path-format.ts` | UI 표시용 경로 축약 유틸(`~`) | Implemented (F01) |
 | `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 | Implemented (F02/F03.5) |
@@ -70,7 +70,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/spec-viewer/spec-link-utils.ts` | spec 링크 분류(anchor/workspace-file/external/unresolved) + activeSpec 기준 경로 해석 + `#Lx/#Lx-Ly` 파싱 | Implemented (F04.1/F05) |
 | `src/spec-viewer/spec-link-popover.tsx` | 커서 기준 링크 액션 popover(`Copy Link Address`, `Close`) | Implemented (F04.1) |
 | `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크 popover 스타일 + 토큰 컬러 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1) |
-| `src/App.test.tsx` | F01/F02/F03/F03.1/F03.5/F04/F04.1/F05 통합 플로우 테스트(16건) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05) |
+| `src/App.test.tsx` | F01/F02/F03/F03.1/F03.5/F04/F04.1/F05 통합 플로우 테스트(17건, spec 유지 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05) |
 | `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(6건) | Implemented (F03.5/F04) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
 | `src/code-viewer/language-map.test.ts` | 확장자 매핑/ fallback 테스트(2건) | Implemented (F03.1) |
@@ -94,7 +94,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 구현(F03.5), 세션 영속화는 Non-Goal |
 | 4.2 File Browser | Partial | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 구현, changed indicator는 미구현 |
 | 4.3 Code Viewer | Partial | 코드 프리뷰/라인 선택/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) 구현, 툴바 복사/우클릭 복사 연계(F06/F06.1)는 미구현 |
-| 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 구현(F04) |
+| 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 + 코드 파일 선택 시 우측 spec 유지 구현(F04) |
 | 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) 구현 |
 | 4.6 Context Toolbar | Planned | 4개 액션 버튼 미구현 |
 | 4.7 File Change Detection | Planned | 파일 시스템 watcher 미구현 |
@@ -163,9 +163,9 @@ Renderer (React)
 |---|---|
 | Purpose | 멀티 워크스페이스 세션 관리 + 워크스페이스별 인덱싱/파일 본문/선택 상태와 배너 피드백 관리 |
 | Input | `window.workspace.openDialog()`, `window.workspace.index(rootPath)`, `window.workspace.readFile(rootPath, relativePath)` 결과 |
-| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `activeFile`, `activeFileContent`, `isIndexing`, `isReadingFile`, `readFileError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
+| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `activeFile`, `activeFileContent`, `activeSpec`, `activeSpecContent`, `isIndexing`, `isReadingFile`, `isReadingSpec`, `readFileError`, `activeSpecReadError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
 | Dependencies | `workspace:openDialog`, `workspace:index`, `workspace:readFile` IPC + preload 브리지 |
-| 상태 | Implemented (F01/F02/F03/F03.5) |
+| 상태 | Implemented (F01/F02/F03/F03.5/F04) |
 
 ### 6.2 FileTreePanel
 
@@ -192,7 +192,7 @@ Renderer (React)
 | 항목 | 내용 |
 |---|---|
 | Purpose | Markdown 렌더링, TOC 표시, markdown 링크 인터셉트/안전 처리(동일 문서 anchor 허용 + same-workspace 파일 열기 + lineRange 전달 + external/unresolved copy popover) |
-| Input | `activeSpecPath`, markdown content, `onOpenRelativePath(relativePath, lineRange)` |
+| Input | `activeSpecPath`, `activeSpecContent`, `isReadingSpec`, `activeSpecReadError`, `onOpenRelativePath(relativePath, lineRange)` |
 | Output | TOC anchor 링크, `onOpenRelativePath(relativePath, lineRange)` 호출, link popover UI |
 | Dependencies | `react-markdown`, `remark-gfm`, `rehype-slug`, `spec-link-utils`, `spec-link-popover` |
 | 상태 | Partial (F04/F04.1/F05 Implemented, activeHeading 추적은 F09 예정) |
@@ -232,13 +232,16 @@ type WorkspaceSession = {
   fileTree: FileNode[] // F02 구현
   activeFile: string | null // F02 구현
   activeFileContent: string | null // F03 구현
+  activeSpec: string | null // F04 구현
+  activeSpecContent: string | null // F04 구현 (우측 rendered spec 소스)
   isIndexing: boolean // F02 구현
   isReadingFile: boolean // F03 구현
+  isReadingSpec: boolean // F04 구현
   readFileError: string | null // F03 구현
+  activeSpecReadError: string | null // F04 구현
   previewUnavailableReason: 'file_too_large' | 'binary_file' | null // F03 구현
   selectionRange: SelectionState // F03 구현
   expandedDirectories: string[] // F03.5 구현
-  activeSpec: string | null // F04 구현
   changedFiles: string[] // F07 예정 (내부 구현은 Set 권장)
 }
 
@@ -295,6 +298,13 @@ F03.5 기준 상태 전이 규칙(Implemented):
 5. 파일 트리 폴더 펼침 상태(`expandedDirectories`)는 워크스페이스 세션별로 저장/복원한다.
 6. 워크스페이스 전환 시 `selectionRange`는 `null`로 리셋한다.
 7. 파일 읽기 응답 경합은 워크스페이스별 request token으로 제어한다.
+
+F04 기준 상태 전이 규칙(Implemented):
+
+1. Markdown 파일 선택 시 `activeSpec`를 해당 경로로 갱신하고 `activeSpecContent`를 다시 로딩한다.
+2. 코드/비-Markdown 파일 선택 시 `activeSpec`/`activeSpecContent`는 유지한다.
+3. 우측 rendered spec 패널은 `activeSpec` 세션 상태를 기준으로 표시되며, center `activeFile` 종류와 독립적으로 유지된다.
+4. Markdown 미리보기 로딩/오류는 `isReadingSpec`/`activeSpecReadError`로 별도 관리한다.
 
 F06.1 기준 상태/상호작용 규칙(Planned):
 
@@ -381,7 +391,7 @@ F06.1 기준 상태/상호작용 규칙(Planned):
 - F03에서 파일 읽기 실패 시 center 패널에 오류를 표시하고 앱 상태를 유지한다.
 - F03에서 2MB 초과/바이너리 파일은 preview unavailable 상태로 안전하게 처리한다.
 - F03.5에서 워크스페이스 전환/중복 재오픈/닫기 시 세션 정합성(`workspaceOrder`, `activeWorkspaceId`)을 유지한다.
-- F04에서 `.md` 선택 시 center(raw)+right(rendered)가 동시에 표시되고 `activeSpec`가 워크스페이스별로 분리 복원된다.
+- F04에서 `.md` 선택 시 center(raw)+right(rendered)가 동시에 표시되고 `activeSpec`가 워크스페이스별로 분리 복원되며, 코드 파일 선택 후에도 우측 rendered spec이 유지된다.
 - F04.1에서 rendered markdown 링크 클릭 시 renderer 이동/리로드를 차단하고, same-workspace 링크는 파일을 열며 external/unresolved 링크는 copy popover로 처리한다.
 - F05에서 `path#Lx`/`path#Lx-Ly` 링크 클릭 시 active workspace 기준으로 파일 열기 + 라인 선택/하이라이트 + best-effort 점프 스크롤이 동작한다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
@@ -571,6 +581,7 @@ F06.1 기준 상태/상호작용 규칙(Planned):
   - `.md` 선택 시 center(raw) + right(rendered) 동시 표시
   - GFM 렌더 + 기본 TOC 표시
   - `activeSpec`를 워크스페이스별 세션 상태로 분리
+  - 코드/비-Markdown 파일 선택 후에도 우측 rendered spec(`activeSpec`) 유지
 - 제외:
   - TOC/스크롤/activeHeading의 워크스페이스별 복원
   - 섹션 active tracking 정밀화
@@ -579,6 +590,7 @@ F06.1 기준 상태/상호작용 규칙(Planned):
 - 완료 기준:
   - `.md` 파일 선택 시 우측 렌더 패널이 정상 출력됨
   - A/B 워크스페이스를 전환해도 각 워크스페이스의 `activeSpec` 상태가 섞이지 않음
+  - spec를 연 뒤 코드 파일을 선택해도 우측 패널이 마지막 `activeSpec` 렌더를 유지함
 - 예상 변경 파일:
   - `src/App.tsx`
   - `src/workspace/workspace-context.tsx`
@@ -774,6 +786,7 @@ F06.1 기준 상태/상호작용 규칙(Planned):
 - [x] 주요 확장자(`.py` 포함) 색상 코딩 + `plaintext` fallback (F03.1 완료, 2026-02-20)
 - [x] 멀티 워크스페이스 추가/전환/제거 가능 (`Open Workspace`=항상 추가, 중복 경로=기존 포커스, 전환 시 selection 리셋, 트리 펼침 상태 복원) (F03.5 완료, 2026-02-20)
 - [x] `.md` 파일 선택 시 center(raw) + right(rendered) 동작 (F04 완료, 2026-02-20)
+- [x] 코드/비-Markdown 파일 선택 후에도 우측 rendered spec 패널이 마지막 `activeSpec` 기준으로 유지됨 (F04 동작 보정, 2026-02-20)
 - [x] rendered markdown 링크 클릭 시 same-workspace 파일 열기 + external/unresolved copy popover 동작 (F04.1 완료, 2026-02-20)
 - [x] `path.ts#L10-L20` 클릭 시 점프 및 하이라이트 (F05 완료, 2026-02-20)
 - [ ] 툴바 액션 4종 정상 동작
@@ -789,8 +802,8 @@ F06.1 기준 상태/상호작용 규칙(Planned):
 
 현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05):
 
-- 자동 테스트: 총 53건 통과(`npm test`)
-  - `src/App.test.tsx` 16건
+- 자동 테스트: 총 54건 통과(`npm test`)
+  - `src/App.test.tsx` 17건
   - `src/workspace/workspace-model.test.ts` 6건
   - `src/code-viewer/line-selection.test.ts` 5건
   - `src/code-viewer/language-map.test.ts` 2건

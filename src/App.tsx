@@ -18,10 +18,6 @@ import { abbreviateWorkspacePath } from './workspace/path-format'
 import { useWorkspace } from './workspace/use-workspace'
 import { WorkspaceSwitcher } from './workspace/workspace-switcher'
 
-function isMarkdownFile(path: string | null) {
-  return path?.toLowerCase().endsWith('.md') ?? false
-}
-
 function collectWorkspaceFilePaths(
   nodes: WorkspaceFileNode[],
   paths = new Set<string>(),
@@ -71,9 +67,12 @@ function App() {
     activeFile,
     activeSpec,
     activeFileContent,
+    activeSpecContent,
     isIndexing,
     isReadingFile,
+    isReadingSpec,
     readFileError,
+    activeSpecReadError,
     previewUnavailableReason,
     selectionRange,
     expandedDirectories,
@@ -90,7 +89,6 @@ function App() {
     ? abbreviateWorkspacePath(rootPath)
     : 'No workspace selected'
   const displayActiveFile = activeFile ?? 'No active file'
-  const activeFileIsMarkdown = isMarkdownFile(activeFile)
   const [paneSizes, setPaneSizes] = useState<PaneSizes>({
     left: 25,
     center: 50,
@@ -330,10 +328,10 @@ function App() {
             </p>
             <SpecViewerPanel
               activeSpecPath={activeSpec}
-              isLoading={activeFileIsMarkdown && isReadingFile}
-              markdownContent={activeFileIsMarkdown ? activeFileContent : null}
+              isLoading={isReadingSpec}
+              markdownContent={activeSpecContent}
               onOpenRelativePath={openSpecRelativePath}
-              readError={activeFileIsMarkdown ? readFileError : null}
+              readError={activeSpecReadError}
             />
           </section>
         </div>

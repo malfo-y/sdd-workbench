@@ -618,6 +618,107 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('spec-viewer-toc')).toBeInTheDocument()
   })
 
+  it('keeps rendered spec visible while selecting a code file', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.ts',
+            relativePath: 'src/app.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: '# Title\n\nspec body',
+        }
+      }
+
+      if (relativePath === 'src/app.ts') {
+        return {
+          ok: true,
+          content: 'const value = 1',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent('Title')
+    })
+    expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+      'docs/README.md',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'app.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'app.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/app.ts')
+    })
+    expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+      'const value = 1',
+    )
+    expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+      'docs/README.md',
+    )
+    expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent('spec body')
+  })
+
   it('opens line-range markdown links from rendered spec content and applies selection', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [

@@ -294,3 +294,22 @@
 - Impact / follow-up:
   - `main.md`의 컴포넌트 상태/상태 모델/Feature Queue/수용 기준/리스크를 F06.1 planned 기준으로 동기화한다.
   - 구현 완료 후 `spec-update-done`에서 F06.1 상태를 `✅ Done`으로 전환한다.
+
+## 2026-02-20 - F04 동작 보정 반영(activeSpec 기반 우측 패널 유지)
+
+- Context:
+  - 구현 중 코드 파일 선택 시 우측 markdown 렌더 패널이 비워져 스펙+코드 동시 작업 흐름이 끊기는 문제가 확인되었음.
+  - 제품 목표는 코드와 스펙을 병렬로 참조하는 3패널 워크벤치이며, 우측 패널이 active file 타입에 종속되면 목표 UX와 충돌함.
+- Decision:
+  - 우측 rendered spec 패널의 데이터 소스는 `activeSpec` 세션 상태로 고정한다.
+  - Markdown 파일 선택 시에만 `activeSpec`/`activeSpecContent`를 갱신하고, 코드/비-Markdown 파일 선택 시에는 마지막 spec 렌더 상태를 유지한다.
+  - spec 렌더 로딩/오류는 코드 프리뷰 상태와 분리해 `isReadingSpec`/`activeSpecReadError`로 관리한다.
+- Rationale:
+  - center(code)와 right(spec)를 독립 상태로 유지해야 “스펙 보면서 코드 읽기” 핵심 시나리오가 끊기지 않는다.
+  - spec 렌더 상태를 분리하면 코드 파일 읽기 에러/preview unavailable 이벤트가 우측 패널을 오염시키지 않는다.
+- Alternatives considered:
+  - `activeFile`이 Markdown일 때만 우측 패널 표시
+  - 코드 파일 선택 시 우측 패널을 placeholder로 초기화
+- Impact / follow-up:
+  - `main.md`의 F04 정의/상태 모델/수용 기준/테스트 수치를 실제 구현(총 54 tests, `App.test.tsx` 17건)에 맞춰 동기화한다.
+  - F09 진행 시 active heading/section 추출도 동일하게 `activeSpec` 기반으로 확장한다.

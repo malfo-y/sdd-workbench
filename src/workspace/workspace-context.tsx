@@ -27,9 +27,12 @@ type WorkspaceContextValue = {
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
+  activeSpecContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
+  isReadingSpec: boolean
   readFileError: string | null
+  activeSpecReadError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
   expandedDirectories: string[]
@@ -54,6 +57,16 @@ type WorkspaceProviderProps = {
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
+}
+
+function getSpecPreviewUnavailableMessage(
+  reason: WorkspacePreviewUnavailableReason,
+) {
+  if (reason === 'file_too_large') {
+    return 'Failed to render markdown preview: file exceeds 2MB limit.'
+  }
+
+  return 'Failed to render markdown preview: binary file detected.'
 }
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
@@ -86,8 +99,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         activeFile: null,
         activeSpec: null,
         activeFileContent: null,
+        activeSpecContent: null,
         isReadingFile: false,
+        isReadingSpec: false,
         readFileError: null,
+        activeSpecReadError: null,
         previewUnavailableReason: null,
         selectionRange: null,
         expandedDirectories: [],
@@ -213,19 +229,25 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     const requestId =
       (readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] ?? 0) + 1
     readFileRequestIdByWorkspaceRef.current[activeWorkspaceId] = requestId
+    const selectingMarkdown = isMarkdownFile(relativePath)
 
     setWorkspaceState((previous) =>
       updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
         ...currentSession,
         activeFile: relativePath,
-        activeSpec: isMarkdownFile(relativePath)
-          ? relativePath
-          : currentSession.activeSpec,
+        activeSpec: selectingMarkdown ? relativePath : currentSession.activeSpec,
         activeFileContent: null,
         selectionRange: null,
         readFileError: null,
         previewUnavailableReason: null,
         isReadingFile: true,
+        activeSpecContent: selectingMarkdown
+          ? null
+          : currentSession.activeSpecContent,
+        activeSpecReadError: selectingMarkdown
+          ? null
+          : currentSession.activeSpecReadError,
+        isReadingSpec: selectingMarkdown,
       })),
     )
 
@@ -252,6 +274,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                   ? `Failed to read file: ${readResult.error}`
                   : 'Failed to read file.',
                 isReadingFile: false,
+                activeSpecContent: selectingMarkdown
+                  ? null
+                  : currentSession.activeSpecContent,
+                activeSpecReadError: selectingMarkdown
+                  ? readResult.error
+                    ? `Failed to read file: ${readResult.error}`
+                    : 'Failed to read file.'
+                  : currentSession.activeSpecReadError,
+                isReadingSpec: selectingMarkdown
+                  ? false
+                  : currentSession.isReadingSpec,
               }),
             ),
           )
@@ -267,6 +300,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 ...currentSession,
                 previewUnavailableReason: readResult.previewUnavailableReason ?? null,
                 isReadingFile: false,
+                activeSpecContent: selectingMarkdown
+                  ? null
+                  : currentSession.activeSpecContent,
+                activeSpecReadError: selectingMarkdown
+                  ? getSpecPreviewUnavailableMessage(
+                      readResult.previewUnavailableReason ?? 'binary_file',
+                    )
+                  : currentSession.activeSpecReadError,
+                isReadingSpec: selectingMarkdown
+                  ? false
+                  : currentSession.isReadingSpec,
               }),
             ),
           )
@@ -278,6 +322,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             ...currentSession,
             activeFileContent: readResult.content ?? '',
             isReadingFile: false,
+            activeSpecContent: selectingMarkdown
+              ? readResult.content ?? ''
+              : currentSession.activeSpecContent,
+            activeSpecReadError: selectingMarkdown
+              ? null
+              : currentSession.activeSpecReadError,
+            isReadingSpec: selectingMarkdown
+              ? false
+              : currentSession.isReadingSpec,
           })),
         )
       } catch (error) {
@@ -295,6 +348,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 ? `Failed to read file: ${error.message}`
                 : 'Failed to read file.',
             isReadingFile: false,
+            activeSpecContent: selectingMarkdown
+              ? null
+              : currentSession.activeSpecContent,
+            activeSpecReadError: selectingMarkdown
+              ? error instanceof Error
+                ? `Failed to read file: ${error.message}`
+                : 'Failed to read file.'
+              : currentSession.activeSpecReadError,
+            isReadingSpec: selectingMarkdown
+              ? false
+              : currentSession.isReadingSpec,
           })),
         )
       }
@@ -350,9 +414,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       activeFile: activeWorkspace?.activeFile ?? null,
       activeSpec: activeWorkspace?.activeSpec ?? null,
       activeFileContent: activeWorkspace?.activeFileContent ?? null,
+      activeSpecContent: activeWorkspace?.activeSpecContent ?? null,
       isIndexing: activeWorkspace?.isIndexing ?? false,
       isReadingFile: activeWorkspace?.isReadingFile ?? false,
+      isReadingSpec: activeWorkspace?.isReadingSpec ?? false,
       readFileError: activeWorkspace?.readFileError ?? null,
+      activeSpecReadError: activeWorkspace?.activeSpecReadError ?? null,
       previewUnavailableReason: activeWorkspace?.previewUnavailableReason ?? null,
       selectionRange: activeWorkspace?.selectionRange ?? null,
       expandedDirectories: activeWorkspace?.expandedDirectories ?? [],
