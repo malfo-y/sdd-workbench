@@ -9,6 +9,7 @@ import {
 import './App.css'
 import {
   buildCopyActiveFilePathPayload,
+  buildCopySelectedContentPayload,
   buildCopySelectedLinesPayload,
 } from './context-copy/copy-payload'
 import {
@@ -18,10 +19,10 @@ import {
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
-import { ContextToolbar } from './toolbar/context-toolbar'
 import { abbreviateWorkspacePath } from './workspace/path-format'
 import { useWorkspace } from './workspace/use-workspace'
 import { WorkspaceSwitcher } from './workspace/workspace-switcher'
+import type { LineSelectionRange } from './workspace/workspace-model'
 
 function collectWorkspaceFilePaths(
   nodes: WorkspaceFileNode[],
@@ -94,12 +95,6 @@ function App() {
   const displayPath = rootPath
     ? abbreviateWorkspacePath(rootPath)
     : 'No workspace selected'
-  const canCopyActiveFilePath =
-    activeWorkspaceId !== null && activeFile !== null
-  const canCopySelectedLines =
-    activeWorkspaceId !== null &&
-    activeFile !== null &&
-    selectionRange !== null
   const [paneSizes, setPaneSizes] = useState<PaneSizes>({
     left: 25,
     center: 50,
@@ -133,33 +128,56 @@ function App() {
     [showBanner],
   )
 
-  const handleCopyActiveFilePath = useCallback(() => {
-    if (!canCopyActiveFilePath || !activeFile) {
-      return
-    }
+  const handleCopyRelativePath = useCallback(
+    (relativePath: string) => {
+      if (activeWorkspaceId === null) {
+        return
+      }
 
-    const payload = buildCopyActiveFilePathPayload(activeFile)
-    void writeToClipboard(payload, 'Failed to copy active file path.')
-  }, [activeFile, canCopyActiveFilePath, writeToClipboard])
+      const payload = buildCopyActiveFilePathPayload(relativePath)
+      void writeToClipboard(payload, 'Failed to copy relative path.')
+    },
+    [activeWorkspaceId, writeToClipboard],
+  )
 
-  const handleCopySelectedLines = useCallback(() => {
-    if (!canCopySelectedLines || !activeFile || !selectionRange) {
-      return
-    }
+  const handleCopyBoth = useCallback(
+    (input: {
+      relativePath: string
+      content: string
+      selectionRange: LineSelectionRange
+    }) => {
+      if (activeWorkspaceId === null) {
+        return
+      }
 
-    const payload = buildCopySelectedLinesPayload({
-      relativePath: activeFile,
-      content: activeFileContent ?? '',
-      selectionRange,
-    })
-    void writeToClipboard(payload, 'Failed to copy selected lines.')
-  }, [
-    activeFile,
-    activeFileContent,
-    canCopySelectedLines,
-    selectionRange,
-    writeToClipboard,
-  ])
+      const payload = buildCopySelectedLinesPayload({
+        relativePath: input.relativePath,
+        content: input.content,
+        selectionRange: input.selectionRange,
+      })
+      void writeToClipboard(payload, 'Failed to copy selected lines.')
+    },
+    [activeWorkspaceId, writeToClipboard],
+  )
+
+  const handleCopySelectedContent = useCallback(
+    (input: {
+      relativePath: string
+      content: string
+      selectionRange: LineSelectionRange
+    }) => {
+      if (activeWorkspaceId === null) {
+        return
+      }
+
+      const payload = buildCopySelectedContentPayload({
+        content: input.content,
+        selectionRange: input.selectionRange,
+      })
+      void writeToClipboard(payload, 'Failed to copy selected content.')
+    },
+    [activeWorkspaceId, writeToClipboard],
+  )
 
   const workspaceLayoutStyle = useMemo(
     () =>
@@ -309,12 +327,6 @@ function App() {
             onSelectWorkspace={setActiveWorkspace}
             workspaces={workspaces}
           />
-          <ContextToolbar
-            disableCopyActiveFilePath={!canCopyActiveFilePath}
-            disableCopySelectedLines={!canCopySelectedLines}
-            onCopyActiveFilePath={handleCopyActiveFilePath}
-            onCopySelectedLines={handleCopySelectedLines}
-          />
           <button onClick={() => void openWorkspace()}>Open Workspace</button>
         </div>
       </header>
@@ -349,6 +361,7 @@ function App() {
               fileTree={fileTree}
               isIndexing={isIndexing}
               onExpandedDirectoriesChange={setExpandedDirectories}
+              onRequestCopyRelativePath={handleCopyRelativePath}
               onSelectFile={selectFile}
               rootPath={rootPath}
             />
@@ -371,6 +384,9 @@ function App() {
             isReadingFile={isReadingFile}
             jumpRequest={codeViewerJumpRequest}
             onSelectRange={setSelectionRange}
+            onRequestCopyBoth={handleCopyBoth}
+            onRequestCopyRelativePath={handleCopyRelativePath}
+            onRequestCopySelectedContent={handleCopySelectedContent}
             previewUnavailableReason={previewUnavailableReason}
             readFileError={readFileError}
             selectionRange={selectionRange}

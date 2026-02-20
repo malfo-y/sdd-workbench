@@ -30,17 +30,6 @@
   gap: 10px;
 }
 
-.context-toolbar {
-  align-items: center;
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.context-toolbar button {
-  white-space: nowrap;
-}
-
 .workspace-switcher {
   align-items: center;
   display: inline-flex;
@@ -346,6 +335,45 @@
   padding: 0.45em 0.7em;
 }
 
+.copy-action-popover {
+  background: #171717;
+  border: 1px solid #4b4b4b;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  max-width: 280px;
+  padding: 10px;
+  position: fixed;
+  z-index: 45;
+}
+
+.copy-action-popover-title {
+  color: #c0c0c0;
+  font-size: 0.78rem;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.copy-action-popover-description {
+  color: #d5d5d5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.78rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.copy-action-popover-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.copy-action-popover-actions button {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 0.45em 0.7em;
+}
+
 .text-banner {
   align-items: center;
   background: #3b2020;
@@ -597,10 +625,6 @@
   }
 
   .workspace-switcher {
-    width: 100%;
-  }
-
-  .context-toolbar {
     width: 100%;
   }
 

@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from 'react'
 import {
   computeSelectionRange,
+  normalizeLineSelectionRange,
   splitPreviewLines,
   type LineSelectionRange,
 } from './line-selection'
+import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { getHighlightLanguage } from './language-map'
 import { highlightLineContent } from './syntax-highlight'
 
@@ -22,6 +31,24 @@ type CodeViewerPanelProps = {
   selectionRange: LineSelectionRange | null
   jumpRequest: CodeViewerJumpRequest | null
   onSelectRange: (range: LineSelectionRange | null) => void
+  onRequestCopyRelativePath: (relativePath: string) => void
+  onRequestCopySelectedContent: (input: {
+    relativePath: string
+    content: string
+    selectionRange: LineSelectionRange
+  }) => void
+  onRequestCopyBoth: (input: {
+    relativePath: string
+    content: string
+    selectionRange: LineSelectionRange
+  }) => void
+}
+
+type ContextMenuState = {
+  x: number
+  y: number
+  relativePath: string
+  selectionRange: LineSelectionRange
 }
 
 function getPreviewUnavailableMessage(
@@ -43,8 +70,19 @@ export function CodeViewerPanel({
   selectionRange,
   jumpRequest,
   onSelectRange,
+  onRequestCopyRelativePath,
+  onRequestCopySelectedContent,
+  onRequestCopyBoth,
 }: CodeViewerPanelProps) {
   const [anchorLine, setAnchorLine] = useState<number | null>(null)
+  const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
+    null,
+  )
+  const dragSelectionRef = useRef<{
+    anchorLine: number
+    hasMoved: boolean
+  } | null>(null)
+  const suppressClickRef = useRef(false)
   const lineButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const lastHandledJumpTokenRef = useRef<number | null>(null)
   const previewLines = useMemo(
@@ -58,6 +96,9 @@ export function CodeViewerPanel({
 
   useEffect(() => {
     setAnchorLine(null)
+    setContextMenuState(null)
+    dragSelectionRef.current = null
+    suppressClickRef.current = false
   }, [activeFile])
 
   useEffect(() => {
@@ -65,6 +106,33 @@ export function CodeViewerPanel({
       setAnchorLine(null)
     }
   }, [selectionRange])
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenuState(null)
+  }, [])
+
+  useEffect(() => {
+    const handleWindowMouseUp = () => {
+      const dragSelectionState = dragSelectionRef.current
+      if (!dragSelectionState) {
+        return
+      }
+
+      if (dragSelectionState.hasMoved) {
+        suppressClickRef.current = true
+      }
+
+      dragSelectionRef.current = null
+    }
+
+    window.addEventListener('mouseup', handleWindowMouseUp)
+    window.addEventListener('blur', handleWindowMouseUp)
+
+    return () => {
+      window.removeEventListener('mouseup', handleWindowMouseUp)
+      window.removeEventListener('blur', handleWindowMouseUp)
+    }
+  }, [])
 
   useEffect(() => {
     if (!jumpRequest || !activeFileContent || !activeFile) {
@@ -101,6 +169,11 @@ export function CodeViewerPanel({
   }, [activeFile, activeFileContent, jumpRequest, previewLines])
 
   const handleLineClick = (lineNumber: number, extendSelection: boolean) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+
     const nextSelection = computeSelectionRange(
       anchorLine,
       lineNumber,
@@ -108,6 +181,50 @@ export function CodeViewerPanel({
     )
     setAnchorLine(nextSelection.anchorLine)
     onSelectRange(nextSelection.range)
+  }
+
+  const handleLineMouseDown = (
+    event: MouseEvent<HTMLButtonElement>,
+    lineNumber: number,
+  ) => {
+    if (event.button !== 0 || event.shiftKey) {
+      return
+    }
+
+    event.preventDefault()
+    dragSelectionRef.current = {
+      anchorLine: lineNumber,
+      hasMoved: false,
+    }
+    setAnchorLine(lineNumber)
+    onSelectRange({
+      startLine: lineNumber,
+      endLine: lineNumber,
+    })
+  }
+
+  const handleLineMouseEnter = (
+    event: MouseEvent<HTMLButtonElement>,
+    lineNumber: number,
+  ) => {
+    const dragSelectionState = dragSelectionRef.current
+    if (!dragSelectionState) {
+      return
+    }
+
+    if ((event.buttons & 1) !== 1) {
+      dragSelectionRef.current = null
+      return
+    }
+
+    const nextRange = normalizeLineSelectionRange(
+      dragSelectionState.anchorLine,
+      lineNumber,
+    )
+    onSelectRange(nextRange)
+    if (lineNumber !== dragSelectionState.anchorLine) {
+      dragSelectionState.hasMoved = true
+    }
   }
 
   const isLineSelected = (lineNumber: number) => {
@@ -118,6 +235,51 @@ export function CodeViewerPanel({
     return (
       lineNumber >= selectionRange.startLine && lineNumber <= selectionRange.endLine
     )
+  }
+
+  const isSelectionRangeIncludingLine = (
+    range: LineSelectionRange,
+    lineNumber: number,
+  ) => lineNumber >= range.startLine && lineNumber <= range.endLine
+
+  const handleLineContextMenu = (
+    event: MouseEvent<HTMLButtonElement>,
+    lineNumber: number,
+  ) => {
+    if (!activeFile) {
+      return
+    }
+
+    event.preventDefault()
+    dragSelectionRef.current = null
+    suppressClickRef.current = false
+
+    const shouldKeepSelection =
+      selectionRange !== null &&
+      isSelectionRangeIncludingLine(selectionRange, lineNumber)
+
+    const nextSelectionRange = shouldKeepSelection
+      ? selectionRange
+      : {
+          startLine: lineNumber,
+          endLine: lineNumber,
+        }
+
+    if (!nextSelectionRange) {
+      return
+    }
+
+    if (!shouldKeepSelection) {
+      setAnchorLine(lineNumber)
+      onSelectRange(nextSelectionRange)
+    }
+
+    setContextMenuState({
+      x: event.clientX,
+      y: event.clientY,
+      relativePath: activeFile,
+      selectionRange: nextSelectionRange,
+    })
   }
 
   return (
@@ -198,6 +360,15 @@ export function CodeViewerPanel({
                     onClick={(event) =>
                       handleLineClick(lineNumber, event.shiftKey)
                     }
+                    onMouseDown={(event) => {
+                      handleLineMouseDown(event, lineNumber)
+                    }}
+                    onMouseEnter={(event) => {
+                      handleLineMouseEnter(event, lineNumber)
+                    }}
+                    onContextMenu={(event) => {
+                      handleLineContextMenu(event, lineNumber)
+                    }}
                     type="button"
                   >
                     <span className="code-line-number">{lineNumber}</span>
@@ -213,6 +384,44 @@ export function CodeViewerPanel({
             })}
           </ol>
         )}
+      {contextMenuState && (
+        <CopyActionPopover
+          actions={[
+            {
+              label: 'Copy Selected Content',
+              onSelect: () => {
+                onRequestCopySelectedContent({
+                  relativePath: contextMenuState.relativePath,
+                  content: activeFileContent ?? '',
+                  selectionRange: contextMenuState.selectionRange,
+                })
+              },
+            },
+            {
+              label: 'Copy Both',
+              onSelect: () => {
+                onRequestCopyBoth({
+                  relativePath: contextMenuState.relativePath,
+                  content: activeFileContent ?? '',
+                  selectionRange: contextMenuState.selectionRange,
+                })
+              },
+            },
+            {
+              label: 'Copy Relative Path',
+              onSelect: () => {
+                onRequestCopyRelativePath(contextMenuState.relativePath)
+              },
+            },
+          ]}
+          ariaLabel="Copy actions"
+          description={contextMenuState.relativePath}
+          onClose={closeContextMenu}
+          title="Copy Action"
+          x={contextMenuState.x}
+          y={contextMenuState.y}
+        />
+      )}
     </section>
   )
 }

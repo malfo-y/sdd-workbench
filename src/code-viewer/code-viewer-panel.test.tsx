@@ -16,6 +16,9 @@ describe('CodeViewerPanel highlighting', () => {
         activeFileContent={'def hello():\n    return 1'}
         isReadingFile={false}
         jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
         onSelectRange={onSelectRange}
         previewUnavailableReason={null}
         readFileError={null}
@@ -48,6 +51,9 @@ describe('CodeViewerPanel highlighting', () => {
         activeFileContent={'plain text line'}
         isReadingFile={false}
         jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
         onSelectRange={() => undefined}
         previewUnavailableReason={null}
         readFileError={null}
@@ -86,6 +92,9 @@ describe('CodeViewerPanel highlighting', () => {
             lineNumber: 4,
             token: 1,
           }}
+          onRequestCopyBoth={() => undefined}
+          onRequestCopyRelativePath={() => undefined}
+          onRequestCopySelectedContent={() => undefined}
           onSelectRange={() => undefined}
           previewUnavailableReason={null}
           readFileError={null}
@@ -106,5 +115,149 @@ describe('CodeViewerPanel highlighting', () => {
         value: originalScrollIntoView,
       })
     }
+  })
+
+  it('supports drag selection across lines and keeps shift-click selection behavior', () => {
+    const onSelectRange = vi.fn()
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={onSelectRange}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    fireEvent.mouseDown(screen.getByTestId('code-line-1'), { button: 0 })
+    fireEvent.mouseEnter(screen.getByTestId('code-line-3'), { buttons: 1 })
+    fireEvent.mouseUp(window)
+
+    expect(onSelectRange).toHaveBeenCalledWith({
+      startLine: 1,
+      endLine: 3,
+    })
+
+    fireEvent.click(screen.getByTestId('code-line-1'))
+    fireEvent.click(screen.getByTestId('code-line-3'), { shiftKey: true })
+
+    expect(onSelectRange).toHaveBeenCalledWith({
+      startLine: 1,
+      endLine: 1,
+    })
+    expect(onSelectRange).toHaveBeenCalledWith({
+      startLine: 1,
+      endLine: 3,
+    })
+  })
+
+  it('keeps selection when context-menu opens inside selected range and supports Copy Selected Content / Copy Both', () => {
+    const onSelectRange = vi.fn()
+    const onRequestCopyRelativePath = vi.fn()
+    const onRequestCopySelectedContent = vi.fn()
+    const onRequestCopyBoth = vi.fn()
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={onRequestCopyBoth}
+        onRequestCopyRelativePath={onRequestCopyRelativePath}
+        onRequestCopySelectedContent={onRequestCopySelectedContent}
+        onSelectRange={onSelectRange}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={{
+          startLine: 2,
+          endLine: 3,
+        }}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-3'), {
+      clientX: 120,
+      clientY: 160,
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Copy actions' })).toBeInTheDocument()
+    expect(onSelectRange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Selected Content' }))
+
+    expect(onRequestCopySelectedContent).toHaveBeenCalledWith({
+      relativePath: 'src/example.ts',
+      content: 'line1\nline2\nline3',
+      selectionRange: {
+        startLine: 2,
+        endLine: 3,
+      },
+    })
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-3'), {
+      clientX: 120,
+      clientY: 160,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
+
+    expect(onRequestCopyBoth).toHaveBeenCalledWith({
+      relativePath: 'src/example.ts',
+      content: 'line1\nline2\nline3',
+      selectionRange: {
+        startLine: 2,
+        endLine: 3,
+      },
+    })
+    expect(onRequestCopyRelativePath).not.toHaveBeenCalled()
+  })
+
+  it('switches to single-line selection when context-menu opens outside selection and requests relative path copy', () => {
+    const onSelectRange = vi.fn()
+    const onRequestCopyRelativePath = vi.fn()
+    const onRequestCopySelectedContent = vi.fn()
+    const onRequestCopyBoth = vi.fn()
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={onRequestCopyBoth}
+        onRequestCopyRelativePath={onRequestCopyRelativePath}
+        onRequestCopySelectedContent={onRequestCopySelectedContent}
+        onSelectRange={onSelectRange}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={{
+          startLine: 2,
+          endLine: 3,
+        }}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-1'), {
+      clientX: 80,
+      clientY: 110,
+    })
+
+    expect(onSelectRange).toHaveBeenCalledWith({
+      startLine: 1,
+      endLine: 1,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
+
+    expect(onRequestCopyRelativePath).toHaveBeenCalledWith('src/example.ts')
+    expect(onRequestCopySelectedContent).not.toHaveBeenCalled()
+    expect(onRequestCopyBoth).not.toHaveBeenCalled()
   })
 })

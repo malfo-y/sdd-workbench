@@ -571,7 +571,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
-  it('copies active file path and selected lines using toolbar actions', async () => {
+  it('does not render removed toolbar copy buttons and copies both from code-viewer context menu', async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -615,11 +615,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: 'Copy Active File Path' }),
-    ).toBeDisabled()
+      screen.queryByRole('button', { name: 'Copy Active File Path' }),
+    ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Copy Selected Lines' }),
-    ).toBeDisabled()
+      screen.queryByRole('button', { name: 'Copy Selected Lines' }),
+    ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
@@ -637,23 +637,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
-    await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith('src/auth.ts')
-    })
-
-    expect(
-      screen.getByRole('button', { name: 'Copy Selected Lines' }),
-    ).toBeDisabled()
-
     fireEvent.click(screen.getByTestId('code-line-2'))
     fireEvent.click(screen.getByTestId('code-line-3'), { shiftKey: true })
 
-    expect(
-      screen.getByRole('button', { name: 'Copy Selected Lines' }),
-    ).not.toBeDisabled()
+    fireEvent.contextMenu(screen.getByTestId('code-line-3'), {
+      clientX: 120,
+      clientY: 160,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Selected Lines' }))
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(
         'src/auth.ts:L2-L3\nbeta\ngamma',
@@ -661,7 +653,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('shows banner when toolbar copy fails', async () => {
+  it('shows banner when code-viewer Copy Both fails', async () => {
     const clipboardWriteText = vi
       .fn()
       .mockRejectedValue(new Error('permission denied'))
@@ -709,16 +701,20 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+    fireEvent.contextMenu(screen.getByTestId('code-line-1'), {
+      clientX: 80,
+      clientY: 110,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Failed to copy active file path.',
+        'Failed to copy selected lines.',
       )
     })
   })
 
-  it('copies context based on active workspace after switching', async () => {
+  it('copies relative path based on active workspace after switching', async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -854,7 +850,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         projectARoot,
       )
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+    fireEvent.contextMenu(screen.getByTestId('code-line-1'), {
+      clientX: 100,
+      clientY: 110,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith('src/a.ts')
     })
@@ -866,10 +866,183 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         projectBRoot,
       )
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+    fireEvent.contextMenu(screen.getByTestId('code-line-1'), {
+      clientX: 120,
+      clientY: 130,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith('src/b.ts')
     })
+  })
+
+  it('copies selected content/copy both from code-viewer context menu and applies right-click selection policy', async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'auth.ts',
+            relativePath: 'src/auth.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'alpha\nbeta\ngamma',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'auth.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'auth.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('code-line-2'))
+    fireEvent.click(screen.getByTestId('code-line-3'), { shiftKey: true })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L2-L3',
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-3'), {
+      clientX: 120,
+      clientY: 160,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Selected Content' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('beta\ngamma')
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L2-L3',
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-1'), {
+      clientX: 140,
+      clientY: 190,
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L1-L1',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('src/auth.ts:L1-L1\nalpha')
+    })
+  })
+
+  it('copies relative path from file-tree file/directory context menu without changing active file', async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'note.md',
+            relativePath: 'docs/note.md',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'note.md' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+      'No active file',
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'docs' }), {
+      clientX: 70,
+      clientY: 90,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('docs')
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'note.md' }), {
+      clientX: 90,
+      clientY: 110,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('docs/note.md')
+    })
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+      'No active file',
+    )
+    expect(readFileMock).not.toHaveBeenCalled()
   })
 
   it('renders markdown in right spec panel when .md file is selected', async () => {

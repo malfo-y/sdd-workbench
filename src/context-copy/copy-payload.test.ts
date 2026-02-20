@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildCopyActiveFilePathPayload,
+  buildCopySelectedContentPayload,
   buildCopySelectedLinesPayload,
 } from './copy-payload'
 
@@ -22,6 +23,18 @@ describe('copy-payload', () => {
     expect(payload).toBe('src/auth.ts:L2-L3\nline2\nline3')
   })
 
+  it('builds selected content payload with selected body only', () => {
+    const payload = buildCopySelectedContentPayload({
+      content: 'line1\nline2\nline3',
+      selectionRange: {
+        startLine: 2,
+        endLine: 3,
+      },
+    })
+
+    expect(payload).toBe('line2\nline3')
+  })
+
   it('normalizes reversed selection ranges', () => {
     const payload = buildCopySelectedLinesPayload({
       relativePath: 'src/auth.ts',
@@ -33,6 +46,18 @@ describe('copy-payload', () => {
     })
 
     expect(payload).toBe('src/auth.ts:L2-L3\nline2\nline3')
+  })
+
+  it('normalizes reversed ranges for selected content payload', () => {
+    const payload = buildCopySelectedContentPayload({
+      content: 'line1\nline2\nline3',
+      selectionRange: {
+        startLine: 3,
+        endLine: 2,
+      },
+    })
+
+    expect(payload).toBe('line2\nline3')
   })
 
   it('clamps selection range to file boundaries', () => {
@@ -59,5 +84,17 @@ describe('copy-payload', () => {
     })
 
     expect(payload).toBe('src/auth.ts:L1-L1\n')
+  })
+
+  it('clamps selected content payload range to file boundaries', () => {
+    const payload = buildCopySelectedContentPayload({
+      content: 'line1\nline2\nline3',
+      selectionRange: {
+        startLine: 0,
+        endLine: 99,
+      },
+    })
+
+    expect(payload).toBe('line1\nline2\nline3')
   })
 })

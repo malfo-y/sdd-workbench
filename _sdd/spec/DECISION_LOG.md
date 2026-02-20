@@ -313,3 +313,46 @@
 - Impact / follow-up:
   - `main.md`의 F04 정의/상태 모델/수용 기준/테스트 수치를 실제 구현(총 54 tests, `App.test.tsx` 17건)에 맞춰 동기화한다.
   - F09 진행 시 active heading/section 추출도 동일하게 `activeSpec` 기반으로 확장한다.
+
+## 2026-02-21 - F06.2 복사 UX 통합 + F08/F09 진입점 재정의(Planned)
+
+- Context:
+  - 사용자 요청으로 복사 UX 단순화를 위해 코드 선택 드래그, 우클릭 액션 통합, 툴바 복사 버튼 제거, 디렉터리 경로 복사를 한 묶음으로 계획해야 했음.
+  - 추가로 `Copy Both` 라벨과 `ContextToolbar` 완전 제거 여부, F08/F09의 후속 연결 방식이 결정되어야 했음.
+- Decision:
+  - Priority Queue에 `F06.2`(P0, M)를 신규 추가한다.
+  - CodeViewer 우클릭 액션 라벨은 `Copy Both`로 고정하고 payload 포맷은 기존 F06(`relative/path:Lx-Ly` + 본문)을 재사용한다.
+  - F06.2에서 `Copy Active File Path`/`Copy Selected Lines` 툴바 버튼과 `context-toolbar` 컴포넌트를 제거한다.
+  - FileTree 우클릭 경로 복사는 파일뿐 아니라 디렉터리까지 확장한다.
+  - F08/F09는 toolbar 의존이 아니라 각각 워크스페이스 액션 영역(F08), SpecViewer 액션 영역(F09)으로 진입점을 재정의한다.
+- Rationale:
+  - 복사 기능을 탐색 맥락(코드/트리 우클릭)으로 통합하면 작업 전환 비용이 줄고 UI 구조가 단순해진다.
+  - 툴바 제거를 먼저 명시해야 F08/F09가 향후 잘못된 UI 전제(toolbar 확장)에 묶이지 않는다.
+- Alternatives considered:
+  - 기존 라벨(`Copy Selected Lines`) 유지
+  - `context-toolbar`를 최소 골격으로 유지한 채 F08/F09를 연결
+  - 디렉터리 우클릭 복사를 제외하고 파일만 지원
+- Impact / follow-up:
+  - `main.md`의 우선순위 큐, 상태/상호작용 규칙, 수용 기준, 리스크를 F06.2 planned 기준으로 갱신한다.
+  - 다음 구현 순서는 `F06.1 -> F06.2 -> F07 -> F08/F09`를 권장한다.
+
+## 2026-02-21 - F06.1/F06.2 구현 완료 반영(우클릭 복사 통합 + 툴바 제거)
+
+- Context:
+  - F06.1/F06.2 구현과 사용자 수동 스모크가 완료되었고 자동 검증(`npm test`, `npm run lint`, `npm run build`)이 모두 통과했음.
+  - 스펙에는 F06.1/F06.2가 Planned로 남아 있어 실제 코드 상태와 문서 상태가 불일치했음.
+- Decision:
+  - F06.1, F06.2를 `✅ Done`으로 전환한다.
+  - 복사 UX는 상단 툴바가 아닌 코드/파일트리 우클릭 컨텍스트 메뉴 중심 구조로 고정한다.
+  - CodeViewer 복사 액션은 `Copy Selected Content`, `Copy Both`, `Copy Relative Path`로 고정한다.
+  - FileTree 우클릭 경로 복사는 파일/디렉터리 모두에서 지원하도록 고정한다.
+- Rationale:
+  - 구현 완료 항목을 Planned로 유지하면 우선순위 큐, 수용 기준, 회귀 테스트 기준이 왜곡된다.
+  - 우클릭 중심 복사 흐름은 실제 사용 맥락(코드/트리 탐색)과 정합성이 높고 UI 복잡도를 줄인다.
+- Alternatives considered:
+  - F06 툴바 복사 버튼 유지 + 우클릭 기능 병행
+  - 디렉터리 우클릭 복사를 제외하고 파일만 지원
+  - `Copy Both` 대신 기존 `Copy Selected Lines` 라벨 유지
+- Impact / follow-up:
+  - `main.md` 코드베이스 인벤토리/커버리지 매트릭스/상태 규칙/Feature Queue/수용 기준/검증 수치를 최신 구현 기준으로 동기화한다.
+  - 다음 우선순위는 `F07 -> F08 -> F09`로 조정한다.

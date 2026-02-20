@@ -1,4 +1,12 @@
-import { useMemo, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
+import { CopyActionPopover } from '../context-menu/copy-action-popover'
 
 const INITIAL_RENDER_NODE_LIMIT = 500
 
@@ -9,6 +17,7 @@ type FileTreePanelProps = {
   expandedDirectories: string[]
   isIndexing: boolean
   onSelectFile: (relativePath: string) => void
+  onRequestCopyRelativePath: (relativePath: string) => void
   onExpandedDirectoriesChange: (expandedDirectories: string[]) => void
 }
 
@@ -23,6 +32,10 @@ function renderFileTreeNodes(
   budget: RenderBudget,
   activeFile: string | null,
   onSelectFile: (relativePath: string) => void,
+  onNodeContextMenu: (
+    event: MouseEvent<HTMLButtonElement>,
+    relativePath: string,
+  ) => void,
   expandedDirectories: Set<string>,
   onToggleDirectory: (relativePath: string) => void,
   showFilesAtCurrentLevel: boolean,
@@ -52,6 +65,7 @@ function renderFileTreeNodes(
           <button
             aria-expanded={isExpanded}
             className="tree-directory-button"
+            onContextMenu={(event) => onNodeContextMenu(event, node.relativePath)}
             onClick={() => onToggleDirectory(node.relativePath)}
             type="button"
           >
@@ -67,6 +81,7 @@ function renderFileTreeNodes(
               budget,
               activeFile,
               onSelectFile,
+              onNodeContextMenu,
               expandedDirectories,
               onToggleDirectory,
               true,
@@ -89,6 +104,7 @@ function renderFileTreeNodes(
       >
         <button
           className="tree-file-button"
+          onContextMenu={(event) => onNodeContextMenu(event, node.relativePath)}
           onClick={() => onSelectFile(node.relativePath)}
           type="button"
         >
@@ -108,12 +124,26 @@ export function FileTreePanel({
   expandedDirectories,
   isIndexing,
   onSelectFile,
+  onRequestCopyRelativePath,
   onExpandedDirectoriesChange,
 }: FileTreePanelProps) {
+  const [contextMenuState, setContextMenuState] = useState<{
+    x: number
+    y: number
+    relativePath: string
+  } | null>(null)
   const expandedDirectoriesSet = useMemo(
     () => new Set(expandedDirectories),
     [expandedDirectories],
   )
+
+  useEffect(() => {
+    setContextMenuState(null)
+  }, [rootPath])
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenuState(null)
+  }, [])
 
   const toggleDirectory = (relativePath: string) => {
     const nextExpandedDirectories = new Set(expandedDirectoriesSet)
@@ -125,6 +155,18 @@ export function FileTreePanel({
 
     onExpandedDirectoriesChange([...nextExpandedDirectories])
   }
+
+  const handleNodeContextMenu = useCallback(
+    (event: MouseEvent<HTMLButtonElement>, relativePath: string) => {
+      event.preventDefault()
+      setContextMenuState({
+        x: event.clientX,
+        y: event.clientY,
+        relativePath,
+      })
+    },
+    [],
+  )
 
   if (!rootPath) {
     return (
@@ -165,6 +207,7 @@ export function FileTreePanel({
         renderBudget,
         activeFile,
         onSelectFile,
+        handleNodeContextMenu,
         expandedDirectoriesSet,
         toggleDirectory,
         showRootFiles,
@@ -173,6 +216,24 @@ export function FileTreePanel({
         <p className="tree-cap-message" data-testid="file-tree-cap-message">
           Showing first {INITIAL_RENDER_NODE_LIMIT} nodes.
         </p>
+      )}
+      {contextMenuState && (
+        <CopyActionPopover
+          actions={[
+            {
+              label: 'Copy Relative Path',
+              onSelect: () => {
+                onRequestCopyRelativePath(contextMenuState.relativePath)
+              },
+            },
+          ]}
+          ariaLabel="Copy actions"
+          description={contextMenuState.relativePath}
+          onClose={closeContextMenu}
+          title="Copy Action"
+          x={contextMenuState.x}
+          y={contextMenuState.y}
+        />
       )}
     </section>
   )
