@@ -93,7 +93,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 |---|---|---|
 | 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 구현(F03.5), 세션 영속화는 Non-Goal |
 | 4.2 File Browser | Partial | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 구현, changed indicator는 미구현 |
-| 4.3 Code Viewer | Partial | 코드 프리뷰/라인 선택/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) 구현, 툴바 복사 연계는 미구현 |
+| 4.3 Code Viewer | Partial | 코드 프리뷰/라인 선택/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) 구현, 툴바 복사/우클릭 복사 연계(F06/F06.1)는 미구현 |
 | 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 구현(F04) |
 | 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) 구현 |
 | 4.6 Context Toolbar | Planned | 4개 액션 버튼 미구현 |
@@ -101,7 +101,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
 | Renderer <-> Main 브리지 기본 틀 | Partial | `openDialog()`/`index()`/`readFile()` 구현, watcher/system 채널은 미구현 |
 
-요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05는 완료되었고, 다음 우선순위는 F06+ 영역이다. F06~F07은 `active workspace` 기준 동작을 기본 정책으로 한다.
+요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05는 완료되었고, 다음 우선순위는 F06+ 영역이다. F06/F06.1/F07은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -171,21 +171,21 @@ Renderer (React)
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | 좌측 파일 트리 표시 + 디렉터리 토글 탐색 + active file 표시 + 워크스페이스별 펼침 상태 연동 |
+| Purpose | 좌측 파일 트리 표시 + 디렉터리 토글 탐색 + active file 표시 + 워크스페이스별 펼침 상태 연동 + 파일 우클릭 복사 액션 진입점 |
 | Input | 파일 트리 모델, activeFile, isIndexing, expandedDirectories |
-| Output | 파일 선택 이벤트, expandedDirectories 변경 이벤트 |
+| Output | 파일 선택 이벤트, expandedDirectories 변경 이벤트, 파일 우클릭 복사 액션 이벤트 |
 | Dependencies | WorkspaceProvider |
-| 상태 | Partial (F02/F03.5 Implemented, F07 changed marker 예정) |
+| 상태 | Partial (F02/F03.5 Implemented, F06.1 파일 우클릭 복사 + F07 changed marker 예정) |
 
 ### 6.3 CodeViewerPanel
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | 코드 원문 프리뷰 표시, 라인 선택 범위 추적, preview unavailable 상태 표시, 확장자 기반 색상 코딩 |
+| Purpose | 코드 원문 프리뷰 표시, 라인 선택 범위 추적, preview unavailable 상태 표시, 확장자 기반 색상 코딩, 코드 라인 우클릭 복사 액션 진입점 |
 | Input | activeFilePath, fileContent, isReadingFile, readFileError, previewUnavailableReason, selectionRange |
-| Output | selectedLineRange |
+| Output | selectedLineRange, 코드 라인 우클릭 복사 액션 이벤트 |
 | Dependencies | `line-selection` 유틸, Prism 기반 하이라이트 어댑터 |
-| 상태 | Partial (F03/F03.1/F05 Implemented, F06 연계 예정) |
+| 상태 | Partial (F03/F03.1/F05 Implemented, F06 툴바 복사 + F06.1 우클릭 복사 연계 예정) |
 
 ### 6.4 SpecViewerPanel
 
@@ -296,6 +296,12 @@ F03.5 기준 상태 전이 규칙(Implemented):
 6. 워크스페이스 전환 시 `selectionRange`는 `null`로 리셋한다.
 7. 파일 읽기 응답 경합은 워크스페이스별 request token으로 제어한다.
 
+F06.1 기준 상태/상호작용 규칙(Planned):
+
+1. CodeViewer에서 우클릭 지점이 기존 `selectionRange` 안이면 기존 선택 범위를 유지한다.
+2. CodeViewer에서 우클릭 지점이 기존 `selectionRange` 밖이면 해당 라인 단일 선택으로 전환한다.
+3. 컨텍스트 메뉴 경로 복사는 활성 워크스페이스 기준 `relative path` 포맷으로 고정한다.
+
 ---
 
 ## 8. 링크/경로 파싱 규칙 (MVP 고정)
@@ -395,7 +401,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 - Markdown 보안 보강(후속): `rehype-sanitize` 검토
 - 파일 워처: Node native watcher 또는 `chokidar`
 
-### 11.3 멀티 워크스페이스 공통 규칙 (F04~F07 적용)
+### 11.3 멀티 워크스페이스 공통 규칙 (F04~F07/F06.1 적용)
 
 1. F04~F07 기능은 기본적으로 `activeWorkspaceId` 기준으로만 동작한다.
 2. 활성 워크스페이스가 없으면 기능을 실행하지 않고 UI를 disabled 상태로 표시한다.
@@ -404,11 +410,13 @@ F03.5 기준 상태 전이 규칙(Implemented):
 5. 후속 기능 테스트는 단일 워크스페이스 시나리오 + 다중 워크스페이스 전환 회귀 시나리오를 모두 포함한다.
 
 결정 고정(2026-02-20):
+
 - F04: 워크스페이스 전환 시 `activeSpec`만 복원한다.
 - F04.1: same-workspace 상대 링크는 파일을 열고, external/unresolved 링크는 copy popover로 처리한다(자동 브라우저 이동 없음).
 - F05: `#Lx`/`#Lx-Ly` 라인 점프/하이라이트는 active workspace 범위에서만 처리한다.
 - F07: watcher는 `openWorkspace` 시점에 즉시 시작한다.
 - F06/F08: 액션 가드는 기능별 개별 구현을 기본으로 한다(공통 guard layer는 보류).
+- F06.1: 우클릭 복사 액션은 `relative path` 고정이며, CodeViewer 우클릭은 selection 범위 안/밖 정책(유지/단일 선택 전환)을 따른다.
 
 ---
 
@@ -638,6 +646,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 - 제외:
   - Copy Current Spec Section
   - Open in iTerm
+  - 우클릭 컨텍스트 메뉴 복사(F06.1)
 - 완료 기준:
   - 두 버튼 모두 클립보드 결과 포맷이 요구사항과 일치
   - 워크스페이스 전환 후 복사 결과가 현재 활성 워크스페이스 기준으로 바뀜
@@ -646,6 +655,34 @@ F03.5 기준 상태 전이 규칙(Implemented):
   - `src/workspace/workspace-context.tsx`
   - `src/*` (Toolbar, clipboard util)
 - 상태: `📋 Planned`
+
+#### F06.1. 코드/파일 트리 우클릭 컨텍스트 복사 Popover (P0, 크기 S)
+
+- 포함:
+  - CodeViewer 우클릭 컨텍스트 메뉴(`Copy Selected Content`, `Copy Relative Path`)
+  - FileTree 파일 항목 우클릭 컨텍스트 메뉴(`Copy Relative Path`)
+  - 우클릭 selection 정책 고정(범위 안: 유지, 범위 밖: 단일 라인 선택)
+  - popover dismiss(외부 클릭/ESC/완료 시 닫힘)
+- 제외:
+  - 디렉터리 우클릭 액션 확장
+  - 절대경로 복사
+  - 툴바 액션 4종 구현(F06/F08/F09 범위)
+- 완료 기준:
+  - 코드 라인 우클릭 시 정책에 맞게 selection이 유지/전환된다.
+  - `Copy Selected Content`가 현재 선택 텍스트를 복사한다.
+  - 코드/파일 트리 `Copy Relative Path`가 활성 워크스페이스 기준 상대경로를 복사한다.
+- 예상 변경 파일:
+  - `src/code-viewer/code-viewer-panel.tsx`
+  - `src/file-tree/file-tree-panel.tsx`
+  - `src/App.tsx`
+  - `src/App.css`
+  - `src/*` (context menu/popover + copy payload util)
+  - `src/App.test.tsx`
+  - `src/code-viewer/code-viewer-panel.test.tsx`
+- 상태: `📋 Planned`
+- 임시 구현 메모(삭제 예정):
+  - F06.1 구현 혹은 구현 계획시 드래프트 문서 `/_sdd/drafts/feature_draft_f06_1_context_menu_copy_popovers.md`를 우선 참고한다.
+  - 구현 완료 후 `spec-update-done` 수행 시 본 임시 메모를 제거한다.
 
 #### F07. 파일 watcher + changed indicator (P0, 크기 M)
 
@@ -714,7 +751,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 
 ### 12.3 Feature-draft 실행 순서 (권장)
 
-1. `F06` -> `F07` (`F01`, `F02`, `F03`, `F03.1`, `F03.5`, `F04`, `F04.1`, `F05` 완료)
+1. `F06` -> `F06.1` -> `F07` (`F01`, `F02`, `F03`, `F03.1`, `F03.5`, `F04`, `F04.1`, `F05` 완료)
 2. MVP 필수 기능 완료 후 `F08`, `F09` 진행
 3. 마지막에 `F10`으로 안정화
 
@@ -740,6 +777,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 - [x] rendered markdown 링크 클릭 시 same-workspace 파일 열기 + external/unresolved copy popover 동작 (F04.1 완료, 2026-02-20)
 - [x] `path.ts#L10-L20` 클릭 시 점프 및 하이라이트 (F05 완료, 2026-02-20)
 - [ ] 툴바 액션 4종 정상 동작
+- [ ] 코드 뷰어/파일 트리 우클릭 컨텍스트 메뉴로 선택 내용/상대경로 복사 가능 (F06.1 Planned)
 - [ ] 외부 파일 변경이 changed indicator에 반영
 
 ### 13.2 테스트 우선순위
@@ -747,7 +785,7 @@ F03.5 기준 상태 전이 규칙(Implemented):
 1. 링크 파싱/라인 변환 로직 단위 테스트
 2. 파일 트리/상태 전이 통합 테스트
 3. 주요 IPC 계약 스모크 테스트
-4. F04~F07 공통 멀티 워크스페이스 회귀 테스트
+4. F04~F07/F06.1 공통 멀티 워크스페이스 회귀 테스트
 
 현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05):
 
@@ -772,10 +810,11 @@ F03.5 기준 상태 전이 규칙(Implemented):
 3. 파일 링크의 non-line hash(`path.md#heading`)는 현재 파일 열기만 수행하고 heading 위치 스크롤은 미지원(F09 범위)이다.
 4. F07 watcher를 워크스페이스별로 운영할 때 시스템 리소스 상한(동시 watcher 수, debounce 전략) 튜닝이 필요하다.
 5. `system:openInIterm` 실패 시 fallback(Terminal.app) 정책이 확정되지 않았다.
+6. F06.1 우클릭 selection 정책(범위 안 유지/범위 밖 전환)은 사용성 피드백에 따라 후속 조정 가능성이 있다.
 
 ---
 
-## 15. Open Questions (F04~F07 선결)
+## 15. Open Questions (F04~F07/F06.1 선결)
 
 - 현재 없음 (2026-02-20 결정 반영 완료)
 
@@ -783,4 +822,4 @@ F03.5 기준 상태 전이 규칙(Implemented):
 
 ## 16. 결론
 
-이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 F06+를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F06/F07을 구현하고 툴바/changed indicator를 완성하는 것이다.
+이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 F06+를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F06/F06.1/F07을 구현하고 복사 UX/changed indicator를 완성하는 것이다.

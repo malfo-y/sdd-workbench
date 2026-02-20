@@ -273,3 +273,24 @@
 - Impact / follow-up:
   - `main.md`의 커버리지 매트릭스/컴포넌트 상태/링크 규칙/Feature Queue/수용 기준을 F05 완료 상태로 동기화한다.
   - 다음 우선순위는 F06/F07로 이동한다.
+
+## 2026-02-20 - F06.1 우클릭 복사 컨텍스트 정책 선반영
+
+- Context:
+  - F06 구현 전 단계에서 코드 뷰어/파일 트리 우클릭 복사 UX를 별도 feature로 분리해 스펙에 먼저 고정할 필요가 있었음.
+  - 사용자 요청으로 경로 포맷과 우클릭 시 selection 동작을 미리 확정해 혼선을 줄이기로 했음.
+- Decision:
+  - `main.md` Priority Queue에 `F06.1`(P0, S)을 신규 추가하고 실행 순서를 `F06 -> F06.1 -> F07`로 고정한다.
+  - 경로 복사는 `relative path`로 고정한다.
+  - CodeViewer 우클릭 시 기존 선택 범위 안이면 selection을 유지하고, 범위 밖이면 해당 라인 단일 선택으로 전환한다.
+  - F06은 툴바 복사 2종 범위로 유지하고, 우클릭 복사 UX는 F06.1 범위로 분리한다.
+- Rationale:
+  - 툴바 복사와 탐색 중 우클릭 복사는 사용 맥락이 달라 별도 feature로 나누는 편이 구현/검증/회귀 관리에 유리하다.
+  - 우클릭 selection 정책을 사전에 고정하면 구현 시 UX 일관성과 테스트 기준이 명확해진다.
+- Alternatives considered:
+  - F06에 우클릭 복사를 함께 포함해 한 번에 구현
+  - 우클릭 시 항상 해당 단일 라인으로 selection 강제 전환
+  - 경로 복사 포맷을 절대경로로 유지
+- Impact / follow-up:
+  - `main.md`의 컴포넌트 상태/상태 모델/Feature Queue/수용 기준/리스크를 F06.1 planned 기준으로 동기화한다.
+  - 구현 완료 후 `spec-update-done`에서 F06.1 상태를 `✅ Done`으로 전환한다.
