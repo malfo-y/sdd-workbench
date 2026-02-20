@@ -571,6 +571,307 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('copies active file path and selected lines using toolbar actions', async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'auth.ts',
+            relativePath: 'src/auth.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'alpha\nbeta\ngamma',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Copy Active File Path' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Copy Selected Lines' }),
+    ).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'auth.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'auth.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('src/auth.ts')
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'Copy Selected Lines' }),
+    ).toBeDisabled()
+
+    fireEvent.click(screen.getByTestId('code-line-2'))
+    fireEvent.click(screen.getByTestId('code-line-3'), { shiftKey: true })
+
+    expect(
+      screen.getByRole('button', { name: 'Copy Selected Lines' }),
+    ).not.toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Selected Lines' }))
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        'src/auth.ts:L2-L3\nbeta\ngamma',
+      )
+    })
+  })
+
+  it('shows banner when toolbar copy fails', async () => {
+    const clipboardWriteText = vi
+      .fn()
+      .mockRejectedValue(new Error('permission denied'))
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'single.ts',
+        relativePath: 'single.ts',
+        kind: 'file',
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'const value = 1',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'single.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'single.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to copy active file path.',
+      )
+    })
+  })
+
+  it('copies context based on active workspace after switching', async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    const projectARoot = '/Users/tester/project-a'
+    const projectBRoot = '/Users/tester/project-b'
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectBRoot,
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === projectARoot) {
+        return {
+          ok: true,
+          fileTree: [
+            {
+              name: 'src',
+              relativePath: 'src',
+              kind: 'directory',
+              children: [
+                {
+                  name: 'a.ts',
+                  relativePath: 'src/a.ts',
+                  kind: 'file',
+                },
+              ],
+            },
+          ],
+        }
+      }
+
+      if (rootPath === projectBRoot) {
+        return {
+          ok: true,
+          fileTree: [
+            {
+              name: 'src',
+              relativePath: 'src',
+              kind: 'directory',
+              children: [
+                {
+                  name: 'b.ts',
+                  relativePath: 'src/b.ts',
+                  kind: 'file',
+                },
+              ],
+            },
+          ],
+        }
+      }
+
+      return {
+        ok: false,
+        fileTree: [],
+      }
+    })
+
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'src/a.ts') {
+        return {
+          ok: true,
+          content: 'const a = 1',
+        }
+      }
+
+      if (relativePath === 'src/b.ts') {
+        return {
+          ok: true,
+          content: 'const b = 2',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/a.ts')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectBRoot,
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'b.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('active-file-path')).toHaveTextContent('src/b.ts')
+    })
+
+    const workspaceSelect = screen.getByTestId(
+      'workspace-switcher-select',
+    ) as HTMLSelectElement
+
+    fireEvent.change(workspaceSelect, { target: { value: projectARoot } })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectARoot,
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('src/a.ts')
+    })
+
+    fireEvent.change(workspaceSelect, { target: { value: projectBRoot } })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectBRoot,
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Active File Path' }))
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('src/b.ts')
+    })
+  })
+
   it('renders markdown in right spec panel when .md file is selected', async () => {
     const indexedTree: WorkspaceFileNode[] = [
       {

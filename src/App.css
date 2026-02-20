@@ -30,6 +30,17 @@
   gap: 10px;
 }
 
+.context-toolbar {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.context-toolbar button {
+  white-space: nowrap;
+}
+
 .workspace-switcher {
   align-items: center;
   display: inline-flex;
@@ -553,6 +564,10 @@
   }
 
   .workspace-switcher {
+    width: 100%;
+  }
+
+  .context-toolbar {
     width: 100%;
   }
 

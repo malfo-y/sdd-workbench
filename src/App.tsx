@@ -8,12 +8,17 @@ import {
 } from 'react'
 import './App.css'
 import {
+  buildCopyActiveFilePathPayload,
+  buildCopySelectedLinesPayload,
+} from './context-copy/copy-payload'
+import {
   CodeViewerPanel,
   type CodeViewerJumpRequest,
 } from './code-viewer/code-viewer-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
+import { ContextToolbar } from './toolbar/context-toolbar'
 import { abbreviateWorkspacePath } from './workspace/path-format'
 import { useWorkspace } from './workspace/use-workspace'
 import { WorkspaceSwitcher } from './workspace/workspace-switcher'
@@ -81,6 +86,7 @@ function App() {
     setActiveWorkspace,
     closeWorkspace,
     selectFile,
+    showBanner,
     setSelectionRange,
     setExpandedDirectories,
     clearBanner,
@@ -89,6 +95,12 @@ function App() {
     ? abbreviateWorkspacePath(rootPath)
     : 'No workspace selected'
   const displayActiveFile = activeFile ?? 'No active file'
+  const canCopyActiveFilePath =
+    activeWorkspaceId !== null && activeFile !== null
+  const canCopySelectedLines =
+    activeWorkspaceId !== null &&
+    activeFile !== null &&
+    selectionRange !== null
   const [paneSizes, setPaneSizes] = useState<PaneSizes>({
     left: 25,
     center: 50,
@@ -105,6 +117,50 @@ function App() {
   const jumpRequestTokenRef = useRef(0)
   const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
     useState<CodeViewerJumpRequest | null>(null)
+
+  const writeToClipboard = useCallback(
+    async (payload: string, errorMessage: string) => {
+      if (!navigator.clipboard?.writeText) {
+        showBanner('Failed to copy: clipboard API is unavailable.')
+        return
+      }
+
+      try {
+        await navigator.clipboard.writeText(payload)
+      } catch {
+        showBanner(errorMessage)
+      }
+    },
+    [showBanner],
+  )
+
+  const handleCopyActiveFilePath = useCallback(() => {
+    if (!canCopyActiveFilePath || !activeFile) {
+      return
+    }
+
+    const payload = buildCopyActiveFilePathPayload(activeFile)
+    void writeToClipboard(payload, 'Failed to copy active file path.')
+  }, [activeFile, canCopyActiveFilePath, writeToClipboard])
+
+  const handleCopySelectedLines = useCallback(() => {
+    if (!canCopySelectedLines || !activeFile || !selectionRange) {
+      return
+    }
+
+    const payload = buildCopySelectedLinesPayload({
+      relativePath: activeFile,
+      content: activeFileContent ?? '',
+      selectionRange,
+    })
+    void writeToClipboard(payload, 'Failed to copy selected lines.')
+  }, [
+    activeFile,
+    activeFileContent,
+    canCopySelectedLines,
+    selectionRange,
+    writeToClipboard,
+  ])
 
   const workspaceLayoutStyle = useMemo(
     () =>
@@ -253,6 +309,12 @@ function App() {
             onCloseWorkspace={closeWorkspace}
             onSelectWorkspace={setActiveWorkspace}
             workspaces={workspaces}
+          />
+          <ContextToolbar
+            disableCopyActiveFilePath={!canCopyActiveFilePath}
+            disableCopySelectedLines={!canCopySelectedLines}
+            onCopyActiveFilePath={handleCopyActiveFilePath}
+            onCopySelectedLines={handleCopySelectedLines}
           />
           <button onClick={() => void openWorkspace()}>Open Workspace</button>
         </div>
