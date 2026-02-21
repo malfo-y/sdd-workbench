@@ -1393,6 +1393,115 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('refreshes file tree when watcher reports structure-only changes', async () => {
+    const workspaceRoot = '/Users/tester/watch-structure-refresh'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'docs',
+            relativePath: 'docs',
+            kind: 'directory',
+            children: [
+              {
+                name: 'new.ts',
+                relativePath: 'docs/new.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'new.ts' })).not.toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: [],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'new.ts' })).toBeInTheDocument()
+    })
+    expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears active file when watcher structure refresh removes it from tree', async () => {
+    const workspaceRoot = '/Users/tester/watch-structure-remove'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'gone.ts', relativePath: 'gone.ts', kind: 'file' }],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [],
+      })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'const gone = true',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'gone.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'gone.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('gone.ts')
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['gone.ts'],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('code-viewer-active-file'),
+      ).toHaveTextContent('No active file')
+    })
+    expect(screen.queryByRole('button', { name: 'gone.ts' })).not.toBeInTheDocument()
+  })
+
   it('keeps changed indicator while opened and clears it after leaving file', async () => {
     const workspaceRoot = '/Users/tester/watch-clear-on-open'
 

@@ -97,6 +97,24 @@ function withoutChangedFileMarker(changedFiles: string[], relativePath: string) 
   return changedFiles.filter((path) => path !== relativePath)
 }
 
+function collectFileRelativePaths(
+  nodes: WorkspaceFileNode[],
+  output = new Set<string>(),
+): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === 'file') {
+      output.add(node.relativePath)
+      continue
+    }
+
+    if (node.children) {
+      collectFileRelativePaths(node.children, output)
+    }
+  }
+
+  return output
+}
+
 function createWorkspaceStateFromSnapshot(
   snapshot: WorkspaceSessionSnapshot,
 ): WorkspaceState {
@@ -158,6 +176,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     async (
       workspaceId: WorkspaceId,
       rootPath: string,
+      mode: 'reset' | 'refresh' = 'reset',
     ): Promise<WorkspaceIndexStatus> => {
       const requestId =
         (indexRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
@@ -165,21 +184,28 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-          ...currentSession,
-          isIndexing: true,
-          fileTree: [],
-          changedFiles: [],
-          activeFile: null,
-          activeSpec: null,
-          activeFileContent: null,
-          activeSpecContent: null,
-          isReadingFile: false,
-          isReadingSpec: false,
-          readFileError: null,
-          activeSpecReadError: null,
-          previewUnavailableReason: null,
-          selectionRange: null,
-          expandedDirectories: [],
+          ...(mode === 'reset'
+            ? {
+                ...currentSession,
+                isIndexing: true,
+                fileTree: [],
+                changedFiles: [],
+                activeFile: null,
+                activeSpec: null,
+                activeFileContent: null,
+                activeSpecContent: null,
+                isReadingFile: false,
+                isReadingSpec: false,
+                readFileError: null,
+                activeSpecReadError: null,
+                previewUnavailableReason: null,
+                selectionRange: null,
+                expandedDirectories: [],
+              }
+            : {
+                ...currentSession,
+                isIndexing: true,
+              }),
         })),
       )
 
@@ -204,12 +230,59 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           return 'failed'
         }
 
+        const indexedFilePathSet = collectFileRelativePaths(indexResult.fileTree)
         setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-            ...currentSession,
-            fileTree: indexResult.fileTree,
-            isIndexing: false,
-          })),
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+            if (mode === 'reset') {
+              return {
+                ...currentSession,
+                fileTree: indexResult.fileTree,
+                isIndexing: false,
+              }
+            }
+
+            const activeFileStillExists =
+              currentSession.activeFile !== null &&
+              indexedFilePathSet.has(currentSession.activeFile)
+            const activeSpecStillExists =
+              currentSession.activeSpec !== null &&
+              indexedFilePathSet.has(currentSession.activeSpec)
+
+            return {
+              ...currentSession,
+              fileTree: indexResult.fileTree,
+              changedFiles: currentSession.changedFiles.filter((relativePath) =>
+                indexedFilePathSet.has(relativePath),
+              ),
+              activeFile: activeFileStillExists ? currentSession.activeFile : null,
+              activeSpec: activeSpecStillExists ? currentSession.activeSpec : null,
+              activeFileContent: activeFileStillExists
+                ? currentSession.activeFileContent
+                : null,
+              activeSpecContent: activeSpecStillExists
+                ? currentSession.activeSpecContent
+                : null,
+              readFileError: activeFileStillExists
+                ? currentSession.readFileError
+                : null,
+              activeSpecReadError: activeSpecStillExists
+                ? currentSession.activeSpecReadError
+                : null,
+              previewUnavailableReason: activeFileStillExists
+                ? currentSession.previewUnavailableReason
+                : null,
+              selectionRange: activeFileStillExists
+                ? currentSession.selectionRange
+                : null,
+              isReadingFile: activeFileStillExists
+                ? currentSession.isReadingFile
+                : false,
+              isReadingSpec: activeSpecStillExists
+                ? currentSession.isReadingSpec
+                : false,
+              isIndexing: false,
+            }
+          }),
         )
         setBannerMessage(null)
         return 'success'
@@ -837,7 +910,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   useEffect(() => {
     const watchedWorkspaceIds = watchedWorkspaceIdsRef.current
     const unsubscribe = window.workspace.onWatchEvent((watchEvent) => {
-      if (!watchEvent.workspaceId || watchEvent.changedRelativePaths.length === 0) {
+      const hasStructureChanges = watchEvent.hasStructureChanges === true
+      if (
+        !watchEvent.workspaceId ||
+        (watchEvent.changedRelativePaths.length === 0 && !hasStructureChanges)
+      ) {
         return
       }
 
@@ -879,6 +956,14 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       ) {
         loadWorkspaceSpec(watchEvent.workspaceId, activeSpec)
       }
+
+      if (hasStructureChanges && workspaceSession) {
+        void loadWorkspaceIndex(
+          watchEvent.workspaceId,
+          workspaceSession.rootPath,
+          'refresh',
+        )
+      }
     })
 
     return () => {
@@ -889,7 +974,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         void window.workspace.watchStop(workspaceId)
       }
     }
-  }, [loadWorkspaceFile, loadWorkspaceSpec])
+  }, [loadWorkspaceFile, loadWorkspaceIndex, loadWorkspaceSpec])
 
   const activeWorkspace = workspaceState.activeWorkspaceId
     ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null

@@ -81,6 +81,7 @@ type WorkspaceWatchControlResult = {
 type WorkspaceWatchEventPayload = {
   workspaceId: string
   changedRelativePaths: string[]
+  hasStructureChanges: boolean
 }
 
 type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
@@ -106,6 +107,7 @@ type WorkspaceWatcherEntry = {
   rootPath: string
   watcher: FSWatcher
   pendingRelativePaths: Set<string>
+  hasPendingStructureChanges: boolean
   debounceTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -122,6 +124,7 @@ const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
 const WATCH_EVENT_DEBOUNCE_MS = 300
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
+const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
 
 const fileNameCollator = new Intl.Collator(undefined, {
   numeric: true,
@@ -465,19 +468,29 @@ function flushWorkspaceWatchEvent(workspaceId: string) {
   }
 
   watchEntry.debounceTimer = null
-  if (watchEntry.pendingRelativePaths.size === 0) {
+  if (
+    watchEntry.pendingRelativePaths.size === 0 &&
+    !watchEntry.hasPendingStructureChanges
+  ) {
     return
   }
 
   const changedRelativePaths = Array.from(watchEntry.pendingRelativePaths).sort()
+  const hasStructureChanges = watchEntry.hasPendingStructureChanges
   watchEntry.pendingRelativePaths.clear()
+  watchEntry.hasPendingStructureChanges = false
   sendWorkspaceWatchEvent({
     workspaceId,
     changedRelativePaths,
+    hasStructureChanges,
   })
 }
 
-function queueWorkspaceWatchEvent(workspaceId: string, targetPath: string) {
+function queueWorkspaceWatchEvent(
+  workspaceId: string,
+  eventName: string,
+  targetPath: string,
+) {
   const watchEntry = workspaceWatchers.get(workspaceId)
   if (!watchEntry) {
     return
@@ -500,7 +513,12 @@ function queueWorkspaceWatchEvent(workspaceId: string, targetPath: string) {
     return
   }
 
-  watchEntry.pendingRelativePaths.add(relativePath)
+  if (WATCHABLE_FILE_EVENTS.has(eventName)) {
+    watchEntry.pendingRelativePaths.add(relativePath)
+  }
+  if (WATCHABLE_STRUCTURE_EVENTS.has(eventName)) {
+    watchEntry.hasPendingStructureChanges = true
+  }
   if (watchEntry.debounceTimer !== null) {
     return
   }
@@ -522,6 +540,7 @@ async function stopWorkspaceWatcher(workspaceId: string) {
     watchEntry.debounceTimer = null
   }
   watchEntry.pendingRelativePaths.clear()
+  watchEntry.hasPendingStructureChanges = false
   await watchEntry.watcher.close()
 }
 
@@ -587,15 +606,19 @@ async function handleWorkspaceWatchStart(
       rootPath: resolvedRootPath,
       watcher,
       pendingRelativePaths: new Set(),
+      hasPendingStructureChanges: false,
       debounceTimer: null,
     }
     workspaceWatchers.set(workspaceId, watchEntry)
 
     watcher.on('all', (eventName, candidatePath) => {
-      if (!WATCHABLE_FILE_EVENTS.has(eventName)) {
+      if (
+        !WATCHABLE_FILE_EVENTS.has(eventName) &&
+        !WATCHABLE_STRUCTURE_EVENTS.has(eventName)
+      ) {
         return
       }
-      queueWorkspaceWatchEvent(workspaceId, candidatePath)
+      queueWorkspaceWatchEvent(workspaceId, eventName, candidatePath)
     })
 
     watcher.on('error', (error) => {

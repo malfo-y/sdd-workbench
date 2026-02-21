@@ -57,6 +57,7 @@ interface WorkspaceWatchControlResult {
 interface WorkspaceWatchEvent {
   workspaceId: string
   changedRelativePaths: string[]
+  hasStructureChanges?: boolean
 }
 
 type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
