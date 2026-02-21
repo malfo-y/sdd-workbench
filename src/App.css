@@ -643,6 +643,25 @@
   margin: 0;
 }
 
+.code-viewer-image-preview {
+  align-items: center;
+  background: #171717;
+  border: 1px solid #313131;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  min-height: 180px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.code-viewer-image-preview img {
+  display: block;
+  height: auto;
+  max-height: min(70vh, 960px);
+  max-width: 100%;
+}
+
 .code-line-list {
   list-style: none;
   margin: 0;

@@ -16,6 +16,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="tools/example.py"
         activeFileContent={'def hello():\n    return 1'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
@@ -51,6 +52,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="logs/runtime.log"
         activeFileContent={'plain text line'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
@@ -88,6 +90,7 @@ describe('CodeViewerPanel highlighting', () => {
         <CodeViewerPanel
           activeFile="src/example.ts"
           activeFileContent={'line1\nline2\nline3\nline4\nline5'}
+          activeFileImagePreview={null}
           isReadingFile={false}
           jumpRequest={{
             targetRelativePath: 'src/example.ts',
@@ -126,6 +129,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
@@ -170,6 +174,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={onRequestCopyBoth}
@@ -231,6 +236,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={onRequestCopyBoth}
@@ -273,6 +279,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
@@ -294,6 +301,7 @@ describe('CodeViewerPanel highlighting', () => {
       <CodeViewerPanel
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
@@ -310,5 +318,64 @@ describe('CodeViewerPanel highlighting', () => {
     )
 
     expect(highlightPreviewLinesSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders image preview mode and hides text line interactions', () => {
+    const onRequestCopyRelativePath = vi.fn()
+    const onRequestCopySelectedContent = vi.fn()
+    const onRequestCopyBoth = vi.fn()
+
+    render(
+      <CodeViewerPanel
+        activeFile="assets/demo.png"
+        activeFileContent={null}
+        activeFileImagePreview={{
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AA==',
+        }}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={onRequestCopyBoth}
+        onRequestCopyRelativePath={onRequestCopyRelativePath}
+        onRequestCopySelectedContent={onRequestCopySelectedContent}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    expect(screen.getByTestId('code-viewer-language')).toHaveTextContent(
+      'Language: image',
+    )
+    const image = screen.getByRole('img', {
+      name: 'Image preview for assets/demo.png',
+    })
+    expect(image).toHaveAttribute('src', 'data:image/png;base64,AA==')
+    expect(screen.queryByTestId('code-viewer-content')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('code-line-1')).not.toBeInTheDocument()
+  })
+
+  it('shows blocked preview unavailable state', () => {
+    render(
+      <CodeViewerPanel
+        activeFile="assets/vector.svg"
+        activeFileContent={null}
+        activeFileImagePreview={null}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason="blocked_resource"
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    expect(screen.getByTestId('code-viewer-preview-unavailable')).toHaveTextContent(
+      'Preview unavailable: blocked resource by policy.',
+    )
   })
 })

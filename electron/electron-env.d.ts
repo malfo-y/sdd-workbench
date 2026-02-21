@@ -41,11 +41,20 @@ interface WorkspaceIndexResult {
   error?: string
 }
 
-type WorkspacePreviewUnavailableReason = 'file_too_large' | 'binary_file'
+type WorkspacePreviewUnavailableReason =
+  | 'file_too_large'
+  | 'binary_file'
+  | 'blocked_resource'
+
+interface WorkspaceImagePreview {
+  mimeType: string
+  dataUrl: string
+}
 
 interface WorkspaceReadFileResult {
   ok: boolean
   content: string | null
+  imagePreview?: WorkspaceImagePreview
   error?: string
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }

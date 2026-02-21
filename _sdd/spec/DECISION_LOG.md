@@ -551,3 +551,26 @@
 - Impact / follow-up:
   - `main.md`의 메타데이터/인벤토리/IPC 계약/성능·보안·신뢰성 기준/Feature Queue/수용 기준/검증 수치를 F10 완료 기준으로 동기화한다.
   - F10.2(코드 뷰어 이미지 프리뷰)는 별도 feature로 유지한다.
+
+## 2026-02-21 - F10.2 구현 완료 반영(코드 뷰어 이미지 프리뷰 + 복원/종료 안정화)
+
+- Context:
+  - F10.2 구현으로 코드 뷰어에 이미지 프리뷰 모드가 추가되었고, `workspace:readFile` 계약이 `imagePreview`/`blocked_resource`까지 확장되었음.
+  - 사용자 검증에서 “이미지 active file 복원 시 stale 인덱스 경합으로 프리뷰가 누락될 수 있는 문제”와 “앱 종료 지연” 피드백이 있었고 후속 수정이 반영되었음.
+  - 최신 게이트 결과는 `npm test` 133건 통과(`App.test.tsx` 46건 포함), `npm run lint`/`npm run build` 통과임.
+- Decision:
+  - F10.2를 스펙 상태 `✅ Done`으로 전환한다.
+  - 코드 뷰어 파일 읽기 계약을 `{ ok, content, imagePreview?, previewUnavailableReason? }`로 고정하고, 차단 리소스는 `blocked_resource`로 처리한다.
+  - 세션 복원 시 stale 인덱스 응답이 발생해도 active file/spec 복원을 계속하는 정책으로 고정한다.
+  - watcher 종료는 single-flight 정리(`stopAllWorkspaceWatchersPromise`)를 사용해 중복 정리 호출로 인한 종료 지연을 완화한다.
+- Rationale:
+  - 텍스트 전용 프리뷰는 이미지 자산 확인 흐름에서 사용성이 낮아 read-only 이미지 렌더를 기본 제공하는 것이 효과적이다.
+  - stale 인덱스 경합을 복원 중단 조건으로 두면 이미지/마크다운 복원 누락이 발생하므로 continue 정책이 더 안전하다.
+  - 앱 종료 경로에서 watcher 정리를 단일 비동기 플라이트로 수렴시키면 체감 종료 지연과 중복 close 비용을 줄일 수 있다.
+- Alternatives considered:
+  - 이미지 파일도 기존처럼 바이너리 preview-unavailable만 제공
+  - stale 인덱스 응답을 복원 실패로 처리해 해당 workspace를 스킵
+  - 종료 시점마다 watcher 정리를 중복 호출하고 각 호출에서 개별 close
+- Impact / follow-up:
+  - `main.md`의 인벤토리/상태 모델/IPC 계약/F10.2 섹션/수용 기준/테스트 수치를 최신 코드 기준으로 동기화한다.
+  - 이미지 프리뷰는 read-only로 고정하고, 확대/축소/패닝 및 추가 포맷(`bmp`, `ico`)은 후속 backlog로 유지한다.

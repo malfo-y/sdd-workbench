@@ -42,6 +42,7 @@ type WorkspaceContextValue = {
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
+  activeFileImagePreview: WorkspaceImagePreview | null
   activeSpecContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
@@ -86,6 +87,10 @@ function getSpecPreviewUnavailableMessage(
 ) {
   if (reason === 'file_too_large') {
     return 'Failed to render markdown preview: file exceeds 2MB limit.'
+  }
+
+  if (reason === 'blocked_resource') {
+    return 'Failed to render markdown preview: blocked resource.'
   }
 
   return 'Failed to render markdown preview: binary file detected.'
@@ -135,16 +140,17 @@ function createWorkspaceStateFromSnapshot(
       nextState,
       persistedWorkspaceSession.rootPath,
     )
-    nextState = updateWorkspaceSession(
-      addResult.state,
-      addResult.workspaceId,
-      (session) => ({
-        ...session,
-        activeSpec: persistedWorkspaceSession.activeSpec,
-        expandedDirectories: persistedWorkspaceSession.expandedDirectories,
-        fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
-      }),
-    )
+      nextState = updateWorkspaceSession(
+        addResult.state,
+        addResult.workspaceId,
+        (session) => ({
+          ...session,
+          activeFile: persistedWorkspaceSession.activeFile,
+          activeSpec: persistedWorkspaceSession.activeSpec,
+          expandedDirectories: persistedWorkspaceSession.expandedDirectories,
+          fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
+        }),
+      )
   }
 
   if (
@@ -198,6 +204,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 activeFile: null,
                 activeSpec: null,
                 activeFileContent: null,
+                activeFileImagePreview: null,
                 activeSpecContent: null,
                 isReadingFile: false,
                 isReadingSpec: false,
@@ -263,6 +270,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               activeSpec: activeSpecStillExists ? currentSession.activeSpec : null,
               activeFileContent: activeFileStillExists
                 ? currentSession.activeFileContent
+                : null,
+              activeFileImagePreview: activeFileStillExists
+                ? currentSession.activeFileImagePreview
                 : null,
               activeSpecContent: activeSpecStillExists
                 ? currentSession.activeSpecContent
@@ -551,6 +561,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             activeSpec: shouldUpdateSpec ? relativePath : currentSession.activeSpec,
             activeFileContent:
               mode === 'select' ? null : currentSession.activeFileContent,
+            activeFileImagePreview:
+              mode === 'select' ? null : currentSession.activeFileImagePreview,
             selectionRange:
               mode === 'select'
                 ? restoredLineNumber === null
@@ -619,6 +631,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
                 ...currentSession,
                 previewUnavailableReason: readResult.previewUnavailableReason ?? null,
+                activeFileImagePreview: null,
                 isReadingFile: false,
                 activeSpecContent:
                   shouldUpdateSpec || shouldRefreshSpec
@@ -642,11 +655,19 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           setWorkspaceState((previous) =>
             updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
               ...currentSession,
-              activeFileContent: readResult.content ?? '',
+              activeFileContent: readResult.imagePreview
+                ? null
+                : readResult.content ?? '',
+              activeFileImagePreview: readResult.imagePreview ?? null,
+              selectionRange: readResult.imagePreview
+                ? null
+                : currentSession.selectionRange,
               isReadingFile: false,
               activeSpecContent:
                 shouldUpdateSpec || shouldRefreshSpec
-                  ? readResult.content ?? ''
+                  ? readResult.imagePreview
+                    ? null
+                    : readResult.content ?? ''
                   : currentSession.activeSpecContent,
               activeSpecReadError:
                 shouldUpdateSpec || shouldRefreshSpec
@@ -838,6 +859,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         const indexStatus = await loadWorkspaceIndex(
           workspaceId,
           workspaceSession.rootPath,
+          'refresh',
         )
 
         if (indexStatus === 'failed') {
@@ -854,9 +876,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           continue
         }
 
-        if (indexStatus === 'stale') {
-          continue
-        }
+        // A newer refresh may mark this request stale during restore.
+        // Even in that case, keep restoring active file/spec so preview hydration
+        // is not skipped for the persisted session.
 
         if (persistedWorkspaceSession.activeFile) {
           loadWorkspaceFile(
@@ -1004,6 +1026,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       activeFile: activeWorkspace?.activeFile ?? null,
       activeSpec: activeWorkspace?.activeSpec ?? null,
       activeFileContent: activeWorkspace?.activeFileContent ?? null,
+      activeFileImagePreview: activeWorkspace?.activeFileImagePreview ?? null,
       activeSpecContent: activeWorkspace?.activeSpecContent ?? null,
       isIndexing: activeWorkspace?.isIndexing ?? false,
       isReadingFile: activeWorkspace?.isReadingFile ?? false,

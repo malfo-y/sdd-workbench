@@ -25,6 +25,7 @@ export type CodeViewerJumpRequest = {
 type CodeViewerPanelProps = {
   activeFile: string | null
   activeFileContent: string | null
+  activeFileImagePreview: WorkspaceImagePreview | null
   isReadingFile: boolean
   readFileError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
@@ -51,11 +52,28 @@ type ContextMenuState = {
   selectionRange: LineSelectionRange
 }
 
+function isRenderableImagePreview(
+  imagePreview: WorkspaceImagePreview | null,
+): imagePreview is WorkspaceImagePreview {
+  if (!imagePreview) {
+    return false
+  }
+
+  return (
+    imagePreview.mimeType.startsWith('image/') &&
+    imagePreview.dataUrl.startsWith('data:image/')
+  )
+}
+
 function getPreviewUnavailableMessage(
   reason: WorkspacePreviewUnavailableReason,
 ): string {
   if (reason === 'file_too_large') {
     return 'Preview unavailable: file exceeds 2MB limit.'
+  }
+
+  if (reason === 'blocked_resource') {
+    return 'Preview unavailable: blocked resource by policy.'
   }
 
   return 'Preview unavailable: binary file detected.'
@@ -64,6 +82,7 @@ function getPreviewUnavailableMessage(
 export function CodeViewerPanel({
   activeFile,
   activeFileContent,
+  activeFileImagePreview,
   isReadingFile,
   readFileError,
   previewUnavailableReason,
@@ -93,6 +112,11 @@ export function CodeViewerPanel({
     () => getHighlightLanguage(activeFile),
     [activeFile],
   )
+  const imagePreview = isRenderableImagePreview(activeFileImagePreview)
+    ? activeFileImagePreview
+    : null
+  const isImagePreviewMode = Boolean(imagePreview)
+  const displayLanguage = isImagePreviewMode ? 'image' : highlightLanguage
   const highlightedPreviewLines = useMemo(
     () => syntaxHighlight.highlightPreviewLines(previewLines, highlightLanguage),
     [previewLines, highlightLanguage],
@@ -103,7 +127,7 @@ export function CodeViewerPanel({
     setContextMenuState(null)
     dragSelectionRef.current = null
     suppressClickRef.current = false
-  }, [activeFile])
+  }, [activeFile, activeFileImagePreview, previewUnavailableReason])
 
   useEffect(() => {
     if (!selectionRange) {
@@ -299,7 +323,7 @@ export function CodeViewerPanel({
             : 'Selection: none'}
         </p>
         <p className="code-viewer-language" data-testid="code-viewer-language">
-          Language: {highlightLanguage}
+          Language: {displayLanguage}
         </p>
       </header>
 
@@ -336,7 +360,21 @@ export function CodeViewerPanel({
       {activeFile &&
         !isReadingFile &&
         !readFileError &&
-        !previewUnavailableReason && (
+        !previewUnavailableReason &&
+        imagePreview && (
+          <div className="code-viewer-image-preview" data-testid="code-viewer-image-preview">
+            <img
+              alt={`Image preview for ${activeFile}`}
+              src={imagePreview.dataUrl}
+            />
+          </div>
+        )}
+
+      {activeFile &&
+        !isReadingFile &&
+        !readFileError &&
+        !previewUnavailableReason &&
+        !imagePreview && (
           <ol
             className="code-line-list"
             data-highlight-language={highlightLanguage}
@@ -385,7 +423,7 @@ export function CodeViewerPanel({
             })}
           </ol>
         )}
-      {contextMenuState && (
+      {contextMenuState && !isImagePreviewMode && (
         <CopyActionPopover
           actions={[
             {

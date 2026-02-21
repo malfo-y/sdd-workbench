@@ -51,7 +51,15 @@ type WorkspaceIndexResult = {
   error?: string
 }
 
-type WorkspacePreviewUnavailableReason = 'file_too_large' | 'binary_file'
+type WorkspacePreviewUnavailableReason =
+  | 'file_too_large'
+  | 'binary_file'
+  | 'blocked_resource'
+
+type WorkspaceImagePreview = {
+  mimeType: string
+  dataUrl: string
+}
 
 type WorkspaceReadFileRequest = {
   rootPath: string
@@ -61,6 +69,7 @@ type WorkspaceReadFileRequest = {
 type WorkspaceReadFileResult = {
   ok: boolean
   content: string | null
+  imagePreview?: WorkspaceImagePreview
   error?: string
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
@@ -127,12 +136,22 @@ const MAX_WORKSPACE_INDEX_NODES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
+const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
+const BLOCKED_IMAGE_EXTENSIONS = new Set(['.svg'])
+const IMAGE_PREVIEW_BY_EXTENSION: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+}
 
 const fileNameCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 })
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
+let stopAllWorkspaceWatchersPromise: Promise<void> | null = null
 
 function normalizeToWorkspaceRelativePath(absolutePath: string, rootPath: string) {
   return path.relative(rootPath, absolutePath).split(path.sep).join('/')
@@ -157,6 +176,78 @@ function isPathInsideWorkspace(rootPath: string, targetPath: string) {
 
 function isLikelyBinaryContent(contentBuffer: Buffer) {
   return contentBuffer.includes(0)
+}
+
+function hasImageSignature(mimeType: string, contentBuffer: Buffer): boolean {
+  if (mimeType === 'image/png') {
+    return (
+      contentBuffer.length >= 8 &&
+      contentBuffer[0] === 0x89 &&
+      contentBuffer[1] === 0x50 &&
+      contentBuffer[2] === 0x4e &&
+      contentBuffer[3] === 0x47 &&
+      contentBuffer[4] === 0x0d &&
+      contentBuffer[5] === 0x0a &&
+      contentBuffer[6] === 0x1a &&
+      contentBuffer[7] === 0x0a
+    )
+  }
+
+  if (mimeType === 'image/jpeg') {
+    return (
+      contentBuffer.length >= 3 &&
+      contentBuffer[0] === 0xff &&
+      contentBuffer[1] === 0xd8 &&
+      contentBuffer[2] === 0xff
+    )
+  }
+
+  if (mimeType === 'image/gif') {
+    const gif87a = Buffer.from('GIF87a', 'ascii')
+    const gif89a = Buffer.from('GIF89a', 'ascii')
+    return (
+      contentBuffer.length >= 6 &&
+      (contentBuffer.subarray(0, 6).equals(gif87a) ||
+        contentBuffer.subarray(0, 6).equals(gif89a))
+    )
+  }
+
+  if (mimeType === 'image/webp') {
+    const riff = Buffer.from('RIFF', 'ascii')
+    const webp = Buffer.from('WEBP', 'ascii')
+    return (
+      contentBuffer.length >= 12 &&
+      contentBuffer.subarray(0, 4).equals(riff) &&
+      contentBuffer.subarray(8, 12).equals(webp)
+    )
+  }
+
+  return false
+}
+
+function buildImagePreview(
+  relativePath: string,
+  contentBuffer: Buffer,
+): WorkspaceImagePreview | null {
+  const extension = path.extname(relativePath).toLowerCase()
+  const mimeType = IMAGE_PREVIEW_BY_EXTENSION[extension]
+  if (!mimeType) {
+    return null
+  }
+
+  if (!hasImageSignature(mimeType, contentBuffer)) {
+    return null
+  }
+
+  const dataUrl = `data:${mimeType};base64,${contentBuffer.toString('base64')}`
+  if (!dataUrl.startsWith(ALLOWED_IMAGE_PREVIEW_MIME_PREFIX)) {
+    return null
+  }
+
+  return {
+    mimeType,
+    dataUrl,
+  }
 }
 
 function shouldIgnoreWatchPath(rootPath: string, candidatePath: string) {
@@ -375,6 +466,31 @@ async function handleWorkspaceReadFile(
     }
 
     const contentBuffer = await readFile(resolvedTargetPath)
+    const extension = path.extname(relativePath).toLowerCase()
+    if (BLOCKED_IMAGE_EXTENSIONS.has(extension)) {
+      return {
+        ok: true,
+        content: null,
+        previewUnavailableReason: 'blocked_resource',
+      }
+    }
+
+    const imagePreview = buildImagePreview(relativePath, contentBuffer)
+    if (imagePreview) {
+      return {
+        ok: true,
+        content: null,
+        imagePreview,
+      }
+    }
+    if (IMAGE_PREVIEW_BY_EXTENSION[extension]) {
+      return {
+        ok: true,
+        content: null,
+        previewUnavailableReason: 'blocked_resource',
+      }
+    }
+
     if (isLikelyBinaryContent(contentBuffer)) {
       return {
         ok: true,
@@ -571,8 +687,12 @@ async function stopWorkspaceWatcher(workspaceId: string) {
 }
 
 async function stopAllWorkspaceWatchers() {
+  if (stopAllWorkspaceWatchersPromise) {
+    return stopAllWorkspaceWatchersPromise
+  }
+
   const workspaceIds = Array.from(workspaceWatchers.keys())
-  await Promise.all(
+  stopAllWorkspaceWatchersPromise = Promise.all(
     workspaceIds.map(async (workspaceId) => {
       try {
         await stopWorkspaceWatcher(workspaceId)
@@ -581,6 +701,12 @@ async function stopAllWorkspaceWatchers() {
       }
     }),
   )
+    .then(() => undefined)
+    .finally(() => {
+      stopAllWorkspaceWatchersPromise = null
+    })
+
+  return stopAllWorkspaceWatchersPromise
 }
 
 async function handleWorkspaceWatchStart(
@@ -621,10 +747,6 @@ async function handleWorkspaceWatchStart(
       ignoreInitial: true,
       persistent: true,
       followSymlinks: false,
-      awaitWriteFinish: {
-        stabilityThreshold: 150,
-        pollInterval: 30,
-      },
     })
 
     const watchEntry: WorkspaceWatcherEntry = {
@@ -713,7 +835,6 @@ function createWindow() {
   })
 
   win.on('closed', () => {
-    void stopAllWorkspaceWatchers()
     win = null
   })
 
@@ -777,10 +898,6 @@ app.on('window-all-closed', () => {
     app.quit()
     win = null
   }
-})
-
-app.on('before-quit', () => {
-  void stopAllWorkspaceWatchers()
 })
 
 app.on('activate', () => {

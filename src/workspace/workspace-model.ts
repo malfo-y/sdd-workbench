@@ -15,6 +15,7 @@ export type WorkspaceSession = {
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
+  activeFileImagePreview: WorkspaceImagePreview | null
   activeSpecContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
@@ -84,6 +85,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     activeFile: null,
     activeSpec: null,
     activeFileContent: null,
+    activeFileImagePreview: null,
     activeSpecContent: null,
     isIndexing: false,
     isReadingFile: false,

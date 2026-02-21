@@ -165,6 +165,7 @@ function App() {
     activeFile,
     activeSpec,
     activeFileContent,
+    activeFileImagePreview,
     activeSpecContent,
     isIndexing,
     isReadingFile,
@@ -693,6 +694,7 @@ function App() {
           <CodeViewerPanel
             activeFile={activeFile}
             activeFileContent={activeFileContent}
+            activeFileImagePreview={activeFileImagePreview}
             isReadingFile={isReadingFile}
             jumpRequest={codeViewerJumpRequest}
             onSelectRange={setSelectionRange}

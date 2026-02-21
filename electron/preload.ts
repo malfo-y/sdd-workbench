@@ -20,11 +20,20 @@ type WorkspaceIndexResult = {
   error?: string
 }
 
-type WorkspacePreviewUnavailableReason = 'file_too_large' | 'binary_file'
+type WorkspacePreviewUnavailableReason =
+  | 'file_too_large'
+  | 'binary_file'
+  | 'blocked_resource'
+
+type WorkspaceImagePreview = {
+  mimeType: string
+  dataUrl: string
+}
 
 type WorkspaceReadFileResult = {
   ok: boolean
   content: string | null
+  imagePreview?: WorkspaceImagePreview
   error?: string
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }

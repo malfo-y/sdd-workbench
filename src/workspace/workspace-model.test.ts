@@ -258,6 +258,11 @@ describe('workspace-model', () => {
     expect(getWorkspaceFileLastLine(session, 'src/auth.ts')).toBe(8)
   })
 
+  it('initializes activeFileImagePreview as null for new sessions', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    expect(session.activeFileImagePreview).toBeNull()
+  })
+
   it('preserves fileLastLineByPath when selection is cleared', () => {
     let session = createWorkspaceSession(ROOT_A)
     session = {

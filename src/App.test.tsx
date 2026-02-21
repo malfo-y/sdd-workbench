@@ -741,6 +741,168 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     ).toHaveLength(2)
   })
 
+  it('restores image active file and expanded directories on app mount', async () => {
+    const projectRoot = '/Users/tester/restore-image'
+    const projectId = projectRoot
+
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: projectId,
+      workspaceOrder: [projectId],
+      workspacesById: {
+        [projectId]: {
+          rootPath: projectRoot,
+          activeFile: 'assets/diagram.png',
+          expandedDirectories: ['assets'],
+          fileLastLineByPath: {},
+        },
+      },
+    })
+
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'assets',
+          relativePath: 'assets',
+          kind: 'directory',
+          children: [
+            {
+              name: 'diagram.png',
+              relativePath: 'assets/diagram.png',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: null,
+      imagePreview: {
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AA==',
+      },
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectRoot,
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'assets/diagram.png',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-image-preview')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('img', { name: 'Image preview for assets/diagram.png' })).toHaveAttribute(
+      'src',
+      'data:image/png;base64,AA==',
+    )
+    expect(screen.getByRole('button', { name: 'diagram.png' })).toBeInTheDocument()
+  })
+
+  it('restores active file even when initial restore index result becomes stale', async () => {
+    const projectRoot = '/Users/tester/restore-stale-image'
+    const projectId = projectRoot
+
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: projectId,
+      workspaceOrder: [projectId],
+      workspacesById: {
+        [projectId]: {
+          rootPath: projectRoot,
+          activeFile: 'examples/family.png',
+          expandedDirectories: ['examples'],
+          fileLastLineByPath: {},
+        },
+      },
+    })
+
+    let indexCallCount = 0
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath !== projectRoot) {
+        return {
+          ok: false,
+          fileTree: [],
+        }
+      }
+
+      indexCallCount += 1
+      if (indexCallCount === 1) {
+        emitWatchEvent({
+          workspaceId: projectId,
+          changedRelativePaths: [],
+          hasStructureChanges: true,
+        })
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 12)
+        })
+      }
+
+      return {
+        ok: true,
+        fileTree: [
+          {
+            name: 'examples',
+            relativePath: 'examples',
+            kind: 'directory',
+            children: [
+              {
+                name: 'family.png',
+                relativePath: 'examples/family.png',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      }
+    })
+
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: null,
+      imagePreview: {
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AA==',
+      },
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectRoot,
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'examples/family.png',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-image-preview')).toBeInTheDocument()
+    })
+  })
+
   it('skips failed workspace restores and keeps remaining workspaces active', async () => {
     const validRoot = '/Users/tester/restore-valid'
     const invalidRoot = '/Users/tester/restore-invalid'
@@ -1771,6 +1933,104 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(
         screen.getByTestId('code-viewer-preview-unavailable'),
       ).toHaveTextContent('Preview unavailable: file exceeds 2MB limit.')
+    })
+  })
+
+  it('renders image preview in code viewer for supported image files', async () => {
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'diagram.png',
+        relativePath: 'diagram.png',
+        kind: 'file',
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: null,
+      imagePreview: {
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AA==',
+      },
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'diagram.png' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'diagram.png' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-image-preview')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('img', { name: 'Image preview for diagram.png' })).toHaveAttribute(
+      'src',
+      'data:image/png;base64,AA==',
+    )
+    expect(screen.getByTestId('code-viewer-language')).toHaveTextContent(
+      'Language: image',
+    )
+    expect(screen.queryByTestId('code-viewer-content')).not.toBeInTheDocument()
+  })
+
+  it('shows preview unavailable state for blocked resources', async () => {
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'vector.svg',
+        relativePath: 'vector.svg',
+        kind: 'file',
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: null,
+      previewUnavailableReason: 'blocked_resource',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'vector.svg' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'vector.svg' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('code-viewer-preview-unavailable'),
+      ).toHaveTextContent('Preview unavailable: blocked resource by policy.')
     })
   })
 

@@ -2,13 +2,13 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.17.0`
+- 문서 버전: `0.18.0`
 - 마지막 업데이트: `2026-02-21`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
   - UI 스케치: `/_sdd/spec/ui_sketch.png`
-  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator + workspace file history navigation 입력 바인딩 확장 + Open In(iTerm/VSCode) 액션 + 앱 재시작 세션 복원/라인 기준 위치 복원 + activeSpec 복원 + rendered markdown 선택 우클릭 `Go to Source` + markdown sanitize/리소스 경계 + 인덱싱 cap/truncation 배너 + 코드 하이라이트 메모이제이션) 구현 상태
+  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator + workspace file history navigation 입력 바인딩 확장 + Open In(iTerm/VSCode) 액션 + 앱 재시작 세션 복원/라인 기준 위치 복원 + activeSpec 복원 + rendered markdown 선택 우클릭 `Go to Source` + markdown sanitize/리소스 경계 + 인덱싱 cap/truncation 배너 + 코드 하이라이트 메모이제이션 + 코드 뷰어 이미지 프리뷰 + 복원 stale 인덱스 보정 + watcher 종료 지연 완화) 구현 상태
 
 ---
 
@@ -55,16 +55,16 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring + F07.1 history navigation(`Back`/`Forward`, mouse back/forward, swipe IPC, wheel fallback) + 좌측 `Open In:`(iTerm/VSCode) 액션 + 복원 라인 점프 연동 + rendered markdown 선택 우클릭 source 점프 wiring(`Go to Source`) + spec viewer workspace root 전달(F10 보안 경계) | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring + F07.1 history navigation(`Back`/`Forward`, mouse back/forward, swipe IPC, wheel fallback) + 좌측 `Open In:`(iTerm/VSCode) 액션 + 복원 라인 점프 연동 + rendered markdown 선택 우클릭 source 점프 wiring(`Go to Source`) + spec viewer workspace root 전달(F10 보안 경계) + 코드 뷰어 이미지 프리뷰 상태 연동(F10.2) | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
-| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + watcher lifecycle(`watchStart`/`watchStop`) + `changedFiles` 라우팅/active file auto-refresh + F07.1 파일 히스토리 액션(`canGoBack`/`canGoForward`/`goBackInHistory`/`goForwardInHistory`) + F09 snapshot hydrate/persist/부분 실패 continue + `activeSpec` 복원 + 배너 상태 관리 + F10 인덱싱 truncation 피드백 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09/F10) |
+| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + `activeFileImagePreview` 상태 + watcher lifecycle(`watchStart`/`watchStop`) + `changedFiles` 라우팅/active file auto-refresh + F07.1 파일 히스토리 액션(`canGoBack`/`canGoForward`/`goBackInHistory`/`goForwardInHistory`) + F09 snapshot hydrate/persist/부분 실패 continue + `activeSpec`/이미지 active file 복원 + stale 인덱스 복원 continue 보정 + 배너 상태 관리 + F10 인덱싱 truncation 피드백 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09/F10/F10.2) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
-| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 + `changedFiles` 정의 + F07.1 파일 히스토리 스택/포인터 전이 + F09 파일별 마지막 라인 맵(`fileLastLineByPath`) 및 selection 정규화 | Implemented (F03.5/F04/F07/F07.1/F09) |
+| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 + `activeFileImagePreview` 세션 상태 + `changedFiles` 정의 + F07.1 파일 히스토리 스택/포인터 전이 + F09 파일별 마지막 라인 맵(`fileLastLineByPath`) 및 selection 정규화 | Implemented (F03.5/F04/F07/F07.1/F09/F10.2) |
 | `src/workspace/workspace-persistence.ts` | F09 세션 snapshot 스키마/검증/localStorage read-write-clear 유틸(`schemaVersion`, `activeWorkspaceId`, `workspaceOrder`, workspace별 `activeFile`/`activeSpec`/`expandedDirectories`/`fileLastLineByPath`) | Implemented (F09) |
 | `src/workspace/workspace-switcher.tsx` | 활성 워크스페이스 선택 + 닫기/제거 UI | Implemented (F03.5) |
 | `src/workspace/path-format.ts` | UI 표시용 경로 축약 유틸(`~`) | Implemented (F01) |
 | `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 + 파일/디렉터리 우클릭 경로 복사 + changed marker(`●`) 렌더 | Implemented (F02/F03.5/F06.1/F06.2/F07) |
-| `src/code-viewer/code-viewer-panel.tsx` | 라인 단위 코드 프리뷰 + 선택 범위(Shift+Click/드래그) + preview-unavailable 표시 + language 라벨 + spec 링크 점프 스크롤 + 우클릭 복사 액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) + 하이라이트 결과 메모이제이션 | Implemented (F03/F03.1/F05/F06.1/F06.2/F10) |
+| `src/code-viewer/code-viewer-panel.tsx` | 라인 단위 코드 프리뷰 + 선택 범위(Shift+Click/드래그) + 텍스트/이미지/preview-unavailable 3-way 표시 + language 라벨 + spec 링크 점프 스크롤 + 우클릭 복사 액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) + 하이라이트 결과 메모이제이션 | Implemented (F03/F03.1/F05/F06.1/F06.2/F10/F10.2) |
 | `src/code-viewer/line-selection.ts` | 1-based 라인 선택/Shift 확장 유틸 | Implemented (F03) |
 | `src/code-viewer/language-map.ts` | 확장자 -> 하이라이트 언어 매핑(`.py` 포함) | Implemented (F03.1) |
 | `src/code-viewer/syntax-highlight.ts` | Prism 기반 라인 하이라이트 어댑터 + plaintext escape fallback + 배치 하이라이트 헬퍼(`highlightPreviewLines`) | Implemented (F03.1/F10) |
@@ -77,13 +77,13 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/spec-viewer/source-line-resolver.ts` | rendered markdown 블록 `data-source-line` + selection(anchor/focus) 기반 source line 해석 유틸 | Implemented (F10.1) |
 | `src/context-copy/copy-payload.ts` | 컨텍스트 복사 재사용 payload 유틸(`relative/path`, `relative/path:Lx-Ly`, selected content) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.tsx` | 코드/트리 우클릭 복사 액션 popover 공통 컴포넌트 | Implemented (F06.1) |
-| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트/source popover 스타일 + 토큰 컬러 스타일 + file-tree changed marker 스타일 + F07.1 헤더 `Back`/`Forward` 액션 배치 + F08 `Open In:` 아이콘 버튼 스타일 + F10 차단 리소스 placeholder 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2/F07/F07.1/F08/F10.1/F10) |
-| `src/App.test.tsx` | F01~F10/F10.1 통합 플로우 테스트(42건, multi-workspace/spec/watcher/history-navigation/open-in + 세션 복원/부분 실패 continue/activeSpec 복원 + rendered selection `Go to Source` + 인덱싱 truncation 배너 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10) |
-| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(14건, `changedFiles` + file history 전이 분리 + F09 라인 맵/selection 정규화 포함) | Implemented (F03.5/F04/F07/F07.1/F09) |
+| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트/source popover 스타일 + 토큰 컬러 스타일 + file-tree changed marker 스타일 + F07.1 헤더 `Back`/`Forward` 액션 배치 + F08 `Open In:` 아이콘 버튼 스타일 + F10 차단 리소스 placeholder 스타일 + F10.2 코드 뷰어 이미지 프리뷰 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2/F07/F07.1/F08/F10.1/F10/F10.2) |
+| `src/App.test.tsx` | F01~F10.2 통합 플로우 테스트(46건, multi-workspace/spec/watcher/history-navigation/open-in + 세션 복원/부분 실패 continue/activeSpec 복원 + rendered selection `Go to Source` + 인덱싱 truncation 배너 + 이미지 프리뷰/blocked_resource/복원 stale 보정 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2) |
+| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(15건, `changedFiles` + file history 전이 분리 + F09 라인 맵/selection 정규화 + `activeFileImagePreview` 초기화 검증 포함) | Implemented (F03.5/F04/F07/F07.1/F09/F10.2) |
 | `src/workspace/workspace-persistence.test.ts` | snapshot 스키마 검증/파싱 실패 fallback/엔트리 cap/`activeSpec` 포함 roundtrip 테스트(6건) | Implemented (F09) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
 | `src/code-viewer/language-map.test.ts` | 확장자 매핑/ fallback 테스트(2건) | Implemented (F03.1) |
-| `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + jump 스크롤 + 드래그 선택/우클릭 3액션 + 하이라이트 메모이제이션 회귀 테스트(7건) | Implemented (F03.1/F05/F06.1/F06.2/F10) |
+| `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + jump 스크롤 + 드래그 선택/우클릭 3액션 + 하이라이트 메모이제이션 + 이미지 모드/blocked_resource 회귀 테스트(9건) | Implemented (F03.1/F05/F06.1/F06.2/F10/F10.2) |
 | `src/spec-viewer/markdown-utils.test.ts` | markdown heading/TOC 유틸 테스트(2건) | Implemented (F04) |
 | `src/spec-viewer/spec-link-utils.test.ts` | 링크 해석/경계/외부 URL 분류 + lineRange 파싱 테스트(11건) | Implemented (F04.1/F05) |
 | `src/spec-viewer/spec-viewer-panel.test.tsx` | rendered panel 상태/링크 인터셉트/popover + lineRange 전달 + 선택 우클릭 `Go to Source` + sanitize/리소스 차단 테스트(12건) | Implemented (F04/F04.1/F05/F10.1/F10) |
@@ -91,11 +91,11 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/spec-viewer/source-line-resolver.test.ts` | target/selection fallback/정규화 기반 source line 해석 테스트(5건) | Implemented (F10.1) |
 | `src/context-copy/copy-payload.test.ts` | 복사 payload 포맷/경계값/정규화 테스트(8건) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.test.tsx` | copy action popover dismiss/액션 테스트(3건) | Implemented (F06.1) |
-| `src/file-tree/file-tree-panel.test.tsx` | 파일/디렉터리 우클릭 복사 + 토글 + changed marker 회귀 테스트(2건) | Implemented (F06.1/F06.2/F07) |
+| `src/file-tree/file-tree-panel.test.tsx` | 파일/디렉터리 우클릭 복사 + 토글 + changed marker + 루트 파일 노출 회귀 테스트(3건) | Implemented (F02/F06.1/F06.2/F07) |
 | `src/test/setup.ts` | RTL matcher setup (`jest-dom`) | Implemented (F01) |
-| `electron/main.ts` | BrowserWindow 부팅 + `workspace:openDialog`/`workspace:index`/`workspace:readFile` + watcher IPC(`workspace:watchStart`/`workspace:watchStop`/`workspace:watchEvent`) + history navigate 이벤트 브릿지(`app-command`/`swipe` -> `workspace:historyNavigate`) + system open IPC(`system:openInIterm`/`system:openInVsCode`) + watcher registry/debounce/cleanup + 인덱싱 cap(10,000)/`truncated` 신호 반환 | Implemented (F01/F02/F03/F07/F07.1/F08/F10) |
-| `electron/preload.ts` | `window.workspace.openDialog()`/`index()`/`readFile()` + watcher bridge(`watchStart`/`watchStop`/`onWatchEvent`) + history navigate 구독(`onHistoryNavigate`) + system open invoke(`openInIterm`/`openInVsCode`) API 노출 + `workspace:index` `truncated` 타입 브리지 | Implemented (F01/F02/F03/F07/F07.1/F08/F10) |
-| `electron/electron-env.d.ts` | Renderer 전역 workspace 타입 계약(openDialog/index/readFile + watcher API/event payload + history navigation event payload + system open result/API + `workspace:index.truncated`) | Implemented (F01/F02/F03/F07/F07.1/F08/F10) |
+| `electron/main.ts` | BrowserWindow 부팅 + `workspace:openDialog`/`workspace:index`/`workspace:readFile` + watcher IPC(`workspace:watchStart`/`workspace:watchStop`/`workspace:watchEvent`) + history navigate 이벤트 브릿지(`app-command`/`swipe` -> `workspace:historyNavigate`) + system open IPC(`system:openInIterm`/`system:openInVsCode`) + watcher registry/debounce/cleanup + 인덱싱 cap(10,000)/`truncated` 신호 반환 + `readFile.imagePreview`/`blocked_resource` 정책 + watcher 종료 single-flight/종료 지연 완화 | Implemented (F01/F02/F03/F07/F07.1/F08/F10/F10.2) |
+| `electron/preload.ts` | `window.workspace.openDialog()`/`index()`/`readFile()` + watcher bridge(`watchStart`/`watchStop`/`onWatchEvent`) + history navigate 구독(`onHistoryNavigate`) + system open invoke(`openInIterm`/`openInVsCode`) API 노출 + `workspace:index` `truncated` 타입 브리지 + `readFile.imagePreview`/`blocked_resource` 타입 브리지 | Implemented (F01/F02/F03/F07/F07.1/F08/F10/F10.2) |
+| `electron/electron-env.d.ts` | Renderer 전역 workspace 타입 계약(openDialog/index/readFile + watcher API/event payload + history navigation event payload + system open result/API + `workspace:index.truncated` + `readFile.imagePreview`/`blocked_resource`) | Implemented (F01/F02/F03/F07/F07.1/F08/F10/F10.2) |
 | `vitest.config.ts` | `jsdom` 기반 테스트 환경 설정 | Implemented (F01) |
 | `vite.config.ts` | Vite + Electron 빌드 설정 | Implemented |
 | `package.json` | dev/build/test 스크립트 + Prism 하이라이트 + markdown 렌더 의존성(`rehype-sanitize` 포함) + watcher 의존성(`chokidar`) 포함 | Implemented |
@@ -107,7 +107,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 |---|---|---|
 | 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 + 워크스페이스별 파일 히스토리(`Back`/`Forward`) + 앱 재시작 세션 복원(workspaces/active workspace/active file/active spec/line resume, 부분 실패 continue) 구현(F03.5/F07.1/F09) |
 | 4.2 File Browser | Implemented (MVP) | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 + 파일/디렉터리 우클릭 상대경로 복사(F02/F03.5/F06.1/F06.2) + changed indicator(`●`) 반영(F07) + 파일 떠날 때 marker clear 정책 적용(F07 follow-up) |
-| 4.3 Code Viewer | Implemented (Core) | 코드 프리뷰/라인 선택(Shift+Click + drag)/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) + 우클릭 복사 3액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) 구현(F06.1/F06.2) |
+| 4.3 Code Viewer | Implemented (Core) | 코드 프리뷰/라인 선택(Shift+Click + drag)/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) + 우클릭 복사 3액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) 구현(F06.1/F06.2) + 이미지 파일 미리보기 모드(F10.2) |
 | 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 + 코드 파일 선택 시 우측 spec 유지(F04) + rendered markdown 선택 우클릭 `Go to Source` 액션(F10.1) + sanitize/로컬 리소스 경계/차단 placeholder(F10) 구현 |
 | 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) + rendered selection source line 점프(F10.1) + 안전 URI 정책(F10) 구현 |
 | 4.6 Context Toolbar/Actions | Implemented (MVP) | F06 툴바 복사 2종은 F06.2에서 제거 완료, 코드/트리 컨텍스트 복사(F06.1/F06.2) + workspace open-in 액션(F08) + rendered spec selection source 액션(F10.1) 구현 |
@@ -115,7 +115,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
 | Renderer <-> Main 브리지 기본 틀 | Implemented (MVP 범위) | `openDialog()`/`index()`/`readFile()` + `watchStart()`/`watchStop()`/`onWatchEvent()` + `onHistoryNavigate()` + system 채널(`openInIterm`, `openInVsCode`) + `workspace:index.truncated` 브리지 구현 |
 
-요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10은 완료되었다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
+요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2는 완료되었다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -181,9 +181,9 @@ Renderer (React)
 |---|---|
 | Purpose | 멀티 워크스페이스 세션 관리 + 워크스페이스별 인덱싱/파일 본문/선택/변경상태(`changedFiles`) 관리 + watcher 이벤트 라우팅 + 배너 피드백 관리 |
 | Input | `window.workspace.openDialog()`, `window.workspace.index(rootPath)`, `window.workspace.readFile(rootPath, relativePath)`, `window.workspace.watchStart(workspaceId, rootPath)`, `window.workspace.watchStop(workspaceId)`, `window.workspace.onWatchEvent(listener)` 결과 |
-| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `changedFiles`, `activeFile`, `activeFileContent`, `activeSpec`, `activeSpecContent`, `isIndexing`, `isReadingFile`, `isReadingSpec`, `readFileError`, `activeSpecReadError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `canGoBack`, `canGoForward`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `goBackInHistory()`, `goForwardInHistory()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
+| Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `changedFiles`, `activeFile`, `activeFileContent`, `activeFileImagePreview`, `activeSpec`, `activeSpecContent`, `isIndexing`, `isReadingFile`, `isReadingSpec`, `readFileError`, `activeSpecReadError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `canGoBack`, `canGoForward`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `goBackInHistory()`, `goForwardInHistory()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
 | Dependencies | `workspace:openDialog`, `workspace:index`, `workspace:readFile`, `workspace:watchStart`, `workspace:watchStop`, `workspace:watchEvent` IPC + preload 브리지 |
-| 상태 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09) |
+| 상태 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09/F10.2) |
 
 ### 6.2 FileTreePanel
 
@@ -200,10 +200,10 @@ Renderer (React)
 | 항목 | 내용 |
 |---|---|
 | Purpose | 코드 원문 프리뷰 표시, 라인 선택 범위 추적(Shift+Click + 드래그), preview unavailable 상태 표시, 확장자 기반 색상 코딩, 코드 라인 우클릭 복사 액션 진입점 |
-| Input | activeFilePath, fileContent, isReadingFile, readFileError, previewUnavailableReason, selectionRange |
+| Input | activeFilePath, fileContent, activeFileImagePreview, isReadingFile, readFileError, previewUnavailableReason, selectionRange |
 | Output | selectedLineRange, 코드 라인 우클릭 복사 액션 이벤트 |
 | Dependencies | `line-selection` 유틸, Prism 기반 하이라이트 어댑터 |
-| 상태 | Implemented (F03/F03.1/F05/F06.1/F06.2) |
+| 상태 | Implemented (F03/F03.1/F05/F06.1/F06.2/F10.2) |
 
 ### 6.4 SpecViewerPanel
 
@@ -250,6 +250,7 @@ type WorkspaceSession = {
   fileTree: FileNode[] // F02 구현
   activeFile: string | null // F02 구현
   activeFileContent: string | null // F03 구현
+  activeFileImagePreview: WorkspaceImagePreview | null // F10.2 구현
   activeSpec: string | null // F04 구현
   activeSpecContent: string | null // F04 구현 (우측 rendered spec 소스)
   isIndexing: boolean // F02 구현
@@ -257,7 +258,7 @@ type WorkspaceSession = {
   isReadingSpec: boolean // F04 구현
   readFileError: string | null // F03 구현
   activeSpecReadError: string | null // F04 구현
-  previewUnavailableReason: 'file_too_large' | 'binary_file' | null // F03 구현
+  previewUnavailableReason: 'file_too_large' | 'binary_file' | 'blocked_resource' | null // F03/F10.2 구현
   selectionRange: SelectionState // F03 구현
   fileLastLineByPath: Record<string, number> // F09 구현 (relativePath -> last line)
   expandedDirectories: string[] // F03.5 구현
@@ -298,7 +299,7 @@ F03 기준 상태 전이 규칙:
 2. `readFile` 요청 시작 시 `isReadingFile = true`로 전환한다.
 3. 읽기 성공(`ok: true`, `content`) 시 `activeFileContent`를 갱신하고 `isReadingFile = false`로 전환한다.
 4. 읽기 실패(`ok: false`) 시 `readFileError`를 저장하고 오류 메시지를 center 패널에 표시한다.
-5. preview 불가(`previewUnavailableReason`) 시 본문 대신 사유(`file_too_large`/`binary_file`)를 표시한다.
+5. preview 불가(`previewUnavailableReason`) 시 본문 대신 사유(`file_too_large`/`binary_file`/`blocked_resource`)를 표시한다.
 6. 라인 클릭은 1-based 기준 선택 범위를 저장하며, `Shift+Click`은 anchor line 기반 범위를 확장한다.
 
 F03.1 기준 상태/표시 규칙:
@@ -377,6 +378,13 @@ F10 기준 상태/상호작용 규칙(Implemented):
 4. `workspace:index`는 인덱싱 노드 cap(`10,000`) 도달 시 `truncated=true`로 반환하며 renderer는 배너로 피드백한다.
 5. 코드 하이라이트 계산은 파일 본문/언어가 바뀔 때만 재계산하고, selection/우클릭 상호작용에서는 재계산하지 않는다.
 
+F10.2 기준 상태/상호작용 규칙(Implemented):
+
+1. `workspace:readFile` 결과에 `imagePreview`가 있으면 코드 뷰어는 텍스트 라인 렌더 대신 이미지 모드로 전환한다.
+2. 이미지 모드에서는 `selectionRange`를 초기화하고 텍스트 라인 우클릭 복사 UI를 노출하지 않는다.
+3. `svg`/정책 위반 이미지 리소스는 `previewUnavailableReason='blocked_resource'`로 처리한다.
+4. 세션 복원 시 `activeFile`가 이미지여도 stale 인덱스 응답 때문에 복원 스킵되지 않도록 continue 정책을 유지한다.
+
 ---
 
 ## 8. 링크/경로 파싱 규칙 (MVP 고정)
@@ -415,7 +423,7 @@ F10 기준 상태/상호작용 규칙(Implemented):
 |---|---|---|---|
 | `workspace:openDialog` | Renderer -> Main (`invoke`) | 없음 -> `{ canceled: boolean, selectedPath: string \| null, error?: string }` | Implemented (F01) |
 | `workspace:index` | Renderer -> Main (`invoke`) | `{ rootPath }` -> `{ ok, fileTree, truncated?, error? }` | Implemented (F02/F10) |
-| `workspace:readFile` | Renderer -> Main (`invoke`) | `{ rootPath, relativePath }` -> `{ ok, content, error?, previewUnavailableReason? }` | Implemented (F03) |
+| `workspace:readFile` | Renderer -> Main (`invoke`) | `{ rootPath, relativePath }` -> `{ ok, content, imagePreview?, error?, previewUnavailableReason? }` | Implemented (F03/F10.2) |
 | `workspace:watchStart` | Renderer -> Main (`invoke`) | `{ workspaceId, rootPath }` | Implemented (F07) |
 | `workspace:watchStop` | Renderer -> Main (`invoke`) | `{ workspaceId }` | Implemented (F07) |
 | `workspace:watchEvent` | Main -> Renderer (`send`) | `{ workspaceId, changedRelativePaths[] }` | Implemented (F07) |
@@ -429,6 +437,7 @@ F10 기준 상태/상호작용 규칙(Implemented):
 - 인덱싱은 `window.workspace.index(rootPath)` 래퍼를 통해 호출한다.
 - 인덱싱 결과 `truncated=true`는 index cap(10,000) 도달을 의미하며 renderer는 안내 배너를 노출한다.
 - 파일 본문 읽기는 `window.workspace.readFile(rootPath, relativePath)` 래퍼를 통해 호출한다.
+- `workspace:readFile`에서 이미지 파일은 `imagePreview(data:image/*)` payload를 우선 반환하며, 정책 차단 시 `previewUnavailableReason='blocked_resource'`를 반환한다.
 - watcher lifecycle은 `window.workspace.watchStart()`/`watchStop()` 래퍼를 통해 호출한다.
 - watcher 이벤트(`workspace:watchEvent`)는 `workspaceId`를 포함해 세션 오염 없이 라우팅한다.
 - history navigation 이벤트(`workspace:historyNavigate`)는 `window.workspace.onHistoryNavigate()` 구독으로 전달되며, Renderer는 헤더 버튼과 동일 액션으로 라우팅한다.
@@ -477,6 +486,8 @@ F10 기준 상태/상호작용 규칙(Implemented):
 - F10.1에서 rendered markdown 텍스트 선택 우클릭 시 `Go to Source`가 source line(best-effort) 기준으로 동작한다.
 - F10에서 인덱싱 cap 도달(`truncated`) 시 앱은 정상 동작을 유지하고 배너로 제한 상태를 안내한다.
 - F10에서 차단된 markdown 리소스는 자동 이동/로드 대신 placeholder로 안전하게 처리한다.
+- F10.2에서 코드 뷰어는 이미지 프리뷰를 지원하고, 정책 차단 리소스는 텍스트 preview-unavailable 상태로 안전하게 처리한다.
+- F10.2에서 종료 경로의 watcher 정리는 single-flight로 동작해 중복 종료 호출로 인한 앱 종료 지연을 완화한다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
 
 ---
@@ -491,11 +502,11 @@ F10 기준 상태/상호작용 규칙(Implemented):
 ### 11.2 MVP 구현 시 추가 검토 의존성
 
 - 코드 뷰어 고도화(후속): Prism 확장 유지 vs `monaco-editor`/`codemirror` 전환 검토
-- 코드 뷰어 이미지 프리뷰(F10.2) 진행 시 이미지 렌더러 의존성/보안 정책 확장 검토
+- 코드 뷰어 이미지 프리뷰(F10.2)는 data URL 기반 read-only 미리보기로 구현 완료(확대/축소/패닝 등 고급 도구는 후속 검토)
 
-### 11.3 멀티 워크스페이스 공통 규칙 (F04~F10/F06.1/F06.2 적용)
+### 11.3 멀티 워크스페이스 공통 규칙 (F04~F10.2/F06.1/F06.2 적용)
 
-1. F04~F10 기능은 기본적으로 `activeWorkspaceId` 기준으로만 동작한다.
+1. F04~F10.2 기능은 기본적으로 `activeWorkspaceId` 기준으로만 동작한다.
 2. 활성 워크스페이스가 없으면 기능을 실행하지 않고 UI를 disabled 상태로 표시한다.
 3. 워크스페이스 간 자동 fallback(다른 워크스페이스에서 경로 탐색)은 MVP 범위에서 허용하지 않는다.
 4. 워크스페이스 전환 시 공유되면 안 되는 상태(예: line selection)는 리셋하고, 세션 상태(예: 파일 트리 펼침/active 문서)는 워크스페이스별로 유지한다.
@@ -520,6 +531,7 @@ F10 기준 상태/상호작용 규칙(Implemented):
 - F10.1: rendered markdown selection 우클릭 `Go to Source`는 line 기준 best-effort 매핑으로 고정하고 `activeSpec` source jump만 지원한다.
 - F10: 인덱싱 cap은 `10,000`으로 고정하고 `workspace:index.truncated` 신호를 renderer 배너에 연결한다.
 - F10: 차단 리소스는 `blocked placeholder text`로 처리하고, `data:` URI는 `data:image/*`만 제한 허용한다.
+- F10.2: 코드 뷰어는 `imagePreview` payload를 우선 렌더하고, `blocked_resource`는 preview-unavailable 정책으로 처리한다.
 
 ---
 
@@ -989,9 +1001,39 @@ F10 기준 상태/상호작용 규칙(Implemented):
   - `package.json`, `package-lock.json`
 - 상태: `✅ Done (2026-02-21)`
 
+#### F10.2. 코드 뷰어 이미지 프리뷰 (P1, 크기 M)
+
+- 포함:
+  - `workspace:readFile` 이미지 payload(`imagePreview`) 계약 추가
+  - 코드 뷰어 텍스트/이미지/preview-unavailable 3-way 렌더 분기
+  - 허용 이미지 포맷(`.png/.jpg/.jpeg/.gif/.webp`) 프리뷰 + 정책 차단(`blocked_resource`) 처리
+  - 세션 복원 시 이미지 active file 복원 및 stale 인덱스 경합 continue 보정
+  - watcher 종료 single-flight 처리로 종료 지연 완화
+- 제외:
+  - 이미지 편집/주석/확대-축소-패닝 도구
+  - `bmp`/`ico`/`svg` 등 추가 포맷 프리뷰
+- 완료 기준:
+  - 이미지 파일 선택 시 center 코드 뷰어에서 실제 이미지가 렌더된다.
+  - 정책 차단 리소스는 앱 크래시 없이 preview-unavailable 상태로 표시된다.
+  - 앱 재시작 후 이미지 active file도 복원되고, stale 인덱스 경합이 있어도 복원을 계속한다.
+  - `npm test`/`npm run lint`/`npm run build` 게이트를 통과한다.
+- 예상 변경 파일:
+  - `electron/main.ts`
+  - `electron/preload.ts`
+  - `electron/electron-env.d.ts`
+  - `src/workspace/workspace-model.ts`
+  - `src/workspace/workspace-context.tsx`
+  - `src/code-viewer/code-viewer-panel.tsx`
+  - `src/App.tsx`
+  - `src/App.css`
+  - `src/App.test.tsx`
+  - `src/code-viewer/code-viewer-panel.test.tsx`
+  - `src/workspace/workspace-model.test.ts`
+- 상태: `✅ Done (2026-02-21)`
+
 ### 12.3 Feature-draft 실행 순서 (현황)
 
-1. `F01~F10.1/F10` 완료
+1. `F01~F10.2` 완료
 
 실행 규칙:
 
@@ -1032,23 +1074,26 @@ F10 기준 상태/상호작용 규칙(Implemented):
 - [x] 로컬 리소스는 workspace 상대경로 + `data:image/*`만 허용되고 위험 URI는 차단됨 (F10 완료, 2026-02-21)
 - [x] 워크스페이스 인덱싱 cap(`10,000`) 도달 시 `truncated` 배너가 표시됨 (F10 완료, 2026-02-21)
 - [x] 코드 뷰어 하이라이트 계산은 selection/우클릭 재렌더에서 재실행되지 않음 (F10 완료, 2026-02-21)
+- [x] 코드 뷰어에서 이미지 파일(`.png/.jpg/.jpeg/.gif/.webp`) 선택 시 이미지 프리뷰 모드가 동작함 (F10.2 완료, 2026-02-21)
+- [x] 차단 리소스(`svg`/정책 위반)는 `previewUnavailableReason='blocked_resource'`로 안전하게 처리됨 (F10.2 완료, 2026-02-21)
+- [x] 앱 재시작 시 이미지 active file 복원과 stale 인덱스 경합 continue 정책이 유지됨 (F10.2 완료, 2026-02-21)
 
 ### 13.2 테스트 우선순위
 
 1. 링크 파싱/라인 변환 로직 단위 테스트
 2. 파일 트리/상태 전이 통합 테스트
 3. 주요 IPC 계약 스모크 테스트
-4. F04~F10/F06.1/F06.2 공통 멀티 워크스페이스 회귀 테스트
+4. F04~F10.2/F06.1/F06.2 공통 멀티 워크스페이스 회귀 테스트
 
-현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10):
+현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2):
 
-- 자동 테스트: 총 125건 통과(`npm test`)
-  - `src/App.test.tsx` 42건
-  - `src/workspace/workspace-model.test.ts` 14건
+- 자동 테스트: 총 133건 통과(`npm test`)
+  - `src/App.test.tsx` 46건
+  - `src/workspace/workspace-model.test.ts` 15건
   - `src/workspace/workspace-persistence.test.ts` 6건
   - `src/code-viewer/line-selection.test.ts` 5건
   - `src/code-viewer/language-map.test.ts` 2건
-  - `src/code-viewer/code-viewer-panel.test.tsx` 7건
+  - `src/code-viewer/code-viewer-panel.test.tsx` 9건
   - `src/spec-viewer/markdown-security.test.ts` 6건
   - `src/spec-viewer/markdown-utils.test.ts` 2건
   - `src/spec-viewer/spec-link-utils.test.ts` 11건
@@ -1056,9 +1101,9 @@ F10 기준 상태/상호작용 규칙(Implemented):
   - `src/spec-viewer/source-line-resolver.test.ts` 5건
   - `src/context-copy/copy-payload.test.ts` 8건
   - `src/context-menu/copy-action-popover.test.tsx` 3건
-  - `src/file-tree/file-tree-panel.test.tsx` 2건
+  - `src/file-tree/file-tree-panel.test.tsx` 3건
 - 품질 게이트: `npm run lint`, `npm run build` 통과
-- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10, 2026-02-21)
+- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2, 2026-02-21)
 
 ---
 
@@ -1075,11 +1120,11 @@ F10 기준 상태/상호작용 규칙(Implemented):
 9. F07.1 `wheel(deltaX)` fallback은 트랙패드/입력 장치 편차가 있어 임계값/쿨다운 튜닝이 필요할 수 있다.
 10. F10.1 source line 매핑은 line 단위 best-effort라 markdown 구조에 따라 실제 의도 위치와 1~수 라인 차이가 날 수 있다.
 11. F10 인덱싱 cap(`10,000`)은 초대형 repo에서 파일 가시성/성능 trade-off가 있어 실제 사용 패턴 기반 튜닝 여지가 있다.
-12. F10에서 `data:image/*`를 제한 허용했지만 이미지 렌더 UX 자체는 F10.2 범위라 사용자 기대치와 차이가 날 수 있다.
+12. F10.2 이미지 프리뷰는 read-only 렌더만 제공하므로 확대/축소/패닝/멀티 포맷 지원(`bmp`, `ico`)은 후속 확장 항목으로 남아 있다.
 
 ---
 
-## 15. Open Questions (F04~F10 선결)
+## 15. Open Questions (F04~F10.2 선결)
 
 - 현재 없음 (2026-02-21 결정 반영 완료)
 
@@ -1087,4 +1132,4 @@ F10 기준 상태/상호작용 규칙(Implemented):
 
 ## 16. 결론
 
-이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 안정화 기준선(F10)을 고정했다. 다음 단계는 backlog(F10.2 등) 우선순위를 재정의해 진행하는 것이다.
+이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1/F10/F10.2 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 안정화 + 이미지 프리뷰 기준선을 고정했다. 다음 단계는 후속 UX 고도화(이미지 도구/추가 포맷 등) 우선순위를 재정의해 진행하는 것이다.
