@@ -503,3 +503,27 @@
 - Impact / follow-up:
   - `main.md`의 F09 포함 범위/완료 기준/상태 모델/수용 기준/검증 수치를 구현 결과로 동기화한다.
   - 다음 우선순위는 `F10(안정화 패스)`로 단순화한다.
+
+## 2026-02-21 - F10.1 구현 완료 반영(rendered markdown 선택 우클릭 `Go to Source`)
+
+- Context:
+  - 사용자 요청으로 rendered markdown 패널에서 텍스트를 선택한 뒤 원본 markdown source line으로 즉시 이동하는 보조 탐색 UX가 필요했음.
+  - 링크 기반 점프(F04.1/F05)는 구현되어 있었지만, 링크가 없는 일반 본문 문장에서는 source 왕복 경로가 부족했음.
+  - 구현/테스트/수동 스모크가 완료되어 스펙 동기화가 필요했음.
+- Decision:
+  - F10.1을 스펙 상태 `✅ Done`으로 전환한다.
+  - source line 매핑은 markdown 블록 시작 라인(`data-source-line`) 기반 best-effort로 고정한다.
+  - `Go to Source` 실행 대상은 항상 현재 `activeSpec`으로 고정하고 단일 라인 점프(`Lx-Lx`)로 처리한다.
+  - selection이 없거나 line 해석 실패 시 컨텍스트 액션을 노출하지 않거나 no-op 처리한다.
+  - 링크 popover와 source popover는 상호 배타 상태로 관리한다.
+- Rationale:
+  - line 단위 매핑은 구현 복잡도를 낮추면서도 문서-코드 왕복 UX를 빠르게 제공할 수 있다.
+  - `activeSpec` 고정 정책은 멀티 워크스페이스 경계에서 탐색 모호성을 줄이고 기존 F04~F05 규칙과 정합성이 높다.
+  - 액션 노출 조건을 제한하면 오작동/잘못된 점프를 줄일 수 있다.
+- Alternatives considered:
+  - 문자/토큰 단위 정밀 매핑 도입
+  - cross-workspace source 탐색
+  - 링크/selection 액션 통합 단일 팝오버
+- Impact / follow-up:
+  - `main.md`의 인벤토리/SpecViewer 계약/상태 규칙/Feature Queue/수용 기준/테스트 수치(113건)를 F10.1 기준으로 동기화한다.
+  - F10에서는 F10.1의 best-effort 매핑 정확도 개선 여지를 안정화 항목으로 검토한다.

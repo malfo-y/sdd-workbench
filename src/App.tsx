@@ -441,6 +441,26 @@ function App() {
     [workspaceFilePathSet, selectFile, setSelectionRange],
   )
 
+  const goToActiveSpecSourceLine = useCallback(
+    (lineNumber: number) => {
+      if (!activeSpec) {
+        showBanner('Cannot go to source: no active spec is selected.')
+        return
+      }
+
+      const opened = openSpecRelativePath(activeSpec, {
+        startLine: lineNumber,
+        endLine: lineNumber,
+      })
+      if (!opened) {
+        showBanner(
+          'Cannot go to source: the active spec is unavailable in this workspace.',
+        )
+      }
+    },
+    [activeSpec, openSpecRelativePath, showBanner],
+  )
+
   useEffect(() => {
     if (!activeFile) {
       previousActiveFileRef.current = null
@@ -700,6 +720,7 @@ function App() {
               activeSpecPath={activeSpec}
               isLoading={isReadingSpec}
               markdownContent={activeSpecContent}
+              onGoToSourceLine={goToActiveSpecSourceLine}
               onOpenRelativePath={openSpecRelativePath}
               readError={activeSpecReadError}
             />

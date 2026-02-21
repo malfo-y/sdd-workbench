@@ -2,13 +2,13 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.15.0`
+- 문서 버전: `0.16.0`
 - 마지막 업데이트: `2026-02-21`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
   - UI 스케치: `/_sdd/spec/ui_sketch.png`
-  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator + workspace file history navigation 입력 바인딩 확장 + Open In(iTerm/VSCode) 액션 + 앱 재시작 세션 복원/라인 기준 위치 복원 + activeSpec 복원) 구현 상태
+  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator + workspace file history navigation 입력 바인딩 확장 + Open In(iTerm/VSCode) 액션 + 앱 재시작 세션 복원/라인 기준 위치 복원 + activeSpec 복원 + rendered markdown 선택 우클릭 `Go to Source`) 구현 상태
 
 ---
 
@@ -36,6 +36,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 - 코드 읽기 뷰어(읽기 중심)
 - Markdown 렌더링 뷰어
 - 스펙 링크 기반 코드 점프
+- rendered markdown 선택 우클릭 기반 source line 점프(`Go to Source`)
 - 컨텍스트 액션(코드/트리 우클릭 복사 + 워크스페이스/스펙 액션)
 - 파일 변경 표시(changed indicator)
 
@@ -54,7 +55,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring + F07.1 history navigation(`Back`/`Forward`, mouse back/forward, swipe IPC, wheel fallback) + 좌측 `Open In:`(iTerm/VSCode) 액션 + 복원 라인 점프 연동 | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring + F07.1 history navigation(`Back`/`Forward`, mouse back/forward, swipe IPC, wheel fallback) + 좌측 `Open In:`(iTerm/VSCode) 액션 + 복원 라인 점프 연동 + rendered markdown 선택 우클릭 source 점프 wiring(`Go to Source`) | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
 | `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + watcher lifecycle(`watchStart`/`watchStop`) + `changedFiles` 라우팅/active file auto-refresh + F07.1 파일 히스토리 액션(`canGoBack`/`canGoForward`/`goBackInHistory`/`goForwardInHistory`) + F09 snapshot hydrate/persist/부분 실패 continue + `activeSpec` 복원 + 배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
@@ -68,13 +69,15 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/code-viewer/language-map.ts` | 확장자 -> 하이라이트 언어 매핑(`.py` 포함) | Implemented (F03.1) |
 | `src/code-viewer/syntax-highlight.ts` | Prism 기반 라인 하이라이트 어댑터 + plaintext escape fallback | Implemented (F03.1) |
 | `src/spec-viewer/markdown-utils.ts` | markdown heading 추출 + TOC id 생성 유틸 | Implemented (F04) |
-| `src/spec-viewer/spec-viewer-panel.tsx` | rendered spec 패널 + TOC + markdown 링크 인터셉트 + lineRange 전달 + 링크 popover 연동 | Implemented (F04/F04.1/F05) |
+| `src/spec-viewer/spec-viewer-panel.tsx` | rendered spec 패널 + TOC + markdown 링크 인터셉트 + lineRange 전달 + 링크 popover 연동 + 선택 우클릭 `Go to Source`(source line best-effort 해석) | Implemented (F04/F04.1/F05/F10.1) |
 | `src/spec-viewer/spec-link-utils.ts` | spec 링크 분류(anchor/workspace-file/external/unresolved) + activeSpec 기준 경로 해석 + `#Lx/#Lx-Ly` 파싱 | Implemented (F04.1/F05) |
 | `src/spec-viewer/spec-link-popover.tsx` | 커서 기준 링크 액션 popover(`Copy Link Address`, `Close`) | Implemented (F04.1) |
+| `src/spec-viewer/spec-source-popover.tsx` | 커서 기준 source 액션 popover(`Go to Source`, `Close`) | Implemented (F10.1) |
+| `src/spec-viewer/source-line-resolver.ts` | rendered markdown 블록 `data-source-line` + selection(anchor/focus) 기반 source line 해석 유틸 | Implemented (F10.1) |
 | `src/context-copy/copy-payload.ts` | 컨텍스트 복사 재사용 payload 유틸(`relative/path`, `relative/path:Lx-Ly`, selected content) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.tsx` | 코드/트리 우클릭 복사 액션 popover 공통 컴포넌트 | Implemented (F06.1) |
-| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트 popover 스타일 + 토큰 컬러 스타일 + file-tree changed marker 스타일 + F07.1 헤더 `Back`/`Forward` 액션 배치 + F08 `Open In:` 아이콘 버튼 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2/F07/F07.1/F08) |
-| `src/App.test.tsx` | F01~F09 통합 플로우 테스트(38건, multi-workspace/spec/watcher/history-navigation/open-in + 세션 복원/부분 실패 continue/activeSpec 복원 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09) |
+| `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트/source popover 스타일 + 토큰 컬러 스타일 + file-tree changed marker 스타일 + F07.1 헤더 `Back`/`Forward` 액션 배치 + F08 `Open In:` 아이콘 버튼 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2/F07/F07.1/F08/F10.1) |
+| `src/App.test.tsx` | F01~F10.1 통합 플로우 테스트(39건, multi-workspace/spec/watcher/history-navigation/open-in + 세션 복원/부분 실패 continue/activeSpec 복원 + rendered selection `Go to Source` 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1) |
 | `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(14건, `changedFiles` + file history 전이 분리 + F09 라인 맵/selection 정규화 포함) | Implemented (F03.5/F04/F07/F07.1/F09) |
 | `src/workspace/workspace-persistence.test.ts` | snapshot 스키마 검증/파싱 실패 fallback/엔트리 cap/`activeSpec` 포함 roundtrip 테스트(6건) | Implemented (F09) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
@@ -82,7 +85,8 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + jump 스크롤 + 드래그 선택/우클릭 3액션 테스트(6건) | Implemented (F03.1/F05/F06.1/F06.2) |
 | `src/spec-viewer/markdown-utils.test.ts` | markdown heading/TOC 유틸 테스트(2건) | Implemented (F04) |
 | `src/spec-viewer/spec-link-utils.test.ts` | 링크 해석/경계/외부 URL 분류 + lineRange 파싱 테스트(11건) | Implemented (F04.1/F05) |
-| `src/spec-viewer/spec-viewer-panel.test.tsx` | rendered panel 상태/링크 인터셉트/popover + lineRange 전달 테스트(8건) | Implemented (F04/F04.1/F05) |
+| `src/spec-viewer/spec-viewer-panel.test.tsx` | rendered panel 상태/링크 인터셉트/popover + lineRange 전달 + 선택 우클릭 `Go to Source` 테스트(10건) | Implemented (F04/F04.1/F05/F10.1) |
+| `src/spec-viewer/source-line-resolver.test.ts` | target/selection fallback/정규화 기반 source line 해석 테스트(5건) | Implemented (F10.1) |
 | `src/context-copy/copy-payload.test.ts` | 복사 payload 포맷/경계값/정규화 테스트(8건) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.test.tsx` | copy action popover dismiss/액션 테스트(3건) | Implemented (F06.1) |
 | `src/file-tree/file-tree-panel.test.tsx` | 파일/디렉터리 우클릭 복사 + 토글 + changed marker 회귀 테스트(2건) | Implemented (F06.1/F06.2/F07) |
@@ -102,14 +106,14 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 + 워크스페이스별 파일 히스토리(`Back`/`Forward`) + 앱 재시작 세션 복원(workspaces/active workspace/active file/active spec/line resume, 부분 실패 continue) 구현(F03.5/F07.1/F09) |
 | 4.2 File Browser | Implemented (MVP) | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 + 파일/디렉터리 우클릭 상대경로 복사(F02/F03.5/F06.1/F06.2) + changed indicator(`●`) 반영(F07) + 파일 떠날 때 marker clear 정책 적용(F07 follow-up) |
 | 4.3 Code Viewer | Implemented (Core) | 코드 프리뷰/라인 선택(Shift+Click + drag)/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) + 우클릭 복사 3액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) 구현(F06.1/F06.2) |
-| 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 + 코드 파일 선택 시 우측 spec 유지 구현(F04) |
-| 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) 구현 |
-| 4.6 Context Toolbar/Actions | Implemented (MVP) | F06 툴바 복사 2종은 F06.2에서 제거 완료, 코드/트리 컨텍스트 복사(F06.1/F06.2) + workspace open-in 액션(F08) 구현 |
+| 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 + 코드 파일 선택 시 우측 spec 유지(F04) + rendered markdown 선택 우클릭 `Go to Source` 액션(F10.1) 구현 |
+| 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) + rendered selection source line 점프(F10.1) 구현 |
+| 4.6 Context Toolbar/Actions | Implemented (MVP) | F06 툴바 복사 2종은 F06.2에서 제거 완료, 코드/트리 컨텍스트 복사(F06.1/F06.2) + workspace open-in 액션(F08) + rendered spec selection source 액션(F10.1) 구현 |
 | 4.7 File Change Detection | Implemented (Core) | workspace watcher lifecycle(open/start, close/stop), debounce된 changed event 라우팅, 파일 트리 marker 표시, active file auto-refresh(F07) 구현 |
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
 | Renderer <-> Main 브리지 기본 틀 | Implemented (MVP 범위) | `openDialog()`/`index()`/`readFile()` + `watchStart()`/`watchStop()`/`onWatchEvent()` + `onHistoryNavigate()` + system 채널(`openInIterm`, `openInVsCode`) 구현 |
 
-요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09는 완료되었고, 다음 우선순위는 F10(안정화 패스)이다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
+요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1은 완료되었고, 다음 우선순위는 F10(안정화 패스)이다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -125,7 +129,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 │ (Left Panel)     │ (Center, Raw/Code)      │ (Right, Rendered)   │
 │ + Workspace Actions: `Open In:` + [iTerm icon] [VSCode icon]      │
 ├──────────────────┴─────────────────────────┴─────────────────────┤
-│ Context Menus: Code(F06.1/F06.2) | Tree(F06.1/F06.2)             │
+│ Context Menus: Code(F06.1/F06.2) | Tree(F06.1/F06.2) | Spec(F04.1/F10.1) │
 ├──────────────────────────────────────────────────────────────────┤
 │ Optional Status Bar / Text Banner                                │
 └──────────────────────────────────────────────────────────────────┘
@@ -203,21 +207,21 @@ Renderer (React)
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | Markdown 렌더링, TOC 표시, markdown 링크 인터셉트/안전 처리(동일 문서 anchor 허용 + same-workspace 파일 열기 + lineRange 전달 + external/unresolved copy popover) |
-| Input | `activeSpecPath`, `activeSpecContent`, `isReadingSpec`, `activeSpecReadError`, `onOpenRelativePath(relativePath, lineRange)` |
-| Output | TOC anchor 링크, `onOpenRelativePath(relativePath, lineRange)` 호출, link popover UI |
-| Dependencies | `react-markdown`, `remark-gfm`, `rehype-slug`, `spec-link-utils`, `spec-link-popover` |
-| 상태 | Partial (F04/F04.1/F05 Implemented, activeHeading 추적은 후속 backlog) |
+| Purpose | Markdown 렌더링, TOC 표시, markdown 링크 인터셉트/안전 처리(동일 문서 anchor 허용 + same-workspace 파일 열기 + lineRange 전달 + external/unresolved copy popover) + 선택 우클릭 기반 source 이동(`Go to Source`) |
+| Input | `activeSpecPath`, `activeSpecContent`, `isReadingSpec`, `activeSpecReadError`, `onOpenRelativePath(relativePath, lineRange)`, `onGoToSourceLine(lineNumber)` |
+| Output | TOC anchor 링크, `onOpenRelativePath(relativePath, lineRange)` 호출, link/source popover UI, `onGoToSourceLine(lineNumber)` 호출 |
+| Dependencies | `react-markdown`, `remark-gfm`, `rehype-slug`, `spec-link-utils`, `spec-link-popover`, `spec-source-popover`, `source-line-resolver` |
+| 상태 | Partial (F04/F04.1/F05/F10.1 Implemented, activeHeading 추적은 후속 backlog) |
 
 ### 6.5 Workspace/Context Actions
 
 | 항목 | 내용 |
 |---|---|
-| Purpose | 워크스페이스/스펙 액션 + 파일 히스토리 네비게이션(`Back`/`Forward`) + 코드/트리 컨텍스트 복사 액션 제공 (`Open in iTerm`/`Open in VSCode`는 좌측 `Current Workspace` 아래 `Open In:` 라벨 + 아이콘 버튼 형태로 배치됨) |
+| Purpose | 워크스페이스/스펙 액션 + 파일 히스토리 네비게이션(`Back`/`Forward`) + 코드/트리 컨텍스트 복사 액션 + rendered spec selection source 이동(`Go to Source`) 제공 (`Open in iTerm`/`Open in VSCode`는 좌측 `Current Workspace` 아래 `Open In:` 라벨 + 아이콘 버튼 형태로 배치됨) |
 | Input | activeWorkspace, active file path, selected lines, active spec section |
 | Output | iTerm/VSCode 실행 요청, 클립보드 복사 요청 |
 | Dependencies | WorkspaceProvider, IPC/Clipboard API, 각 패널 컨텍스트 메뉴 |
-| 상태 | Implemented (F07.1 `Back`/`Forward` + F06.1/F06.2 컨텍스트 복사 + F08 workspace open-in) |
+| 상태 | Implemented (F07.1 `Back`/`Forward` + F06.1/F06.2 컨텍스트 복사 + F08 workspace open-in + F10.1 source jump action) |
 
 ### 6.6 WorkspaceSwitcher
 
@@ -355,6 +359,14 @@ F09 기준 상태/복원 규칙(Implemented):
 6. 복원 중 부분 실패는 텍스트 배너로 알리고, 앱 전체 동작은 유지한다.
 7. `activeSpec`가 `activeFile`과 다른 Markdown일 때도 spec 패널 상태를 별도 read로 복원한다.
 
+F10.1 기준 상태/상호작용 규칙(Implemented):
+
+1. rendered markdown에서 텍스트 selection 후 우클릭 시 source line이 해석 가능한 경우에만 `Go to Source` popover를 표시한다.
+2. source line은 markdown 블록의 `data-source-line`(node position.start.line) 기준 best-effort로 계산한다.
+3. `Go to Source` 실행 시 현재 `activeSpec` 파일을 center 코드 뷰어에서 단일 라인(`Lx-Lx`)으로 점프한다.
+4. `activeSpec`가 없거나 경로 해석에 실패하면 앱은 깨지지 않고 no-op 또는 배너 피드백으로 처리한다.
+5. link popover와 source popover는 상호 배타적으로 표시한다.
+
 ---
 
 ## 8. 링크/경로 파싱 규칙 (MVP 고정)
@@ -365,6 +377,7 @@ F09 기준 상태/복원 규칙(Implemented):
 - `./path/to/file.md`, `../path/to/file.md` (activeSpec 기준 상대 링크)
 - `path/to/file.ts#L10`, `path/to/file.ts#L10-L20` (same-workspace line jump)
 - `https://...`, `mailto:...` 등 외부 링크
+- rendered markdown selection + `Go to Source` (source line best-effort jump)
 
 규칙:
 
@@ -374,6 +387,7 @@ F09 기준 상태/복원 규칙(Implemented):
 4. 현재 활성 워크스페이스에서 해석할 수 없는 링크 및 외부 링크는 자동 이동하지 않고 링크 주소 copy popover를 표시한다.
 5. 워크스페이스 간 자동 fallback(다른 워크스페이스 탐색)은 허용하지 않는다.
 6. 코드 라인 점프(`Lx`, `Lx-Ly`)는 same-workspace 링크에서 파싱/하이라이트를 적용한다.
+7. rendered markdown selection 컨텍스트 액션(`Go to Source`)은 현재 `activeSpec`에서만 동작한다.
 
 ---
 
@@ -447,6 +461,7 @@ F09 기준 상태/복원 규칙(Implemented):
 - F07에서 active file 변경 이벤트는 자동 re-read로 본문을 갱신하며, changed marker는 파일을 떠날 때 clear되고 워크스페이스 전환만으로는 clear되지 않는다.
 - F07.1에서 파일 히스토리는 워크스페이스별 독립 스택/포인터로 유지되며 `Back`/`Forward`/mouse back-forward/`workspace:historyNavigate`/`wheel(deltaX)` fallback 입력이 동일 액션으로 라우팅된다.
 - F09에서 앱 재시작 시 workspace/active file/active spec/라인 기준 위치 복원은 localStorage snapshot으로 처리하고, 부분 실패 시에도 복원을 계속한다.
+- F10.1에서 rendered markdown 텍스트 선택 우클릭 시 `Go to Source`가 source line(best-effort) 기준으로 동작한다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
 
 ---
@@ -463,9 +478,9 @@ F09 기준 상태/복원 규칙(Implemented):
 - 코드 뷰어 고도화(후속): Prism 확장 유지 vs `monaco-editor`/`codemirror` 전환 검토
 - Markdown 보안 보강(후속): `rehype-sanitize` 검토
 
-### 11.3 멀티 워크스페이스 공통 규칙 (F04~F07.1/F06.1/F06.2 적용)
+### 11.3 멀티 워크스페이스 공통 규칙 (F04~F10.1/F06.1/F06.2 적용)
 
-1. F04~F07.1 기능은 기본적으로 `activeWorkspaceId` 기준으로만 동작한다.
+1. F04~F10.1 기능은 기본적으로 `activeWorkspaceId` 기준으로만 동작한다.
 2. 활성 워크스페이스가 없으면 기능을 실행하지 않고 UI를 disabled 상태로 표시한다.
 3. 워크스페이스 간 자동 fallback(다른 워크스페이스에서 경로 탐색)은 MVP 범위에서 허용하지 않는다.
 4. 워크스페이스 전환 시 공유되면 안 되는 상태(예: line selection)는 리셋하고, 세션 상태(예: 파일 트리 펼침/active 문서)는 워크스페이스별로 유지한다.
@@ -487,6 +502,7 @@ F09 기준 상태/복원 규칙(Implemented):
 - F06.2: FileTree 우클릭 복사는 파일/디렉터리 모두 지원하며, F08은 toolbar 비의존 진입점(Workspace Action)으로 정의한다.
 - F09: 기존 `Copy Current Spec Section` 대신 앱 재시작 세션 복원 기능(workspaces + active file + line resume)으로 범위를 교체한다.
 - F09: 세션 영속화 저장소는 renderer `localStorage`를 기본으로 하며, 라인 복원은 픽셀 스크롤 복원 대신 라인 기준으로 처리한다.
+- F10.1: rendered markdown selection 우클릭 `Go to Source`는 line 기준 best-effort 매핑으로 고정하고 `activeSpec` source jump만 지원한다.
 
 ---
 
@@ -897,6 +913,32 @@ F09 기준 상태/복원 규칙(Implemented):
   - `src/App.test.tsx`
 - 상태: `✅ Done (2026-02-21)`
 
+#### F10.1. rendered markdown 선택 우클릭 `Go to Source` (P1, 크기 S)
+
+- 포함:
+  - rendered markdown 본문 텍스트 selection + 우클릭 컨텍스트 액션(`Go to Source`)
+  - markdown 블록 시작 라인 기반 source line best-effort 해석(`data-source-line`)
+  - `Go to Source` 실행 시 `activeSpec` source file 단일 라인 점프(`Lx-Lx`)
+  - source/link popover 상호 배타 표시 + dismiss(외부 클릭/ESC)
+- 제외:
+  - 문자/토큰 단위 정밀 source 매핑
+  - cross-workspace source 탐색
+  - multi-action source menu 고도화
+- 완료 기준:
+  - rendered markdown selection 후 우클릭 시 `Go to Source` 액션이 표시된다.
+  - `Go to Source` 실행 시 center 코드 뷰어가 `activeSpec`의 대응 라인으로 이동한다.
+  - line 해석 실패/`activeSpec` 부재 시 앱이 깨지지 않고 no-op/배너 처리된다.
+- 예상 변경 파일:
+  - `src/spec-viewer/spec-viewer-panel.tsx`
+  - `src/spec-viewer/spec-source-popover.tsx` (신규)
+  - `src/spec-viewer/source-line-resolver.ts` (신규)
+  - `src/App.tsx`
+  - `src/App.css`
+  - `src/spec-viewer/spec-viewer-panel.test.tsx`
+  - `src/spec-viewer/source-line-resolver.test.ts` (신규)
+  - `src/App.test.tsx`
+- 상태: `✅ Done (2026-02-21)`
+
 #### F10. 안정화 패스(보안/성능/테스트) (P2, 크기 M)
 
 - 포함:
@@ -915,7 +957,7 @@ F09 기준 상태/복원 규칙(Implemented):
 
 ### 12.3 Feature-draft 실행 순서 (권장)
 
-1. `F10` 진행 (`F01~F09` 완료)
+1. `F10` 진행 (`F01~F09/F10.1` 완료)
 
 실행 규칙:
 
@@ -951,18 +993,19 @@ F09 기준 상태/복원 규칙(Implemented):
 - [x] 앱 재시작 시 workspace별 active spec(우측 markdown 렌더 상태) 자동 복원 (F09 완료, 2026-02-21)
 - [x] 파일 재열기/재시작 복원 시 마지막 라인 위치로 이동(라인 기준, clamp) (F09 완료, 2026-02-21)
 - [x] 복원 실패 workspace가 있어도 나머지 복원이 계속되고 배너로 피드백됨 (F09 완료, 2026-02-21)
+- [x] rendered markdown 텍스트 selection 우클릭 시 `Go to Source` 액션이 표시되고 `activeSpec` source line으로 점프함 (F10.1 완료, 2026-02-21)
 
 ### 13.2 테스트 우선순위
 
 1. 링크 파싱/라인 변환 로직 단위 테스트
 2. 파일 트리/상태 전이 통합 테스트
 3. 주요 IPC 계약 스모크 테스트
-4. F04~F08/F06.1/F06.2 공통 멀티 워크스페이스 회귀 테스트
+4. F04~F10.1/F06.1/F06.2 공통 멀티 워크스페이스 회귀 테스트
 
-현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09):
+현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1):
 
-- 자동 테스트: 총 105건 통과(`npm test`)
-  - `src/App.test.tsx` 38건
+- 자동 테스트: 총 113건 통과(`npm test`)
+  - `src/App.test.tsx` 39건
   - `src/workspace/workspace-model.test.ts` 14건
   - `src/workspace/workspace-persistence.test.ts` 6건
   - `src/code-viewer/line-selection.test.ts` 5건
@@ -970,12 +1013,13 @@ F09 기준 상태/복원 규칙(Implemented):
   - `src/code-viewer/code-viewer-panel.test.tsx` 6건
   - `src/spec-viewer/markdown-utils.test.ts` 2건
   - `src/spec-viewer/spec-link-utils.test.ts` 11건
-  - `src/spec-viewer/spec-viewer-panel.test.tsx` 8건
+  - `src/spec-viewer/spec-viewer-panel.test.tsx` 10건
+  - `src/spec-viewer/source-line-resolver.test.ts` 5건
   - `src/context-copy/copy-payload.test.ts` 8건
   - `src/context-menu/copy-action-popover.test.tsx` 3건
   - `src/file-tree/file-tree-panel.test.tsx` 2건
 - 품질 게이트: `npm run lint`, `npm run build` 통과
-- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09, 2026-02-21)
+- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1, 2026-02-21)
 
 ---
 
@@ -990,10 +1034,11 @@ F09 기준 상태/복원 규칙(Implemented):
 7. F09에서 localStorage snapshot 크기 증가(워크스페이스/파일 라인 맵 누적) 제어 정책은 현재 `MAX_PERSISTED_FILE_LAST_LINE_ENTRIES=200`으로 제한되어 있으나, 실제 사용 패턴 기준 추가 튜닝 여지가 있다.
 8. F09에서 복원 중 파일 길이 변경/삭제 케이스의 line clamp UX(어디까지 자동 점프할지) 튜닝이 필요할 수 있다.
 9. F07.1 `wheel(deltaX)` fallback은 트랙패드/입력 장치 편차가 있어 임계값/쿨다운 튜닝이 필요할 수 있다.
+10. F10.1 source line 매핑은 line 단위 best-effort라 markdown 구조에 따라 실제 의도 위치와 1~수 라인 차이가 날 수 있다.
 
 ---
 
-## 15. Open Questions (F04~F10 선결)
+## 15. Open Questions (F04~F10.1 선결)
 
 - 현재 없음 (2026-02-20 결정 반영 완료)
 
@@ -1001,4 +1046,4 @@ F09 기준 상태/복원 규칙(Implemented):
 
 ## 16. 결론
 
-이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 다음 단계(F10)를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F10 안정화를 진행하는 것이다.
+이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09/F10.1 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 다음 단계(F10)를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F10 안정화를 진행하는 것이다.

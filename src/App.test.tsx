@@ -2502,6 +2502,122 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('goes to active spec source line from rendered markdown selection context action', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.ts',
+            relativePath: 'src/app.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: '# Title\n\nsource jump paragraph',
+        }
+      }
+
+      if (relativePath === 'src/app.ts') {
+        return {
+          ok: true,
+          content: 'const app = true',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'source jump paragraph',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'app.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'app.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/app.ts')
+    })
+
+    const paragraph = screen.getByText('source jump paragraph')
+    const selectedNode = paragraph.firstChild
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectedNode,
+      focusNode: selectedNode,
+      toString: () => 'source jump',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 220,
+      clientY: 260,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'docs/README.md',
+      )
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L3-L3',
+    )
+  })
+
   it('opens line links using the currently active workspace after switching', async () => {
     const projectARoot = '/Users/tester/projects/workspace-a'
     const projectBRoot = '/Users/tester/projects/workspace-b'

@@ -12,6 +12,7 @@ import { SpecViewerPanel } from './spec-viewer-panel'
 describe('SpecViewerPanel', () => {
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
   })
 
   function renderPanel({
@@ -19,6 +20,7 @@ describe('SpecViewerPanel', () => {
     markdownContent = '# Title\n\n## Intro\ntext',
     isLoading = false,
     readError = null,
+    onGoToSourceLine = vi.fn<(lineNumber: number) => void>(),
     onOpenRelativePath = vi
       .fn<
         (
@@ -32,6 +34,7 @@ describe('SpecViewerPanel', () => {
     markdownContent?: string | null
     isLoading?: boolean
     readError?: string | null
+    onGoToSourceLine?: (lineNumber: number) => void
     onOpenRelativePath?: (
       relativePath: string,
       lineRange: { startLine: number; endLine: number } | null,
@@ -42,12 +45,14 @@ describe('SpecViewerPanel', () => {
         activeSpecPath={activeSpecPath}
         isLoading={isLoading}
         markdownContent={markdownContent}
+        onGoToSourceLine={onGoToSourceLine}
         onOpenRelativePath={onOpenRelativePath}
         readError={readError}
       />,
     )
 
     return {
+      onGoToSourceLine,
       onOpenRelativePath,
     }
   }
@@ -240,5 +245,60 @@ describe('SpecViewerPanel', () => {
     expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
       '../../outside.md',
     )
+  })
+
+  it('shows Go to Source popover on selected text context menu', () => {
+    const { onGoToSourceLine } = renderPanel({
+      markdownContent: '# Title\n\ntarget paragraph',
+    })
+    const paragraph = screen.getByText('target paragraph')
+    const selectedNode = paragraph.firstChild
+
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectedNode,
+      focusNode: selectedNode,
+      toString: () => 'target',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
+      'Line 3',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(3)
+    expect(
+      screen.queryByRole('dialog', { name: 'Source actions' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('ignores context menu when selection is collapsed', () => {
+    renderPanel({
+      markdownContent: '# Title\n\ntarget paragraph',
+    })
+    const paragraph = screen.getByText('target paragraph')
+    const selectedNode = paragraph.firstChild
+
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: true,
+      anchorNode: selectedNode,
+      focusNode: selectedNode,
+      toString: () => '',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Source actions' }),
+    ).not.toBeInTheDocument()
   })
 })

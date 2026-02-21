@@ -315,6 +315,11 @@
   margin-bottom: 0;
 }
 
+.spec-viewer-content h1 {
+  font-size: 2rem;
+  line-height: 1.25;
+}
+
 .spec-viewer-content code {
   background: #222;
   border-radius: 4px;
@@ -383,6 +388,44 @@
 }
 
 .spec-link-popover-actions button {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 0.45em 0.7em;
+}
+
+.spec-source-popover {
+  background: #171717;
+  border: 1px solid #4b4b4b;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  max-width: 220px;
+  padding: 10px;
+  position: fixed;
+  z-index: 41;
+}
+
+.spec-source-popover-title {
+  color: #c0c0c0;
+  font-size: 0.78rem;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.spec-source-popover-line {
+  color: #d5d5d5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.spec-source-popover-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.spec-source-popover-actions button {
   flex: 1;
   font-size: 0.78rem;
   padding: 0.45em 0.7em;

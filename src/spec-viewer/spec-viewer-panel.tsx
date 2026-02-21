@@ -1,8 +1,10 @@
 import {
+  createElement,
   useCallback,
   useEffect,
-  useState,
   useMemo,
+  useRef,
+  useState,
   type MouseEvent,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -10,6 +12,8 @@ import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
 import { extractMarkdownHeadings } from './markdown-utils'
 import { SpecLinkPopover } from './spec-link-popover'
+import { SpecSourcePopover } from './spec-source-popover'
+import { resolveSourceLine } from './source-line-resolver'
 import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 
 type SpecViewerPanelProps = {
@@ -21,6 +25,7 @@ type SpecViewerPanelProps = {
     relativePath: string,
     lineRange: SpecLinkLineRange | null,
   ) => boolean
+  onGoToSourceLine: (lineNumber: number) => void
 }
 
 type LinkPopoverState = {
@@ -29,29 +34,100 @@ type LinkPopoverState = {
   y: number
 }
 
+type SourcePopoverState = {
+  lineNumber: number
+  x: number
+  y: number
+}
+
+type MarkdownNodeWithPosition = {
+  position?: {
+    start?: {
+      line?: number
+    }
+  }
+}
+
+function getMarkdownNodeSourceLine(node: MarkdownNodeWithPosition | undefined) {
+  const candidate = node?.position?.start?.line
+  if (typeof candidate !== 'number' || !Number.isFinite(candidate)) {
+    return undefined
+  }
+  const normalized = Math.trunc(candidate)
+  return normalized >= 1 ? normalized : undefined
+}
+
+function renderBlockWithSourceLine(
+  tagName: string,
+  props: Record<string, unknown>,
+) {
+  const { node, ...restProps } = props
+  const sourceLine = getMarkdownNodeSourceLine(
+    node as MarkdownNodeWithPosition | undefined,
+  )
+  return createElement(tagName, {
+    ...restProps,
+    'data-source-line': sourceLine,
+  })
+}
+
+function containsSelectionNode(
+  element: HTMLElement,
+  node: Node | null,
+): boolean {
+  if (!node) {
+    return false
+  }
+  return element.contains(node instanceof Element ? node : node.parentElement)
+}
+
+function hasVisibleSelectionInElement(
+  selection: Selection,
+  element: HTMLElement,
+): boolean {
+  if (selection.isCollapsed || selection.toString().trim().length === 0) {
+    return false
+  }
+
+  return (
+    containsSelectionNode(element, selection.anchorNode) ||
+    containsSelectionNode(element, selection.focusNode)
+  )
+}
+
 export function SpecViewerPanel({
   activeSpecPath,
   markdownContent,
   isLoading,
   readError,
   onOpenRelativePath,
+  onGoToSourceLine,
 }: SpecViewerPanelProps) {
   const tocHeadings = useMemo(
     () =>
       markdownContent ? extractMarkdownHeadings(markdownContent, 3) : [],
     [markdownContent],
   )
+  const contentRef = useRef<HTMLElement | null>(null)
   const [linkPopoverState, setLinkPopoverState] = useState<LinkPopoverState | null>(
     null,
   )
+  const [sourcePopoverState, setSourcePopoverState] =
+    useState<SourcePopoverState | null>(null)
   const [isTocExpanded, setIsTocExpanded] = useState(false)
 
   useEffect(() => {
     setIsTocExpanded(false)
+    setLinkPopoverState(null)
+    setSourcePopoverState(null)
   }, [activeSpecPath, markdownContent])
 
   const closeLinkPopover = useCallback(() => {
     setLinkPopoverState(null)
+  }, [])
+
+  const closeSourcePopover = useCallback(() => {
+    setSourcePopoverState(null)
   }, [])
 
   const copyPopoverLink = useCallback(async () => {
@@ -75,6 +151,7 @@ export function SpecViewerPanel({
 
   const handleMarkdownLinkClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>, href?: string) => {
+      setSourcePopoverState(null)
       const resolvedLink = resolveSpecLink(href, activeSpecPath)
       if (resolvedLink.kind === 'anchor') {
         return
@@ -108,6 +185,49 @@ export function SpecViewerPanel({
     },
     [activeSpecPath, onOpenRelativePath],
   )
+
+  const handleSpecContextMenu = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      const selection = window.getSelection()
+      const contentElement = contentRef.current
+      if (!selection || !contentElement) {
+        setSourcePopoverState(null)
+        return
+      }
+
+      if (!hasVisibleSelectionInElement(selection, contentElement)) {
+        setSourcePopoverState(null)
+        return
+      }
+
+      const sourceLine = resolveSourceLine({
+        target: event.target,
+        selection,
+      })
+      if (!sourceLine) {
+        setSourcePopoverState(null)
+        return
+      }
+
+      event.preventDefault()
+      setLinkPopoverState(null)
+      setSourcePopoverState({
+        lineNumber: sourceLine,
+        x: event.clientX,
+        y: event.clientY,
+      })
+    },
+    [],
+  )
+
+  const handleGoToSource = useCallback(() => {
+    if (!sourcePopoverState) {
+      return
+    }
+
+    onGoToSourceLine(sourcePopoverState.lineNumber)
+    setSourcePopoverState(null)
+  }, [onGoToSourceLine, sourcePopoverState])
 
   return (
     <section className="spec-viewer-panel" data-testid="spec-viewer-panel">
@@ -180,18 +300,81 @@ export function SpecViewerPanel({
             </nav>
           )}
 
-          <article className="spec-viewer-content" data-testid="spec-viewer-content">
+          <article
+            className="spec-viewer-content"
+            data-testid="spec-viewer-content"
+            onContextMenu={handleSpecContextMenu}
+            ref={contentRef}
+          >
             <ReactMarkdown
               components={{
-                a: ({ href, children, ...anchorProps }) => (
-                  <a
-                    {...anchorProps}
-                    href={href}
-                    onClick={(event) => handleMarkdownLinkClick(event, href)}
-                  >
-                    {children}
-                  </a>
-                ),
+                a: ({ node, href, children, ...anchorProps }) => {
+                  void node
+                  return (
+                    <a
+                      {...anchorProps}
+                      href={href}
+                      onClick={(event) => handleMarkdownLinkClick(event, href)}
+                    >
+                      {children}
+                    </a>
+                  )
+                },
+                p: (props) =>
+                  renderBlockWithSourceLine(
+                    'p',
+                    props as Record<string, unknown>,
+                  ),
+                li: (props) =>
+                  renderBlockWithSourceLine(
+                    'li',
+                    props as Record<string, unknown>,
+                  ),
+                blockquote: (props) =>
+                  renderBlockWithSourceLine(
+                    'blockquote',
+                    props as Record<string, unknown>,
+                  ),
+                pre: (props) =>
+                  renderBlockWithSourceLine(
+                    'pre',
+                    props as Record<string, unknown>,
+                  ),
+                table: (props) =>
+                  renderBlockWithSourceLine(
+                    'table',
+                    props as Record<string, unknown>,
+                  ),
+                h1: (props) =>
+                  renderBlockWithSourceLine(
+                    'h1',
+                    props as Record<string, unknown>,
+                  ),
+                h2: (props) =>
+                  renderBlockWithSourceLine(
+                    'h2',
+                    props as Record<string, unknown>,
+                  ),
+                h3: (props) =>
+                  renderBlockWithSourceLine(
+                    'h3',
+                    props as Record<string, unknown>,
+                  ),
+                h4: (props) =>
+                  renderBlockWithSourceLine(
+                    'h4',
+                    props as Record<string, unknown>,
+                  ),
+                h5: (props) =>
+                  renderBlockWithSourceLine(
+                    'h5',
+                    props as Record<string, unknown>,
+                  ),
+                h6: (props) =>
+                  renderBlockWithSourceLine(
+                    'h6',
+                    props as Record<string, unknown>,
+                  ),
               }}
               rehypePlugins={[rehypeSlug]}
               remarkPlugins={[remarkGfm]}
@@ -200,6 +383,15 @@ export function SpecViewerPanel({
             </ReactMarkdown>
           </article>
         </div>
+      )}
+      {sourcePopoverState && (
+        <SpecSourcePopover
+          lineNumber={sourcePopoverState.lineNumber}
+          onClose={closeSourcePopover}
+          onGoToSource={handleGoToSource}
+          x={sourcePopoverState.x}
+          y={sourcePopoverState.y}
+        />
       )}
       {linkPopoverState && (
         <SpecLinkPopover
