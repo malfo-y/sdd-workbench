@@ -342,6 +342,7 @@ F07 기준 상태/상호작용 규칙(Implemented):
 4. watch 이벤트에 현재 active file이 포함되면 active file 본문을 자동으로 re-read한다.
 5. changed marker는 파일을 여는 순간이 아니라, 같은 워크스페이스에서 다른 파일을 열어 이전 파일을 떠날 때 제거한다.
 6. 워크스페이스 전환만으로는 changed marker를 제거하지 않는다.
+7. `workspace:watchEvent.hasStructureChanges === true`이면 해당 워크스페이스 인덱스를 refresh 모드로 재요청한다.
 
 F07.1 기준 상태/상호작용 규칙(Implemented):
 
@@ -426,7 +427,7 @@ F10.2 기준 상태/상호작용 규칙(Implemented):
 | `workspace:readFile` | Renderer -> Main (`invoke`) | `{ rootPath, relativePath }` -> `{ ok, content, imagePreview?, error?, previewUnavailableReason? }` | Implemented (F03/F10.2) |
 | `workspace:watchStart` | Renderer -> Main (`invoke`) | `{ workspaceId, rootPath }` | Implemented (F07) |
 | `workspace:watchStop` | Renderer -> Main (`invoke`) | `{ workspaceId }` | Implemented (F07) |
-| `workspace:watchEvent` | Main -> Renderer (`send`) | `{ workspaceId, changedRelativePaths[] }` | Implemented (F07) |
+| `workspace:watchEvent` | Main -> Renderer (`send`) | `{ workspaceId, changedRelativePaths[], hasStructureChanges? }` | Implemented (F07) |
 | `workspace:historyNavigate` | Main -> Renderer (`send`) | `{ direction: 'back' \| 'forward', source: 'app-command' \| 'swipe' }` | Implemented (F07.1) |
 | `system:openInIterm` | Renderer -> Main (`invoke`) | `{ rootPath }` | Implemented (F08) |
 | `system:openInVsCode` | Renderer -> Main (`invoke`) | `{ rootPath }` | Implemented (F08) |
@@ -439,7 +440,7 @@ F10.2 기준 상태/상호작용 규칙(Implemented):
 - 파일 본문 읽기는 `window.workspace.readFile(rootPath, relativePath)` 래퍼를 통해 호출한다.
 - `workspace:readFile`에서 이미지 파일은 `imagePreview(data:image/*)` payload를 우선 반환하며, 정책 차단 시 `previewUnavailableReason='blocked_resource'`를 반환한다.
 - watcher lifecycle은 `window.workspace.watchStart()`/`watchStop()` 래퍼를 통해 호출한다.
-- watcher 이벤트(`workspace:watchEvent`)는 `workspaceId`를 포함해 세션 오염 없이 라우팅한다.
+- watcher 이벤트(`workspace:watchEvent`)는 `workspaceId`를 포함해 세션 오염 없이 라우팅하고, 필요 시 `hasStructureChanges` 플래그로 구조 변경 refresh를 전달한다.
 - history navigation 이벤트(`workspace:historyNavigate`)는 `window.workspace.onHistoryNavigate()` 구독으로 전달되며, Renderer는 헤더 버튼과 동일 액션으로 라우팅한다.
 - F08에서는 활성 워크스페이스 기준으로 `system:openInIterm`/`system:openInVsCode`를 호출한다.
 
@@ -480,7 +481,7 @@ F10.2 기준 상태/상호작용 규칙(Implemented):
 - F04.1에서 rendered markdown 링크 클릭 시 renderer 이동/리로드를 차단하고, same-workspace 링크는 파일을 열며 external/unresolved 링크는 copy popover로 처리한다.
 - F05에서 `path#Lx`/`path#Lx-Ly` 링크 클릭 시 active workspace 기준으로 파일 열기 + 라인 선택/하이라이트 + best-effort 점프 스크롤이 동작한다.
 - F07에서 워크스페이스별 watcher가 open/close lifecycle과 연동되고, changed indicator(`●`)가 파일 트리에 반영된다.
-- F07에서 active file 변경 이벤트는 자동 re-read로 본문을 갱신하며, changed marker는 파일을 떠날 때 clear되고 워크스페이스 전환만으로는 clear되지 않는다.
+- F07에서 active file 변경 이벤트는 자동 re-read로 본문을 갱신하며, `hasStructureChanges` 이벤트는 워크스페이스 인덱스를 refresh하고, changed marker는 파일을 떠날 때 clear되며 워크스페이스 전환만으로는 clear되지 않는다.
 - F07.1에서 파일 히스토리는 워크스페이스별 독립 스택/포인터로 유지되며 `Back`/`Forward`/mouse back-forward/`workspace:historyNavigate`/`wheel(deltaX)` fallback 입력이 동일 액션으로 라우팅된다.
 - F09에서 앱 재시작 시 workspace/active file/active spec/라인 기준 위치 복원은 localStorage snapshot으로 처리하고, 부분 실패 시에도 복원을 계속한다.
 - F10.1에서 rendered markdown 텍스트 선택 우클릭 시 `Go to Source`가 source line(best-effort) 기준으로 동작한다.
