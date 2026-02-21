@@ -457,3 +457,49 @@
 - Impact / follow-up:
   - `main.md`의 메타데이터/인벤토리/커버리지/IPC 계약/Feature Queue/수용 기준/검증 수치를 F08 완료 기준으로 동기화한다.
   - 다음 우선순위는 F09(스펙 섹션 복사)와 F10(안정화)로 정리한다.
+
+## 2026-02-21 - F09 범위 교체(스펙 섹션 복사 -> 앱 재시작 세션 복원)
+
+- Context:
+  - 사용자 우선순위가 “스펙 섹션 복사”보다 “앱 재시작 후 작업 문맥 복원(워크스페이스/활성 파일/파일 위치)”에 더 높게 설정되었음.
+  - 멀티 워크스페이스(F03.5)와 파일 히스토리(F07.1)가 이미 구현되어 있어 세션 영속화 계층을 추가하면 실사용성이 크게 개선될 수 있음.
+- Decision:
+  - F09를 `Copy Current Spec Section`에서 `앱 재시작 세션 복원 + 라인 기준 위치 복원`으로 교체한다.
+  - 복원 범위는 열린 워크스페이스 목록, active workspace, workspace별 active file, 파일별 마지막 라인으로 고정한다.
+  - 라인 복원은 픽셀 스크롤 복원 대신 라인 기준 복원으로 고정하고, 파일 길이 변경 시 EOF clamp를 허용한다.
+  - 영속화 저장소는 renderer `localStorage`를 기본으로 한다.
+  - 기존 F09(섹션 복사)는 현재 우선순위 큐에서 제외하고 필요 시 신규 Feature ID로 재등록한다.
+- Rationale:
+  - 앱 재시작 후 바로 작업 문맥을 복원하면 실제 개발 루프의 전환 비용을 크게 줄일 수 있다.
+  - 라인 기준 복원은 구현 복잡도를 통제하면서도 사용자 체감 가치가 높은 최소 요건이다.
+  - 기존 F09 요구는 다른 복사 UX(F06.1/F06.2)와 중복 가치가 있어 우선순위를 낮추는 것이 합리적이다.
+- Alternatives considered:
+  - 기존 F09(섹션 복사)를 유지하고 세션 복원을 F10 이후로 이월
+  - 세션 복원에 픽셀 단위 스크롤 복원까지 포함
+  - localStorage 대신 별도 IPC 기반 저장소를 즉시 도입
+- Impact / follow-up:
+  - `main.md`의 범위/커버리지/상태 모델/신뢰성/Feature Queue/수용 기준/리스크를 F09 교체 기준으로 동기화한다.
+  - 다음 구현 순서는 `F09(세션 복원) -> F10(안정화)`로 유지한다.
+
+## 2026-02-21 - F09 구현 완료 반영(세션 복원 + activeSpec 복원 포함)
+
+- Context:
+  - F09 구현이 완료되었고 사용자 수동 스모크에서 앱 재시작 복원이 확인되었음.
+  - 초기 구현 이후 사용자 피드백으로 우측 markdown 렌더 패널(`activeSpec`) 복원이 누락된 점이 확인되어 후속 보완이 추가되었음.
+  - 복원 초기화 타이밍에서 stale 인덱싱 응답이 실패로 처리되는 경계 케이스가 확인되어 안정성 보정이 필요했음.
+- Decision:
+  - F09를 스펙 상태 `✅ Done`으로 전환한다.
+  - 세션 snapshot 범위를 `workspaces + active workspace + active file + activeSpec + fileLastLineByPath`로 고정한다.
+  - 복원 플로우에서 인덱싱 실패(`failed`)는 workspace skip/continue로 처리하고, stale 응답(`stale`)은 no-op으로 처리한다.
+  - 초기 hydrate 완료 전 snapshot clear/save 루프를 차단하는 가드(`hasHydratedSnapshot`)를 유지한다.
+- Rationale:
+  - 코드/스펙 병행 작업 UX의 핵심은 코드 파일과 별도로 spec 렌더 상태를 복원하는 데 있으므로 `activeSpec` 복원이 필수다.
+  - 복원 과정의 부분 실패/경합을 전체 실패로 승격하지 않아야 멀티 워크스페이스 환경에서 사용성이 유지된다.
+  - hydrate 가드가 없으면 시작 직후 snapshot 손실 가능성이 있어 세션 복원 신뢰성이 떨어진다.
+- Alternatives considered:
+  - `activeSpec` 복원을 F10으로 이월
+  - stale 인덱싱 응답을 실패로 간주해 해당 workspace를 닫음
+  - hydrate 직후 즉시 저장을 허용하고 clear/save 경합은 무시
+- Impact / follow-up:
+  - `main.md`의 F09 포함 범위/완료 기준/상태 모델/수용 기준/검증 수치를 구현 결과로 동기화한다.
+  - 다음 우선순위는 `F10(안정화 패스)`로 단순화한다.

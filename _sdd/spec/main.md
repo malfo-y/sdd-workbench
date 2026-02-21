@@ -2,13 +2,13 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.13.0`
+- 문서 버전: `0.15.0`
 - 마지막 업데이트: `2026-02-21`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
   - UI 스케치: `/_sdd/spec/ui_sketch.png`
-  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator + workspace file history navigation 입력 바인딩 확장 + Open In(iTerm/VSCode) 액션) 구현 상태
+  - 코드베이스: Electron + React + F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09(워크스페이스 부트스트랩 + 파일 트리 + 코드 뷰어 + 확장자 색상 코딩 + 멀티 워크스페이스 + Markdown 듀얼 뷰 + 링크 인터셉트/copy popover + spec->code 라인 점프 + 우클릭 복사/드래그 선택 통합 + watcher 기반 changed indicator + workspace file history navigation 입력 바인딩 확장 + Open In(iTerm/VSCode) 액션 + 앱 재시작 세션 복원/라인 기준 위치 복원 + activeSpec 복원) 구현 상태
 
 ---
 
@@ -31,6 +31,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 - 워크스페이스 열기/활성 전환/제거
 - 워크스페이스별 파일 히스토리 네비게이션(`Back`/`Forward`)
+- 앱 재시작 시 워크스페이스/active file/active spec/라인 기준 위치 복원(F09 Done)
 - 파일 트리 탐색
 - 코드 읽기 뷰어(읽기 중심)
 - Markdown 렌더링 뷰어
@@ -42,7 +43,6 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 - IDE급 편집 기능(멀티탭, LSP, 리팩터링, 프로젝트 검색)
 - 내장 터미널/PTY
-- 복수 워크스페이스 고급 기능(세션 영속화)
 - 플러그인 시스템
 - Git diff/commit UI
 
@@ -54,11 +54,12 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 파일 | 역할 | 상태 |
 |---|---|---|
-| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring + F07.1 history navigation(`Back`/`Forward`, mouse back/forward, swipe IPC, wheel fallback) + 좌측 `Open In:`(iTerm/VSCode) 액션 | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08) |
+| `src/App.tsx` | `Open Workspace` + workspace switcher + 좌측 파일 트리 + center 코드 뷰어 + 우측 rendered spec 패널 통합(`activeSpec` 기반 유지) + same-workspace spec 링크 파일 열기/라인 점프 wiring + 코드/트리 컨텍스트 복사 오케스트레이션 + F07 changed indicator wiring + F07.1 history navigation(`Back`/`Forward`, mouse back/forward, swipe IPC, wheel fallback) + 좌측 `Open In:`(iTerm/VSCode) 액션 + 복원 라인 점프 연동 | Implemented (F01/F02/F03/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09) |
 | `src/main.tsx` | `WorkspaceProvider` 마운트 포함 React 진입점 | Implemented (F01) |
-| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + watcher lifecycle(`watchStart`/`watchStop`) + `changedFiles` 라우팅/active file auto-refresh + F07.1 파일 히스토리 액션(`canGoBack`/`canGoForward`/`goBackInHistory`/`goForwardInHistory`) + 배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1) |
+| `src/workspace/workspace-context.tsx` | 멀티 워크스페이스 상태(`workspacesById`/`workspaceOrder`/`activeWorkspaceId`) + 인덱싱/읽기/선택/`activeSpec` 본문 상태(`activeSpecContent`/`isReadingSpec`/`activeSpecReadError`) + watcher lifecycle(`watchStart`/`watchStop`) + `changedFiles` 라우팅/active file auto-refresh + F07.1 파일 히스토리 액션(`canGoBack`/`canGoForward`/`goBackInHistory`/`goForwardInHistory`) + F09 snapshot hydrate/persist/부분 실패 continue + `activeSpec` 복원 + 배너 상태 관리 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09) |
 | `src/workspace/use-workspace.ts` | Workspace Context 전용 hook | Implemented (F01) |
-| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 + `changedFiles` 정의 + F07.1 파일 히스토리 스택/포인터 전이 | Implemented (F03.5/F04/F07/F07.1) |
+| `src/workspace/workspace-model.ts` | 멀티 워크스페이스 순수 상태 전이 모델(add/focus/close/update) + spec 본문 세션 상태 필드 + `changedFiles` 정의 + F07.1 파일 히스토리 스택/포인터 전이 + F09 파일별 마지막 라인 맵(`fileLastLineByPath`) 및 selection 정규화 | Implemented (F03.5/F04/F07/F07.1/F09) |
+| `src/workspace/workspace-persistence.ts` | F09 세션 snapshot 스키마/검증/localStorage read-write-clear 유틸(`schemaVersion`, `activeWorkspaceId`, `workspaceOrder`, workspace별 `activeFile`/`activeSpec`/`expandedDirectories`/`fileLastLineByPath`) | Implemented (F09) |
 | `src/workspace/workspace-switcher.tsx` | 활성 워크스페이스 선택 + 닫기/제거 UI | Implemented (F03.5) |
 | `src/workspace/path-format.ts` | UI 표시용 경로 축약 유틸(`~`) | Implemented (F01) |
 | `src/file-tree/file-tree-panel.tsx` | 디렉터리 토글형 파일 트리 패널 + 렌더 cap(500) + 워크스페이스별 펼침 상태 연동 + 파일/디렉터리 우클릭 경로 복사 + changed marker(`●`) 렌더 | Implemented (F02/F03.5/F06.1/F06.2/F07) |
@@ -73,8 +74,9 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 | `src/context-copy/copy-payload.ts` | 컨텍스트 복사 재사용 payload 유틸(`relative/path`, `relative/path:Lx-Ly`, selected content) | Implemented (F06/F06.1/F06.2) |
 | `src/context-menu/copy-action-popover.tsx` | 코드/트리 우클릭 복사 액션 popover 공통 컴포넌트 | Implemented (F06.1) |
 | `src/App.css` | 3패널 레이아웃 + 파일 트리/코드 뷰어/spec 패널 + 워크스페이스 switcher + spec 링크/컨텍스트 popover 스타일 + 토큰 컬러 스타일 + file-tree changed marker 스타일 + F07.1 헤더 `Back`/`Forward` 액션 배치 + F08 `Open In:` 아이콘 버튼 스타일 | Implemented (F02/F03/F03.1/F03.5/F04/F04.1/F06.1/F06.2/F07/F07.1/F08) |
-| `src/App.test.tsx` | F01~F08 통합 플로우 테스트(34건, multi-workspace/spec/watcher/history-navigation + open-in 액션 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08) |
-| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(12건, `changedFiles` + file history 전이 분리 포함) | Implemented (F03.5/F04/F07/F07.1) |
+| `src/App.test.tsx` | F01~F09 통합 플로우 테스트(38건, multi-workspace/spec/watcher/history-navigation/open-in + 세션 복원/부분 실패 continue/activeSpec 복원 회귀 포함) | Implemented (F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09) |
+| `src/workspace/workspace-model.test.ts` | 멀티 워크스페이스 정책 테스트(14건, `changedFiles` + file history 전이 분리 + F09 라인 맵/selection 정규화 포함) | Implemented (F03.5/F04/F07/F07.1/F09) |
+| `src/workspace/workspace-persistence.test.ts` | snapshot 스키마 검증/파싱 실패 fallback/엔트리 cap/`activeSpec` 포함 roundtrip 테스트(6건) | Implemented (F09) |
 | `src/code-viewer/line-selection.test.ts` | 선택 범위 정규화/Shift 확장 테스트(5건) | Implemented (F03) |
 | `src/code-viewer/language-map.test.ts` | 확장자 매핑/ fallback 테스트(2건) | Implemented (F03.1) |
 | `src/code-viewer/code-viewer-panel.test.tsx` | `.py` 하이라이트 + plaintext fallback + jump 스크롤 + 드래그 선택/우클릭 3액션 테스트(6건) | Implemented (F03.1/F05/F06.1/F06.2) |
@@ -97,17 +99,17 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 
 | 요구사항 | 상태 | 근거 |
 |---|---|---|
-| 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 + 워크스페이스별 파일 히스토리(`Back`/`Forward`) 구현(F03.5/F07.1), 세션 영속화는 Non-Goal |
+| 4.1 Workspace Management | Implemented (MVP) | 멀티 워크스페이스 추가/중복 포커스/전환/제거 + 워크스페이스별 트리 펼침 복원 + 전환 시 selection 리셋 + 워크스페이스별 파일 히스토리(`Back`/`Forward`) + 앱 재시작 세션 복원(workspaces/active workspace/active file/active spec/line resume, 부분 실패 continue) 구현(F03.5/F07.1/F09) |
 | 4.2 File Browser | Implemented (MVP) | 좌측 트리/active 하이라이트/디렉터리 토글 + center 코드 뷰어 연계 + 파일/디렉터리 우클릭 상대경로 복사(F02/F03.5/F06.1/F06.2) + changed indicator(`●`) 반영(F07) + 파일 떠날 때 marker clear 정책 적용(F07 follow-up) |
 | 4.3 Code Viewer | Implemented (Core) | 코드 프리뷰/라인 선택(Shift+Click + drag)/preview-unavailable/확장자 색상 코딩(F03/F03.1) + spec 링크 점프 스크롤(F05) + 우클릭 복사 3액션(`Copy Selected Content`/`Copy Both`/`Copy Relative Path`) 구현(F06.1/F06.2) |
 | 4.4 Spec Viewer | Implemented (Core) | `.md` dual view(center raw + right rendered) + TOC + workspace별 `activeSpec` 복원 + 코드 파일 선택 시 우측 spec 유지 구현(F04) |
 | 4.5 Spec -> Code Navigation | Implemented (Core) | rendered markdown 링크 인터셉트 + same-workspace 파일 열기 + external/unresolved copy popover(F04.1) + `#Lx/#Lx-Ly` 라인 점프/하이라이트(F05) 구현 |
-| 4.6 Context Toolbar/Actions | Partial | F06 툴바 복사 2종은 F06.2에서 제거 완료, 코드/트리 컨텍스트 복사(F06.1/F06.2) + workspace open-in 액션(F08)은 구현됨. Spec section copy(F09)는 Planned |
+| 4.6 Context Toolbar/Actions | Implemented (MVP) | F06 툴바 복사 2종은 F06.2에서 제거 완료, 코드/트리 컨텍스트 복사(F06.1/F06.2) + workspace open-in 액션(F08) 구현 |
 | 4.7 File Change Detection | Implemented (Core) | workspace watcher lifecycle(open/start, close/stop), debounce된 changed event 라우팅, 파일 트리 marker 표시, active file auto-refresh(F07) 구현 |
 | Electron 앱 부팅/윈도우 표시 | Implemented | `electron/main.ts` |
 | Renderer <-> Main 브리지 기본 틀 | Implemented (MVP 범위) | `openDialog()`/`index()`/`readFile()` + `watchStart()`/`watchStop()`/`onWatchEvent()` + `onHistoryNavigate()` + system 채널(`openInIterm`, `openInVsCode`) 구현 |
 
-요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08은 완료되었고, 다음 우선순위는 F09 영역이다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
+요약: F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09는 완료되었고, 다음 우선순위는 F10(안정화 패스)이다. 멀티 워크스페이스 기능은 `active workspace` 기준 동작을 기본 정책으로 한다.
 
 ---
 
@@ -123,7 +125,7 @@ SDD Workbench의 목표는 로컬 저장소에서 스펙 문서를 항상 가시
 │ (Left Panel)     │ (Center, Raw/Code)      │ (Right, Rendered)   │
 │ + Workspace Actions: `Open In:` + [iTerm icon] [VSCode icon]      │
 ├──────────────────┴─────────────────────────┴─────────────────────┤
-│ Context Menus: Code(F06.1/F06.2) | Tree(F06.1/F06.2) | Spec(F09) │
+│ Context Menus: Code(F06.1/F06.2) | Tree(F06.1/F06.2)             │
 ├──────────────────────────────────────────────────────────────────┤
 │ Optional Status Bar / Text Banner                                │
 └──────────────────────────────────────────────────────────────────┘
@@ -175,7 +177,7 @@ Renderer (React)
 | Input | `window.workspace.openDialog()`, `window.workspace.index(rootPath)`, `window.workspace.readFile(rootPath, relativePath)`, `window.workspace.watchStart(workspaceId, rootPath)`, `window.workspace.watchStop(workspaceId)`, `window.workspace.onWatchEvent(listener)` 결과 |
 | Output | `workspaces`, `workspaceOrder`, `activeWorkspaceId`, `rootPath`, `fileTree`, `changedFiles`, `activeFile`, `activeFileContent`, `activeSpec`, `activeSpecContent`, `isIndexing`, `isReadingFile`, `isReadingSpec`, `readFileError`, `activeSpecReadError`, `previewUnavailableReason`, `selectionRange`, `expandedDirectories`, `bannerMessage`, `canGoBack`, `canGoForward`, `openWorkspace()`, `setActiveWorkspace()`, `closeWorkspace()`, `selectFile()`, `goBackInHistory()`, `goForwardInHistory()`, `setSelectionRange()`, `setExpandedDirectories()`, `clearBanner()` |
 | Dependencies | `workspace:openDialog`, `workspace:index`, `workspace:readFile`, `workspace:watchStart`, `workspace:watchStop`, `workspace:watchEvent` IPC + preload 브리지 |
-| 상태 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1) |
+| 상태 | Implemented (F01/F02/F03/F03.5/F04/F07/F07.1/F09) |
 
 ### 6.2 FileTreePanel
 
@@ -205,7 +207,7 @@ Renderer (React)
 | Input | `activeSpecPath`, `activeSpecContent`, `isReadingSpec`, `activeSpecReadError`, `onOpenRelativePath(relativePath, lineRange)` |
 | Output | TOC anchor 링크, `onOpenRelativePath(relativePath, lineRange)` 호출, link popover UI |
 | Dependencies | `react-markdown`, `remark-gfm`, `rehype-slug`, `spec-link-utils`, `spec-link-popover` |
-| 상태 | Partial (F04/F04.1/F05 Implemented, activeHeading 추적은 F09 예정) |
+| 상태 | Partial (F04/F04.1/F05 Implemented, activeHeading 추적은 후속 backlog) |
 
 ### 6.5 Workspace/Context Actions
 
@@ -215,7 +217,7 @@ Renderer (React)
 | Input | activeWorkspace, active file path, selected lines, active spec section |
 | Output | iTerm/VSCode 실행 요청, 클립보드 복사 요청 |
 | Dependencies | WorkspaceProvider, IPC/Clipboard API, 각 패널 컨텍스트 메뉴 |
-| 상태 | Partial (F07.1 `Back`/`Forward` + F06.1/F06.2 컨텍스트 복사 + F08 workspace open-in Implemented, F09 Planned) |
+| 상태 | Implemented (F07.1 `Back`/`Forward` + F06.1/F06.2 컨텍스트 복사 + F08 workspace open-in) |
 
 ### 6.6 WorkspaceSwitcher
 
@@ -251,6 +253,7 @@ type WorkspaceSession = {
   activeSpecReadError: string | null // F04 구현
   previewUnavailableReason: 'file_too_large' | 'binary_file' | null // F03 구현
   selectionRange: SelectionState // F03 구현
+  fileLastLineByPath: Record<string, number> // F09 구현 (relativePath -> last line)
   expandedDirectories: string[] // F03.5 구현
   changedFiles: string[] // F07 구현 (내부 구현은 Set 권장)
   fileHistory: string[] // F07.1 구현
@@ -264,9 +267,6 @@ type WorkspaceState = {
   bannerMessage: string | null
 }
 
-type SpecViewState = {
-  activeHeadingId?: string
-}
 ```
 
 `#L10` 표기는 1-based 기준으로 처리하고, 내부 에디터 API가 0-based이면 변환한다.
@@ -344,6 +344,16 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 4. 뒤로 이동 후 다른 파일을 열면 forward 구간을 truncate한다.
 5. 히스토리 이동 입력 바인딩(헤더 버튼, mouse back/forward, `workspace:historyNavigate`, `wheel(deltaX)` fallback)은 모두 active workspace 범위에서 동일 액션을 호출한다.
 6. 이동 불가능 상태(`canGoBack=false`, `canGoForward=false`)에서 입력 바인딩은 no-op으로 처리한다.
+
+F09 기준 상태/복원 규칙(Implemented):
+
+1. 앱 종료 전 워크스페이스 세션 snapshot(열린 workspace 목록, active workspace, workspace별 active file/active spec, 파일별 마지막 라인)을 localStorage에 저장한다.
+2. 앱 시작 시 snapshot hydrate를 수행하고, 복원 가능한 workspace부터 순차 복원한다.
+3. workspace별 파일 마지막 위치는 `relativePath -> lineNumber` 맵으로 관리하며 라인 값은 1 이상 정수로 정규화한다.
+4. 저장된 라인이 현재 파일 길이를 초과하면 EOF 기준으로 clamp한다.
+5. 복원 불가 workspace(경로 없음/권한 오류/인덱싱 실패)는 건너뛰고 나머지 복원은 계속한다.
+6. 복원 중 부분 실패는 텍스트 배너로 알리고, 앱 전체 동작은 유지한다.
+7. `activeSpec`가 `activeFile`과 다른 Markdown일 때도 spec 패널 상태를 별도 read로 복원한다.
 
 ---
 
@@ -436,6 +446,7 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 - F07에서 워크스페이스별 watcher가 open/close lifecycle과 연동되고, changed indicator(`●`)가 파일 트리에 반영된다.
 - F07에서 active file 변경 이벤트는 자동 re-read로 본문을 갱신하며, changed marker는 파일을 떠날 때 clear되고 워크스페이스 전환만으로는 clear되지 않는다.
 - F07.1에서 파일 히스토리는 워크스페이스별 독립 스택/포인터로 유지되며 `Back`/`Forward`/mouse back-forward/`workspace:historyNavigate`/`wheel(deltaX)` fallback 입력이 동일 액션으로 라우팅된다.
+- F09에서 앱 재시작 시 workspace/active file/active spec/라인 기준 위치 복원은 localStorage snapshot으로 처리하고, 부분 실패 시에도 복원을 계속한다.
 - 토스트 배너 전환은 후속 Feature backlog로 유지한다.
 
 ---
@@ -469,11 +480,13 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 - F07 후속: changed marker는 파일을 여는 즉시가 아니라 해당 파일을 떠날 때 clear한다(워크스페이스 전환만으로는 clear하지 않음).
 - F07.1: 파일 히스토리는 워크스페이스별 독립으로 유지하며, 뒤로 이동 후 신규 파일 open 시 forward 구간을 truncate한다.
 - F07.1 확장: mouse back/forward, `app-command`/`swipe`, `wheel(deltaX)` fallback은 모두 동일 history 액션으로 연결하고 이동 불가 상태는 no-op으로 처리한다.
-- F06/F08/F09: 액션 가드는 기능별 개별 구현을 기본으로 한다(공통 guard layer는 보류).
+- F06/F08: 액션 가드는 기능별 개별 구현을 기본으로 한다(공통 guard layer는 보류).
 - F08: `Open in iTerm`/`Open in VSCode` 버튼은 헤더가 아니라 좌측 `Current Workspace` 블록 아래에 배치한다.
 - F06.1: 우클릭 복사 액션은 `relative path` 고정이며, CodeViewer 우클릭은 selection 범위 안/밖 정책(유지/단일 선택 전환)을 따른다.
 - F06.2: CodeViewer는 드래그 선택을 추가하고 우클릭 복사 액션을 `Copy Selected Content`, `Copy Both`, `Copy Relative Path`로 통합한다.
-- F06.2: FileTree 우클릭 복사는 파일/디렉터리 모두 지원하며, F08/F09는 toolbar 비의존 진입점(Workspace Action / SpecViewer Action)으로 정의한다.
+- F06.2: FileTree 우클릭 복사는 파일/디렉터리 모두 지원하며, F08은 toolbar 비의존 진입점(Workspace Action)으로 정의한다.
+- F09: 기존 `Copy Current Spec Section` 대신 앱 재시작 세션 복원 기능(workspaces + active file + line resume)으로 범위를 교체한다.
+- F09: 세션 영속화 저장소는 renderer `localStorage`를 기본으로 하며, 라인 복원은 픽셀 스크롤 복원 대신 라인 기준으로 처리한다.
 
 ---
 
@@ -703,7 +716,7 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
   - 활성 워크스페이스가 없을 때 disabled/가드 처리
   - 가드는 기능별 개별 구현(공통 guard layer 미도입)
 - 제외:
-  - Copy Current Spec Section
+  - 앱 재시작 세션 복원(F09)
   - Open in iTerm/VSCode
   - 우클릭 컨텍스트 메뉴 복사(F06.1)
   - Copy UX 컨텍스트 메뉴 통합(F06.2)
@@ -755,9 +768,9 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
   - `Copy Both`는 기존 F06 포맷(`relative/path:Lx-Ly` + 본문) 재사용
   - FileTree 파일/디렉터리 우클릭 `Copy Relative Path` 지원
   - 상단 `Copy Active File Path`/`Copy Selected Lines` 버튼 제거(`context-toolbar` 제거)
-  - F08/F09 진입점을 toolbar 비의존 구조로 재정의(워크스페이스 액션/SpecViewer 액션)
+  - F08 진입점을 toolbar 비의존 구조로 재정의(워크스페이스 액션)
 - 제외:
-  - F08/F09 기능 구현 자체
+  - F08/F09 기능 구현 자체(F09는 세션 복원 범위)
   - 절대경로 복사 옵션
   - 비연속 다중 selection
 - 완료 기준:
@@ -857,22 +870,32 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
   - `src/App.test.tsx`
 - 상태: `✅ Done (2026-02-21)`
 
-#### F09. Copy Current Spec Section (P1, 크기 M)
+#### F09. 앱 재시작 세션 복원 + 라인 기준 위치 복원 (P0, 크기 M)
 
 - 포함:
-  - SpecViewer 액션 진입점에서 현재 섹션 복사 트리거
-  - active heading 감지(best-effort)
-  - heading~next heading 범위 markdown 추출/복사
+  - 앱 종료 전 workspace session snapshot 저장(localStorage)
+  - 앱 시작 시 열린 workspace 목록/active workspace 자동 복원
+  - workspace별 active file 자동 복원
+  - workspace별 active spec(우측 markdown 렌더 상태) 자동 복원
+  - 파일별 마지막 라인 위치 복원(라인 기준, clamp 포함)
+  - 부분 복원 실패 continue + 텍스트 배너 피드백
 - 제외:
-  - AST 기반 고정밀 편집기 수준 추출
+  - 픽셀 단위 스크롤 정밀 복원
+  - 클라우드/다중기기 세션 동기화
 - 완료 기준:
-  - SpecViewer 액션에서 현재 섹션 전체가 markdown 포맷으로 복사됨
+  - 앱 재시작 후 이전 workspace/active workspace/active file이 자동 복원된다.
+  - 앱 재시작 후 우측 spec 패널의 `activeSpec`가 복원된다.
+  - 파일 재열기 시 마지막 라인으로 점프한다(라인 기준).
+  - 일부 workspace 복원 실패가 있어도 나머지 복원이 계속되고 앱이 정상 동작한다.
 - 예상 변경 파일:
-  - `src/spec-viewer/spec-viewer-panel.tsx`
-  - `src/spec-viewer/*` (section extractor)
+  - `src/workspace/workspace-persistence.ts` (신규)
+  - `src/workspace/workspace-context.tsx`
+  - `src/workspace/workspace-model.ts`
   - `src/App.tsx`
+  - `src/workspace/workspace-persistence.test.ts` (신규)
+  - `src/workspace/workspace-model.test.ts`
   - `src/App.test.tsx`
-- 상태: `📋 Planned`
+- 상태: `✅ Done (2026-02-21)`
 
 #### F10. 안정화 패스(보안/성능/테스트) (P2, 크기 M)
 
@@ -892,8 +915,7 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 
 ### 12.3 Feature-draft 실행 순서 (권장)
 
-1. `F09` 진행 (`F01~F08` 완료)
-2. 마지막에 `F10`으로 안정화
+1. `F10` 진행 (`F01~F09` 완료)
 
 실행 규칙:
 
@@ -925,7 +947,10 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 - [x] 워크스페이스별 파일 히스토리 `Back`/`Forward` + mouse/swipe/wheel 입력 바인딩이 동작함 (F07.1 완료, 2026-02-21)
 - [x] 좌측 `Current Workspace` 아래 workspace actions에서 `Open in iTerm` 동작 (F08 완료, 2026-02-21)
 - [x] 좌측 `Current Workspace` 아래 workspace actions에서 `Open in VSCode` 동작 (F08 완료, 2026-02-21)
-- [ ] SpecViewer 액션에서 `Copy Current Spec Section` 동작 (F09 Planned)
+- [x] 앱 재시작 시 열린 workspace/active workspace/active file 자동 복원 (F09 완료, 2026-02-21)
+- [x] 앱 재시작 시 workspace별 active spec(우측 markdown 렌더 상태) 자동 복원 (F09 완료, 2026-02-21)
+- [x] 파일 재열기/재시작 복원 시 마지막 라인 위치로 이동(라인 기준, clamp) (F09 완료, 2026-02-21)
+- [x] 복원 실패 workspace가 있어도 나머지 복원이 계속되고 배너로 피드백됨 (F09 완료, 2026-02-21)
 
 ### 13.2 테스트 우선순위
 
@@ -934,11 +959,12 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 3. 주요 IPC 계약 스모크 테스트
 4. F04~F08/F06.1/F06.2 공통 멀티 워크스페이스 회귀 테스트
 
-현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08):
+현재 검증 결과(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09):
 
-- 자동 테스트: 총 93건 통과(`npm test`)
-  - `src/App.test.tsx` 34건
-  - `src/workspace/workspace-model.test.ts` 12건
+- 자동 테스트: 총 105건 통과(`npm test`)
+  - `src/App.test.tsx` 38건
+  - `src/workspace/workspace-model.test.ts` 14건
+  - `src/workspace/workspace-persistence.test.ts` 6건
   - `src/code-viewer/line-selection.test.ts` 5건
   - `src/code-viewer/language-map.test.ts` 2건
   - `src/code-viewer/code-viewer-panel.test.tsx` 6건
@@ -949,7 +975,7 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
   - `src/context-menu/copy-action-popover.test.tsx` 3건
   - `src/file-tree/file-tree-panel.test.tsx` 2건
 - 품질 게이트: `npm run lint`, `npm run build` 통과
-- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08, 2026-02-21)
+- 수동 스모크: Electron 앱 기준 완료(F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09, 2026-02-21)
 
 ---
 
@@ -957,16 +983,17 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 
 1. F04는 `activeSpec`만 복원하도록 고정했기 때문에 TOC/스크롤/activeHeading 복원이 필요해지면 후속 확장 비용이 발생한다.
 2. F04.1은 external/unresolved 링크를 popover 복사 UX로만 처리하므로, 시스템 브라우저 열기/보조 탐색 UX는 후속 Feature로 남는다.
-3. 파일 링크의 non-line hash(`path.md#heading`)는 현재 파일 열기만 수행하고 heading 위치 스크롤은 미지원(F09 범위)이다.
+3. 파일 링크의 non-line hash(`path.md#heading`)는 현재 파일 열기만 수행하고 heading 위치 스크롤은 미지원(backlog)이다.
 4. F07 watcher를 워크스페이스별로 운영할 때 시스템 리소스 상한(동시 watcher 수, debounce 전략) 튜닝이 필요하다.
 5. `system:openInIterm`/`system:openInVsCode` 실패 시 fallback 정책이 확정되지 않았다.
 6. F06.1 우클릭 selection 정책(범위 안 유지/범위 밖 전환)은 F06.2 드래그 선택 도입 후 사용성 피드백에 따라 조정 가능성이 있다.
-7. F06.2에서 toolbar 제거 후 SpecViewer 액션(F09) 진입점 접근성/발견가능성(UX discoverability) 검증이 필요하다.
-8. F07.1 `wheel(deltaX)` fallback은 트랙패드/입력 장치 편차가 있어 임계값/쿨다운 튜닝이 필요할 수 있다.
+7. F09에서 localStorage snapshot 크기 증가(워크스페이스/파일 라인 맵 누적) 제어 정책은 현재 `MAX_PERSISTED_FILE_LAST_LINE_ENTRIES=200`으로 제한되어 있으나, 실제 사용 패턴 기준 추가 튜닝 여지가 있다.
+8. F09에서 복원 중 파일 길이 변경/삭제 케이스의 line clamp UX(어디까지 자동 점프할지) 튜닝이 필요할 수 있다.
+9. F07.1 `wheel(deltaX)` fallback은 트랙패드/입력 장치 편차가 있어 임계값/쿨다운 튜닝이 필요할 수 있다.
 
 ---
 
-## 15. Open Questions (F04~F09 선결)
+## 15. Open Questions (F04~F10 선결)
 
 - 현재 없음 (2026-02-20 결정 반영 완료)
 
@@ -974,4 +1001,4 @@ F07.1 기준 상태/상호작용 규칙(Implemented):
 
 ## 16. 결론
 
-이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 다음 단계(F09/F10)를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 spec 액션(F09)과 안정화(F10)를 진행하는 것이다.
+이 문서는 F01/F02/F03/F03.1/F03.5/F04/F04.1/F05/F06/F06.1/F06.2/F07/F07.1/F08/F09 구현 결과를 반영한 스펙이며, 멀티 워크스페이스 기준 정책 위에서 다음 단계(F10)를 진행할 수 있는 기준선을 고정했다. 다음 단계는 섹션 12 순서대로 F10 안정화를 진행하는 것이다.

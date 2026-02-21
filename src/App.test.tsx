@@ -1,7 +1,47 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { StrictMode } from 'react'
 import App from './App'
 import { WorkspaceProvider } from './workspace/workspace-context'
+import {
+  WORKSPACE_SESSION_SCHEMA_VERSION,
+  WORKSPACE_SESSION_STORAGE_KEY,
+} from './workspace/workspace-persistence'
+
+function createTestStorage(): Storage {
+  const values = new Map<string, string>()
+  return {
+    get length() {
+      return values.size
+    },
+    clear() {
+      values.clear()
+    },
+    getItem(key: string) {
+      return values.has(key) ? values.get(key) ?? null : null
+    },
+    key(index: number) {
+      return Array.from(values.keys())[index] ?? null
+    },
+    removeItem(key: string) {
+      values.delete(key)
+    },
+    setItem(key: string, value: string) {
+      values.set(key, String(value))
+    },
+  }
+}
+
+function setWorkspaceSessionStorage(rawValue: unknown) {
+  window.localStorage.setItem(
+    WORKSPACE_SESSION_STORAGE_KEY,
+    JSON.stringify(rawValue),
+  )
+}
+
+function clearWorkspaceSessionStorage() {
+  window.localStorage.removeItem(WORKSPACE_SESSION_STORAGE_KEY)
+}
 
 describe('F01/F02/F03/F04 workspace flow', () => {
   const openDialogMock = vi.fn<() => Promise<WorkspaceOpenDialogResult>>()
@@ -64,6 +104,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         historyNavigateListeners.delete(listener)
       }
     })
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: createTestStorage(),
+    })
+    clearWorkspaceSessionStorage()
     window.workspace = {
       openDialog: openDialogMock,
       index: indexWorkspaceMock,
@@ -586,6 +631,325 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement)
         .options,
     ).toHaveLength(1)
+  })
+
+  it('restores workspace sessions and active file line on app mount', async () => {
+    const projectARoot = '/Users/tester/restore-a'
+    const projectBRoot = '/Users/tester/restore-b'
+    const projectAId = projectARoot
+    const projectBId = projectBRoot
+
+    setWorkspaceSessionStorage({
+        schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+        activeWorkspaceId: projectBId,
+        workspaceOrder: [projectAId, projectBId],
+        workspacesById: {
+          [projectAId]: {
+            rootPath: projectARoot,
+            activeFile: 'a.ts',
+            expandedDirectories: ['src'],
+            fileLastLineByPath: {
+              'a.ts': 3,
+            },
+          },
+          [projectBId]: {
+            rootPath: projectBRoot,
+            activeFile: 'b.ts',
+            expandedDirectories: ['src'],
+            fileLastLineByPath: {
+              'b.ts': 2,
+            },
+          },
+        },
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === projectARoot) {
+        return {
+          ok: true,
+          fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+        }
+      }
+      if (rootPath === projectBRoot) {
+        return {
+          ok: true,
+          fileTree: [{ name: 'b.ts', relativePath: 'b.ts', kind: 'file' }],
+        }
+      }
+      return {
+        ok: false,
+        fileTree: [],
+      }
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content:
+        relativePath === 'a.ts'
+          ? 'line1\nline2\nline3\nline4'
+          : 'line1\nline2\nline3',
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(watchStartMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectBRoot,
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L2-L2',
+    )
+    expect(
+      (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement).options,
+    ).toHaveLength(2)
+  })
+
+  it('skips failed workspace restores and keeps remaining workspaces active', async () => {
+    const validRoot = '/Users/tester/restore-valid'
+    const invalidRoot = '/Users/tester/restore-invalid'
+    const validId = validRoot
+    const invalidId = invalidRoot
+
+    setWorkspaceSessionStorage({
+        schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+        activeWorkspaceId: invalidId,
+        workspaceOrder: [validId, invalidId],
+        workspacesById: {
+          [validId]: {
+            rootPath: validRoot,
+            activeFile: 'ok.ts',
+            expandedDirectories: [],
+            fileLastLineByPath: { 'ok.ts': 2 },
+          },
+          [invalidId]: {
+            rootPath: invalidRoot,
+            activeFile: 'broken.ts',
+            expandedDirectories: [],
+            fileLastLineByPath: { 'broken.ts': 4 },
+          },
+        },
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === validRoot) {
+        return {
+          ok: true,
+          fileTree: [{ name: 'ok.ts', relativePath: 'ok.ts', kind: 'file' }],
+        }
+      }
+      if (rootPath === invalidRoot) {
+        return {
+          ok: false,
+          fileTree: [],
+          error: 'permission denied',
+        }
+      }
+      return {
+        ok: false,
+        fileTree: [],
+      }
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'line1\nline2',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Some workspaces could not be restored (1).',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        validRoot,
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'ok.ts',
+      )
+    })
+    expect(watchStopMock).toHaveBeenCalledWith(invalidId)
+    expect(
+      (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement).options,
+    ).toHaveLength(1)
+  })
+
+  it('restores active markdown spec independently from active code file on app mount', async () => {
+    const projectRoot = '/Users/tester/restore-spec'
+    const projectId = projectRoot
+
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: projectId,
+      workspaceOrder: [projectId],
+      workspacesById: {
+        [projectId]: {
+          rootPath: projectRoot,
+          activeFile: 'src/app.ts',
+          activeSpec: '_sdd/spec/main.md',
+          expandedDirectories: ['src', '_sdd', '_sdd/spec'],
+          fileLastLineByPath: {
+            'src/app.ts': 4,
+          },
+        },
+      },
+    })
+
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: '_sdd',
+          relativePath: '_sdd',
+          kind: 'directory',
+          children: [
+            {
+              name: 'spec',
+              relativePath: '_sdd/spec',
+              kind: 'directory',
+              children: [
+                {
+                  name: 'main.md',
+                  relativePath: '_sdd/spec/main.md',
+                  kind: 'file',
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [
+            {
+              name: 'app.ts',
+              relativePath: 'src/app.ts',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'src/app.ts') {
+        return {
+          ok: true,
+          content: 'const ready = true\nconsole.log(ready)\nexport {}\n',
+        }
+      }
+
+      if (relativePath === '_sdd/spec/main.md') {
+        return {
+          ok: true,
+          content: '# Restored Spec\n\n- persisted',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectRoot,
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.ts',
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        '_sdd/spec/main.md',
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'Restored Spec',
+      )
+    })
+  })
+
+  it('restores snapshot under StrictMode without clearing persisted session', async () => {
+    const projectRoot = '/Users/tester/strict-restore'
+    const projectId = projectRoot
+
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: projectId,
+      workspaceOrder: [projectId],
+      workspacesById: {
+        [projectId]: {
+          rootPath: projectRoot,
+          activeFile: 'main.md',
+          expandedDirectories: [],
+          fileLastLineByPath: { 'main.md': 2 },
+        },
+      },
+    })
+
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [{ name: 'main.md', relativePath: 'main.md', kind: 'file' }],
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: '# hello\n\nsession restore',
+    })
+
+    render(
+      <StrictMode>
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>
+      </StrictMode>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectRoot,
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'main.md',
+      )
+    })
   })
 
   it('navigates file history with Back/Forward and truncates forward after branching', async () => {

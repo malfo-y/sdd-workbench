@@ -9,6 +9,7 @@ export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
+  fileLastLineByPath: Record<string, number>
   fileHistory: string[]
   fileHistoryIndex: number
   activeFile: string | null
@@ -77,6 +78,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     rootPath,
     fileTree: [],
     changedFiles: [],
+    fileLastLineByPath: {},
     fileHistory: [],
     fileHistoryIndex: -1,
     activeFile: null,
@@ -91,6 +93,84 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     previewUnavailableReason: null,
     selectionRange: null,
     expandedDirectories: [],
+  }
+}
+
+export function normalizeLineNumber(lineNumber: number): number {
+  if (!Number.isFinite(lineNumber)) {
+    return 1
+  }
+  return Math.max(1, Math.trunc(lineNumber))
+}
+
+function normalizeSelectionRange(
+  selectionRange: LineSelectionRange,
+): LineSelectionRange {
+  const normalizedStartLine = normalizeLineNumber(selectionRange.startLine)
+  const normalizedEndLine = normalizeLineNumber(selectionRange.endLine)
+  return normalizedStartLine <= normalizedEndLine
+    ? {
+        startLine: normalizedStartLine,
+        endLine: normalizedEndLine,
+      }
+    : {
+        startLine: normalizedEndLine,
+        endLine: normalizedStartLine,
+      }
+}
+
+export function getWorkspaceFileLastLine(
+  session: WorkspaceSession,
+  relativePath: string,
+): number | null {
+  const rawLineNumber = session.fileLastLineByPath[relativePath]
+  if (!Number.isInteger(rawLineNumber) || rawLineNumber < 1) {
+    return null
+  }
+  return rawLineNumber
+}
+
+export function setWorkspaceSelectionRange(
+  session: WorkspaceSession,
+  selectionRange: LineSelectionRange | null,
+): WorkspaceSession {
+  if (selectionRange === null) {
+    if (session.selectionRange === null) {
+      return session
+    }
+
+    return {
+      ...session,
+      selectionRange: null,
+    }
+  }
+
+  const normalizedSelectionRange = normalizeSelectionRange(selectionRange)
+  const activeFile = session.activeFile
+  const nextLastLineByPath =
+    activeFile === null
+      ? session.fileLastLineByPath
+      : {
+          ...session.fileLastLineByPath,
+          [activeFile]: normalizedSelectionRange.endLine,
+        }
+
+  const selectionUnchanged =
+    session.selectionRange !== null &&
+    session.selectionRange.startLine === normalizedSelectionRange.startLine &&
+    session.selectionRange.endLine === normalizedSelectionRange.endLine
+  const fileLastLineUnchanged =
+    activeFile === null ||
+    session.fileLastLineByPath[activeFile] === normalizedSelectionRange.endLine
+
+  if (selectionUnchanged && fileLastLineUnchanged) {
+    return session
+  }
+
+  return {
+    ...session,
+    selectionRange: normalizedSelectionRange,
+    fileLastLineByPath: nextLastLineByPath,
   }
 }
 

@@ -13,14 +13,24 @@ import {
   closeWorkspace as closeWorkspaceInState,
   createEmptyWorkspaceState,
   createWorkspaceId,
+  getWorkspaceFileLastLine,
   listWorkspaces,
   pushWorkspaceFileHistory,
+  setWorkspaceSelectionRange as setWorkspaceSelectionRangeInModel,
   setActiveWorkspace as setActiveWorkspaceInState,
   stepWorkspaceFileHistory,
   updateWorkspaceSession,
   type LineSelectionRange,
   type WorkspaceId,
+  type WorkspaceState,
 } from './workspace-model'
+import {
+  clearWorkspaceSessionSnapshot,
+  createWorkspaceSessionSnapshot,
+  loadWorkspaceSessionSnapshot,
+  saveWorkspaceSessionSnapshot,
+  type WorkspaceSessionSnapshot,
+} from './workspace-persistence'
 
 type WorkspaceContextValue = {
   workspaceOrder: WorkspaceId[]
@@ -64,6 +74,8 @@ type WorkspaceProviderProps = {
   children: ReactNode
 }
 
+type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
+
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
 }
@@ -85,14 +97,53 @@ function withoutChangedFileMarker(changedFiles: string[], relativePath: string) 
   return changedFiles.filter((path) => path !== relativePath)
 }
 
+function createWorkspaceStateFromSnapshot(
+  snapshot: WorkspaceSessionSnapshot,
+): WorkspaceState {
+  let nextState = createEmptyWorkspaceState()
+
+  for (const workspaceId of snapshot.workspaceOrder) {
+    const persistedWorkspaceSession = snapshot.workspacesById[workspaceId]
+    if (!persistedWorkspaceSession) {
+      continue
+    }
+
+    const addResult = addOrFocusWorkspace(
+      nextState,
+      persistedWorkspaceSession.rootPath,
+    )
+    nextState = updateWorkspaceSession(
+      addResult.state,
+      addResult.workspaceId,
+      (session) => ({
+        ...session,
+        activeSpec: persistedWorkspaceSession.activeSpec,
+        expandedDirectories: persistedWorkspaceSession.expandedDirectories,
+        fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
+      }),
+    )
+  }
+
+  if (
+    snapshot.activeWorkspaceId !== null &&
+    nextState.workspacesById[snapshot.activeWorkspaceId]
+  ) {
+    nextState = setActiveWorkspaceInState(nextState, snapshot.activeWorkspaceId)
+  }
+
+  return nextState
+}
+
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [workspaceState, setWorkspaceState] = useState(createEmptyWorkspaceState)
   const workspaceStateRef = useRef(workspaceState)
   workspaceStateRef.current = workspaceState
 
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
+  const [hasHydratedSnapshot, setHasHydratedSnapshot] = useState(false)
   const indexRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readFileRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
+  const readSpecRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
 
   const clearBanner = useCallback(() => {
@@ -104,76 +155,82 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   }, [])
 
   const loadWorkspaceIndex = useCallback(
-    async (workspaceId: WorkspaceId, rootPath: string) => {
-    const requestId = (indexRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
-    indexRequestIdByWorkspaceRef.current[workspaceId] = requestId
+    async (
+      workspaceId: WorkspaceId,
+      rootPath: string,
+    ): Promise<WorkspaceIndexStatus> => {
+      const requestId =
+        (indexRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      indexRequestIdByWorkspaceRef.current[workspaceId] = requestId
 
-    setWorkspaceState((previous) =>
-      updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-        ...currentSession,
-        isIndexing: true,
-        fileTree: [],
-        changedFiles: [],
-        activeFile: null,
-        activeSpec: null,
-        activeFileContent: null,
-        activeSpecContent: null,
-        isReadingFile: false,
-        isReadingSpec: false,
-        readFileError: null,
-        activeSpecReadError: null,
-        previewUnavailableReason: null,
-        selectionRange: null,
-        expandedDirectories: [],
-      })),
-    )
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          isIndexing: true,
+          fileTree: [],
+          changedFiles: [],
+          activeFile: null,
+          activeSpec: null,
+          activeFileContent: null,
+          activeSpecContent: null,
+          isReadingFile: false,
+          isReadingSpec: false,
+          readFileError: null,
+          activeSpecReadError: null,
+          previewUnavailableReason: null,
+          selectionRange: null,
+          expandedDirectories: [],
+        })),
+      )
 
-    try {
-      const indexResult = await window.workspace.index(rootPath)
-      if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
-        return
-      }
+      try {
+        const indexResult = await window.workspace.index(rootPath)
+        if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+          return 'stale'
+        }
 
-      if (!indexResult.ok) {
-        setBannerMessage(
-          indexResult.error
-            ? `Failed to index workspace: ${indexResult.error}`
-            : 'Failed to index workspace.',
+        if (!indexResult.ok) {
+          setBannerMessage(
+            indexResult.error
+              ? `Failed to index workspace: ${indexResult.error}`
+              : 'Failed to index workspace.',
+          )
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              isIndexing: false,
+            })),
+          )
+          return 'failed'
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            fileTree: indexResult.fileTree,
+            isIndexing: false,
+          })),
         )
+        setBannerMessage(null)
+        return 'success'
+      } catch (error) {
+        if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+          return 'stale'
+        }
+
         setWorkspaceState((previous) =>
           updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
             ...currentSession,
             isIndexing: false,
           })),
         )
-        return
+        setBannerMessage(
+          error instanceof Error
+            ? `Failed to index workspace: ${error.message}`
+            : 'Failed to index workspace.',
+        )
+        return 'failed'
       }
-
-      setWorkspaceState((previous) =>
-        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-          ...currentSession,
-          fileTree: indexResult.fileTree,
-          isIndexing: false,
-        })),
-      )
-      setBannerMessage(null)
-    } catch (error) {
-      if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
-        return
-      }
-
-      setWorkspaceState((previous) =>
-        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-          ...currentSession,
-          isIndexing: false,
-        })),
-      )
-      setBannerMessage(
-        error instanceof Error
-          ? `Failed to index workspace: ${error.message}`
-          : 'Failed to index workspace.',
-      )
-    }
     },
     [],
   )
@@ -273,9 +330,98 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const closeWorkspace = useCallback((workspaceId: WorkspaceId) => {
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+    delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
   }, [stopWorkspaceWatch])
+
+  const loadWorkspaceSpec = useCallback(
+    (workspaceId: WorkspaceId, relativePath: string) => {
+      const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
+      if (!workspaceSession) {
+        return
+      }
+
+      const requestId = (readSpecRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readSpecRequestIdByWorkspaceRef.current[workspaceId] = requestId
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          activeSpec: relativePath,
+          activeSpecContent: null,
+          activeSpecReadError: null,
+          isReadingSpec: true,
+        })),
+      )
+
+      void (async () => {
+        try {
+          const readResult = await window.workspace.readFile(
+            workspaceSession.rootPath,
+            relativePath,
+          )
+          if (readSpecRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+            return
+          }
+
+          if (!readResult.ok) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                ...currentSession,
+                activeSpecContent: null,
+                activeSpecReadError: readResult.error
+                  ? `Failed to read file: ${readResult.error}`
+                  : 'Failed to read file.',
+                isReadingSpec: false,
+              })),
+            )
+            return
+          }
+
+          if (readResult.previewUnavailableReason) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                ...currentSession,
+                activeSpecContent: null,
+                activeSpecReadError: getSpecPreviewUnavailableMessage(
+                  readResult.previewUnavailableReason ?? 'binary_file',
+                ),
+                isReadingSpec: false,
+              })),
+            )
+            return
+          }
+
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              activeSpecContent: readResult.content ?? '',
+              activeSpecReadError: null,
+              isReadingSpec: false,
+            })),
+          )
+        } catch (error) {
+          if (readSpecRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+            return
+          }
+
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              activeSpecContent: null,
+              activeSpecReadError:
+                error instanceof Error
+                  ? `Failed to read file: ${error.message}`
+                  : 'Failed to read file.',
+              isReadingSpec: false,
+            })),
+          )
+        }
+      })()
+    },
+    [],
+  )
 
   const loadWorkspaceFile = useCallback(
     (
@@ -298,6 +444,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+          const restoredLineNumber =
+            mode === 'select'
+              ? getWorkspaceFileLastLine(currentSession, relativePath)
+              : null
           const leavingActiveFile =
             mode === 'select' &&
             currentSession.activeFile !== null &&
@@ -322,7 +472,14 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             activeFileContent:
               mode === 'select' ? null : currentSession.activeFileContent,
             selectionRange:
-              mode === 'select' ? null : currentSession.selectionRange,
+              mode === 'select'
+                ? restoredLineNumber === null
+                  ? null
+                  : {
+                      startLine: restoredLineNumber,
+                      endLine: restoredLineNumber,
+                    }
+                : currentSession.selectionRange,
             readFileError: null,
             previewUnavailableReason: null,
             isReadingFile: true,
@@ -540,10 +697,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
 
       setWorkspaceState((previous) =>
-        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-          ...currentSession,
-          selectionRange,
-        })),
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
+          setWorkspaceSelectionRangeInModel(currentSession, selectionRange),
+        ),
       )
     },
     [],
@@ -566,6 +722,117 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     },
     [],
   )
+
+  useEffect(() => {
+    let isDisposed = false
+
+    const hydrateWorkspaceState = async () => {
+      const snapshot = loadWorkspaceSessionSnapshot()
+      if (!snapshot || isDisposed) {
+        if (!isDisposed) {
+          setHasHydratedSnapshot(true)
+        }
+        return
+      }
+
+      const hydratedWorkspaceState = createWorkspaceStateFromSnapshot(snapshot)
+      workspaceStateRef.current = hydratedWorkspaceState
+      setWorkspaceState(hydratedWorkspaceState)
+
+      let failedRestoreCount = 0
+      for (const workspaceId of hydratedWorkspaceState.workspaceOrder) {
+        if (isDisposed) {
+          return
+        }
+
+        const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
+        const persistedWorkspaceSession = snapshot.workspacesById[workspaceId]
+        if (!workspaceSession || !persistedWorkspaceSession) {
+          continue
+        }
+
+        const watchStarted = await startWorkspaceWatch(
+          workspaceId,
+          workspaceSession.rootPath,
+        )
+        const indexStatus = await loadWorkspaceIndex(
+          workspaceId,
+          workspaceSession.rootPath,
+        )
+
+        if (indexStatus === 'failed') {
+          failedRestoreCount += 1
+          if (watchStarted) {
+            await stopWorkspaceWatch(workspaceId)
+          }
+          delete indexRequestIdByWorkspaceRef.current[workspaceId]
+          delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+          delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
+          setWorkspaceState((previous) =>
+            closeWorkspaceInState(previous, workspaceId),
+          )
+          continue
+        }
+
+        if (indexStatus === 'stale') {
+          continue
+        }
+
+        if (persistedWorkspaceSession.activeFile) {
+          loadWorkspaceFile(
+            workspaceId,
+            persistedWorkspaceSession.activeFile,
+            'select',
+            'push',
+          )
+        }
+
+        if (
+          persistedWorkspaceSession.activeSpec &&
+          persistedWorkspaceSession.activeSpec !== persistedWorkspaceSession.activeFile
+        ) {
+          loadWorkspaceSpec(workspaceId, persistedWorkspaceSession.activeSpec)
+        }
+      }
+
+      if (!isDisposed && failedRestoreCount > 0) {
+        showBanner(
+          `Some workspaces could not be restored (${failedRestoreCount}).`,
+        )
+      }
+
+      if (!isDisposed) {
+        setHasHydratedSnapshot(true)
+      }
+    }
+
+    void hydrateWorkspaceState()
+
+    return () => {
+      isDisposed = true
+    }
+  }, [
+    loadWorkspaceFile,
+    loadWorkspaceIndex,
+    loadWorkspaceSpec,
+    showBanner,
+    startWorkspaceWatch,
+    stopWorkspaceWatch,
+  ])
+
+  useEffect(() => {
+    if (!hasHydratedSnapshot) {
+      return
+    }
+
+    if (workspaceState.workspaceOrder.length === 0) {
+      clearWorkspaceSessionSnapshot()
+      return
+    }
+
+    const snapshot = createWorkspaceSessionSnapshot(workspaceState)
+    saveWorkspaceSessionSnapshot(snapshot)
+  }, [hasHydratedSnapshot, workspaceState])
 
   useEffect(() => {
     const watchedWorkspaceIds = watchedWorkspaceIdsRef.current
@@ -601,6 +868,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       if (shouldRefreshActiveFile && activeFile !== null) {
         loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')
       }
+
+      const activeSpec = workspaceSession?.activeSpec ?? null
+      const shouldRefreshActiveSpec =
+        activeSpec !== null && watchEvent.changedRelativePaths.includes(activeSpec)
+      if (
+        shouldRefreshActiveSpec &&
+        activeSpec !== null &&
+        activeSpec !== activeFile
+      ) {
+        loadWorkspaceSpec(watchEvent.workspaceId, activeSpec)
+      }
     })
 
     return () => {
@@ -611,7 +889,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         void window.workspace.watchStop(workspaceId)
       }
     }
-  }, [loadWorkspaceFile])
+  }, [loadWorkspaceFile, loadWorkspaceSpec])
 
   const activeWorkspace = workspaceState.activeWorkspaceId
     ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null

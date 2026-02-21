@@ -6,8 +6,10 @@ import {
   createEmptyWorkspaceState,
   createWorkspaceId,
   createWorkspaceSession,
+  getWorkspaceFileLastLine,
   MAX_WORKSPACE_FILE_HISTORY,
   pushWorkspaceFileHistory,
+  setWorkspaceSelectionRange,
   setActiveWorkspace,
   stepWorkspaceFileHistory,
   updateWorkspaceSession,
@@ -232,5 +234,45 @@ describe('workspace-model', () => {
 
     expect(state.workspacesById[workspaceAId]?.fileHistory).toEqual(['src/a.ts'])
     expect(state.workspacesById[workspaceBId]?.fileHistory).toEqual(['docs/b.md'])
+  })
+
+  it('updates fileLastLineByPath when selection changes on active file', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = {
+      ...session,
+      activeFile: 'src/auth.ts',
+    }
+
+    session = setWorkspaceSelectionRange(session, {
+      startLine: -2,
+      endLine: 8.9,
+    })
+
+    expect(session.selectionRange).toEqual({
+      startLine: 1,
+      endLine: 8,
+    })
+    expect(session.fileLastLineByPath).toEqual({
+      'src/auth.ts': 8,
+    })
+    expect(getWorkspaceFileLastLine(session, 'src/auth.ts')).toBe(8)
+  })
+
+  it('preserves fileLastLineByPath when selection is cleared', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = {
+      ...session,
+      activeFile: 'src/auth.ts',
+      fileLastLineByPath: {
+        'src/auth.ts': 6,
+      },
+    }
+
+    session = setWorkspaceSelectionRange(session, null)
+
+    expect(session.selectionRange).toBeNull()
+    expect(session.fileLastLineByPath).toEqual({
+      'src/auth.ts': 6,
+    })
   })
 })

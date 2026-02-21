@@ -207,6 +207,7 @@ function App() {
   const jumpRequestTokenRef = useRef(0)
   const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
     useState<CodeViewerJumpRequest | null>(null)
+  const previousActiveFileRef = useRef<string | null>(null)
   const wheelHistoryStateRef = useRef<WheelHistoryState>({
     accumulatedDeltaX: 0,
     lastEventAt: 0,
@@ -439,6 +440,33 @@ function App() {
     },
     [workspaceFilePathSet, selectFile, setSelectionRange],
   )
+
+  useEffect(() => {
+    if (!activeFile) {
+      previousActiveFileRef.current = null
+      return
+    }
+
+    const fileChanged = previousActiveFileRef.current !== activeFile
+    previousActiveFileRef.current = activeFile
+    if (!fileChanged) {
+      return
+    }
+
+    if (
+      !selectionRange ||
+      selectionRange.startLine !== selectionRange.endLine
+    ) {
+      return
+    }
+
+    jumpRequestTokenRef.current += 1
+    setCodeViewerJumpRequest({
+      targetRelativePath: activeFile,
+      lineNumber: selectionRange.startLine,
+      token: jumpRequestTokenRef.current,
+    })
+  }, [activeFile, selectionRange])
 
   const navigateHistory = useCallback(
     (direction: 'back' | 'forward') => {
