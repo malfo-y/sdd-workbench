@@ -9,11 +9,14 @@ import {
 } from 'react'
 import {
   addOrFocusWorkspace,
+  canStepWorkspaceFileHistory,
   closeWorkspace as closeWorkspaceInState,
   createEmptyWorkspaceState,
   createWorkspaceId,
   listWorkspaces,
+  pushWorkspaceFileHistory,
   setActiveWorkspace as setActiveWorkspaceInState,
+  stepWorkspaceFileHistory,
   updateWorkspaceSession,
   type LineSelectionRange,
   type WorkspaceId,
@@ -43,6 +46,10 @@ type WorkspaceContextValue = {
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
   closeWorkspace: (workspaceId: WorkspaceId) => void
   selectFile: (relativePath: string) => void
+  canGoBack: boolean
+  canGoForward: boolean
+  goBackInHistory: () => void
+  goForwardInHistory: () => void
   showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
@@ -275,6 +282,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       workspaceId: WorkspaceId,
       relativePath: string,
       mode: 'select' | 'refresh',
+      historyMode: 'push' | 'preserve' = 'push',
     ) => {
       const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
       if (!workspaceSession) {
@@ -299,6 +307,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
           return {
             ...currentSession,
+            ...(mode === 'select' && historyMode === 'push'
+              ? pushWorkspaceFileHistory(currentSession, relativePath)
+              : {}),
             changedFiles:
               leavingActiveFile === null
                 ? currentSession.changedFiles
@@ -445,12 +456,80 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
-  const selectFile = useCallback((relativePath: string) => {
+  const selectActiveWorkspaceFile = useCallback(
+    (relativePath: string, historyMode: 'push' | 'preserve') => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
+        return
+      }
+      loadWorkspaceFile(activeWorkspaceId, relativePath, 'select', historyMode)
+    },
+    [loadWorkspaceFile],
+  )
+
+  const selectFile = useCallback(
+    (relativePath: string) => {
+      selectActiveWorkspaceFile(relativePath, 'push')
+    },
+    [selectActiveWorkspaceFile],
+  )
+
+  const goBackInHistory = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
       return
     }
-    loadWorkspaceFile(activeWorkspaceId, relativePath, 'select')
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return
+    }
+
+    const backStepResult = stepWorkspaceFileHistory(workspaceSession, 'back')
+    if (!backStepResult.targetRelativePath) {
+      return
+    }
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
+        stepWorkspaceFileHistory(currentSession, 'back').nextSession,
+      ),
+    )
+    loadWorkspaceFile(
+      activeWorkspaceId,
+      backStepResult.targetRelativePath,
+      'select',
+      'preserve',
+    )
+  }, [loadWorkspaceFile])
+
+  const goForwardInHistory = useCallback(() => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return
+    }
+
+    const forwardStepResult = stepWorkspaceFileHistory(workspaceSession, 'forward')
+    if (!forwardStepResult.targetRelativePath) {
+      return
+    }
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
+        stepWorkspaceFileHistory(currentSession, 'forward').nextSession,
+      ),
+    )
+    loadWorkspaceFile(
+      activeWorkspaceId,
+      forwardStepResult.targetRelativePath,
+      'select',
+      'preserve',
+    )
   }, [loadWorkspaceFile])
 
   const setSelectionRange = useCallback(
@@ -537,6 +616,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const activeWorkspace = workspaceState.activeWorkspaceId
     ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
     : null
+  const canGoBack = activeWorkspace
+    ? canStepWorkspaceFileHistory(activeWorkspace, 'back')
+    : false
+  const canGoForward = activeWorkspace
+    ? canStepWorkspaceFileHistory(activeWorkspace, 'forward')
+    : false
 
   const value = useMemo(
     () => ({
@@ -563,6 +648,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setActiveWorkspace,
       closeWorkspace,
       selectFile,
+      canGoBack,
+      canGoForward,
+      goBackInHistory,
+      goForwardInHistory,
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
@@ -576,6 +665,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setActiveWorkspace,
       closeWorkspace,
       selectFile,
+      canGoBack,
+      canGoForward,
+      goBackInHistory,
+      goForwardInHistory,
       showBanner,
       setSelectionRange,
       setExpandedDirectories,

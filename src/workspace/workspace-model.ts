@@ -9,6 +9,8 @@ export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
+  fileHistory: string[]
+  fileHistoryIndex: number
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
@@ -34,6 +36,15 @@ type AddOrFocusWorkspaceResult = {
   workspaceId: WorkspaceId
   created: boolean
 }
+
+export type WorkspaceFileHistoryDirection = 'back' | 'forward'
+
+export type WorkspaceFileHistoryStepResult = {
+  nextSession: WorkspaceSession
+  targetRelativePath: string | null
+}
+
+export const MAX_WORKSPACE_FILE_HISTORY = 200
 
 export function createEmptyWorkspaceState(): WorkspaceState {
   return {
@@ -66,6 +77,8 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     rootPath,
     fileTree: [],
     changedFiles: [],
+    fileHistory: [],
+    fileHistoryIndex: -1,
     activeFile: null,
     activeSpec: null,
     activeFileContent: null,
@@ -78,6 +91,125 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     previewUnavailableReason: null,
     selectionRange: null,
     expandedDirectories: [],
+  }
+}
+
+function getNormalizedHistoryIndex(
+  fileHistory: string[],
+  fileHistoryIndex: number,
+): number {
+  if (fileHistory.length === 0) {
+    return -1
+  }
+
+  if (fileHistoryIndex < 0) {
+    return -1
+  }
+
+  return Math.min(fileHistoryIndex, fileHistory.length - 1)
+}
+
+export function pushWorkspaceFileHistory(
+  session: WorkspaceSession,
+  relativePath: string,
+): WorkspaceSession {
+  const normalizedHistoryIndex = getNormalizedHistoryIndex(
+    session.fileHistory,
+    session.fileHistoryIndex,
+  )
+  const currentRelativePath =
+    normalizedHistoryIndex >= 0
+      ? session.fileHistory[normalizedHistoryIndex] ?? null
+      : null
+
+  if (currentRelativePath === relativePath) {
+    if (normalizedHistoryIndex === session.fileHistoryIndex) {
+      return session
+    }
+
+    return {
+      ...session,
+      fileHistoryIndex: normalizedHistoryIndex,
+    }
+  }
+
+  const truncatedHistory =
+    normalizedHistoryIndex >= 0
+      ? session.fileHistory.slice(0, normalizedHistoryIndex + 1)
+      : []
+  const nextHistory = [...truncatedHistory, relativePath]
+  const overflowCount = nextHistory.length - MAX_WORKSPACE_FILE_HISTORY
+  const limitedHistory =
+    overflowCount > 0 ? nextHistory.slice(overflowCount) : nextHistory
+
+  return {
+    ...session,
+    fileHistory: limitedHistory,
+    fileHistoryIndex: limitedHistory.length - 1,
+  }
+}
+
+export function canStepWorkspaceFileHistory(
+  session: WorkspaceSession,
+  direction: WorkspaceFileHistoryDirection,
+): boolean {
+  const normalizedHistoryIndex = getNormalizedHistoryIndex(
+    session.fileHistory,
+    session.fileHistoryIndex,
+  )
+
+  if (normalizedHistoryIndex < 0) {
+    return false
+  }
+
+  if (direction === 'back') {
+    return normalizedHistoryIndex > 0
+  }
+
+  return normalizedHistoryIndex < session.fileHistory.length - 1
+}
+
+export function stepWorkspaceFileHistory(
+  session: WorkspaceSession,
+  direction: WorkspaceFileHistoryDirection,
+): WorkspaceFileHistoryStepResult {
+  if (!canStepWorkspaceFileHistory(session, direction)) {
+    return {
+      nextSession: session,
+      targetRelativePath: null,
+    }
+  }
+
+  const normalizedHistoryIndex = getNormalizedHistoryIndex(
+    session.fileHistory,
+    session.fileHistoryIndex,
+  )
+  const nextHistoryIndex =
+    direction === 'back'
+      ? normalizedHistoryIndex - 1
+      : normalizedHistoryIndex + 1
+  const targetRelativePath = session.fileHistory[nextHistoryIndex] ?? null
+
+  if (!targetRelativePath) {
+    return {
+      nextSession: session,
+      targetRelativePath: null,
+    }
+  }
+
+  if (nextHistoryIndex === session.fileHistoryIndex) {
+    return {
+      nextSession: session,
+      targetRelativePath,
+    }
+  }
+
+  return {
+    nextSession: {
+      ...session,
+      fileHistoryIndex: nextHistoryIndex,
+    },
+    targetRelativePath,
   }
 }
 

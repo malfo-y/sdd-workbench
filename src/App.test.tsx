@@ -23,6 +23,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
+  const historyNavigateListeners = new Set<
+    (event: WorkspaceHistoryNavigationEvent) => void
+  >()
+  const onHistoryNavigateMock =
+    vi.fn<
+      (
+        listener: (event: WorkspaceHistoryNavigationEvent) => void,
+      ) => () => void
+    >()
 
   beforeEach(() => {
     openDialogMock.mockReset()
@@ -31,13 +40,21 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     watchStartMock.mockReset()
     watchStopMock.mockReset()
     onWatchEventMock.mockReset()
+    onHistoryNavigateMock.mockReset()
     watchListeners.clear()
+    historyNavigateListeners.clear()
     watchStartMock.mockResolvedValue({ ok: true })
     watchStopMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
         watchListeners.delete(listener)
+      }
+    })
+    onHistoryNavigateMock.mockImplementation((listener) => {
+      historyNavigateListeners.add(listener)
+      return () => {
+        historyNavigateListeners.delete(listener)
       }
     })
     window.workspace = {
@@ -47,11 +64,18 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       watchStart: watchStartMock,
       watchStop: watchStopMock,
       onWatchEvent: onWatchEventMock,
+      onHistoryNavigate: onHistoryNavigateMock,
     }
   })
 
   const emitWatchEvent = (event: WorkspaceWatchEvent) => {
     for (const listener of watchListeners) {
+      listener(event)
+    }
+  }
+
+  const emitHistoryNavigateEvent = (event: WorkspaceHistoryNavigationEvent) => {
+    for (const listener of historyNavigateListeners) {
       listener(event)
     }
   }
@@ -467,6 +491,361 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement)
         .options,
     ).toHaveLength(1)
+  })
+
+  it('navigates file history with Back/Forward and truncates forward after branching', async () => {
+    const workspaceRoot = '/Users/tester/history-single'
+    const indexedTree: WorkspaceFileNode[] = [
+      { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+      { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+      { name: 'c.ts', relativePath: 'c.ts', kind: 'file' },
+      { name: 'd.ts', relativePath: 'd.ts', kind: 'file' },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    const backButton = screen.getByRole('button', { name: 'Back' })
+    const forwardButton = screen.getByRole('button', { name: 'Forward' })
+    expect(backButton).toBeDisabled()
+    expect(forwardButton).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:a.ts',
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    expect(backButton).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:b.ts',
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'c.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:c.ts',
+      )
+    })
+
+    expect(backButton).toBeEnabled()
+    expect(forwardButton).toBeDisabled()
+
+    fireEvent.click(backButton)
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+    expect(forwardButton).toBeEnabled()
+
+    fireEvent.click(forwardButton)
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('c.ts')
+    })
+
+    fireEvent.click(backButton)
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'd.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('d.ts')
+    })
+
+    expect(forwardButton).toBeDisabled()
+  })
+
+  it('keeps file history independent per workspace for Back/Forward navigation', async () => {
+    const projectARoot = '/Users/tester/history-a'
+    const projectBRoot = '/Users/tester/history-b'
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: projectBRoot,
+      })
+
+    indexWorkspaceMock.mockImplementation(async (rootPath) => {
+      if (rootPath === projectARoot) {
+        return {
+          ok: true,
+          fileTree: [
+            { name: 'a1.ts', relativePath: 'a1.ts', kind: 'file' },
+            { name: 'a2.ts', relativePath: 'a2.ts', kind: 'file' },
+          ],
+        }
+      }
+
+      if (rootPath === projectBRoot) {
+        return {
+          ok: true,
+          fileTree: [
+            { name: 'b1.ts', relativePath: 'b1.ts', kind: 'file' },
+            { name: 'b2.ts', relativePath: 'b2.ts', kind: 'file' },
+          ],
+        }
+      }
+
+      return {
+        ok: false,
+        fileTree: [],
+      }
+    })
+
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a1.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'a1.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:a1.ts',
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'a2.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:a2.ts',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectBRoot,
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b1.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:b1.ts',
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b2.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'content:b2.ts',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b1.ts')
+    })
+
+    const workspaceSelect = screen.getByTestId(
+      'workspace-switcher-select',
+    ) as HTMLSelectElement
+    fireEvent.change(workspaceSelect, { target: { value: projectARoot } })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        projectARoot,
+      )
+    })
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a2.ts')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a1.ts')
+    })
+  })
+
+  it('navigates history via mouse back/forward special buttons', async () => {
+    const workspaceRoot = '/Users/tester/history-mouse-buttons'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    fireEvent.mouseUp(window, { button: 3 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+
+    fireEvent.mouseUp(window, { button: 4 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+  })
+
+  it('navigates history via horizontal wheel fallback', async () => {
+    const workspaceRoot = '/Users/tester/history-wheel-fallback'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    fireEvent.wheel(window, { deltaX: -140, deltaY: 0 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+
+    fireEvent.wheel(window, { deltaX: 140, deltaY: 0 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+  })
+
+  it('navigates history via ipc history commands from app-command/swipe bridge', async () => {
+    const workspaceRoot = '/Users/tester/history-ipc-bridge'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    emitHistoryNavigateEvent({
+      direction: 'back',
+      source: 'swipe',
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+
+    emitHistoryNavigateEvent({
+      direction: 'forward',
+      source: 'app-command',
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
   })
 
   it('applies watcher changed indicators per workspace', async () => {

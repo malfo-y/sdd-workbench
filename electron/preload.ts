@@ -38,6 +38,15 @@ type WorkspaceWatchEvent = {
   changedRelativePaths: string[]
 }
 
+type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
+
+type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
+
+type WorkspaceHistoryNavigationEvent = {
+  direction: WorkspaceHistoryNavigationDirection
+  source: WorkspaceHistoryNavigationSource
+}
+
 const workspaceApi = {
   openDialog() {
     return ipcRenderer.invoke(
@@ -76,6 +85,20 @@ const workspaceApi = {
     ipcRenderer.on('workspace:watchEvent', handler)
     return () => {
       ipcRenderer.off('workspace:watchEvent', handler)
+    }
+  },
+  onHistoryNavigate(
+    listener: (event: WorkspaceHistoryNavigationEvent) => void,
+  ) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: WorkspaceHistoryNavigationEvent,
+    ) => {
+      listener(payload)
+    }
+    ipcRenderer.on('workspace:historyNavigate', handler)
+    return () => {
+      ipcRenderer.off('workspace:historyNavigate', handler)
     }
   },
 }

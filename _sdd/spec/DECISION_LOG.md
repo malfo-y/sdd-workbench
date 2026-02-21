@@ -380,3 +380,24 @@
 - Impact / follow-up:
   - `main.md`의 F07 상태, 상호작용 규칙, 수용 기준, 테스트 수치를 구현 기준으로 동기화한다.
   - 다음 우선순위는 `F08/F09`로 유지하고, F07.1(파일 히스토리/뒤로가기)은 별도 feature로 관리한다.
+
+## 2026-02-21 - F07.1 구현 완료 반영(워크스페이스별 파일 히스토리 + 입력 바인딩 확장)
+
+- Context:
+  - F07.1 구현으로 워크스페이스별 파일 히스토리(`Back`/`Forward`)와 분기 truncate 정책이 코드/테스트에 반영되었음.
+  - macOS 환경에서 `swipe` 이벤트가 기기/설정에 따라 불안정하게 전달되는 사례가 있어 사용자 확인 과정에서 fallback 요구가 추가되었음.
+- Decision:
+  - F07.1을 스펙 상태 `✅ Done`으로 전환한다.
+  - 히스토리 정책은 워크스페이스별 독립 스택/포인터, 중복 push 방지, back 후 신규 open 시 forward truncate로 고정한다.
+  - 입력 바인딩은 헤더 버튼 + mouse back/forward + `app-command`/`swipe` + renderer `wheel(deltaX)` fallback을 동일 history 액션으로 통합한다.
+  - 이동 불가 상태(`canGoBack/canGoForward=false`)에서 모든 입력 바인딩은 no-op으로 처리한다.
+- Rationale:
+  - 파일 탐색 왕복을 빠르게 만들되 기존 멀티 워크스페이스 상태 오염을 막기 위해 히스토리 경계를 워크스페이스 단위로 유지해야 한다.
+  - `swipe` 단일 경로에 의존하면 입력 장치/OS 설정 차이로 사용자 경험이 깨질 수 있어 fallback 경로가 필요하다.
+- Alternatives considered:
+  - 헤더 버튼만 지원하고 포인터/제스처 바인딩은 제외
+  - `swipe` 이벤트만 지원하고 fallback 미도입
+  - 히스토리를 전역(워크스페이스 공용)으로 운영
+- Impact / follow-up:
+  - `main.md`의 코드 인벤토리/상태 모델/IPC 계약/Feature Queue/수용 기준/리스크를 F07.1 완료 기준으로 동기화한다.
+  - 다음 우선순위는 `F08/F09`로 유지한다.

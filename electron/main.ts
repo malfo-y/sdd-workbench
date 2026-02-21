@@ -82,6 +82,15 @@ type WorkspaceWatchEventPayload = {
   changedRelativePaths: string[]
 }
 
+type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
+
+type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
+
+type WorkspaceHistoryNavigationEventPayload = {
+  direction: WorkspaceHistoryNavigationDirection
+  source: WorkspaceHistoryNavigationSource
+}
+
 type WorkspaceWatcherEntry = {
   workspaceId: string
   rootPath: string
@@ -355,6 +364,15 @@ function sendWorkspaceWatchEvent(payload: WorkspaceWatchEventPayload) {
   win.webContents.send('workspace:watchEvent', payload)
 }
 
+function sendWorkspaceHistoryNavigationEvent(
+  payload: WorkspaceHistoryNavigationEventPayload,
+) {
+  if (!win || win.isDestroyed()) {
+    return
+  }
+  win.webContents.send('workspace:historyNavigate', payload)
+}
+
 function flushWorkspaceWatchEvent(workspaceId: string) {
   const watchEntry = workspaceWatchers.get(workspaceId)
   if (!watchEntry) {
@@ -559,6 +577,44 @@ function createWindow() {
   win.on('closed', () => {
     void stopAllWorkspaceWatchers()
     win = null
+  })
+
+  win.on('app-command', (event, command) => {
+    if (command === 'browser-backward') {
+      event.preventDefault()
+      sendWorkspaceHistoryNavigationEvent({
+        direction: 'back',
+        source: 'app-command',
+      })
+      return
+    }
+
+    if (command === 'browser-forward') {
+      event.preventDefault()
+      sendWorkspaceHistoryNavigationEvent({
+        direction: 'forward',
+        source: 'app-command',
+      })
+    }
+  })
+
+  win.on('swipe', (event, direction) => {
+    if (direction === 'right') {
+      event.preventDefault()
+      sendWorkspaceHistoryNavigationEvent({
+        direction: 'back',
+        source: 'swipe',
+      })
+      return
+    }
+
+    if (direction === 'left') {
+      event.preventDefault()
+      sendWorkspaceHistoryNavigationEvent({
+        direction: 'forward',
+        source: 'swipe',
+      })
+    }
   })
 
   // Test active push message to Renderer-process.

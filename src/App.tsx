@@ -44,6 +44,10 @@ const MIN_LEFT_PANE_WIDTH = 220
 const MIN_CENTER_PANE_WIDTH = 360
 const MIN_RIGHT_PANE_WIDTH = 220
 const RESIZER_WIDTH = 12
+const TRACKPAD_HISTORY_MIN_AXIS_DELTA = 18
+const TRACKPAD_HISTORY_TRIGGER_DELTA = 120
+const TRACKPAD_HISTORY_IDLE_RESET_MS = 160
+const TRACKPAD_HISTORY_COOLDOWN_MS = 380
 
 type PaneSizes = {
   left: number
@@ -62,6 +66,50 @@ type ResizeSession = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+type WheelHistoryState = {
+  accumulatedDeltaX: number
+  lastEventAt: number
+  cooldownUntil: number
+  lastTriggeredDirection: 'back' | 'forward' | null
+}
+
+function canConsumeHorizontalScroll(element: HTMLElement, deltaX: number): boolean {
+  const overflowX = window.getComputedStyle(element).overflowX
+  if (overflowX !== 'auto' && overflowX !== 'scroll' && overflowX !== 'overlay') {
+    return false
+  }
+
+  const maxScrollLeft = element.scrollWidth - element.clientWidth
+  if (maxScrollLeft <= 0) {
+    return false
+  }
+
+  if (deltaX > 0) {
+    return element.scrollLeft < maxScrollLeft
+  }
+
+  return element.scrollLeft > 0
+}
+
+function shouldSkipTrackpadHistoryFallback(
+  target: EventTarget | null,
+  deltaX: number,
+): boolean {
+  if (!(target instanceof Element)) {
+    return false
+  }
+
+  let current: Element | null = target
+  while (current) {
+    if (current instanceof HTMLElement && canConsumeHorizontalScroll(current, deltaX)) {
+      return true
+    }
+    current = current.parentElement
+  }
+
+  return false
 }
 
 function App() {
@@ -88,6 +136,10 @@ function App() {
     setActiveWorkspace,
     closeWorkspace,
     selectFile,
+    canGoBack,
+    canGoForward,
+    goBackInHistory,
+    goForwardInHistory,
     showBanner,
     setSelectionRange,
     setExpandedDirectories,
@@ -112,6 +164,12 @@ function App() {
   const jumpRequestTokenRef = useRef(0)
   const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
     useState<CodeViewerJumpRequest | null>(null)
+  const wheelHistoryStateRef = useRef<WheelHistoryState>({
+    accumulatedDeltaX: 0,
+    lastEventAt: 0,
+    cooldownUntil: 0,
+    lastTriggeredDirection: null,
+  })
 
   const writeToClipboard = useCallback(
     async (payload: string, errorMessage: string) => {
@@ -317,18 +375,130 @@ function App() {
     [workspaceFilePathSet, selectFile, setSelectionRange],
   )
 
+  const navigateHistory = useCallback(
+    (direction: 'back' | 'forward') => {
+      if (direction === 'back') {
+        goBackInHistory()
+        return
+      }
+      goForwardInHistory()
+    },
+    [goBackInHistory, goForwardInHistory],
+  )
+
+  useEffect(() => {
+    const handleMouseUp = (event: MouseEvent) => {
+      if (event.button === 3) {
+        event.preventDefault()
+        navigateHistory('back')
+        return
+      }
+
+      if (event.button === 4) {
+        event.preventDefault()
+        navigateHistory('forward')
+      }
+    }
+
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [navigateHistory])
+
+  useEffect(() => {
+    const unsubscribe = window.workspace.onHistoryNavigate((event) => {
+      navigateHistory(event.direction)
+    })
+
+    return unsubscribe
+  }, [navigateHistory])
+
+  useEffect(() => {
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        return
+      }
+
+      const absDeltaX = Math.abs(event.deltaX)
+      if (absDeltaX < TRACKPAD_HISTORY_MIN_AXIS_DELTA) {
+        return
+      }
+
+      if (absDeltaX <= Math.abs(event.deltaY)) {
+        return
+      }
+
+      if (shouldSkipTrackpadHistoryFallback(event.target, event.deltaX)) {
+        return
+      }
+
+      const state = wheelHistoryStateRef.current
+      const now = performance.now()
+      const direction = event.deltaX > 0 ? 'forward' : 'back'
+
+      if (now < state.cooldownUntil) {
+        if (direction === state.lastTriggeredDirection) {
+          return
+        }
+      }
+
+      if (now - state.lastEventAt > TRACKPAD_HISTORY_IDLE_RESET_MS) {
+        state.accumulatedDeltaX = 0
+        state.lastTriggeredDirection = null
+      }
+
+      state.lastEventAt = now
+      state.accumulatedDeltaX += event.deltaX
+
+      if (Math.abs(state.accumulatedDeltaX) < TRACKPAD_HISTORY_TRIGGER_DELTA) {
+        return
+      }
+
+      event.preventDefault()
+      const triggeredDirection = state.accumulatedDeltaX > 0 ? 'forward' : 'back'
+      navigateHistory(triggeredDirection)
+      state.accumulatedDeltaX = 0
+      state.cooldownUntil = now + TRACKPAD_HISTORY_COOLDOWN_MS
+      state.lastTriggeredDirection = triggeredDirection
+    }
+
+    window.addEventListener('wheel', handleWheel, {
+      passive: false,
+    })
+    return () => {
+      window.removeEventListener('wheel', handleWheel)
+    }
+  }, [navigateHistory])
+
   return (
     <main className="app-shell">
       <header className="app-header">
         <h1>SDD Workbench</h1>
         <div className="app-header-actions">
+          <button
+            disabled={!canGoBack}
+            onClick={goBackInHistory}
+            type="button"
+          >
+            Back
+          </button>
+          <button
+            disabled={!canGoForward}
+            onClick={goForwardInHistory}
+            type="button"
+          >
+            Forward
+          </button>
           <WorkspaceSwitcher
             activeWorkspaceId={activeWorkspaceId}
             onCloseWorkspace={closeWorkspace}
             onSelectWorkspace={setActiveWorkspace}
             workspaces={workspaces}
           />
-          <button onClick={() => void openWorkspace()}>Open Workspace</button>
+          <button onClick={() => void openWorkspace()} type="button">
+            Open Workspace
+          </button>
         </div>
       </header>
 

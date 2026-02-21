@@ -99,6 +99,7 @@
 }
 
 .workspace-card {
+  box-sizing: border-box;
   border: 1px solid #484848;
   border-radius: 8px;
   padding: 16px;
@@ -246,6 +247,7 @@
 }
 
 .spec-viewer-content {
+  box-sizing: border-box;
   border: 1px solid #3f3f3f;
   border-radius: 6px;
   overflow: auto;
@@ -396,6 +398,7 @@
 }
 
 .file-tree-panel {
+  box-sizing: border-box;
   border: 1px solid #484848;
   border-radius: 8px;
   overflow: auto;
@@ -483,6 +486,7 @@
 }
 
 .code-viewer-panel {
+  box-sizing: border-box;
   border: 1px solid #484848;
   border-radius: 8px;
   min-width: 0;

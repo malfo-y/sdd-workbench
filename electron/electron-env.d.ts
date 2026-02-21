@@ -59,6 +59,15 @@ interface WorkspaceWatchEvent {
   changedRelativePaths: string[]
 }
 
+type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
+
+type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
+
+interface WorkspaceHistoryNavigationEvent {
+  direction: WorkspaceHistoryNavigationDirection
+  source: WorkspaceHistoryNavigationSource
+}
+
 interface Window {
   workspace: {
     openDialog: () => Promise<WorkspaceOpenDialogResult>
@@ -74,6 +83,9 @@ interface Window {
     watchStop: (workspaceId: string) => Promise<WorkspaceWatchControlResult>
     onWatchEvent: (
       listener: (event: WorkspaceWatchEvent) => void,
+    ) => () => void
+    onHistoryNavigate: (
+      listener: (event: WorkspaceHistoryNavigationEvent) => void,
     ) => () => void
   }
 }

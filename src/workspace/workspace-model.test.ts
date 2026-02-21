@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   addOrFocusWorkspace,
+  canStepWorkspaceFileHistory,
   closeWorkspace,
   createEmptyWorkspaceState,
   createWorkspaceId,
+  createWorkspaceSession,
+  MAX_WORKSPACE_FILE_HISTORY,
+  pushWorkspaceFileHistory,
   setActiveWorkspace,
+  stepWorkspaceFileHistory,
   updateWorkspaceSession,
 } from './workspace-model'
 
@@ -142,5 +147,90 @@ describe('workspace-model', () => {
 
     expect(state.workspacesById[workspaceAId]?.changedFiles).toEqual(['src/a.ts'])
     expect(state.workspacesById[workspaceBId]?.changedFiles).toEqual(['docs/b.md'])
+  })
+
+  it('pushes file history and deduplicates consecutive same file opens', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = pushWorkspaceFileHistory(session, 'src/a.ts')
+    session = pushWorkspaceFileHistory(session, 'src/b.ts')
+    session = pushWorkspaceFileHistory(session, 'src/b.ts')
+
+    expect(session.fileHistory).toEqual(['src/a.ts', 'src/b.ts'])
+    expect(session.fileHistoryIndex).toBe(1)
+  })
+
+  it('truncates forward history when opening a new file after back navigation', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = pushWorkspaceFileHistory(session, 'src/a.ts')
+    session = pushWorkspaceFileHistory(session, 'src/b.ts')
+    session = pushWorkspaceFileHistory(session, 'src/c.ts')
+
+    const steppedBack = stepWorkspaceFileHistory(session, 'back')
+    expect(steppedBack.targetRelativePath).toBe('src/b.ts')
+    session = steppedBack.nextSession
+    session = pushWorkspaceFileHistory(session, 'src/d.ts')
+
+    expect(session.fileHistory).toEqual(['src/a.ts', 'src/b.ts', 'src/d.ts'])
+    expect(session.fileHistoryIndex).toBe(2)
+    expect(canStepWorkspaceFileHistory(session, 'forward')).toBe(false)
+  })
+
+  it('steps back and forward only when history pointer can move', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    expect(canStepWorkspaceFileHistory(session, 'back')).toBe(false)
+    expect(canStepWorkspaceFileHistory(session, 'forward')).toBe(false)
+
+    session = pushWorkspaceFileHistory(session, 'src/a.ts')
+    session = pushWorkspaceFileHistory(session, 'src/b.ts')
+    session = pushWorkspaceFileHistory(session, 'src/c.ts')
+    expect(canStepWorkspaceFileHistory(session, 'back')).toBe(true)
+    expect(canStepWorkspaceFileHistory(session, 'forward')).toBe(false)
+
+    const backOne = stepWorkspaceFileHistory(session, 'back')
+    session = backOne.nextSession
+    expect(backOne.targetRelativePath).toBe('src/b.ts')
+    expect(canStepWorkspaceFileHistory(session, 'forward')).toBe(true)
+
+    const backTwo = stepWorkspaceFileHistory(session, 'back')
+    session = backTwo.nextSession
+    expect(backTwo.targetRelativePath).toBe('src/a.ts')
+    expect(canStepWorkspaceFileHistory(session, 'back')).toBe(false)
+
+    const forwardOne = stepWorkspaceFileHistory(session, 'forward')
+    session = forwardOne.nextSession
+    expect(forwardOne.targetRelativePath).toBe('src/b.ts')
+  })
+
+  it('keeps workspace file history bounded to max length', () => {
+    let session = createWorkspaceSession(ROOT_A)
+
+    for (let index = 1; index <= MAX_WORKSPACE_FILE_HISTORY + 5; index += 1) {
+      session = pushWorkspaceFileHistory(session, `src/file-${index}.ts`)
+    }
+
+    expect(session.fileHistory).toHaveLength(MAX_WORKSPACE_FILE_HISTORY)
+    expect(session.fileHistory[0]).toBe('src/file-6.ts')
+    expect(session.fileHistory[MAX_WORKSPACE_FILE_HISTORY - 1]).toBe(
+      `src/file-${MAX_WORKSPACE_FILE_HISTORY + 5}.ts`,
+    )
+    expect(session.fileHistoryIndex).toBe(MAX_WORKSPACE_FILE_HISTORY - 1)
+  })
+
+  it('keeps fileHistory separated by workspace', () => {
+    const workspaceAId = createWorkspaceId(ROOT_A)
+    const workspaceBId = createWorkspaceId(ROOT_B)
+
+    let state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    state = updateWorkspaceSession(state, workspaceAId, (session) =>
+      pushWorkspaceFileHistory(session, 'src/a.ts'),
+    )
+
+    state = addOrFocusWorkspace(state, ROOT_B).state
+    state = updateWorkspaceSession(state, workspaceBId, (session) =>
+      pushWorkspaceFileHistory(session, 'docs/b.md'),
+    )
+
+    expect(state.workspacesById[workspaceAId]?.fileHistory).toEqual(['src/a.ts'])
+    expect(state.workspacesById[workspaceBId]?.fileHistory).toEqual(['docs/b.md'])
   })
 })
