@@ -75,6 +75,7 @@ type WorkspaceProviderProps = {
 }
 
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
+const WORKSPACE_INDEX_NODE_CAP = 10_000
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
@@ -88,6 +89,10 @@ function getSpecPreviewUnavailableMessage(
   }
 
   return 'Failed to render markdown preview: binary file detected.'
+}
+
+function getWorkspaceIndexTruncationMessage() {
+  return `Workspace index truncated at ${WORKSPACE_INDEX_NODE_CAP.toLocaleString()} nodes.`
 }
 
 function withoutChangedFileMarker(changedFiles: string[], relativePath: string) {
@@ -284,7 +289,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             }
           }),
         )
-        setBannerMessage(null)
+        setBannerMessage(
+          indexResult.truncated ? getWorkspaceIndexTruncationMessage() : null,
+        )
         return 'success'
       } catch (error) {
         if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {

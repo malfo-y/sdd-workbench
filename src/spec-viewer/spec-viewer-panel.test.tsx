@@ -16,6 +16,7 @@ describe('SpecViewerPanel', () => {
   })
 
   function renderPanel({
+    workspaceRootPath = '/Users/tester/workspace',
     activeSpecPath = 'docs/spec.md',
     markdownContent = '# Title\n\n## Intro\ntext',
     isLoading = false,
@@ -30,6 +31,7 @@ describe('SpecViewerPanel', () => {
       >()
       .mockReturnValue(true),
   }: {
+    workspaceRootPath?: string | null
     activeSpecPath?: string | null
     markdownContent?: string | null
     isLoading?: boolean
@@ -48,6 +50,7 @@ describe('SpecViewerPanel', () => {
         onGoToSourceLine={onGoToSourceLine}
         onOpenRelativePath={onOpenRelativePath}
         readError={readError}
+        workspaceRootPath={workspaceRootPath}
       />,
     )
 
@@ -245,6 +248,32 @@ describe('SpecViewerPanel', () => {
     expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
       '../../outside.md',
     )
+  })
+
+  it('renders workspace-relative images as file URLs', () => {
+    renderPanel({
+      markdownContent: '![Diagram](./assets/diagram.png)',
+    })
+
+    const image = screen.getByRole('img', { name: 'Diagram' })
+    expect(image).toHaveAttribute(
+      'src',
+      'file:///Users/tester/workspace/docs/assets/diagram.png',
+    )
+    expect(
+      screen.queryByTestId('spec-viewer-blocked-resource'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows blocked placeholder text for disallowed image URIs', () => {
+    renderPanel({
+      markdownContent: '![External](https://example.com/image.png)',
+    })
+
+    expect(screen.getByTestId('spec-viewer-blocked-resource')).toHaveTextContent(
+      'blocked placeholder text',
+    )
+    expect(screen.queryByRole('img', { name: 'External' })).not.toBeInTheDocument()
   })
 
   it('shows Go to Source popover on selected text context menu', () => {

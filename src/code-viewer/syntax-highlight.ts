@@ -32,3 +32,12 @@ export function highlightLineContent(
 
   return Prism.highlight(lineContent, grammar, language)
 }
+
+export function highlightPreviewLines(
+  previewLines: string[],
+  language: HighlightLanguage,
+): string[] {
+  return previewLines.map((lineContent) =>
+    lineContent.length > 0 ? highlightLineContent(lineContent, language) : ' ',
+  )
+}

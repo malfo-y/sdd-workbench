@@ -8,15 +8,22 @@ import {
   type MouseEvent,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
 import { extractMarkdownHeadings } from './markdown-utils'
+import {
+  MARKDOWN_SANITIZE_SCHEMA,
+  resolveMarkdownImageSource,
+  sanitizeMarkdownUri,
+} from './markdown-security'
 import { SpecLinkPopover } from './spec-link-popover'
 import { SpecSourcePopover } from './spec-source-popover'
 import { resolveSourceLine } from './source-line-resolver'
 import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 
 type SpecViewerPanelProps = {
+  workspaceRootPath: string | null
   activeSpecPath: string | null
   markdownContent: string | null
   isLoading: boolean
@@ -39,6 +46,8 @@ type SourcePopoverState = {
   x: number
   y: number
 }
+
+const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'blocked placeholder text'
 
 type MarkdownNodeWithPosition = {
   position?: {
@@ -96,6 +105,7 @@ function hasVisibleSelectionInElement(
 }
 
 export function SpecViewerPanel({
+  workspaceRootPath,
   activeSpecPath,
   markdownContent,
   isLoading,
@@ -307,6 +317,7 @@ export function SpecViewerPanel({
             ref={contentRef}
           >
             <ReactMarkdown
+              urlTransform={(url) => sanitizeMarkdownUri(url)}
               components={{
                 a: ({ node, href, children, ...anchorProps }) => {
                   void node
@@ -318,6 +329,33 @@ export function SpecViewerPanel({
                     >
                       {children}
                     </a>
+                  )
+                },
+                img: ({ node, src, alt, ...imageProps }) => {
+                  void node
+                  const resolvedImageSource = resolveMarkdownImageSource(
+                    src,
+                    activeSpecPath,
+                    workspaceRootPath,
+                  )
+                  if (!resolvedImageSource) {
+                    return (
+                      <span
+                        className="spec-viewer-blocked-resource"
+                        data-testid="spec-viewer-blocked-resource"
+                      >
+                        {BLOCKED_RESOURCE_PLACEHOLDER_TEXT}
+                      </span>
+                    )
+                  }
+
+                  return (
+                    <img
+                      {...imageProps}
+                      alt={alt ?? 'Markdown image'}
+                      loading="lazy"
+                      src={resolvedImageSource}
+                    />
                   )
                 },
                 p: (props) =>
@@ -376,7 +414,7 @@ export function SpecViewerPanel({
                     props as Record<string, unknown>,
                   ),
               }}
-              rehypePlugins={[rehypeSlug]}
+              rehypePlugins={[rehypeSlug, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
               remarkPlugins={[remarkGfm]}
             >
               {markdownContent}

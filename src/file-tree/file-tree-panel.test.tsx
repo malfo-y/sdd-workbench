@@ -93,4 +93,35 @@ describe('FileTreePanel context copy', () => {
     fireEvent.click(screen.getByRole('button', { name: 'src' }))
     expect(onExpandedDirectoriesChange).toHaveBeenCalledWith(['src'])
   })
+
+  it('shows root-level files even when root directories exist', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+          },
+          {
+            name: 'README.md',
+            relativePath: 'README.md',
+            kind: 'file',
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+  })
 })

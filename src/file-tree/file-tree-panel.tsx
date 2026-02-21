@@ -40,7 +40,6 @@ function renderFileTreeNodes(
   ) => void,
   expandedDirectories: Set<string>,
   onToggleDirectory: (relativePath: string) => void,
-  showFilesAtCurrentLevel: boolean,
 ): ReactNode {
   if (nodes.length === 0) {
     return null
@@ -87,14 +86,9 @@ function renderFileTreeNodes(
               onNodeContextMenu,
               expandedDirectories,
               onToggleDirectory,
-              true,
             )}
         </li>,
       )
-      continue
-    }
-
-    if (!showFilesAtCurrentLevel) {
       continue
     }
 
@@ -212,8 +206,6 @@ export function FileTreePanel({
     remaining: INITIAL_RENDER_NODE_LIMIT,
     truncated: false,
   }
-  const hasRootDirectory = fileTree.some((node) => node.kind === 'directory')
-  const showRootFiles = !hasRootDirectory
 
   return (
     <section className="file-tree-panel" data-testid="file-tree-panel">
@@ -227,7 +219,6 @@ export function FileTreePanel({
         handleNodeContextMenu,
         expandedDirectoriesSet,
         toggleDirectory,
-        showRootFiles,
       )}
       {renderBudget.truncated && (
         <p className="tree-cap-message" data-testid="file-tree-cap-message">

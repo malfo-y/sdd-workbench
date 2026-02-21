@@ -304,6 +304,32 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('shows truncation banner when workspace index result is truncated', async () => {
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/huge-workspace',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+      truncated: true,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Workspace index truncated at 10,000 nodes.',
+      )
+    })
+  })
+
   it('renders indexed file tree and updates active file when clicked', async () => {
     const indexedTree: WorkspaceFileNode[] = [
       {
@@ -356,7 +382,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     expect(screen.queryByRole('button', { name: 'auth.ts' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'README.md' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
 
     expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
       'No active file',

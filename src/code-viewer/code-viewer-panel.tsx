@@ -14,7 +14,7 @@ import {
 } from './line-selection'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { getHighlightLanguage } from './language-map'
-import { highlightLineContent } from './syntax-highlight'
+import * as syntaxHighlight from './syntax-highlight'
 
 export type CodeViewerJumpRequest = {
   targetRelativePath: string
@@ -92,6 +92,10 @@ export function CodeViewerPanel({
   const highlightLanguage = useMemo(
     () => getHighlightLanguage(activeFile),
     [activeFile],
+  )
+  const highlightedPreviewLines = useMemo(
+    () => syntaxHighlight.highlightPreviewLines(previewLines, highlightLanguage),
+    [previewLines, highlightLanguage],
   )
 
   useEffect(() => {
@@ -338,13 +342,10 @@ export function CodeViewerPanel({
             data-highlight-language={highlightLanguage}
             data-testid="code-viewer-content"
           >
-            {previewLines.map((lineContent, lineIndex) => {
+            {previewLines.map((_, lineIndex) => {
               const lineNumber = lineIndex + 1
               const isSelected = isLineSelected(lineNumber)
-              const highlightedLine = highlightLineContent(
-                lineContent,
-                highlightLanguage,
-              )
+              const highlightedLine = highlightedPreviewLines[lineIndex] ?? ' '
 
               return (
                 <li
@@ -375,7 +376,7 @@ export function CodeViewerPanel({
                     <span
                       className="code-line-content"
                       dangerouslySetInnerHTML={{
-                        __html: lineContent.length > 0 ? highlightedLine : ' ',
+                        __html: highlightedLine,
                       }}
                     />
                   </button>

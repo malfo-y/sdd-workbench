@@ -16,6 +16,7 @@ type WorkspaceFileNode = {
 type WorkspaceIndexResult = {
   ok: boolean
   fileTree: WorkspaceFileNode[]
+  truncated?: boolean
   error?: string
 }
 

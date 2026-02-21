@@ -723,6 +723,7 @@ function App() {
               onGoToSourceLine={goToActiveSpecSourceLine}
               onOpenRelativePath={openSpecRelativePath}
               readError={activeSpecReadError}
+              workspaceRootPath={rootPath}
             />
           </section>
         </div>

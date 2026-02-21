@@ -37,6 +37,7 @@ interface WorkspaceFileNode {
 interface WorkspaceIndexResult {
   ok: boolean
   fileTree: WorkspaceFileNode[]
+  truncated?: boolean
   error?: string
 }
 

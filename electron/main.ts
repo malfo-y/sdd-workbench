@@ -47,6 +47,7 @@ type WorkspaceIndexRequest = {
 type WorkspaceIndexResult = {
   ok: boolean
   fileTree: WorkspaceFileNode[]
+  truncated?: boolean
   error?: string
 }
 
@@ -122,6 +123,7 @@ const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
 ])
 
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
+const MAX_WORKSPACE_INDEX_NODES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
@@ -194,11 +196,22 @@ function sortWorkspaceTree(nodes: WorkspaceFileNode[]): WorkspaceFileNode[] {
 async function buildWorkspaceTree(
   rootPath: string,
   currentDirectory: string,
+  indexBudget: { remainingNodes: number; truncated: boolean },
 ): Promise<WorkspaceFileNode[]> {
+  if (indexBudget.remainingNodes <= 0) {
+    indexBudget.truncated = true
+    return []
+  }
+
   const entries = await readdir(currentDirectory, { withFileTypes: true })
   const nodes: WorkspaceFileNode[] = []
 
   for (const entry of entries) {
+    if (indexBudget.remainingNodes <= 0) {
+      indexBudget.truncated = true
+      break
+    }
+
     if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
       continue
     }
@@ -215,7 +228,8 @@ async function buildWorkspaceTree(
     }
 
     if (entry.isDirectory()) {
-      const children = await buildWorkspaceTree(rootPath, absolutePath)
+      indexBudget.remainingNodes -= 1
+      const children = await buildWorkspaceTree(rootPath, absolutePath, indexBudget)
       nodes.push({
         name: entry.name,
         relativePath,
@@ -226,6 +240,7 @@ async function buildWorkspaceTree(
     }
 
     if (entry.isFile()) {
+      indexBudget.remainingNodes -= 1
       nodes.push({
         name: entry.name,
         relativePath,
@@ -288,19 +303,30 @@ async function handleWorkspaceIndex(
       return {
         ok: false,
         fileTree: [],
+        truncated: false,
         error: 'Selected workspace root is not a directory.',
       }
     }
 
-    const fileTree = await buildWorkspaceTree(resolvedRootPath, resolvedRootPath)
+    const indexBudget = {
+      remainingNodes: MAX_WORKSPACE_INDEX_NODES,
+      truncated: false,
+    }
+    const fileTree = await buildWorkspaceTree(
+      resolvedRootPath,
+      resolvedRootPath,
+      indexBudget,
+    )
     return {
       ok: true,
       fileTree,
+      truncated: indexBudget.truncated,
     }
   } catch (error) {
     return {
       ok: false,
       fileTree: [],
+      truncated: false,
       error: error instanceof Error ? error.message : 'Failed to index workspace',
     }
   }

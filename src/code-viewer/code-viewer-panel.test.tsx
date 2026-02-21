@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodeViewerPanel } from './code-viewer-panel'
+import * as syntaxHighlight from './syntax-highlight'
 
 describe('CodeViewerPanel highlighting', () => {
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
   })
 
   it('uses python highlighting for .py files and keeps line selection', () => {
@@ -259,5 +261,54 @@ describe('CodeViewerPanel highlighting', () => {
     expect(onRequestCopyRelativePath).toHaveBeenCalledWith('src/example.ts')
     expect(onRequestCopySelectedContent).not.toHaveBeenCalled()
     expect(onRequestCopyBoth).not.toHaveBeenCalled()
+  })
+
+  it('does not recompute highlighted lines when only selection changes', () => {
+    const highlightPreviewLinesSpy = vi.spyOn(
+      syntaxHighlight,
+      'highlightPreviewLines',
+    )
+
+    const { rerender } = render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={{
+          startLine: 1,
+          endLine: 1,
+        }}
+      />,
+    )
+
+    expect(highlightPreviewLinesSpy).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={{
+          startLine: 1,
+          endLine: 3,
+        }}
+      />,
+    )
+
+    expect(highlightPreviewLinesSpy).toHaveBeenCalledTimes(1)
   })
 })

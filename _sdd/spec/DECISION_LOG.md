@@ -527,3 +527,27 @@
 - Impact / follow-up:
   - `main.md`의 인벤토리/SpecViewer 계약/상태 규칙/Feature Queue/수용 기준/테스트 수치(113건)를 F10.1 기준으로 동기화한다.
   - F10에서는 F10.1의 best-effort 매핑 정확도 개선 여지를 안정화 항목으로 검토한다.
+
+## 2026-02-21 - F10 구현 완료 반영(보안/성능/테스트 안정화 패스)
+
+- Context:
+  - F10 구현으로 markdown sanitize/리소스 경계, 인덱싱 guardrail, 코드 하이라이트 메모이제이션이 코드/테스트에 반영되었음.
+  - 구현 로그 기준 자동 테스트가 125건으로 증가했고(`App.test.tsx` 42건 포함), `npm run lint`/`npm run build`도 통과했음.
+  - 스펙에는 F10이 Planned로 남아 있어 구현 상태와 문서 상태가 불일치했음.
+- Decision:
+  - F10을 스펙 상태 `✅ Done`으로 전환한다.
+  - markdown 렌더 보안 정책은 sanitize allowlist + workspace 경계 리소스 허용으로 고정한다.
+  - 인덱싱 cap은 `10,000` 노드로 고정하고 `workspace:index.truncated` 신호를 renderer 배너에 연결한다.
+  - 차단 리소스는 `blocked placeholder text`로 표시한다.
+  - `data:` URI는 `data:image/*`만 제한 허용하며, 코드 뷰어 이미지 프리뷰는 F10.2로 분리한다.
+- Rationale:
+  - F10은 신규 UX 추가 없이 안정성/보안/성능 기준선을 고정하는 단계이므로 정책을 명시적으로 문서화해야 회귀를 방지할 수 있다.
+  - index cap과 truncation 신호를 함께 고정해야 대형 워크스페이스에서 성능과 사용자 피드백을 동시에 확보할 수 있다.
+  - `data:image/*` 제한 허용은 안전성과 실사용성 간 균형을 맞추는 최소 선택이다.
+- Alternatives considered:
+  - 인덱싱 cap 미도입(무제한 인덱싱 유지)
+  - `data:` URI 전체 차단 또는 전체 허용
+  - 차단 리소스 no-op 처리(placeholder 미표시)
+- Impact / follow-up:
+  - `main.md`의 메타데이터/인벤토리/IPC 계약/성능·보안·신뢰성 기준/Feature Queue/수용 기준/검증 수치를 F10 완료 기준으로 동기화한다.
+  - F10.2(코드 뷰어 이미지 프리뷰)는 별도 feature로 유지한다.
