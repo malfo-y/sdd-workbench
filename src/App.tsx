@@ -112,6 +112,49 @@ function shouldSkipTrackpadHistoryFallback(
   return false
 }
 
+function ItermIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <rect
+        fill="none"
+        height="18"
+        rx="3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        width="20"
+        x="2"
+        y="3"
+      />
+      <path
+        d="M7 9.5L10 12L7 14.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M12.5 15H17"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function VsCodeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M17.5 4L10.2 9.8L6.8 6.8L4.2 8.2L7.7 12L4.2 15.8L6.8 17.2L10.2 14.2L17.5 20V4Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
 function App() {
   const {
     workspaces,
@@ -236,6 +279,28 @@ function App() {
       void writeToClipboard(payload, 'Failed to copy selected content.')
     },
     [activeWorkspaceId, writeToClipboard],
+  )
+
+  const openWorkspaceInExternalApp = useCallback(
+    async (target: 'iterm' | 'vscode') => {
+      if (!rootPath) {
+        return
+      }
+
+      const targetLabel = target === 'iterm' ? 'iTerm' : 'VSCode'
+      try {
+        const result =
+          target === 'iterm'
+            ? await window.workspace.openInIterm(rootPath)
+            : await window.workspace.openInVsCode(rootPath)
+        if (!result.ok) {
+          showBanner(result.error ?? `Failed to open workspace in ${targetLabel}.`)
+        }
+      } catch {
+        showBanner(`Failed to open workspace in ${targetLabel}.`)
+      }
+    },
+    [rootPath, showBanner],
   )
 
   const workspaceLayoutStyle = useMemo(
@@ -525,6 +590,33 @@ function App() {
               >
                 {displayPath}
               </p>
+            </div>
+            <div className="workspace-open-in">
+              <span className="workspace-open-in-label">Open In:</span>
+              <div className="workspace-open-in-actions">
+                <button
+                  aria-label="Open in iTerm"
+                  className="workspace-open-in-button"
+                  data-testid="workspace-open-in-iterm"
+                  disabled={!rootPath}
+                  onClick={() => void openWorkspaceInExternalApp('iterm')}
+                  title="Open in iTerm"
+                  type="button"
+                >
+                  <ItermIcon />
+                </button>
+                <button
+                  aria-label="Open in VSCode"
+                  className="workspace-open-in-button"
+                  data-testid="workspace-open-in-vscode"
+                  disabled={!rootPath}
+                  onClick={() => void openWorkspaceInExternalApp('vscode')}
+                  title="Open in VSCode"
+                  type="button"
+                >
+                  <VsCodeIcon />
+                </button>
+              </div>
             </div>
             <FileTreePanel
               activeFile={activeFile}

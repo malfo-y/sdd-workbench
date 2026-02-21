@@ -68,6 +68,11 @@ interface WorkspaceHistoryNavigationEvent {
   source: WorkspaceHistoryNavigationSource
 }
 
+interface SystemOpenInResult {
+  ok: boolean
+  error?: string
+}
+
 interface Window {
   workspace: {
     openDialog: () => Promise<WorkspaceOpenDialogResult>
@@ -87,5 +92,7 @@ interface Window {
     onHistoryNavigate: (
       listener: (event: WorkspaceHistoryNavigationEvent) => void,
     ) => () => void
+    openInIterm: (rootPath: string) => Promise<SystemOpenInResult>
+    openInVsCode: (rootPath: string) => Promise<SystemOpenInResult>
   }
 }

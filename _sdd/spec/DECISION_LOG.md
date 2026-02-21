@@ -401,3 +401,59 @@
 - Impact / follow-up:
   - `main.md`의 코드 인벤토리/상태 모델/IPC 계약/Feature Queue/수용 기준/리스크를 F07.1 완료 기준으로 동기화한다.
   - 다음 우선순위는 `F08/F09`로 유지한다.
+
+## 2026-02-21 - F08 범위 확장(Open in VSCode 추가 + 버튼 위치 고정)
+
+- Context:
+  - F08이 기존에는 iTerm 단일 액션 기준으로 정의되어 있었음.
+  - 사용자 요청으로 VSCode 열기 액션이 추가되었고, 버튼 위치를 헤더가 아닌 좌측 `Current Workspace` 블록 아래로 고정해야 했음.
+- Decision:
+  - F08 범위를 `Open in iTerm` + `Open in VSCode` 2개 액션으로 확장한다.
+  - F08 액션 버튼은 상단 헤더가 아닌 좌측 패널의 `Current Workspace` 요약 블록 바로 아래에 배치한다.
+  - IPC 계획은 `system:openInIterm` + `system:openInVsCode` 2채널로 관리한다.
+- Rationale:
+  - 워크스페이스 실행 액션은 현재 워크스페이스 맥락 근처(좌측 요약 블록)에서 제공하는 편이 발견 가능성과 의미 정합성이 높다.
+  - iTerm/VSCode를 함께 제공하면 실제 작업 루프(터미널 + 에디터 진입) 전환 비용을 줄일 수 있다.
+- Alternatives considered:
+  - iTerm 단일 액션 유지
+  - 액션 버튼을 헤더(Workspace switcher 인접)에 유지
+- Impact / follow-up:
+  - `main.md`의 F08 설명/완료 기준/예상 변경 파일/수용 기준/IPC 계획을 확장된 요구사항 기준으로 업데이트한다.
+  - 다음 단계에서 `implementation-plan`으로 F08을 작업 분할할 때 2개 액션 및 위치 제약을 그대로 적용한다.
+
+## 2026-02-21 - F08 액션 UI 형태 고정(`Open In:` + 아이콘 버튼)
+
+- Context:
+  - 사용자 요청으로 F08 액션의 시각적 표현을 텍스트 버튼보다 간결한 형태로 고정할 필요가 있었음.
+- Decision:
+  - 좌측 `Current Workspace` 아래 F08 액션 UI를 `Open In:` 라벨 + 아이콘 버튼 2개(iTerm, VSCode)로 고정한다.
+  - 아이콘 버튼은 tooltip/접근성 라벨(`Open in iTerm`, `Open in VSCode`)을 반드시 제공한다.
+  - 활성 워크스페이스가 없으면 두 버튼은 disabled 처리한다.
+- Rationale:
+  - 액션 밀도를 줄이면서도 라벨(`Open In:`)을 남기면 의미 전달과 시각적 간결성을 동시에 확보할 수 있다.
+  - 아이콘 단독 UI는 접근성 라벨/툴팁을 같이 고정해야 사용성 저하를 막을 수 있다.
+- Alternatives considered:
+  - 텍스트 버튼(`Open in iTerm`, `Open in VSCode`) 유지
+  - 아이콘만 배치하고 라벨 없이 사용
+- Impact / follow-up:
+  - `main.md`의 F08 포함 범위/완료 기준/레이아웃 설명에 icon UI 정책을 반영한다.
+
+## 2026-02-21 - F08 구현 완료 반영(Open in iTerm/VSCode)
+
+- Context:
+  - F08 구현이 완료되었고 사용자 수동 스모크에서 동작 확인이 끝났음.
+  - 자동 검증(`npm test`, `npm run lint`, `npm run build`)이 모두 통과했고, 테스트 수치는 총 93건(`App.test.tsx` 34건)으로 갱신되었음.
+  - 기존 스펙에는 F08이 Planned로 남아 있어 구현 상태와 문서 상태가 불일치했음.
+- Decision:
+  - F08을 스펙 상태 `✅ Done`으로 전환한다.
+  - `system:openInIterm`/`system:openInVsCode` 채널 상태를 Implemented로 전환한다.
+  - 좌측 `Current Workspace` 아래 `Open In:` 아이콘 버튼(iTerm/VSCode) + disabled/배너 오류 피드백 동작을 구현 기준으로 고정한다.
+- Rationale:
+  - 완료된 기능을 Planned로 유지하면 우선순위 큐와 수용 기준의 기준선이 왜곡된다.
+  - IPC 계약/UI 배치/접근성 라벨을 구현 결과로 고정해야 후속 F09 범위를 분리해 안정적으로 진행할 수 있다.
+- Alternatives considered:
+  - F08을 Partial 상태로 유지
+  - iTerm만 Done 처리하고 VSCode는 별도 Feature로 분리
+- Impact / follow-up:
+  - `main.md`의 메타데이터/인벤토리/커버리지/IPC 계약/Feature Queue/수용 기준/검증 수치를 F08 완료 기준으로 동기화한다.
+  - 다음 우선순위는 F09(스펙 섹션 복사)와 F10(안정화)로 정리한다.

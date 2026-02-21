@@ -20,6 +20,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     >()
   const watchStopMock =
     vi.fn<(workspaceId: string) => Promise<WorkspaceWatchControlResult>>()
+  const openInItermMock = vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
+  const openInVsCodeMock =
+    vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
@@ -39,12 +42,16 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     readFileMock.mockReset()
     watchStartMock.mockReset()
     watchStopMock.mockReset()
+    openInItermMock.mockReset()
+    openInVsCodeMock.mockReset()
     onWatchEventMock.mockReset()
     onHistoryNavigateMock.mockReset()
     watchListeners.clear()
     historyNavigateListeners.clear()
     watchStartMock.mockResolvedValue({ ok: true })
     watchStopMock.mockResolvedValue({ ok: true })
+    openInItermMock.mockResolvedValue({ ok: true })
+    openInVsCodeMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
@@ -65,6 +72,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       watchStop: watchStopMock,
       onWatchEvent: onWatchEventMock,
       onHistoryNavigate: onHistoryNavigateMock,
+      openInIterm: openInItermMock,
+      openInVsCode: openInVsCodeMock,
     }
   })
 
@@ -162,6 +171,92 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       'No workspace selected',
     )
     expect(indexWorkspaceMock).not.toHaveBeenCalled()
+  })
+
+  it('renders Open In buttons as disabled when no active workspace exists', () => {
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Open in iTerm' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Open in VSCode' })).toBeDisabled()
+  })
+
+  it('opens active workspace in iTerm and VSCode', async () => {
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveTextContent(
+        '~/projects/sdd-workbench',
+      )
+    })
+
+    const openInItermButton = screen.getByRole('button', { name: 'Open in iTerm' })
+    const openInVsCodeButton = screen.getByRole('button', { name: 'Open in VSCode' })
+    expect(openInItermButton).toBeEnabled()
+    expect(openInVsCodeButton).toBeEnabled()
+
+    fireEvent.click(openInItermButton)
+    fireEvent.click(openInVsCodeButton)
+
+    await waitFor(() => {
+      expect(openInItermMock).toHaveBeenCalledWith(
+        '/Users/tester/projects/sdd-workbench',
+      )
+      expect(openInVsCodeMock).toHaveBeenCalledWith(
+        '/Users/tester/projects/sdd-workbench',
+      )
+    })
+  })
+
+  it('shows error banner when open in app request fails', async () => {
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    openInVsCodeMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'Failed to launch VSCode.',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open in VSCode' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in VSCode' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to launch VSCode.')
+    })
   })
 
   it('renders indexed file tree and updates active file when clicked', async () => {

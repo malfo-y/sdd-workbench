@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
+import { execFile } from 'node:child_process'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -89,6 +90,15 @@ type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
 type WorkspaceHistoryNavigationEventPayload = {
   direction: WorkspaceHistoryNavigationDirection
   source: WorkspaceHistoryNavigationSource
+}
+
+type SystemOpenInRequest = {
+  rootPath: string
+}
+
+type SystemOpenInResult = {
+  ok: boolean
+  error?: string
 }
 
 type WorkspaceWatcherEntry = {
@@ -357,6 +367,81 @@ async function handleWorkspaceReadFile(
   }
 }
 
+function openDirectoryWithApplication(
+  applicationName: string,
+  directoryPath: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'open',
+      ['-a', applicationName, directoryPath],
+      (error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve()
+      },
+    )
+  })
+}
+
+async function handleSystemOpenInApplication(
+  request: SystemOpenInRequest,
+  applicationName: string,
+): Promise<SystemOpenInResult> {
+  try {
+    if (process.platform !== 'darwin') {
+      return {
+        ok: false,
+        error: 'Open in app is only supported on macOS.',
+      }
+    }
+
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    await openDirectoryWithApplication(applicationName, resolvedRootPath)
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : `Failed to open workspace in ${applicationName}.`,
+    }
+  }
+}
+
+async function handleSystemOpenInIterm(
+  _event: IpcMainInvokeEvent,
+  request: SystemOpenInRequest,
+): Promise<SystemOpenInResult> {
+  return handleSystemOpenInApplication(request, 'iTerm')
+}
+
+async function handleSystemOpenInVsCode(
+  _event: IpcMainInvokeEvent,
+  request: SystemOpenInRequest,
+): Promise<SystemOpenInResult> {
+  return handleSystemOpenInApplication(request, 'Visual Studio Code')
+}
+
 function sendWorkspaceWatchEvent(payload: WorkspaceWatchEventPayload) {
   if (!win || win.isDestroyed()) {
     return
@@ -555,11 +640,15 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:readFile')
   ipcMain.removeHandler('workspace:watchStart')
   ipcMain.removeHandler('workspace:watchStop')
+  ipcMain.removeHandler('system:openInIterm')
+  ipcMain.removeHandler('system:openInVsCode')
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
   ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStart)
   ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStop)
+  ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
+  ipcMain.handle('system:openInVsCode', handleSystemOpenInVsCode)
 }
 
 function createWindow() {

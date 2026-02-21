@@ -161,3 +161,17 @@
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F07_1/SYNC_20260221_091437_IMPLEMENTATION_REPORT_PHASE_1.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F07_1/SYNC_20260221_091437_IMPLEMENTATION_REPORT_PHASE_2.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F07_1/SYNC_20260221_091437_IMPLEMENTATION_REPORT_PHASE_3.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+
+## F08
+
+### Sync Record - 2026-02-21T00:42:25Z
+
+- note: spec sync (F08 reflected in `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/main.md`, `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/DECISION_LOG.md`)
+- copied files:
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_PLAN.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_PROGRESS.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_REVIEW.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REVIEW.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_REPORT.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_REPORT_PHASE_1.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_REPORT_PHASE_2.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F08/SYNC_20260221_094214_IMPLEMENTATION_REPORT_PHASE_3.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`

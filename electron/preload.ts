@@ -47,6 +47,11 @@ type WorkspaceHistoryNavigationEvent = {
   source: WorkspaceHistoryNavigationSource
 }
 
+type SystemOpenInResult = {
+  ok: boolean
+  error?: string
+}
+
 const workspaceApi = {
   openDialog() {
     return ipcRenderer.invoke(
@@ -100,6 +105,16 @@ const workspaceApi = {
     return () => {
       ipcRenderer.off('workspace:historyNavigate', handler)
     }
+  },
+  openInIterm(rootPath: string) {
+    return ipcRenderer.invoke('system:openInIterm', {
+      rootPath,
+    }) as Promise<SystemOpenInResult>
+  },
+  openInVsCode(rootPath: string) {
+    return ipcRenderer.invoke('system:openInVsCode', {
+      rootPath,
+    }) as Promise<SystemOpenInResult>
   },
 }
 
