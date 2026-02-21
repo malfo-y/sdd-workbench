@@ -192,9 +192,9 @@ function App() {
     ? abbreviateWorkspacePath(rootPath)
     : 'No workspace selected'
   const [paneSizes, setPaneSizes] = useState<PaneSizes>({
-    left: 25,
-    center: 50,
-    right: 25,
+    left: 15,
+    center: 40,
+    right: 45,
   })
   const [activeResizeHandle, setActiveResizeHandle] =
     useState<ResizeHandle | null>(null)

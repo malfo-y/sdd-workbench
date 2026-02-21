@@ -52,9 +52,9 @@
 }
 
 .workspace-layout {
-  --pane-left: 25%;
-  --pane-center: 50%;
-  --pane-right: 25%;
+  --pane-left: 15%;
+  --pane-center: 40%;
+  --pane-right: 45%;
   display: grid;
   align-items: stretch;
   grid-template-columns:
