@@ -14,6 +14,7 @@
 
 - `src/workspace/workspace-context.tsx`
   - 멀티 워크스페이스 상태 및 action 집약
+  - same-spec source jump에서 불필요한 spec reset/read 최소화
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이
 - `src/workspace/workspace-persistence.ts`
@@ -26,7 +27,7 @@
 - `src/file-tree/file-tree-panel.tsx`
   - 디렉토리 토글형 트리 렌더
   - 파일/디렉토리 우클릭 경로 복사
-  - changed marker 표시
+  - changed marker 표시(visible 파일 + collapse 버블링 상위 디렉토리)
 
 ### 1.4 Code Viewer Layer
 
@@ -45,6 +46,7 @@
   - rendered markdown + TOC + 링크/소스 액션
   - `Add Comment`/`Go to Source` source popover
   - comment marker 매핑 렌더
+  - spec scroll position capture/restore(런타임)
 - `src/spec-viewer/spec-link-utils.ts`
   - 링크 해석 및 line-range 파싱
 - `src/spec-viewer/source-line-resolver.ts`

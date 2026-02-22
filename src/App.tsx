@@ -7,6 +7,18 @@ import {
   type CSSProperties,
 } from 'react'
 import './App.css'
+import { buildCodeComment } from './code-comments/comment-anchor'
+import { MAX_CLIPBOARD_CHARS } from './code-comments/comment-config'
+import { renderCommentsMarkdown, renderLlmBundle } from './code-comments/comment-export'
+import {
+  buildCommentLineIndex,
+  getCommentLineCounts,
+} from './code-comments/comment-line-index'
+import { CommentEditorModal } from './code-comments/comment-editor-modal'
+import {
+  ExportCommentsModal,
+  type ExportCommentsModalInput,
+} from './code-comments/export-comments-modal'
 import {
   buildCopyActiveFilePathPayload,
   buildCopySelectedContentPayload,
@@ -62,6 +74,20 @@ type ResizeSession = {
   startX: number
   availableWidth: number
   startSizes: PaneSizes
+}
+
+type CommentDraftState = {
+  workspaceId: string
+  relativePath: string
+  selectionRange: LineSelectionRange
+  fileContent: string
+}
+
+function buildSpecScrollStateKey(
+  workspaceId: string | null,
+  relativePath: string,
+) {
+  return `${workspaceId ?? '__none__'}::${relativePath}`
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -175,6 +201,9 @@ function App() {
     previewUnavailableReason,
     selectionRange,
     expandedDirectories,
+    comments,
+    isReadingComments,
+    isWritingComments,
     bannerMessage,
     openWorkspace,
     setActiveWorkspace,
@@ -184,6 +213,7 @@ function App() {
     canGoForward,
     goBackInHistory,
     goForwardInHistory,
+    saveComments,
     showBanner,
     setSelectionRange,
     setExpandedDirectories,
@@ -209,6 +239,27 @@ function App() {
   const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
     useState<CodeViewerJumpRequest | null>(null)
   const previousActiveFileRef = useRef<string | null>(null)
+  const specScrollPositionsRef = useRef<Record<string, number>>({})
+  const [commentDraftState, setCommentDraftState] =
+    useState<CommentDraftState | null>(null)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isExportingComments, setIsExportingComments] = useState(false)
+  const commentLineIndex = useMemo(
+    () => buildCommentLineIndex(comments),
+    [comments],
+  )
+  const activeFileCommentLineCounts = useMemo(
+    () => getCommentLineCounts(commentLineIndex, activeFile),
+    [activeFile, commentLineIndex],
+  )
+  const activeSpecCommentLineCounts = useMemo(
+    () => getCommentLineCounts(commentLineIndex, activeSpec),
+    [activeSpec, commentLineIndex],
+  )
+  const pendingComments = useMemo(
+    () => comments.filter((comment) => !comment.exportedAt),
+    [comments],
+  )
   const wheelHistoryStateRef = useRef<WheelHistoryState>({
     accumulatedDeltaX: 0,
     lastEventAt: 0,
@@ -217,16 +268,29 @@ function App() {
   })
 
   const writeToClipboard = useCallback(
-    async (payload: string, errorMessage: string) => {
+    async (
+      payload: string,
+      errorMessage: string,
+      options?: {
+        suppressErrorBanner?: boolean
+      },
+    ) => {
+      const suppressErrorBanner = options?.suppressErrorBanner ?? false
       if (!navigator.clipboard?.writeText) {
-        showBanner('Failed to copy: clipboard API is unavailable.')
-        return
+        if (!suppressErrorBanner) {
+          showBanner('Failed to copy: clipboard API is unavailable.')
+        }
+        return false
       }
 
       try {
         await navigator.clipboard.writeText(payload)
+        return true
       } catch {
-        showBanner(errorMessage)
+        if (!suppressErrorBanner) {
+          showBanner(errorMessage)
+        }
+        return false
       }
     },
     [showBanner],
@@ -281,6 +345,236 @@ function App() {
       void writeToClipboard(payload, 'Failed to copy selected content.')
     },
     [activeWorkspaceId, writeToClipboard],
+  )
+
+  const handleRequestAddComment = useCallback(
+    (input: {
+      relativePath: string
+      content: string
+      selectionRange: LineSelectionRange
+    }) => {
+      if (!activeWorkspaceId) {
+        showBanner('Cannot add comment: no active workspace selected.')
+        return
+      }
+
+      setCommentDraftState({
+        workspaceId: activeWorkspaceId,
+        relativePath: input.relativePath,
+        selectionRange: input.selectionRange,
+        fileContent: input.content,
+      })
+    },
+    [activeWorkspaceId, showBanner],
+  )
+
+  const handleSaveComment = useCallback(
+    async (body: string) => {
+      if (!commentDraftState) {
+        return
+      }
+
+      if (!activeWorkspaceId || activeWorkspaceId !== commentDraftState.workspaceId) {
+        setCommentDraftState(null)
+        showBanner('Cannot save comment: active workspace changed.')
+        return
+      }
+
+      try {
+        const nextComment = buildCodeComment({
+          relativePath: commentDraftState.relativePath,
+          selectionRange: commentDraftState.selectionRange,
+          body,
+          fileContent: commentDraftState.fileContent,
+        })
+
+        const saved = await saveComments([...comments, nextComment])
+        if (!saved) {
+          return
+        }
+        setCommentDraftState(null)
+        showBanner('Comment saved.')
+      } catch (error) {
+        showBanner(
+          error instanceof Error
+            ? `Cannot save comment: ${error.message}`
+            : 'Cannot save comment.',
+        )
+      }
+    },
+    [activeWorkspaceId, commentDraftState, comments, saveComments, showBanner],
+  )
+
+  const estimateBundleLength = useCallback(
+    (instruction: string) =>
+      renderLlmBundle({
+        instruction,
+        comments: pendingComments,
+      }).length,
+    [pendingComments],
+  )
+
+  const handleRequestAddCommentFromSpec = useCallback(
+    (input: {
+      relativePath: string
+      selectionRange: LineSelectionRange
+    }) => {
+      if (!activeWorkspaceId) {
+        showBanner('Cannot add comment: no active workspace selected.')
+        return
+      }
+
+      if (
+        !activeSpec ||
+        input.relativePath !== activeSpec ||
+        activeSpecContent === null
+      ) {
+        showBanner('Cannot add comment: active spec content is unavailable.')
+        return
+      }
+
+      setCommentDraftState({
+        workspaceId: activeWorkspaceId,
+        relativePath: input.relativePath,
+        selectionRange: input.selectionRange,
+        fileContent: activeSpecContent,
+      })
+    },
+    [activeSpec, activeSpecContent, activeWorkspaceId, showBanner],
+  )
+
+  const handleExportComments = useCallback(
+    async (input: ExportCommentsModalInput) => {
+      if (!rootPath || !activeWorkspaceId) {
+        showBanner('Cannot export comments: no active workspace selected.')
+        return
+      }
+
+      if (pendingComments.length === 0) {
+        showBanner('No pending comments to export.')
+        return
+      }
+
+      const exportSnapshot = pendingComments
+      const commentsMarkdown = renderCommentsMarkdown(exportSnapshot)
+      const bundleMarkdown = renderLlmBundle({
+        instruction: input.instruction,
+        comments: exportSnapshot,
+      })
+      const isClipboardAllowed = bundleMarkdown.length <= MAX_CLIPBOARD_CHARS
+      const shouldCopyToClipboard = input.copyToClipboard && isClipboardAllowed
+
+      if (input.copyToClipboard && !isClipboardAllowed) {
+        showBanner(
+          `Clipboard copy skipped: bundle exceeds ${MAX_CLIPBOARD_CHARS.toLocaleString()} characters.`,
+        )
+      }
+
+      setIsExportingComments(true)
+      try {
+        let didCopyToClipboard = false
+        let wroteCommentsFile = false
+        let wroteBundleFile = false
+        let fileExportError: string | null = null
+        if (shouldCopyToClipboard) {
+          didCopyToClipboard = await writeToClipboard(
+            bundleMarkdown,
+            'Failed to copy comments bundle.',
+            {
+              suppressErrorBanner: true,
+            },
+          )
+        }
+
+        if (input.writeCommentsFile || input.writeBundleFile) {
+          const exportResult = await window.workspace.exportCommentsBundle({
+            rootPath,
+            commentsMarkdown: input.writeCommentsFile
+              ? commentsMarkdown
+              : undefined,
+            bundleMarkdown: input.writeBundleFile ? bundleMarkdown : undefined,
+            writeCommentsFile: input.writeCommentsFile,
+            writeBundleFile: input.writeBundleFile,
+          })
+
+          if (!exportResult.ok) {
+            fileExportError = exportResult.error ?? 'Failed to export comments.'
+          } else {
+            wroteCommentsFile = Boolean(exportResult.commentsPath)
+            wroteBundleFile = Boolean(exportResult.bundlePath)
+          }
+        }
+
+        const completedTargets: string[] = []
+        const failedTargets: string[] = []
+        if (didCopyToClipboard) {
+          completedTargets.push('clipboard')
+        } else if (shouldCopyToClipboard) {
+          failedTargets.push('clipboard')
+        }
+        if (input.writeCommentsFile && !wroteCommentsFile) {
+          failedTargets.push('_COMMENTS.md')
+        }
+        if (input.writeBundleFile && !wroteBundleFile) {
+          failedTargets.push('bundle file')
+        }
+        if (wroteCommentsFile) {
+          completedTargets.push('_COMMENTS.md')
+        }
+        if (wroteBundleFile) {
+          completedTargets.push('bundle file')
+        }
+
+        if (completedTargets.length === 0) {
+          if (fileExportError) {
+            showBanner(`Failed to export comments: ${fileExportError}`)
+            return
+          }
+          if (failedTargets.length > 0) {
+            showBanner(`Failed export target: ${failedTargets.join(', ')}.`)
+            return
+          }
+          showBanner('No export target selected.')
+          return
+        }
+
+        const exportedCommentIds = new Set(
+          exportSnapshot.map((comment) => comment.id),
+        )
+        const exportTimestamp = new Date().toISOString()
+        const markedComments = comments.map((comment) =>
+          exportedCommentIds.has(comment.id)
+            ? { ...comment, exportedAt: exportTimestamp }
+            : comment,
+        )
+
+        const isStatusSaved = await saveComments(markedComments)
+        if (!isStatusSaved) {
+          showBanner('Comments exported, but failed to record export status.')
+          return
+        }
+
+        if (failedTargets.length > 0) {
+          showBanner(
+            `Comments exported: ${completedTargets.join(', ')}. Failed: ${failedTargets.join(', ')}.`,
+          )
+        } else {
+          showBanner(`Comments exported: ${completedTargets.join(', ')}.`)
+        }
+        setIsExportModalOpen(false)
+      } finally {
+        setIsExportingComments(false)
+      }
+    },
+    [
+      activeWorkspaceId,
+      comments,
+      pendingComments,
+      rootPath,
+      saveComments,
+      showBanner,
+      writeToClipboard,
+    ],
   )
 
   const openWorkspaceInExternalApp = useCallback(
@@ -462,6 +756,26 @@ function App() {
     [activeSpec, openSpecRelativePath, showBanner],
   )
 
+  const handleSpecScrollPositionChange = useCallback(
+    (input: { relativePath: string; scrollTop: number }) => {
+      if (!activeWorkspaceId) {
+        return
+      }
+
+      specScrollPositionsRef.current[
+        buildSpecScrollStateKey(activeWorkspaceId, input.relativePath)
+      ] = input.scrollTop
+    },
+    [activeWorkspaceId],
+  )
+
+  const restoredSpecScrollTop =
+    activeWorkspaceId && activeSpec
+      ? specScrollPositionsRef.current[
+          buildSpecScrollStateKey(activeWorkspaceId, activeSpec)
+        ] ?? null
+      : null
+
   useEffect(() => {
     if (!activeFile) {
       previousActiveFileRef.current = null
@@ -488,6 +802,20 @@ function App() {
       token: jumpRequestTokenRef.current,
     })
   }, [activeFile, selectionRange])
+
+  useEffect(() => {
+    if (!commentDraftState) {
+      return
+    }
+
+    if (
+      !activeWorkspaceId ||
+      activeWorkspaceId !== commentDraftState.workspaceId ||
+      activeFile !== commentDraftState.relativePath
+    ) {
+      setCommentDraftState(null)
+    }
+  }, [activeFile, activeWorkspaceId, commentDraftState])
 
   const navigateHistory = useCallback(
     (direction: 'back' | 'forward') => {
@@ -610,6 +938,17 @@ function App() {
             onSelectWorkspace={setActiveWorkspace}
             workspaces={workspaces}
           />
+          <button
+            disabled={
+              !rootPath || isReadingComments || isWritingComments || isExportingComments
+            }
+            onClick={() => {
+              setIsExportModalOpen(true)
+            }}
+            type="button"
+          >
+            Export Comments
+          </button>
           <button onClick={() => void openWorkspace()} type="button">
             Open Workspace
           </button>
@@ -695,12 +1034,14 @@ function App() {
             activeFile={activeFile}
             activeFileContent={activeFileContent}
             activeFileImagePreview={activeFileImagePreview}
+            commentLineCounts={activeFileCommentLineCounts}
             isReadingFile={isReadingFile}
             jumpRequest={codeViewerJumpRequest}
             onSelectRange={setSelectionRange}
             onRequestCopyBoth={handleCopyBoth}
             onRequestCopyRelativePath={handleCopyRelativePath}
             onRequestCopySelectedContent={handleCopySelectedContent}
+            onRequestAddComment={handleRequestAddComment}
             previewUnavailableReason={previewUnavailableReason}
             readFileError={readFileError}
             selectionRange={selectionRange}
@@ -720,16 +1061,47 @@ function App() {
           <section className="workspace-card spec-panel" data-testid="spec-panel">
             <SpecViewerPanel
               activeSpecPath={activeSpec}
+              commentLineCounts={activeSpecCommentLineCounts}
               isLoading={isReadingSpec}
               markdownContent={activeSpecContent}
+              onScrollPositionChange={handleSpecScrollPositionChange}
+              onRequestAddComment={handleRequestAddCommentFromSpec}
               onGoToSourceLine={goToActiveSpecSourceLine}
               onOpenRelativePath={openSpecRelativePath}
               readError={activeSpecReadError}
+              restoredScrollTop={restoredSpecScrollTop}
               workspaceRootPath={rootPath}
             />
           </section>
         </div>
       </section>
+
+      <CommentEditorModal
+        isOpen={commentDraftState !== null}
+        isSaving={isWritingComments}
+        onCancel={() => {
+          if (!isWritingComments) {
+            setCommentDraftState(null)
+          }
+        }}
+        onSave={handleSaveComment}
+        relativePath={commentDraftState?.relativePath ?? null}
+        selectionRange={commentDraftState?.selectionRange ?? null}
+      />
+      <ExportCommentsModal
+        commentCount={comments.length}
+        estimateBundleLength={estimateBundleLength}
+        isExporting={isExportingComments}
+        isOpen={isExportModalOpen}
+        maxClipboardChars={MAX_CLIPBOARD_CHARS}
+        pendingCommentCount={pendingComments.length}
+        onCancel={() => {
+          if (!isExportingComments) {
+            setIsExportModalOpen(false)
+          }
+        }}
+        onConfirm={handleExportComments}
+      />
     </main>
   )
 }

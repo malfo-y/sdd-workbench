@@ -6,11 +6,13 @@ import {
   useRef,
   useState,
   type MouseEvent,
+  type UIEvent,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
+import { mapCommentCountsToRenderedSourceLines } from '../code-comments/comment-line-index'
 import { extractMarkdownHeadings } from './markdown-utils'
 import {
   MARKDOWN_SANITIZE_SCHEMA,
@@ -19,7 +21,11 @@ import {
 } from './markdown-security'
 import { SpecLinkPopover } from './spec-link-popover'
 import { SpecSourcePopover } from './spec-source-popover'
-import { resolveSourceLine } from './source-line-resolver'
+import {
+  resolveNearestSourceLineFromPoint,
+  resolveSourceLineRangeFromSelection,
+  resolveSourceLine,
+} from './source-line-resolver'
 import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 
 type SpecViewerPanelProps = {
@@ -33,6 +39,16 @@ type SpecViewerPanelProps = {
     lineRange: SpecLinkLineRange | null,
   ) => boolean
   onGoToSourceLine: (lineNumber: number) => void
+  onRequestAddComment: (input: {
+    relativePath: string
+    selectionRange: { startLine: number; endLine: number }
+  }) => void
+  commentLineCounts: ReadonlyMap<number, number>
+  restoredScrollTop?: number | null
+  onScrollPositionChange?: (input: {
+    relativePath: string
+    scrollTop: number
+  }) => void
 }
 
 type LinkPopoverState = {
@@ -42,7 +58,10 @@ type LinkPopoverState = {
 }
 
 type SourcePopoverState = {
-  lineNumber: number
+  selectionRange: {
+    startLine: number
+    endLine: number
+  }
   x: number
   y: number
 }
@@ -69,15 +88,62 @@ function getMarkdownNodeSourceLine(node: MarkdownNodeWithPosition | undefined) {
 function renderBlockWithSourceLine(
   tagName: string,
   props: Record<string, unknown>,
+  markerCountsByLine: ReadonlyMap<number, number>,
 ) {
   const { node, ...restProps } = props
   const sourceLine = getMarkdownNodeSourceLine(
     node as MarkdownNodeWithPosition | undefined,
   )
+  const markerCount =
+    sourceLine !== undefined ? markerCountsByLine.get(sourceLine) ?? 0 : 0
+  const hasCommentMarker = markerCount > 0
+  const existingClassName =
+    typeof restProps.className === 'string' ? restProps.className : ''
+  const mergedClassName = hasCommentMarker
+    ? `${existingClassName} spec-comment-marked`.trim()
+    : existingClassName
   return createElement(tagName, {
     ...restProps,
+    className: mergedClassName.length > 0 ? mergedClassName : undefined,
     'data-source-line': sourceLine,
+    'data-has-comment-marker': hasCommentMarker ? 'true' : undefined,
+    'data-comment-count': hasCommentMarker ? String(markerCount) : undefined,
   })
+}
+
+function areLineCountMapsEqual(
+  left: ReadonlyMap<number, number>,
+  right: ReadonlyMap<number, number>,
+) {
+  if (left.size !== right.size) {
+    return false
+  }
+
+  for (const [line, count] of left.entries()) {
+    if ((right.get(line) ?? 0) !== count) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function collectRenderedSourceLines(containerElement: HTMLElement): number[] {
+  const values = new Set<number>()
+  const sourceLineElements = Array.from(
+    containerElement.querySelectorAll<HTMLElement>('[data-source-line]'),
+  )
+  for (const element of sourceLineElements) {
+    const lineNumber = Number(element.getAttribute('data-source-line'))
+    if (!Number.isFinite(lineNumber)) {
+      continue
+    }
+    const normalizedLine = Math.trunc(lineNumber)
+    if (normalizedLine >= 1) {
+      values.add(normalizedLine)
+    }
+  }
+  return Array.from(values)
 }
 
 function containsSelectionNode(
@@ -112,6 +178,10 @@ export function SpecViewerPanel({
   readError,
   onOpenRelativePath,
   onGoToSourceLine,
+  onRequestAddComment,
+  commentLineCounts,
+  restoredScrollTop = null,
+  onScrollPositionChange,
 }: SpecViewerPanelProps) {
   const tocHeadings = useMemo(
     () =>
@@ -125,12 +195,70 @@ export function SpecViewerPanel({
   const [sourcePopoverState, setSourcePopoverState] =
     useState<SourcePopoverState | null>(null)
   const [isTocExpanded, setIsTocExpanded] = useState(false)
+  const [resolvedCommentMarkerCounts, setResolvedCommentMarkerCounts] =
+    useState<ReadonlyMap<number, number>>(new Map())
+  const lastAppliedScrollRestoreRef = useRef<{
+    specPath: string
+    contentLength: number
+    scrollTop: number
+  } | null>(null)
 
   useEffect(() => {
     setIsTocExpanded(false)
     setLinkPopoverState(null)
     setSourcePopoverState(null)
-  }, [activeSpecPath, markdownContent])
+    setResolvedCommentMarkerCounts(new Map())
+    lastAppliedScrollRestoreRef.current = null
+  }, [activeSpecPath])
+
+  useEffect(() => {
+    const contentElement = contentRef.current
+    if (!contentElement || !activeSpecPath || !markdownContent) {
+      return
+    }
+
+    if (typeof restoredScrollTop !== 'number' || !Number.isFinite(restoredScrollTop)) {
+      return
+    }
+
+    const normalizedScrollTop = Math.max(0, Math.trunc(restoredScrollTop))
+    const lastAppliedScrollRestore = lastAppliedScrollRestoreRef.current
+    if (
+      lastAppliedScrollRestore &&
+      lastAppliedScrollRestore.specPath === activeSpecPath &&
+      lastAppliedScrollRestore.contentLength === markdownContent.length &&
+      lastAppliedScrollRestore.scrollTop === normalizedScrollTop
+    ) {
+      return
+    }
+
+    contentElement.scrollTop = normalizedScrollTop
+    lastAppliedScrollRestoreRef.current = {
+      specPath: activeSpecPath,
+      contentLength: markdownContent.length,
+      scrollTop: normalizedScrollTop,
+    }
+  }, [activeSpecPath, markdownContent, restoredScrollTop])
+
+  useEffect(() => {
+    const containerElement = contentRef.current
+    if (!containerElement || !activeSpecPath || !markdownContent) {
+      setResolvedCommentMarkerCounts((previous) =>
+        previous.size > 0 ? new Map() : previous,
+      )
+      return
+    }
+
+    const renderedSourceLines = collectRenderedSourceLines(containerElement)
+    const mappedCounts = mapCommentCountsToRenderedSourceLines(
+      commentLineCounts,
+      renderedSourceLines,
+    )
+
+    setResolvedCommentMarkerCounts((previous) =>
+      areLineCountMapsEqual(previous, mappedCounts) ? previous : mappedCounts,
+    )
+  }, [activeSpecPath, commentLineCounts, markdownContent])
 
   const closeLinkPopover = useCallback(() => {
     setLinkPopoverState(null)
@@ -210,11 +338,21 @@ export function SpecViewerPanel({
         return
       }
 
-      const sourceLine = resolveSourceLine({
-        target: event.target,
-        selection,
-      })
-      if (!sourceLine) {
+      const selectionLineRange = resolveSourceLineRangeFromSelection(selection)
+      const fallbackSourceLine =
+        resolveSourceLine({
+          target: event.target,
+          selection,
+        }) ?? resolveNearestSourceLineFromPoint(contentElement, event.clientY)
+      const resolvedSelectionRange =
+        selectionLineRange ??
+        (fallbackSourceLine
+          ? {
+              startLine: fallbackSourceLine,
+              endLine: fallbackSourceLine,
+            }
+          : null)
+      if (!resolvedSelectionRange) {
         setSourcePopoverState(null)
         return
       }
@@ -222,7 +360,7 @@ export function SpecViewerPanel({
       event.preventDefault()
       setLinkPopoverState(null)
       setSourcePopoverState({
-        lineNumber: sourceLine,
+        selectionRange: resolvedSelectionRange,
         x: event.clientX,
         y: event.clientY,
       })
@@ -230,14 +368,79 @@ export function SpecViewerPanel({
     [],
   )
 
+  const handleAddComment = useCallback(() => {
+    if (!sourcePopoverState || !activeSpecPath) {
+      return
+    }
+
+    onRequestAddComment({
+      relativePath: activeSpecPath,
+      selectionRange: sourcePopoverState.selectionRange,
+    })
+    setSourcePopoverState(null)
+  }, [activeSpecPath, onRequestAddComment, sourcePopoverState])
+
   const handleGoToSource = useCallback(() => {
     if (!sourcePopoverState) {
       return
     }
 
-    onGoToSourceLine(sourcePopoverState.lineNumber)
+    onGoToSourceLine(sourcePopoverState.selectionRange.startLine)
     setSourcePopoverState(null)
   }, [onGoToSourceLine, sourcePopoverState])
+
+  const handleTocLinkClick = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>, headingId: string, headingText: string) => {
+      event.preventDefault()
+      const containerElement = contentRef.current
+      if (!containerElement) {
+        return
+      }
+
+      const escapedId =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(headingId)
+          : headingId
+      const targetHeading =
+        containerElement.querySelector<HTMLElement>(`#${escapedId}`) ??
+        document.getElementById(headingId)
+      const fallbackHeading =
+        targetHeading ??
+        Array.from(
+          containerElement.querySelectorAll<HTMLElement>(
+            'h1, h2, h3, h4, h5, h6',
+          ),
+        ).find(
+          (headingElement) => headingElement.textContent?.trim() === headingText,
+        ) ??
+        null
+      if (!fallbackHeading) {
+        return
+      }
+
+      if (typeof fallbackHeading.scrollIntoView === 'function') {
+        fallbackHeading.scrollIntoView({
+          block: 'start',
+          inline: 'nearest',
+        })
+      }
+    },
+    [],
+  )
+
+  const handleContentScroll = useCallback(
+    (event: UIEvent<HTMLElement>) => {
+      if (!activeSpecPath || !onScrollPositionChange) {
+        return
+      }
+
+      onScrollPositionChange({
+        relativePath: activeSpecPath,
+        scrollTop: event.currentTarget.scrollTop,
+      })
+    },
+    [activeSpecPath, onScrollPositionChange],
+  )
 
   return (
     <section className="spec-viewer-panel" data-testid="spec-viewer-panel">
@@ -302,7 +505,14 @@ export function SpecViewerPanel({
                       className={`spec-viewer-toc-item depth-${heading.depth}`}
                       key={`${heading.id}-${heading.depth}`}
                     >
-                      <a href={`#${heading.id}`}>{heading.text}</a>
+                      <a
+                        href={`#${heading.id}`}
+                        onClick={(event) => {
+                          handleTocLinkClick(event, heading.id, heading.text)
+                        }}
+                      >
+                        {heading.text}
+                      </a>
                     </li>
                   ))}
                 </ol>
@@ -314,6 +524,7 @@ export function SpecViewerPanel({
             className="spec-viewer-content"
             data-testid="spec-viewer-content"
             onContextMenu={handleSpecContextMenu}
+            onScroll={handleContentScroll}
             ref={contentRef}
           >
             <ReactMarkdown
@@ -362,56 +573,67 @@ export function SpecViewerPanel({
                   renderBlockWithSourceLine(
                     'p',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 li: (props) =>
                   renderBlockWithSourceLine(
                     'li',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 blockquote: (props) =>
                   renderBlockWithSourceLine(
                     'blockquote',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 pre: (props) =>
                   renderBlockWithSourceLine(
                     'pre',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 table: (props) =>
                   renderBlockWithSourceLine(
                     'table',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 h1: (props) =>
                   renderBlockWithSourceLine(
                     'h1',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 h2: (props) =>
                   renderBlockWithSourceLine(
                     'h2',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 h3: (props) =>
                   renderBlockWithSourceLine(
                     'h3',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 h4: (props) =>
                   renderBlockWithSourceLine(
                     'h4',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 h5: (props) =>
                   renderBlockWithSourceLine(
                     'h5',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
                 h6: (props) =>
                   renderBlockWithSourceLine(
                     'h6',
                     props as Record<string, unknown>,
+                    resolvedCommentMarkerCounts,
                   ),
               }}
               rehypePlugins={[rehypeSlug, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
@@ -424,9 +646,11 @@ export function SpecViewerPanel({
       )}
       {sourcePopoverState && (
         <SpecSourcePopover
-          lineNumber={sourcePopoverState.lineNumber}
+          endLine={sourcePopoverState.selectionRange.endLine}
+          onAddComment={handleAddComment}
           onClose={closeSourcePopover}
           onGoToSource={handleGoToSource}
+          startLine={sourcePopoverState.selectionRange.startLine}
           x={sourcePopoverState.x}
           y={sourcePopoverState.y}
         />

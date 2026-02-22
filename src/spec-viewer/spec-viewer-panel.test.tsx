@@ -22,6 +22,16 @@ describe('SpecViewerPanel', () => {
     isLoading = false,
     readError = null,
     onGoToSourceLine = vi.fn<(lineNumber: number) => void>(),
+    onRequestAddComment = vi.fn<
+      (input: {
+        relativePath: string
+        selectionRange: { startLine: number; endLine: number }
+      }) => void
+    >(),
+    onScrollPositionChange = vi.fn<
+      (input: { relativePath: string; scrollTop: number }) => void
+    >(),
+    restoredScrollTop = null,
     onOpenRelativePath = vi
       .fn<
         (
@@ -30,6 +40,7 @@ describe('SpecViewerPanel', () => {
         ) => boolean
       >()
       .mockReturnValue(true),
+    commentLineCounts = new Map<number, number>(),
   }: {
     workspaceRootPath?: string | null
     activeSpecPath?: string | null
@@ -37,26 +48,42 @@ describe('SpecViewerPanel', () => {
     isLoading?: boolean
     readError?: string | null
     onGoToSourceLine?: (lineNumber: number) => void
+    onRequestAddComment?: (input: {
+      relativePath: string
+      selectionRange: { startLine: number; endLine: number }
+    }) => void
+    onScrollPositionChange?: (input: {
+      relativePath: string
+      scrollTop: number
+    }) => void
+    restoredScrollTop?: number | null
     onOpenRelativePath?: (
       relativePath: string,
       lineRange: { startLine: number; endLine: number } | null,
     ) => boolean
+    commentLineCounts?: ReadonlyMap<number, number>
   } = {}) {
     render(
       <SpecViewerPanel
         activeSpecPath={activeSpecPath}
+        commentLineCounts={commentLineCounts}
         isLoading={isLoading}
         markdownContent={markdownContent}
+        onScrollPositionChange={onScrollPositionChange}
+        onRequestAddComment={onRequestAddComment}
         onGoToSourceLine={onGoToSourceLine}
         onOpenRelativePath={onOpenRelativePath}
         readError={readError}
+        restoredScrollTop={restoredScrollTop}
         workspaceRootPath={workspaceRootPath}
       />,
     )
 
     return {
       onGoToSourceLine,
+      onRequestAddComment,
       onOpenRelativePath,
+      onScrollPositionChange,
     }
   }
 
@@ -89,6 +116,57 @@ describe('SpecViewerPanel', () => {
       'href',
       '#intro',
     )
+  })
+
+  it('scrolls to target heading when TOC link is clicked', () => {
+    renderPanel({
+      markdownContent: '# Title\n\n## Intro\n\nBody',
+    })
+
+    fireEvent.click(screen.getByTestId('spec-viewer-toc-toggle'))
+    const introHeading = screen.getByRole('heading', {
+      name: 'Intro',
+    }) as HTMLElement
+    const headingScrollIntoView = vi.fn()
+    Object.defineProperty(introHeading, 'scrollIntoView', {
+      configurable: true,
+      value: headingScrollIntoView,
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Intro' }))
+
+    expect(headingScrollIntoView).toHaveBeenCalled()
+  })
+
+  it('reports scroll position for the active spec', () => {
+    const { onScrollPositionChange } = renderPanel()
+    const contentElement = screen.getByTestId('spec-viewer-content')
+    Object.defineProperty(contentElement, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 48,
+    })
+
+    fireEvent.scroll(contentElement)
+
+    expect(onScrollPositionChange).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      scrollTop: 48,
+    })
+  })
+
+  it('restores previously saved scroll position when rendering a spec', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nLong paragraph',
+      restoredScrollTop: 92,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveProperty(
+        'scrollTop',
+        92,
+      )
+    })
   })
 
   it('shows empty state when no active spec exists', () => {
@@ -276,21 +354,24 @@ describe('SpecViewerPanel', () => {
     expect(screen.queryByRole('img', { name: 'External' })).not.toBeInTheDocument()
   })
 
-  it('shows Go to Source popover on selected text context menu', () => {
-    const { onGoToSourceLine } = renderPanel({
+  it('shows Add Comment + Go to Source popover on selected text context menu', async () => {
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
       markdownContent: '# Title\n\ntarget paragraph',
     })
-    const paragraph = screen.getByText('target paragraph')
-    const selectedNode = paragraph.firstChild
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const mockVisibleSelection = (paragraphElement: HTMLElement) => {
+      const selectedNode = paragraphElement.firstChild
+      selectionSpy.mockReturnValue({
+        isCollapsed: false,
+        anchorNode: selectedNode,
+        focusNode: selectedNode,
+        toString: () => 'target',
+      } as unknown as Selection)
+    }
 
-    vi.spyOn(window, 'getSelection').mockReturnValue({
-      isCollapsed: false,
-      anchorNode: selectedNode,
-      focusNode: selectedNode,
-      toString: () => 'target',
-    } as unknown as Selection)
-
-    fireEvent.contextMenu(paragraph, {
+    const firstParagraph = screen.getByText('target paragraph')
+    mockVisibleSelection(firstParagraph)
+    fireEvent.contextMenu(firstParagraph, {
       clientX: 180,
       clientY: 220,
     })
@@ -298,13 +379,87 @@ describe('SpecViewerPanel', () => {
     expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
       'Line 3',
     )
+    const sourceActions = screen.getByRole('dialog', { name: 'Source actions' })
+    const sourceActionButtons = within(sourceActions).getAllByRole('button')
+    expect(sourceActionButtons[0]).toHaveTextContent('Add Comment')
+    expect(sourceActionButtons[1]).toHaveTextContent('Go to Source')
 
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 3,
+        endLine: 3,
+      },
+    })
+
+    const secondParagraph = screen.getByText('target paragraph')
+    mockVisibleSelection(secondParagraph)
+    fireEvent.contextMenu(secondParagraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Source actions' }),
+      ).toBeInTheDocument()
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
 
     expect(onGoToSourceLine).toHaveBeenCalledWith(3)
     expect(
       screen.queryByRole('dialog', { name: 'Source actions' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('uses selected text source line instead of context-menu target line', () => {
+    const { onRequestAddComment } = renderPanel({
+      markdownContent: '# Title\n\nfirst paragraph\n\nsecond paragraph',
+    })
+    const firstParagraph = screen.getByText('first paragraph')
+    const secondParagraph = screen.getByText('second paragraph')
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const selectedNode = secondParagraph.firstChild
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectedNode,
+      focusNode: selectedNode,
+      toString: () => 'second',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(firstParagraph, {
+      clientX: 160,
+      clientY: 200,
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
+      'Line 5',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 5,
+        endLine: 5,
+      },
+    })
+  })
+
+  it('renders comment count marker on nearest markdown block', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nParagraph',
+      commentLineCounts: new Map<number, number>([[4, 2]]),
+    })
+
+    await waitFor(() => {
+      const paragraph = screen.getByText('Paragraph').closest('p')
+      expect(paragraph).toHaveAttribute('data-has-comment-marker', 'true')
+      expect(paragraph).toHaveAttribute('data-comment-count', '2')
+    })
   })
 
   it('ignores context menu when selection is collapsed', () => {

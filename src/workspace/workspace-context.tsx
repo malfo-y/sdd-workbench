@@ -31,6 +31,8 @@ import {
   saveWorkspaceSessionSnapshot,
   type WorkspaceSessionSnapshot,
 } from './workspace-persistence'
+import { normalizeCodeComments } from '../code-comments/comment-persistence'
+import { sortCodeComments, type CodeComment } from '../code-comments/comment-types'
 
 type WorkspaceContextValue = {
   workspaceOrder: WorkspaceId[]
@@ -52,6 +54,10 @@ type WorkspaceContextValue = {
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
   expandedDirectories: string[]
+  comments: CodeComment[]
+  isReadingComments: boolean
+  isWritingComments: boolean
+  commentsError: string | null
   bannerMessage: string | null
   openWorkspace: () => Promise<void>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
@@ -61,6 +67,8 @@ type WorkspaceContextValue = {
   canGoForward: boolean
   goBackInHistory: () => void
   goForwardInHistory: () => void
+  reloadComments: () => Promise<void>
+  saveComments: (comments: CodeComment[]) => Promise<boolean>
   showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
@@ -173,6 +181,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const indexRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readFileRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readSpecRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
+  const readCommentsRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>(
+    {},
+  )
+  const writeCommentsRequestIdByWorkspaceRef = useRef<
+    Record<WorkspaceId, number>
+  >({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
 
   const clearBanner = useCallback(() => {
@@ -325,6 +339,173 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const loadWorkspaceComments = useCallback(
+    async (workspaceId: WorkspaceId, rootPath: string) => {
+      const requestId =
+        (readCommentsRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readCommentsRequestIdByWorkspaceRef.current[workspaceId] = requestId
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          isReadingComments: true,
+          commentsError: null,
+        })),
+      )
+
+      try {
+        const readResult = await window.workspace.readComments(rootPath)
+        if (readCommentsRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+          return false
+        }
+
+        if (!readResult.ok) {
+          const errorMessage = readResult.error
+            ? `Failed to load comments: ${readResult.error}`
+            : 'Failed to load comments.'
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              isReadingComments: false,
+              commentsError: errorMessage,
+            })),
+          )
+          setBannerMessage(errorMessage)
+          return false
+        }
+
+        const normalizedCommentsResult = normalizeCodeComments(readResult.comments)
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            comments: normalizedCommentsResult.comments,
+            isReadingComments: false,
+            commentsError: normalizedCommentsResult.error,
+          })),
+        )
+        if (normalizedCommentsResult.error) {
+          setBannerMessage(
+            `Comments loaded with warnings: ${normalizedCommentsResult.error}`,
+          )
+        }
+        return true
+      } catch (error) {
+        if (readCommentsRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
+          return false
+        }
+        const errorMessage =
+          error instanceof Error
+            ? `Failed to load comments: ${error.message}`
+            : 'Failed to load comments.'
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            isReadingComments: false,
+            commentsError: errorMessage,
+          })),
+        )
+        setBannerMessage(errorMessage)
+        return false
+      }
+    },
+    [],
+  )
+
+  const saveComments = useCallback(async (nextComments: CodeComment[]) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const sortedComments = sortCodeComments(nextComments)
+    const requestId =
+      (writeCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] ?? 0) + 1
+    writeCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] = requestId
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+        ...currentSession,
+        isWritingComments: true,
+        commentsError: null,
+      })),
+    )
+
+    try {
+      const writeResult = await window.workspace.writeComments(
+        workspaceSession.rootPath,
+        sortedComments,
+      )
+      if (
+        writeCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] !== requestId
+      ) {
+        return false
+      }
+
+      if (!writeResult.ok) {
+        const errorMessage = writeResult.error
+          ? `Failed to save comments: ${writeResult.error}`
+          : 'Failed to save comments.'
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            isWritingComments: false,
+            commentsError: errorMessage,
+          })),
+        )
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          comments: sortedComments,
+          isWritingComments: false,
+          commentsError: null,
+        })),
+      )
+      return true
+    } catch (error) {
+      if (
+        writeCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] !== requestId
+      ) {
+        return false
+      }
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to save comments: ${error.message}`
+          : 'Failed to save comments.'
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          isWritingComments: false,
+          commentsError: errorMessage,
+        })),
+      )
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
+  const reloadComments = useCallback(async () => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return
+    }
+
+    await loadWorkspaceComments(activeWorkspaceId, workspaceSession.rootPath)
+  }, [loadWorkspaceComments])
+
   const startWorkspaceWatch = useCallback(
     async (workspaceId: WorkspaceId, rootPath: string) => {
       if (watchedWorkspaceIdsRef.current.has(workspaceId)) {
@@ -421,6 +602,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
     delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
+    delete readCommentsRequestIdByWorkspaceRef.current[workspaceId]
+    delete writeCommentsRequestIdByWorkspaceRef.current[workspaceId]
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
   }, [stopWorkspaceWatch])
@@ -525,12 +708,69 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
-      const requestId = (readFileRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
-      readFileRequestIdByWorkspaceRef.current[workspaceId] = requestId
       const selectingMarkdown = isMarkdownFile(relativePath)
       const shouldUpdateSpec = selectingMarkdown && mode === 'select'
       const shouldRefreshSpec =
         selectingMarkdown && workspaceSession.activeSpec === relativePath
+      const canReuseActiveSpecContent =
+        mode === 'select' &&
+        selectingMarkdown &&
+        workspaceSession.activeSpec === relativePath &&
+        workspaceSession.activeSpecContent !== null &&
+        workspaceSession.activeSpecReadError === null &&
+        workspaceSession.previewUnavailableReason === null
+
+      if (canReuseActiveSpecContent) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+            const restoredLineNumber = getWorkspaceFileLastLine(
+              currentSession,
+              relativePath,
+            )
+            const leavingActiveFile =
+              currentSession.activeFile !== null &&
+              currentSession.activeFile !== relativePath
+                ? currentSession.activeFile
+                : null
+            const activeSpecContent = currentSession.activeSpecContent ?? ''
+
+            return {
+              ...currentSession,
+              ...(historyMode === 'push'
+                ? pushWorkspaceFileHistory(currentSession, relativePath)
+                : {}),
+              changedFiles:
+                leavingActiveFile === null
+                  ? currentSession.changedFiles
+                  : withoutChangedFileMarker(
+                      currentSession.changedFiles,
+                      leavingActiveFile,
+                    ),
+              activeFile: relativePath,
+              activeSpec: relativePath,
+              activeFileContent: activeSpecContent,
+              activeFileImagePreview: null,
+              selectionRange:
+                restoredLineNumber === null
+                  ? null
+                  : {
+                      startLine: restoredLineNumber,
+                      endLine: restoredLineNumber,
+                    },
+              readFileError: null,
+              previewUnavailableReason: null,
+              isReadingFile: false,
+              activeSpecContent,
+              activeSpecReadError: null,
+              isReadingSpec: false,
+            }
+          }),
+        )
+        return
+      }
+
+      const requestId = (readFileRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readFileRequestIdByWorkspaceRef.current[workspaceId] = requestId
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, workspaceId, (currentSession) => {
@@ -922,6 +1162,19 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     stopWorkspaceWatch,
   ])
 
+  const activeWorkspaceRootPath = workspaceState.activeWorkspaceId
+    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId]?.rootPath ?? null
+    : null
+
+  useEffect(() => {
+    const activeWorkspaceId = workspaceState.activeWorkspaceId
+    if (!activeWorkspaceId || !activeWorkspaceRootPath) {
+      return
+    }
+
+    void loadWorkspaceComments(activeWorkspaceId, activeWorkspaceRootPath)
+  }, [activeWorkspaceRootPath, loadWorkspaceComments, workspaceState.activeWorkspaceId])
+
   useEffect(() => {
     if (!hasHydratedSnapshot) {
       return
@@ -1036,6 +1289,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       previewUnavailableReason: activeWorkspace?.previewUnavailableReason ?? null,
       selectionRange: activeWorkspace?.selectionRange ?? null,
       expandedDirectories: activeWorkspace?.expandedDirectories ?? [],
+      comments: activeWorkspace?.comments ?? [],
+      isReadingComments: activeWorkspace?.isReadingComments ?? false,
+      isWritingComments: activeWorkspace?.isWritingComments ?? false,
+      commentsError: activeWorkspace?.commentsError ?? null,
       bannerMessage,
       openWorkspace,
       setActiveWorkspace,
@@ -1045,6 +1302,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       canGoForward,
       goBackInHistory,
       goForwardInHistory,
+      reloadComments,
+      saveComments,
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
@@ -1062,6 +1321,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       canGoForward,
       goBackInHistory,
       goForwardInHistory,
+      reloadComments,
+      saveComments,
       showBanner,
       setSelectionRange,
       setExpandedDirectories,

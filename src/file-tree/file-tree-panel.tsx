@@ -27,12 +27,49 @@ type RenderBudget = {
   truncated: boolean
 }
 
+function buildChangedSubtreeSet(
+  nodes: WorkspaceFileNode[],
+  changedFileSet: Set<string>,
+): Set<string> {
+  const changedSubtreeSet = new Set<string>()
+
+  const visitNode = (node: WorkspaceFileNode): boolean => {
+    const nodeChanged = changedFileSet.has(node.relativePath)
+    if (node.kind === 'file') {
+      if (nodeChanged) {
+        changedSubtreeSet.add(node.relativePath)
+      }
+      return nodeChanged
+    }
+
+    let childChanged = false
+    for (const childNode of node.children ?? []) {
+      if (visitNode(childNode)) {
+        childChanged = true
+      }
+    }
+
+    const subtreeChanged = nodeChanged || childChanged
+    if (subtreeChanged) {
+      changedSubtreeSet.add(node.relativePath)
+    }
+    return subtreeChanged
+  }
+
+  for (const node of nodes) {
+    visitNode(node)
+  }
+
+  return changedSubtreeSet
+}
+
 function renderFileTreeNodes(
   nodes: WorkspaceFileNode[],
   depth: number,
   budget: RenderBudget,
   activeFile: string | null,
   changedFileSet: Set<string>,
+  changedSubtreeSet: Set<string>,
   onSelectFile: (relativePath: string) => void,
   onNodeContextMenu: (
     event: MouseEvent<HTMLButtonElement>,
@@ -57,6 +94,10 @@ function renderFileTreeNodes(
 
     if (node.kind === 'directory') {
       const isExpanded = expandedDirectories.has(node.relativePath)
+      const hasChangedInSubtree = changedSubtreeSet.has(node.relativePath)
+      const isChanged = changedFileSet.has(node.relativePath)
+      const shouldShowChangedIndicator =
+        isChanged || (!isExpanded && hasChangedInSubtree)
       rendered.push(
         <li
           className="tree-node tree-node-directory"
@@ -74,6 +115,16 @@ function renderFileTreeNodes(
               {isExpanded ? '▾' : '▸'}
             </span>
             <span className="tree-node-label">{node.name}</span>
+            {shouldShowChangedIndicator && (
+              <span
+                aria-hidden
+                className="tree-file-changed-indicator"
+                data-testid={`tree-changed-indicator-${node.relativePath}`}
+                title="Changed"
+              >
+                ●
+              </span>
+            )}
           </button>
           {isExpanded &&
             renderFileTreeNodes(
@@ -82,6 +133,7 @@ function renderFileTreeNodes(
               budget,
               activeFile,
               changedFileSet,
+              changedSubtreeSet,
               onSelectFile,
               onNodeContextMenu,
               expandedDirectories,
@@ -146,6 +198,10 @@ export function FileTreePanel({
     [expandedDirectories],
   )
   const changedFilesSet = useMemo(() => new Set(changedFiles), [changedFiles])
+  const changedSubtreeSet = useMemo(
+    () => buildChangedSubtreeSet(fileTree, changedFilesSet),
+    [fileTree, changedFilesSet],
+  )
 
   useEffect(() => {
     setContextMenuState(null)
@@ -215,6 +271,7 @@ export function FileTreePanel({
         renderBudget,
         activeFile,
         changedFilesSet,
+        changedSubtreeSet,
         onSelectFile,
         handleNodeContextMenu,
         expandedDirectoriesSet,

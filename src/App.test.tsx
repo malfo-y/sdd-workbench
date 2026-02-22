@@ -51,6 +51,21 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     vi.fn<
       (rootPath: string, relativePath: string) => Promise<WorkspaceReadFileResult>
     >()
+  const readCommentsMock =
+    vi.fn<(rootPath: string) => Promise<WorkspaceReadCommentsResult>>()
+  const writeCommentsMock =
+    vi.fn<
+      (
+        rootPath: string,
+        comments: CodeCommentRecord[],
+      ) => Promise<WorkspaceWriteCommentsResult>
+    >()
+  const exportCommentsBundleMock =
+    vi.fn<
+      (
+        request: WorkspaceExportCommentsBundleRequest,
+      ) => Promise<WorkspaceExportCommentsBundleResult>
+    >()
   const watchStartMock =
     vi.fn<
       (
@@ -80,6 +95,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     openDialogMock.mockReset()
     indexWorkspaceMock.mockReset()
     readFileMock.mockReset()
+    readCommentsMock.mockReset()
+    writeCommentsMock.mockReset()
+    exportCommentsBundleMock.mockReset()
     watchStartMock.mockReset()
     watchStopMock.mockReset()
     openInItermMock.mockReset()
@@ -90,6 +108,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     historyNavigateListeners.clear()
     watchStartMock.mockResolvedValue({ ok: true })
     watchStopMock.mockResolvedValue({ ok: true })
+    readCommentsMock.mockResolvedValue({
+      ok: true,
+      comments: [],
+    })
+    writeCommentsMock.mockResolvedValue({ ok: true })
+    exportCommentsBundleMock.mockResolvedValue({ ok: true })
     openInItermMock.mockResolvedValue({ ok: true })
     openInVsCodeMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
@@ -113,6 +137,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       openDialog: openDialogMock,
       index: indexWorkspaceMock,
       readFile: readFileMock,
+      readComments: readCommentsMock,
+      writeComments: writeCommentsMock,
+      exportCommentsBundle: exportCommentsBundleMock,
       watchStart: watchStartMock,
       watchStop: watchStopMock,
       onWatchEvent: onWatchEventMock,
@@ -2987,6 +3014,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/app.ts')
     })
+    expect(readFileMock).toHaveBeenCalledTimes(2)
 
     const paragraph = screen.getByText('source jump paragraph')
     const selectedNode = paragraph.firstChild
@@ -3010,6 +3038,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
       'Selection: L3-L3',
+    )
+    expect(readFileMock).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+      'source jump paragraph',
     )
   })
 
@@ -3382,6 +3414,346 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(
         screen.getByTestId('code-viewer-preview-unavailable'),
       ).toHaveTextContent('Preview unavailable: binary file detected.')
+    })
+  })
+
+  it('adds a code comment from context menu and persists it', async () => {
+    const workspaceRoot = '/Users/tester/projects/comments-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'main.ts',
+          relativePath: 'main.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'const alpha = 1\nconst beta = 2',
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'main.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-line-1')).toBeInTheDocument()
+    })
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-1'), {
+      clientX: 100,
+      clientY: 120,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Add comment' })).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Comment'), {
+      target: {
+        value: 'Handle null input before assignment',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Comment' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+
+    const [writtenRootPath, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenRootPath).toBe(workspaceRoot)
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      relativePath: 'main.ts',
+      startLine: 1,
+      endLine: 1,
+      body: 'Handle null input before assignment',
+    })
+  })
+
+  it('disables clipboard export when bundle exceeds max length and exports files only', async () => {
+    const workspaceRoot = '/Users/tester/projects/export-comments-workspace'
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValue({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:1-1:aaaa1111:2026-02-22T12:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'x'.repeat(31_000),
+          anchor: {
+            snippet: 'const a = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: true,
+      commentsPath: `${workspaceRoot}/_COMMENTS.md`,
+      bundlePath: `${workspaceRoot}/.sdd-workbench/exports/20260222-comments-bundle.md`,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+
+    const clipboardCheckbox = screen.getByLabelText('Copy bundle to clipboard')
+    expect(clipboardCheckbox).toBeDisabled()
+    expect(clipboardCheckbox).not.toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      expect(exportCommentsBundleMock).toHaveBeenCalledTimes(1)
+    })
+    expect(clipboardWriteText).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+
+    expect(exportCommentsBundleMock).toHaveBeenCalledWith({
+      rootPath: workspaceRoot,
+      commentsMarkdown: expect.any(String),
+      bundleMarkdown: expect.any(String),
+      writeCommentsFile: true,
+      writeBundleFile: true,
+    })
+
+    const [, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      relativePath: 'src/a.ts',
+      exportedAt: expect.any(String),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+    expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
+  })
+
+  it('keeps file export success when clipboard copy fails during mixed export', async () => {
+    const workspaceRoot = '/Users/tester/projects/mixed-export-workspace'
+    const clipboardWriteText = vi
+      .fn()
+      .mockRejectedValue(new Error('clipboard unavailable'))
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'docs/spec.md:3-3:aaaa1111:2026-02-22T12:00:00.000Z',
+          relativePath: 'docs/spec.md',
+          startLine: 3,
+          endLine: 3,
+          body: 'Need clarification for this requirement.',
+          anchor: {
+            snippet: 'Requirement heading',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: true,
+      commentsPath: `${workspaceRoot}/_COMMENTS.md`,
+      bundlePath: `${workspaceRoot}/.sdd-workbench/exports/20260222_120000-comments-bundle.md`,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      expect(exportCommentsBundleMock).toHaveBeenCalledTimes(1)
+    })
+    expect(clipboardWriteText).toHaveBeenCalledTimes(1)
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    const [, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      relativePath: 'docs/spec.md',
+      exportedAt: expect.any(String),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Comments exported: _COMMENTS.md, bundle file. Failed: clipboard.',
+      )
+    })
+  })
+
+  it('keeps clipboard export success when file export fails during mixed export', async () => {
+    const workspaceRoot = '/Users/tester/projects/mixed-export-file-fail-workspace'
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'docs/spec.md:5-5:bbbb2222:2026-02-22T13:00:00.000Z',
+          relativePath: 'docs/spec.md',
+          startLine: 5,
+          endLine: 5,
+          body: 'Clipboard success should still mark export state.',
+          anchor: {
+            snippet: 'Another heading',
+            hash: 'bbbb2222',
+          },
+          createdAt: '2026-02-22T13:00:00.000Z',
+        },
+      ],
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'disk full',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(exportCommentsBundleMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    const [, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      relativePath: 'docs/spec.md',
+      exportedAt: expect.any(String),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Comments exported: clipboard. Failed: _COMMENTS.md, bundle file.',
+      )
     })
   })
 })

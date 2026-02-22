@@ -124,4 +124,172 @@ describe('FileTreePanel context copy', () => {
     expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
   })
+
+  it('bubbles changed marker to nearest visible collapsed directory', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/utils/math.ts']}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('tree-changed-indicator-src/utils'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('tree-changed-indicator-src/utils/math.ts'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('moves changed marker deeper as directories are expanded', () => {
+    const onExpandedDirectoriesChange = vi.fn()
+
+    const { rerender } = render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/utils/math.ts']}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('tree-changed-indicator-src/utils'),
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/utils/math.ts']}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(screen.queryByTestId('tree-changed-indicator-src')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tree-changed-indicator-src/utils')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('tree-changed-indicator-src/utils/math.ts'),
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/utils/math.ts']}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(
+      screen.queryByTestId('tree-changed-indicator-src/utils'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId('tree-changed-indicator-src/utils/math.ts'),
+    ).toBeInTheDocument()
+  })
 })

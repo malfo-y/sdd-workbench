@@ -642,3 +642,26 @@
   - `main.md` 링크 허브를 기준으로 하위 문서를 탐색하는 문서 운영 규칙을 적용한다.
   - 추후 기능 추가 시 우선 해당 주제 문서만 갱신하고, summary 수준 변경만 인덱스에 반영한다.
   - appendix 비대화 추이를 모니터링하고 필요 시 릴리스 단위 아카이브를 분리한다.
+
+## 2026-02-22 - F11.2 구현 완료 반영(spec jump scroll 유지 + collapsed marker 버블링)
+
+- Context:
+  - rendered spec에서 `Go to Source` 또는 spec link 기반 code jump 시 same-spec 선택 경로에서도 spec read/reset이 발생해 패널 스크롤이 상단으로 튀는 UX 회귀가 있었음.
+  - file tree 변경 마커는 변경 파일이 collapse된 디렉토리 하위에 있으면 사용자에게 보이지 않아 watcher 가시성이 저하되었음.
+  - F11.2 구현으로 `workspace-context`, `App`, `SpecViewerPanel`, `FileTreePanel`과 대응 테스트가 갱신되었고, 전체 게이트(`npm test`, `npm run lint`, `npm run build`)가 통과했음.
+- Decision:
+  - F11.2를 스펙 상태 `✅ Done`으로 전환한다.
+  - same-spec source jump는 가능한 경우 `activeSpecContent`를 재사용해 rendered spec reset/read를 피한다.
+  - rendered spec scroll position은 `workspace + activeSpecPath` 키 기준으로 런타임 저장/복원한다.
+  - changed marker는 visible 파일 우선, 숨겨진 경우 nearest visible collapsed ancestor 디렉토리로 버블링한다.
+- Rationale:
+  - 스펙-코드 왕복 작업의 핵심은 문맥 유지이며, same-spec jump에서 불필요한 리셋을 제거해야 반복 스크롤 비용을 줄일 수 있다.
+  - watcher 신호는 collapse 상태에서도 보여야 의미가 있으므로 상위 디렉토리 버블링이 필요하다.
+  - 런타임 복원은 구현 복잡도를 낮추면서도 사용 체감 개선 효과가 즉시 크다.
+- Alternatives considered:
+  - same-spec jump에서도 항상 readFile 재호출(기존 유지)
+  - changed marker를 파일 노드에만 고정(버블링 미지원)
+  - scroll 복원을 앱 재시작 영속 복원까지 한 번에 확장
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`에 F11.2 완료 상태와 계약을 반영한다.
+  - 후속으로 앱 재시작 후 rendered spec scroll 복원, TOC active tracking은 별도 backlog로 유지한다.

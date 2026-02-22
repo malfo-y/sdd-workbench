@@ -42,6 +42,8 @@ type CodeComment = {
 1. same-workspace 상대 링크만 내부 라우팅
 2. external/unresolved는 자동 이동 없이 copy popover
 3. rendered selection 액션(`Add Comment`, `Go to Source`)은 현재 `activeSpec` 범위에서만 동작
+4. same-spec source jump는 가능한 경우 `activeSpecContent`를 재사용해 rendered 패널 리셋을 피한다.
+5. rendered spec scroll position은 `workspace + activeSpecPath` 키로 런타임 저장/복원한다.
 
 ## 3. IPC 계약
 
@@ -72,3 +74,9 @@ type CodeComment = {
 2. rendered markdown 마커는 `data-source-line` 기반 매핑
 3. 매핑 우선순위: exact-match -> nearest fallback
 4. nearest 동률이면 더 작은 line 우선
+
+## 6. 파일 트리 변경 마커 가시화 규칙
+
+1. 변경 파일이 현재 visible이면 파일 노드에 `●`를 표시한다.
+2. 변경 파일이 collapse된 디렉토리 하위에 있으면 nearest visible collapsed ancestor 디렉토리에 `●`를 표시한다.
+3. 디렉토리를 확장하면 마커는 더 하위 visible 노드로 이동한다.

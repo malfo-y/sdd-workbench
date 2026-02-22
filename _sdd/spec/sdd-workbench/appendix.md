@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F11.1)
+## A. 기능 이력 (F01~F11.2)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -24,6 +24,7 @@
 | F10.2 | Done | 2026-02-21 | code viewer 이미지 프리뷰 |
 | F11 | Done | 2026-02-22 | inline comment + export bundle |
 | F11.1 | Done | 2026-02-22 | markdown comment entry + marker + incremental export |
+| F11.2 | Done | 2026-02-22 | spec jump scroll retention + collapsed marker bubbling |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -32,6 +33,8 @@
 - 코드 선택(Shift/drag) + copy action 3종
 - spec 링크 인터셉트 + line jump
 - watcher 기반 변경 반영 + marker 정책
+- same-spec source jump에서 rendered spec scroll 문맥 유지
+- collapse 트리에서 changed marker 버블링 가시화
 - history navigation 입력 바인딩 일관성
 - Open In(iTerm/VSCode) 액션
 - markdown sanitize/리소스 경계 정책
@@ -40,7 +43,7 @@
 
 ## C. 리스크/백로그
 
-1. activeHeading/TOC scroll 복원은 미지원
+1. activeHeading/TOC active 추적은 미지원(스크롤 위치 복원과 별개)
 2. non-line hash heading jump 정밀화는 backlog
 3. watcher 튜닝(대규모 repo 이벤트 편차) 여지
 4. wheel fallback 임계값 튜닝 필요 가능성
@@ -48,6 +51,7 @@
 6. 코멘트 relocation(AST/semantic)은 미지원
 7. marker 상세 패널/코멘트 편집/삭제 UI 미지원
 8. incremental export reset/re-export-all UX 미지원
+9. rendered spec scroll position의 앱 재시작 복원은 미지원(런타임 복원만 지원)
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

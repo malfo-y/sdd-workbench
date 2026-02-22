@@ -11,6 +11,7 @@
 3. CLI 협업을 위한 컨텍스트 복사 및 외부 툴 연동(Open In) 지원
 4. 외부 파일 변경(watcher)을 UI에서 안정적으로 반영
 5. 코멘트 수집/내보내기 루프(F11/F11.1)로 LLM 협업 효율화
+6. 스펙-코드 왕복 시 rendered 문맥(스크롤 위치) 보존으로 탐색 비용 최소화
 
 ## 3. 범위
 
@@ -20,8 +21,9 @@
 - 파일 트리 탐색 및 코드 프리뷰
 - Markdown raw+rendered 동시 뷰
 - spec->code 링크 점프 및 rendered selection source jump
+- same-spec source jump 시 rendered spec scroll 유지(런타임)
 - 우클릭 기반 컨텍스트 복사
-- watcher 기반 changed indicator
+- watcher 기반 changed indicator + collapse 버블링 가시화
 - 파일 히스토리 Back/Forward + 입력 바인딩(mouse/swipe/wheel)
 - 앱 재시작 시 세션 복원(workspaces/active file/active spec/line resume)
 - inline comment + export bundle + incremental export
@@ -60,7 +62,8 @@
 | Workspace/File 탐색 | Implemented | F01/F02/F03/F03.5 |
 | Spec dual view + 링크 점프 | Implemented | F04/F04.1/F05/F10.1 |
 | 복사 UX 통합 | Implemented | F06/F06.1/F06.2 |
-| Watcher + 변경 표시 | Implemented | F07 + follow-up |
+| Spec 점프 문맥 유지 | Implemented | F11.2 |
+| Watcher + 변경 표시 | Implemented | F07 + F11.2 follow-up |
 | History navigation | Implemented | F07.1 |
 | Open In 액션 | Implemented | F08 |
 | 세션 복원 | Implemented | F09 |

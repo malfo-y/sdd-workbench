@@ -41,7 +41,7 @@ Right: Rendered Spec (TOC + link/source actions)
 ### 4.2 전역 상태
 
 - `activeWorkspaceId`, `workspaceOrder`, `workspacesById`
-- UI 보조 상태(`bannerMessage`, `isExportingComments`)
+- UI 보조 상태(`bannerMessage`, `isExportingComments`, spec scroll position map)
 
 ## 5. 핵심 데이터 플로우
 
@@ -63,10 +63,18 @@ Right: Rendered Spec (TOC + link/source actions)
 
 1. rendered markdown 링크 인터셉트
 2. same-workspace면 file open + optional line jump
-3. external/unresolved면 copy popover
-4. selection 우클릭 `Go to Source` -> activeSpec line jump
+3. same-spec source jump는 read/reset을 최소화하고 기존 rendered 문맥을 유지
+4. spec panel scrollTop은 `workspace + spec path` 기준으로 런타임 저장/복원
+5. external/unresolved면 copy popover
+6. selection 우클릭 `Go to Source` -> activeSpec line jump
 
-### 5.4 코멘트/내보내기
+### 5.4 File Tree 변경 마커 가시성
+
+1. 변경 파일이 visible이면 파일 노드에 `●` 표시
+2. 변경 파일이 collapse된 서브트리에 있으면 nearest visible ancestor 디렉토리에 `●` 버블링
+3. 디렉토리 확장 시 마커는 더 하위 visible 노드로 이동
+
+### 5.5 코멘트/내보내기
 
 1. CodeViewer/SpecViewer `Add Comment`
 2. `comments.json` 저장(source of truth)
