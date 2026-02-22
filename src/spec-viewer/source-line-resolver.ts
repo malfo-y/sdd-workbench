@@ -1,5 +1,10 @@
 const SOURCE_LINE_ATTRIBUTE = 'data-source-line'
 
+export type SourceLineRange = {
+  startLine: number
+  endLine: number
+}
+
 function normalizeSourceLine(value: unknown): number | null {
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
@@ -66,6 +71,31 @@ export function resolveSourceLineFromSelection(
   )
 }
 
+export function resolveSourceLineRangeFromSelection(
+  selection: Selection | null,
+): SourceLineRange | null {
+  if (!selection) {
+    return null
+  }
+
+  const anchorLine = resolveSourceLineFromElement(toElement(selection.anchorNode))
+  const focusLine = resolveSourceLineFromElement(toElement(selection.focusNode))
+  if (anchorLine === null && focusLine === null) {
+    return null
+  }
+
+  const startCandidate = anchorLine ?? focusLine ?? null
+  const endCandidate = focusLine ?? anchorLine ?? null
+  if (startCandidate === null || endCandidate === null) {
+    return null
+  }
+
+  return {
+    startLine: Math.min(startCandidate, endCandidate),
+    endLine: Math.max(startCandidate, endCandidate),
+  }
+}
+
 export function resolveSourceLine(input: {
   target: EventTarget | null
   selection: Selection | null
@@ -76,3 +106,43 @@ export function resolveSourceLine(input: {
   )
 }
 
+export function resolveNearestSourceLineFromPoint(
+  containerElement: HTMLElement | null,
+  clientY: number,
+): number | null {
+  if (!containerElement || !Number.isFinite(clientY)) {
+    return null
+  }
+
+  const sourceLineElements = Array.from(
+    containerElement.querySelectorAll<HTMLElement>(`[${SOURCE_LINE_ATTRIBUTE}]`),
+  )
+
+  let nearestLine: number | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+
+  for (const element of sourceLineElements) {
+    const normalizedLine = normalizeSourceLine(
+      element.getAttribute(SOURCE_LINE_ATTRIBUTE),
+    )
+    if (normalizedLine === null) {
+      continue
+    }
+
+    const rect = element.getBoundingClientRect()
+    const centerY = rect.top + rect.height / 2
+    const distance = Math.abs(clientY - centerY)
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearestLine = normalizedLine
+      continue
+    }
+
+    if (distance === nearestDistance && nearestLine !== null) {
+      nearestLine = Math.min(nearestLine, normalizedLine)
+    }
+  }
+
+  return nearestLine
+}

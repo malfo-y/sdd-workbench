@@ -43,6 +43,12 @@ type CodeViewerPanelProps = {
     content: string
     selectionRange: LineSelectionRange
   }) => void
+  onRequestAddComment: (input: {
+    relativePath: string
+    content: string
+    selectionRange: LineSelectionRange
+  }) => void
+  commentLineCounts: ReadonlyMap<number, number>
 }
 
 type ContextMenuState = {
@@ -92,6 +98,8 @@ export function CodeViewerPanel({
   onRequestCopyRelativePath,
   onRequestCopySelectedContent,
   onRequestCopyBoth,
+  onRequestAddComment,
+  commentLineCounts,
 }: CodeViewerPanelProps) {
   const [anchorLine, setAnchorLine] = useState<number | null>(null)
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
@@ -384,6 +392,7 @@ export function CodeViewerPanel({
               const lineNumber = lineIndex + 1
               const isSelected = isLineSelected(lineNumber)
               const highlightedLine = highlightedPreviewLines[lineIndex] ?? ' '
+              const commentCount = commentLineCounts.get(lineNumber) ?? 0
 
               return (
                 <li
@@ -410,7 +419,18 @@ export function CodeViewerPanel({
                     }}
                     type="button"
                   >
-                    <span className="code-line-number">{lineNumber}</span>
+                    <span className="code-line-number-wrap">
+                      <span className="code-line-number">{lineNumber}</span>
+                      {commentCount > 0 && (
+                        <span
+                          className="code-line-comment-badge"
+                          data-testid={`code-line-comment-badge-${lineNumber}`}
+                          title={`${commentCount} comment(s)`}
+                        >
+                          {commentCount}
+                        </span>
+                      )}
+                    </span>
                     <span
                       className="code-line-content"
                       dangerouslySetInnerHTML={{
@@ -426,6 +446,16 @@ export function CodeViewerPanel({
       {contextMenuState && !isImagePreviewMode && (
         <CopyActionPopover
           actions={[
+            {
+              label: 'Add Comment',
+              onSelect: () => {
+                onRequestAddComment({
+                  relativePath: contextMenuState.relativePath,
+                  content: activeFileContent ?? '',
+                  selectionRange: contextMenuState.selectionRange,
+                })
+              },
+            },
             {
               label: 'Copy Selected Content',
               onSelect: () => {

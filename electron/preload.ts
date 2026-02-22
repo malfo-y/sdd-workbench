@@ -38,6 +38,48 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type CodeCommentRecord = {
+  id: string
+  relativePath: string
+  startLine: number
+  endLine: number
+  body: string
+  anchor: {
+    snippet: string
+    hash: string
+    before?: string
+    after?: string
+  }
+  createdAt: string
+  exportedAt?: string
+}
+
+type WorkspaceReadCommentsResult = {
+  ok: boolean
+  comments: CodeCommentRecord[]
+  error?: string
+}
+
+type WorkspaceWriteCommentsResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceExportCommentsBundleRequest = {
+  rootPath: string
+  commentsMarkdown?: string
+  bundleMarkdown?: string
+  writeCommentsFile: boolean
+  writeBundleFile: boolean
+}
+
+type WorkspaceExportCommentsBundleResult = {
+  ok: boolean
+  commentsPath?: string
+  bundlePath?: string
+  error?: string
+}
+
 type WorkspaceWatchControlResult = {
   ok: boolean
   error?: string
@@ -79,6 +121,23 @@ const workspaceApi = {
       rootPath,
       relativePath,
     }) as Promise<WorkspaceReadFileResult>
+  },
+  readComments(rootPath: string) {
+    return ipcRenderer.invoke('workspace:readComments', {
+      rootPath,
+    }) as Promise<WorkspaceReadCommentsResult>
+  },
+  writeComments(rootPath: string, comments: CodeCommentRecord[]) {
+    return ipcRenderer.invoke('workspace:writeComments', {
+      rootPath,
+      comments,
+    }) as Promise<WorkspaceWriteCommentsResult>
+  },
+  exportCommentsBundle(request: WorkspaceExportCommentsBundleRequest) {
+    return ipcRenderer.invoke(
+      'workspace:exportCommentsBundle',
+      request,
+    ) as Promise<WorkspaceExportCommentsBundleResult>
   },
   watchStart(workspaceId: string, rootPath: string) {
     return ipcRenderer.invoke('workspace:watchStart', {

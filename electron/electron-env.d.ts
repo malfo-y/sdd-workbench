@@ -59,6 +59,48 @@ interface WorkspaceReadFileResult {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+interface CodeCommentRecord {
+  id: string
+  relativePath: string
+  startLine: number
+  endLine: number
+  body: string
+  anchor: {
+    snippet: string
+    hash: string
+    before?: string
+    after?: string
+  }
+  createdAt: string
+  exportedAt?: string
+}
+
+interface WorkspaceReadCommentsResult {
+  ok: boolean
+  comments: CodeCommentRecord[]
+  error?: string
+}
+
+interface WorkspaceWriteCommentsResult {
+  ok: boolean
+  error?: string
+}
+
+interface WorkspaceExportCommentsBundleRequest {
+  rootPath: string
+  commentsMarkdown?: string
+  bundleMarkdown?: string
+  writeCommentsFile: boolean
+  writeBundleFile: boolean
+}
+
+interface WorkspaceExportCommentsBundleResult {
+  ok: boolean
+  commentsPath?: string
+  bundlePath?: string
+  error?: string
+}
+
 interface WorkspaceWatchControlResult {
   ok: boolean
   error?: string
@@ -92,6 +134,14 @@ interface Window {
       rootPath: string,
       relativePath: string,
     ) => Promise<WorkspaceReadFileResult>
+    readComments: (rootPath: string) => Promise<WorkspaceReadCommentsResult>
+    writeComments: (
+      rootPath: string,
+      comments: CodeCommentRecord[],
+    ) => Promise<WorkspaceWriteCommentsResult>
+    exportCommentsBundle: (
+      request: WorkspaceExportCommentsBundleRequest,
+    ) => Promise<WorkspaceExportCommentsBundleResult>
     watchStart: (
       workspaceId: string,
       rootPath: string,

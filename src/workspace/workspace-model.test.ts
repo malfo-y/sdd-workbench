@@ -263,6 +263,14 @@ describe('workspace-model', () => {
     expect(session.activeFileImagePreview).toBeNull()
   })
 
+  it('initializes comments state fields for new sessions', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    expect(session.comments).toEqual([])
+    expect(session.isReadingComments).toBe(false)
+    expect(session.isWritingComments).toBe(false)
+    expect(session.commentsError).toBeNull()
+  })
+
   it('preserves fileLastLineByPath when selection is cleared', () => {
     let session = createWorkspaceSession(ROOT_A)
     session = {

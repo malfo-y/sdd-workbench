@@ -1,3 +1,5 @@
+import type { CodeComment } from '../code-comments/comment-types'
+
 export type WorkspaceId = string
 
 export type LineSelectionRange = {
@@ -25,6 +27,10 @@ export type WorkspaceSession = {
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
   expandedDirectories: string[]
+  comments: CodeComment[]
+  isReadingComments: boolean
+  isWritingComments: boolean
+  commentsError: string | null
 }
 
 export type WorkspaceState = {
@@ -95,6 +101,10 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     previewUnavailableReason: null,
     selectionRange: null,
     expandedDirectories: [],
+    comments: [],
+    isReadingComments: false,
+    isWritingComments: false,
+    commentsError: null,
   }
 }
 

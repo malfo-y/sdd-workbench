@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  resolveNearestSourceLineFromPoint,
   resolveSourceLine,
+  resolveSourceLineRangeFromSelection,
   resolveSourceLineFromSelection,
   resolveSourceLineFromTarget,
 } from './source-line-resolver'
@@ -39,6 +41,28 @@ describe('source-line-resolver', () => {
     } as unknown as Selection
 
     expect(resolveSourceLineFromSelection(selection)).toBe(7)
+  })
+
+  it('resolves normalized line range from selection anchor/focus nodes', () => {
+    const startBlock = document.createElement('p')
+    startBlock.setAttribute('data-source-line', '12')
+    const startText = document.createTextNode('start')
+    startBlock.append(startText)
+
+    const endBlock = document.createElement('p')
+    endBlock.setAttribute('data-source-line', '8')
+    const endText = document.createTextNode('end')
+    endBlock.append(endText)
+
+    const selection = {
+      anchorNode: startText,
+      focusNode: endText,
+    } as unknown as Selection
+
+    expect(resolveSourceLineRangeFromSelection(selection)).toEqual({
+      startLine: 8,
+      endLine: 12,
+    })
   })
 
   it('prefers target resolution before selection fallback', () => {
@@ -80,5 +104,63 @@ describe('source-line-resolver', () => {
       }),
     ).toBeNull()
   })
-})
 
+  it('resolves nearest source line from pointer Y position', () => {
+    const container = document.createElement('div')
+    const lineTwo = document.createElement('p')
+    const lineSeven = document.createElement('p')
+    lineTwo.setAttribute('data-source-line', '2')
+    lineSeven.setAttribute('data-source-line', '7')
+
+    Object.defineProperty(lineTwo, 'getBoundingClientRect', {
+      configurable: true,
+      value: () =>
+        ({
+          top: 100,
+          height: 20,
+        }) as DOMRect,
+    })
+    Object.defineProperty(lineSeven, 'getBoundingClientRect', {
+      configurable: true,
+      value: () =>
+        ({
+          top: 200,
+          height: 20,
+        }) as DOMRect,
+    })
+
+    container.append(lineTwo, lineSeven)
+
+    expect(resolveNearestSourceLineFromPoint(container, 112)).toBe(2)
+    expect(resolveNearestSourceLineFromPoint(container, 206)).toBe(7)
+  })
+
+  it('prefers lower source line when nearest distance is tied', () => {
+    const container = document.createElement('div')
+    const lineFour = document.createElement('p')
+    const lineTen = document.createElement('p')
+    lineFour.setAttribute('data-source-line', '4')
+    lineTen.setAttribute('data-source-line', '10')
+
+    Object.defineProperty(lineFour, 'getBoundingClientRect', {
+      configurable: true,
+      value: () =>
+        ({
+          top: 100,
+          height: 20,
+        }) as DOMRect,
+    })
+    Object.defineProperty(lineTen, 'getBoundingClientRect', {
+      configurable: true,
+      value: () =>
+        ({
+          top: 140,
+          height: 20,
+        }) as DOMRect,
+    })
+
+    container.append(lineFour, lineTen)
+
+    expect(resolveNearestSourceLineFromPoint(container, 130)).toBe(4)
+  })
+})

@@ -17,9 +17,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="tools/example.py"
         activeFileContent={'def hello():\n    return 1'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onRequestCopySelectedContent={() => undefined}
         onSelectRange={onSelectRange}
@@ -53,9 +55,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="logs/runtime.log"
         activeFileContent={'plain text line'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onRequestCopySelectedContent={() => undefined}
         onSelectRange={() => undefined}
@@ -91,6 +95,7 @@ describe('CodeViewerPanel highlighting', () => {
           activeFile="src/example.ts"
           activeFileContent={'line1\nline2\nline3\nline4\nline5'}
           activeFileImagePreview={null}
+          commentLineCounts={new Map()}
           isReadingFile={false}
           jumpRequest={{
             targetRelativePath: 'src/example.ts',
@@ -98,6 +103,7 @@ describe('CodeViewerPanel highlighting', () => {
             token: 1,
           }}
           onRequestCopyBoth={() => undefined}
+          onRequestAddComment={() => undefined}
           onRequestCopyRelativePath={() => undefined}
           onRequestCopySelectedContent={() => undefined}
           onSelectRange={() => undefined}
@@ -130,9 +136,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onRequestCopySelectedContent={() => undefined}
         onSelectRange={onSelectRange}
@@ -175,9 +183,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={onRequestCopyBoth}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onRequestCopySelectedContent={onRequestCopySelectedContent}
         onSelectRange={onSelectRange}
@@ -226,6 +236,80 @@ describe('CodeViewerPanel highlighting', () => {
     expect(onRequestCopyRelativePath).not.toHaveBeenCalled()
   })
 
+  it('opens Add Comment action from context menu with selected range', () => {
+    const onRequestAddComment = vi.fn()
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
+        commentLineCounts={new Map()}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestAddComment={onRequestAddComment}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={{
+          startLine: 2,
+          endLine: 3,
+        }}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId('code-line-3'), {
+      clientX: 100,
+      clientY: 120,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'src/example.ts',
+      content: 'line1\nline2\nline3',
+      selectionRange: {
+        startLine: 2,
+        endLine: 3,
+      },
+    })
+  })
+
+  it('renders count badges for commented lines', () => {
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
+        commentLineCounts={
+          new Map<number, number>([
+            [1, 2],
+            [3, 1],
+          ])
+        }
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestAddComment={() => undefined}
+        onRequestCopyBoth={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    expect(screen.getByTestId('code-line-comment-badge-1')).toHaveTextContent('2')
+    expect(screen.getByTestId('code-line-comment-badge-3')).toHaveTextContent('1')
+    expect(
+      screen.queryByTestId('code-line-comment-badge-2'),
+    ).not.toBeInTheDocument()
+  })
+
   it('switches to single-line selection when context-menu opens outside selection and requests relative path copy', () => {
     const onSelectRange = vi.fn()
     const onRequestCopyRelativePath = vi.fn()
@@ -237,9 +321,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={onRequestCopyBoth}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onRequestCopySelectedContent={onRequestCopySelectedContent}
         onSelectRange={onSelectRange}
@@ -280,9 +366,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onRequestCopySelectedContent={() => undefined}
         onSelectRange={() => undefined}
@@ -302,9 +390,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="src/example.ts"
         activeFileContent={'line1\nline2\nline3'}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onRequestCopySelectedContent={() => undefined}
         onSelectRange={() => undefined}
@@ -333,9 +423,11 @@ describe('CodeViewerPanel highlighting', () => {
           mimeType: 'image/png',
           dataUrl: 'data:image/png;base64,AA==',
         }}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={onRequestCopyBoth}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onRequestCopySelectedContent={onRequestCopySelectedContent}
         onSelectRange={() => undefined}
@@ -362,9 +454,11 @@ describe('CodeViewerPanel highlighting', () => {
         activeFile="assets/vector.svg"
         activeFileContent={null}
         activeFileImagePreview={null}
+        commentLineCounts={new Map()}
         isReadingFile={false}
         jumpRequest={null}
         onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onRequestCopySelectedContent={() => undefined}
         onSelectRange={() => undefined}

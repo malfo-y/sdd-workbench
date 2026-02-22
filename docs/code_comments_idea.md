@@ -1,148 +1,299 @@
-## 🔶 MVP+1 Feature: Inline Code Comments → Export to `_COMMENTS.md`
+# 🔷 MVP+1 Specification
 
-### Purpose (Why)
-
-During SDD + agentic coding, users often notice implementation issues while reading code, but lose context when switching to terminal/agent prompts.  
-This feature enables users to:
-
-- Select a line range in Code Viewer
-
-- Attach a short comment/note
-
-- Accumulate multiple notes across files
-
-- Export them into a structured `_COMMENTS.md` file that can be pasted into Codex/Claude CLI for batch fixes
-
-This reduces context loss and creates a “task bundle” for agent-driven code modifications.
+## Feature Set: Inline Code Comments + LLM Export Bundle
 
 ---
 
-### Scope (What)
+# 1\. Overview
 
-#### UX Flow
+MVP+1 extends the SDD Workbench with:
 
-1. User selects a line range in Code Viewer
+1. Inline Code Comments (selection-based)
 
-2. User triggers **Add Comment** (toolbar button or context menu)
+2. Structured comment persistence (JSON + `_COMMENTS.md`)
 
-3. A small modal/panel opens to enter comment text
+3. LLM Prompt Bundle export (clipboard + file)
 
-4. Comment is saved into local app storage
+4. Bundle length safety policy
 
-5. User clicks **Export Comments** to generate/update `_COMMENTS.md` at workspace root
-
-#### UI Requirements
-
-- Add Comment action available only when a file is open and a line selection exists
-
-- Highlight code lines with comments (different color from selected lines)
-
-- Comments list panel (optional in MVP+1, but recommended):
-
-  - shows existing comments
-
-  - allows delete/edit comment text
-
-  - clicking a comment focuses the file and jumps to its line range
+This feature improves the “agentic coding loop” by allowing users to accumulate structured review notes and send them directly to LLM tools.
 
 ---
 
-### Data Model
+# 2\. Feature: Inline Code Comments
 
-Use 1-based line numbers (GitHub convention) for consistency.
+## 2.1 Purpose
 
-```ts
-type CodeComment = {
-  id: string;           // stable unique id (uuid or timestamp-based)
-  file: string;         // workspace-relative path
-  startLine: number;    // 1-based inclusive
-  endLine: number;      // 1-based inclusive
-  body: string;         // user comment text
-  createdAt: string;    // ISO timestamp
-  snippet?: string;     // optional: first 1–2 lines of selected text for human locating
+Allow users to:
+
+- Select one or more lines in Code Viewer
+
+- Attach a comment
+
+- Persist it outside the source code
+
+- Re-export it later for LLM-based modification
+
+This avoids modifying the actual code while preserving location context.
+
+---
+
+## 2.2 Data Model
+
+```
+TypeScript
+
+type CodeComment \= {  
+  id: string;  
+  file: string;            // workspace-relative path  
+  startLine: number;       // 1-based inclusive  
+  endLine: number;         // 1-based inclusive  
+  body: string;            // user comment text  
+  createdAt: string;       // ISO timestamp  
+  
+  anchor: {  
+    snippet: string;      // first 1–3 lines or up to N chars  
+    hash: string;         // hash(normalized snippet)  
+    before?: string;     // optional: line before selection  
+    after?: string;      // optional: line after selection  
+  };  
+  
+  status?: "ok" | "moved" | "missing";  
 };
 ```
 
----
+### Design Notes
 
-### Persistence Strategy
+- Line numbers are treated as a snapshot.
 
-**Do not** use `_COMMENTS.md` as the primary source of truth.
+- Snippet is the primary human-readable anchor.
 
-- Primary storage: `workspaceRoot/.sdd-workbench/comments.json`
+- Hash is reserved for potential relocation logic.
 
-- Export artifact: `workspaceRoot/_COMMENTS.md`
-
-Rationale:
-
-- JSON is safe to update/edit/delete reliably
-
-- Markdown is generated for human/agent consumption and can be overwritten deterministically
+- No AST-based tracking in MVP+1.
 
 ---
 
-### Export Format: `_COMMENTS.md`
+## 2.3 Persistence
 
-The format must be both human-readable and agent-friendly.
+Primary storage:
 
-```md
-# Code Comments
+```
+코딩
 
-## src/auth.ts:L42-L68
-- id: 2026-02-20T12:34:56Z-1
-- createdAt: 2026-02-20T12:34:56Z
-- snippet: "if await user.isMFAEnabled() {"
-- note: MFA flow looks inverted; verify logic and add error handling.
+workspaceRoot/.sdd-workbench/comments.json
+```
 
-## src/api/rateLimit.ts:L10-L20
-- id: 2026-02-20T12:40:10Z-2
-- createdAt: 2026-02-20T12:40:10Z
-- snippet: "return res.status(429)"
-- note: Align with spec section 2.2; exponential backoff required.
+Export artifact:
+
+```
+코딩
+
+workspaceRoot/\_COMMENTS.md
+```
+
+### Rules
+
+- JSON is the source of truth.
+
+- `_COMMENTS.md` is fully regenerated on export.
+
+- External edits to `_COMMENTS.md` are not parsed back.
+
+---
+
+# 3\. `_COMMENTS.md` Export Format
+
+```
+Markdown
+
+\# Code Comments  
+  
+\## src/auth.ts:L42-L68  
+Snippet:  
+if (await user.isMFAEnabled()) {  
+...  
+Comment:  
+MFA flow looks inverted; verify logic and add error handling.  
+  
+\## src/api/rateLimit.ts:L10-L20  
+Snippet:  
+return res.status(429)  
+Comment:  
+Align with spec section 2.2; exponential backoff required.
 ```
 
 Rules:
 
-- Group comments by `file:Lx-Ly`
+- Group by file + line range
 
-- Preserve insertion order by default (or sort by file then line; choose one and keep stable)
+- Deterministic ordering (choose one: insertion order or file+line sort)
 
-- Always regenerate the whole file on export (overwrite)
-
----
-
-### Non-Goals (Keep Complexity Controlled)
-
-- No automatic line tracking across edits (line ranges are treated as a snapshot)
-
-- No AST-based anchors or “sticky comments”
-
-- No collaborative syncing
-
-- No parsing of externally edited `_COMMENTS.md` (export is one-way)
-
-If file edits shift lines, the stored `snippet` helps users re-locate context manually.
+- No incremental append — always overwrite
 
 ---
 
-### Implementation Plan (Suggested)
+# 4\. Feature: LLM Prompt Bundle Export
 
-1. Add selection-to-comment pipeline (UI → state → JSON persistence)
+## 4.1 Purpose
 
-2. Add Export Comments action that generates `_COMMENTS.md`
+Enable one-click generation of a structured LLM-ready instruction bundle that includes:
 
-3. (Optional) Add Comments list panel with jump-to-location + delete/edit
+- User instruction
 
-4. (Optional) Add gutter markers for commented ranges in Code Viewer
+- Structured comments
+
+- Location context (file + line + snippet)
+
+This bundle can be pasted directly into Codex CLI or Claude CLI.
+
+---
+
+## 4.2 Export Flow
+
+1. User clicks **Export Comments**
+
+2. Modal appears:
+
+    - Text field: "Instruction for LLM"
+
+    - Checkbox: Copy to Clipboard (default ON)
+
+    - Checkbox: Save `_COMMENTS.md` (default ON)
+
+    - Checkbox: Save Bundle File (optional)
+
+3. On confirm:
+
+    - Generate `_COMMENTS.md`
+
+    - Generate LLM bundle text
+
+    - Apply length policy (see section 5)
+
+    - Copy and/or save
 
 ---
 
-### Success Criteria
+## 4.3 Bundle Format
 
-- Users can create comments from a selection in under 3 seconds
+Example:
 
-- Export produces a clean, structured `_COMMENTS.md`
+```
+Markdown
 
-- Users can paste `_COMMENTS.md` into Codex/Claude CLI and receive coherent batch changes
+You are an autonomous coding agent. Please apply the following review comments.  
+  
+User instruction:  
+이 코멘트들을 반영해서 코드를 수정해 줘.  
+  
+Constraints:  
+\- Preserve existing behavior unless explicitly modified.  
+\- If uncertain, leave TODO comments and explain.  
+  
+Comments:  
+  
+1) src/auth.ts:L42-L68  
+Snippet:  
+if (await user.isMFAEnabled()) {  
+...  
+Comment:  
+MFA flow looks inverted; verify logic and add error handling.  
+  
+2) src/api/rateLimit.ts:L10-L20  
+Snippet:  
+return res.status(429)  
+Comment:  
+Align with spec section 2.2; exponential backoff required.
+```
 
 ---
+
+# 5\. Bundle Length Safety Policy
+
+## 5.1 Rationale
+
+LLM context windows are limited.  
+Large bundles may exceed practical token limits.
+
+---
+
+## 5.2 Policy
+
+Define:
+
+```
+TypeScript
+
+const MAX\_CLIPBOARD\_CHARS \= 30000; // configurable
+```
+
+Behavior:
+
+- If bundle.length <= MAX\_CLIPBOARD\_CHARS:
+
+  - Allow clipboard copy
+
+- If bundle.length > MAX\_CLIPBOARD\_CHARS:
+
+  - Disable "Copy to Clipboard"
+
+  - Show warning:
+
+        > "Bundle too large for clipboard. Saved to file only."
+
+  - Save bundle to file only
+
+---
+
+## 5.3 Bundle File Location
+
+If enabled:
+
+```
+코딩
+
+workspaceRoot/.sdd-workbench/exports/  
+  2026-02-21T14-32-10-comments-bundle.md
+```
+
+Timestamp-based naming required.
+
+---
+
+# 6\. Non-Goals (MVP+1)
+
+- No automatic line relocation across edits
+
+- No AST-based anchors
+
+- No inline modification of source files
+
+- No collaborative sync
+
+- No live LLM integration (clipboard only)
+
+---
+
+# 7\. Success Criteria
+
+MVP+1 is successful if:
+
+- Users can add comments in under 3 seconds
+
+- Comments persist reliably
+
+- Export produces clean `_COMMENTS.md`
+
+- LLM bundle is copy-paste ready
+
+- Large bundles fail gracefully (clipboard disabled)
+
+---
+
+# 8\. Design Philosophy
+
+This feature reinforces the Workbench principle:
+
+> The app does not modify code.  
+> It structures intent and context for agent-driven modification.

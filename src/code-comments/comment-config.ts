@@ -1,0 +1,1 @@
+export const MAX_CLIPBOARD_CHARS = 30_000

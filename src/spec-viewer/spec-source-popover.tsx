@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 type SpecSourcePopoverProps = {
-  lineNumber: number
+  startLine: number
+  endLine: number
   x: number
   y: number
+  onAddComment: () => void
   onGoToSource: () => void
   onClose: () => void
 }
@@ -16,9 +18,11 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export function SpecSourcePopover({
-  lineNumber,
+  startLine,
+  endLine,
   x,
   y,
+  onAddComment,
   onGoToSource,
   onClose,
 }: SpecSourcePopoverProps) {
@@ -68,6 +72,9 @@ export function SpecSourcePopover({
     }
   }, [onClose])
 
+  const lineLabel =
+    startLine === endLine ? `Line ${startLine}` : `Lines ${startLine}-${endLine}`
+
   return (
     <div
       aria-label="Source actions"
@@ -79,9 +86,12 @@ export function SpecSourcePopover({
         top: `${position.top}px`,
       }}
     >
-      <p className="spec-source-popover-title">Source Action</p>
-      <p className="spec-source-popover-line">Line {lineNumber}</p>
+      <p className="spec-source-popover-title">Source Actions</p>
+      <p className="spec-source-popover-line">{lineLabel}</p>
       <div className="spec-source-popover-actions">
+        <button onClick={onAddComment} type="button">
+          Add Comment
+        </button>
         <button onClick={onGoToSource} type="button">
           Go to Source
         </button>
@@ -92,4 +102,3 @@ export function SpecSourcePopover({
     </div>
   )
 }
-

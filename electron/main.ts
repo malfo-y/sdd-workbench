@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile } from 'node:child_process'
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -74,6 +74,57 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type CodeCommentRecord = {
+  id: string
+  relativePath: string
+  startLine: number
+  endLine: number
+  body: string
+  anchor: {
+    snippet: string
+    hash: string
+    before?: string
+    after?: string
+  }
+  createdAt: string
+  exportedAt?: string
+}
+
+type WorkspaceReadCommentsRequest = {
+  rootPath: string
+}
+
+type WorkspaceReadCommentsResult = {
+  ok: boolean
+  comments: CodeCommentRecord[]
+  error?: string
+}
+
+type WorkspaceWriteCommentsRequest = {
+  rootPath: string
+  comments: CodeCommentRecord[]
+}
+
+type WorkspaceWriteCommentsResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceExportCommentsBundleRequest = {
+  rootPath: string
+  commentsMarkdown?: string
+  bundleMarkdown?: string
+  writeCommentsFile: boolean
+  writeBundleFile: boolean
+}
+
+type WorkspaceExportCommentsBundleResult = {
+  ok: boolean
+  commentsPath?: string
+  bundlePath?: string
+  error?: string
+}
+
 type WorkspaceWatchStartRequest = {
   workspaceId: string
   rootPath: string
@@ -130,6 +181,17 @@ const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
   '.next',
   '.turbo',
 ])
+const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
+  ...Array.from(WORKSPACE_INDEX_IGNORE_NAMES),
+  '.venv',
+  'venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
+  '.tox',
+  '.sdd-workbench',
+])
 
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
 const MAX_WORKSPACE_INDEX_NODES = 10_000
@@ -138,6 +200,10 @@ const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
 const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
 const BLOCKED_IMAGE_EXTENSIONS = new Set(['.svg'])
+const SDD_WORKBENCH_DIRECTORY = '.sdd-workbench'
+const COMMENTS_FILE_NAME = 'comments.json'
+const COMMENTS_BUNDLE_EXPORT_DIRECTORY = 'exports'
+const COMMENTS_MARKDOWN_FILE_NAME = '_COMMENTS.md'
 const IMAGE_PREVIEW_BY_EXTENSION: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -152,17 +218,24 @@ const fileNameCollator = new Intl.Collator(undefined, {
 })
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
 let stopAllWorkspaceWatchersPromise: Promise<void> | null = null
+let hasRequestedQuitWatcherShutdown = false
+let workspaceWriteOperationsInFlight = 0
+const QUIT_WRITE_SETTLE_TIMEOUT_MS = 5000
+const QUIT_WATCHER_SHUTDOWN_TIMEOUT_MS = 1500
 
 function normalizeToWorkspaceRelativePath(absolutePath: string, rootPath: string) {
   return path.relative(rootPath, absolutePath).split(path.sep).join('/')
 }
 
-function hasIgnoredWorkspaceSegment(relativePath: string) {
+function hasIgnoredWorkspaceSegment(
+  relativePath: string,
+  ignoreNames: Set<string> = WORKSPACE_INDEX_IGNORE_NAMES,
+) {
   const normalizedPath = relativePath.split(path.sep).join('/')
   return normalizedPath
     .split('/')
     .filter((segment) => segment.length > 0)
-    .some((segment) => WORKSPACE_INDEX_IGNORE_NAMES.has(segment))
+    .some((segment) => ignoreNames.has(segment))
 }
 
 function isPathInsideWorkspace(rootPath: string, targetPath: string) {
@@ -172,6 +245,78 @@ function isPathInsideWorkspace(rootPath: string, targetPath: string) {
     !relativePath.startsWith('..') &&
     !path.isAbsolute(relativePath)
   )
+}
+
+function getWorkspaceCommentPaths(rootPath: string) {
+  const metadataDirectoryPath = path.join(rootPath, SDD_WORKBENCH_DIRECTORY)
+  const commentsJsonPath = path.join(metadataDirectoryPath, COMMENTS_FILE_NAME)
+  const bundleExportsDirectoryPath = path.join(
+    metadataDirectoryPath,
+    COMMENTS_BUNDLE_EXPORT_DIRECTORY,
+  )
+  const commentsMarkdownPath = path.join(rootPath, COMMENTS_MARKDOWN_FILE_NAME)
+
+  return {
+    metadataDirectoryPath,
+    commentsJsonPath,
+    bundleExportsDirectoryPath,
+    commentsMarkdownPath,
+  }
+}
+
+function toBundleTimestamp(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+
+  return `${year}${month}${day}_${hours}${minutes}${seconds}`
+}
+
+async function writeFileAtomic(targetPath: string, content: string) {
+  const temporaryPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`
+  await writeFile(temporaryPath, content, 'utf8')
+  await rename(temporaryPath, targetPath)
+}
+
+function beginWorkspaceWriteOperation() {
+  workspaceWriteOperationsInFlight += 1
+}
+
+function endWorkspaceWriteOperation() {
+  workspaceWriteOperationsInFlight = Math.max(
+    0,
+    workspaceWriteOperationsInFlight - 1,
+  )
+}
+
+function waitForWorkspaceWritesToSettle(maxWaitMs: number): Promise<boolean> {
+  if (workspaceWriteOperationsInFlight === 0) {
+    return Promise.resolve(true)
+  }
+
+  const startedAt = Date.now()
+  return new Promise((resolve) => {
+    const timer = setInterval(() => {
+      if (workspaceWriteOperationsInFlight === 0) {
+        clearInterval(timer)
+        resolve(true)
+        return
+      }
+      if (Date.now() - startedAt >= maxWaitMs) {
+        clearInterval(timer)
+        resolve(false)
+      }
+    }, 40)
+  })
+}
+
+function ensurePathWithinWorkspace(rootPath: string, targetPath: string): boolean {
+  const resolvedRootPath = path.resolve(rootPath)
+  const resolvedTargetPath = path.resolve(targetPath)
+  return isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)
 }
 
 function isLikelyBinaryContent(contentBuffer: Buffer) {
@@ -262,7 +407,7 @@ function shouldIgnoreWatchPath(rootPath: string, candidatePath: string) {
     return true
   }
 
-  return hasIgnoredWorkspaceSegment(relativePath)
+  return hasIgnoredWorkspaceSegment(relativePath, WORKSPACE_WATCH_IGNORE_NAMES)
 }
 
 function sortWorkspaceTree(nodes: WorkspaceFileNode[]): WorkspaceFileNode[] {
@@ -508,6 +653,232 @@ async function handleWorkspaceReadFile(
       ok: false,
       content: null,
       error: error instanceof Error ? error.message : 'Failed to read file',
+    }
+  }
+}
+
+async function handleWorkspaceReadComments(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceReadCommentsRequest,
+): Promise<WorkspaceReadCommentsResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        comments: [],
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        comments: [],
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const { commentsJsonPath } = getWorkspaceCommentPaths(resolvedRootPath)
+    if (!ensurePathWithinWorkspace(resolvedRootPath, commentsJsonPath)) {
+      return {
+        ok: false,
+        comments: [],
+        error: 'Cannot read comments outside the workspace root.',
+      }
+    }
+
+    let rawJson = ''
+    try {
+      rawJson = await readFile(commentsJsonPath, 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {
+          ok: true,
+          comments: [],
+        }
+      }
+      throw error
+    }
+
+    const parsedComments = JSON.parse(rawJson)
+    if (!Array.isArray(parsedComments)) {
+      return {
+        ok: false,
+        comments: [],
+        error: 'Invalid comments file format: expected an array.',
+      }
+    }
+
+    return {
+      ok: true,
+      comments: parsedComments as CodeCommentRecord[],
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      comments: [],
+      error: error instanceof Error ? error.message : 'Failed to read comments.',
+    }
+  }
+}
+
+async function handleWorkspaceWriteComments(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWriteCommentsRequest,
+): Promise<WorkspaceWriteCommentsResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        error: 'rootPath is required.',
+      }
+    }
+
+    if (!Array.isArray(request.comments)) {
+      return {
+        ok: false,
+        error: 'comments must be an array.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const { metadataDirectoryPath, commentsJsonPath } =
+      getWorkspaceCommentPaths(resolvedRootPath)
+    if (
+      !ensurePathWithinWorkspace(resolvedRootPath, metadataDirectoryPath) ||
+      !ensurePathWithinWorkspace(resolvedRootPath, commentsJsonPath)
+    ) {
+      return {
+        ok: false,
+        error: 'Cannot write comments outside the workspace root.',
+      }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      await mkdir(metadataDirectoryPath, { recursive: true })
+      const serializedComments = `${JSON.stringify(request.comments, null, 2)}\n`
+      await writeFileAtomic(commentsJsonPath, serializedComments)
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to write comments.',
+    }
+  }
+}
+
+async function handleWorkspaceExportCommentsBundle(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceExportCommentsBundleRequest,
+): Promise<WorkspaceExportCommentsBundleResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    if (!request.writeCommentsFile && !request.writeBundleFile) {
+      return {
+        ok: false,
+        error: 'At least one export target must be selected.',
+      }
+    }
+
+    const {
+      metadataDirectoryPath,
+      bundleExportsDirectoryPath,
+      commentsMarkdownPath,
+    } = getWorkspaceCommentPaths(resolvedRootPath)
+    if (
+      !ensurePathWithinWorkspace(resolvedRootPath, metadataDirectoryPath) ||
+      !ensurePathWithinWorkspace(resolvedRootPath, bundleExportsDirectoryPath) ||
+      !ensurePathWithinWorkspace(resolvedRootPath, commentsMarkdownPath)
+    ) {
+      return {
+        ok: false,
+        error: 'Cannot export comments outside the workspace root.',
+      }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      let exportedCommentsPath: string | undefined
+      let exportedBundlePath: string | undefined
+
+      if (request.writeCommentsFile) {
+        if (typeof request.commentsMarkdown !== 'string') {
+          return {
+            ok: false,
+            error: 'commentsMarkdown is required when writeCommentsFile is enabled.',
+          }
+        }
+        await writeFileAtomic(commentsMarkdownPath, request.commentsMarkdown)
+        exportedCommentsPath = commentsMarkdownPath
+      }
+
+      if (request.writeBundleFile) {
+        if (typeof request.bundleMarkdown !== 'string') {
+          return {
+            ok: false,
+            error: 'bundleMarkdown is required when writeBundleFile is enabled.',
+          }
+        }
+        await mkdir(bundleExportsDirectoryPath, { recursive: true })
+        const fileName = `${toBundleTimestamp()}-comments-bundle.md`
+        const bundlePath = path.join(bundleExportsDirectoryPath, fileName)
+        if (!ensurePathWithinWorkspace(resolvedRootPath, bundlePath)) {
+          return {
+            ok: false,
+            error: 'Cannot export bundle outside the workspace root.',
+          }
+        }
+        await writeFileAtomic(bundlePath, request.bundleMarkdown)
+        exportedBundlePath = bundlePath
+      }
+
+      return {
+        ok: true,
+        commentsPath: exportedCommentsPath,
+        bundlePath: exportedBundlePath,
+      }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to export comments bundle.',
     }
   }
 }
@@ -809,6 +1180,9 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:openDialog')
   ipcMain.removeHandler('workspace:index')
   ipcMain.removeHandler('workspace:readFile')
+  ipcMain.removeHandler('workspace:readComments')
+  ipcMain.removeHandler('workspace:writeComments')
+  ipcMain.removeHandler('workspace:exportCommentsBundle')
   ipcMain.removeHandler('workspace:watchStart')
   ipcMain.removeHandler('workspace:watchStop')
   ipcMain.removeHandler('system:openInIterm')
@@ -816,6 +1190,12 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
+  ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
+  ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
+  ipcMain.handle(
+    'workspace:exportCommentsBundle',
+    handleWorkspaceExportCommentsBundle,
+  )
   ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStart)
   ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStop)
   ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
@@ -898,6 +1278,34 @@ app.on('window-all-closed', () => {
     app.quit()
     win = null
   }
+})
+
+app.on('before-quit', (event) => {
+  if (hasRequestedQuitWatcherShutdown) {
+    return
+  }
+
+  hasRequestedQuitWatcherShutdown = true
+  event.preventDefault()
+  void (async () => {
+    const writesSettled = await waitForWorkspaceWritesToSettle(
+      QUIT_WRITE_SETTLE_TIMEOUT_MS,
+    )
+    if (!writesSettled) {
+      console.warn(
+        `Timed out waiting for workspace writes to settle (${QUIT_WRITE_SETTLE_TIMEOUT_MS}ms).`,
+      )
+    }
+
+    await Promise.race([
+      stopAllWorkspaceWatchers(),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, QUIT_WATCHER_SHUTDOWN_TIMEOUT_MS)
+      }),
+    ])
+
+    app.exit(0)
+  })()
 })
 
 app.on('activate', () => {
