@@ -617,6 +617,51 @@
   padding-bottom: 8px;
 }
 
+.code-viewer-title-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.code-viewer-title-row .label {
+  margin-bottom: 0;
+}
+
+.code-viewer-copy-path-button {
+  align-items: center;
+  background: #1a1a1a;
+  border: 1px solid #4a4a4a;
+  border-radius: 8px;
+  color: #d3d3d3;
+  cursor: pointer;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+.code-viewer-copy-path-button:hover {
+  border-color: #7bb6e8;
+}
+
+.code-viewer-copy-path-button:focus-visible {
+  outline: 2px solid #7bb6e8;
+  outline-offset: 1px;
+}
+
+.code-viewer-copy-path-button:disabled {
+  border-color: #3c3c3c;
+  color: #737373;
+  cursor: not-allowed;
+}
+
+.code-viewer-copy-path-button svg {
+  height: 14px;
+  width: 14px;
+}
+
 .code-viewer-selection {
   color: #9e9e9e;
   font-size: 0.8rem;

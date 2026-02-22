@@ -81,6 +81,64 @@ describe('CodeViewerPanel highlighting', () => {
     expect(firstLine?.innerHTML).toBe('plain text line')
   })
 
+  it('copies active file path from header copy button', () => {
+    const onRequestCopyRelativePath = vi.fn()
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1'}
+        activeFileImagePreview={null}
+        commentLineCounts={new Map()}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
+        onRequestCopyRelativePath={onRequestCopyRelativePath}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Copy active file path',
+      }),
+    )
+
+    expect(onRequestCopyRelativePath).toHaveBeenCalledWith('src/example.ts')
+  })
+
+  it('disables header copy button without active file', () => {
+    render(
+      <CodeViewerPanel
+        activeFile={null}
+        activeFileContent={null}
+        activeFileImagePreview={null}
+        commentLineCounts={new Map()}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Copy active file path',
+      }),
+    ).toBeDisabled()
+  })
+
   it('scrolls to requested line when jump request is provided', () => {
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
     const scrollIntoViewMock = vi.fn()

@@ -85,6 +85,33 @@ function getPreviewUnavailableMessage(
   return 'Preview unavailable: binary file detected.'
 }
 
+function CopyPathIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <rect
+        fill="none"
+        height="11"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        width="10"
+        x="10"
+        y="7"
+      />
+      <rect
+        fill="none"
+        height="11"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        width="10"
+        x="4"
+        y="3"
+      />
+    </svg>
+  )
+}
+
 export function CodeViewerPanel({
   activeFile,
   activeFileContent,
@@ -321,7 +348,25 @@ export function CodeViewerPanel({
   return (
     <section className="code-viewer-panel" data-testid="code-viewer-panel">
       <header className="code-viewer-header">
-        <p className="label">Code Preview</p>
+        <div className="code-viewer-title-row">
+          <p className="label">Code Preview</p>
+          <button
+            aria-label="Copy active file path"
+            className="code-viewer-copy-path-button"
+            data-testid="code-viewer-copy-path-button"
+            disabled={!activeFile}
+            onClick={() => {
+              if (!activeFile) {
+                return
+              }
+              onRequestCopyRelativePath(activeFile)
+            }}
+            title="Copy active file path"
+            type="button"
+          >
+            <CopyPathIcon />
+          </button>
+        </div>
         <p className="path" data-testid="code-viewer-active-file" title={activeFile ?? ''}>
           {activeFile ?? 'No active file'}
         </p>
