@@ -1085,3 +1085,54 @@
   - 전역 코멘트는 `comments.json`과 분리 저장하고 line comment `exportedAt` 정책은 변경하지 않았다.
   - export 텍스트(`_COMMENTS.md`, bundle)는 `## Global Comments`를 `## Comments` 앞에 배치한다(빈 경우 생략).
   - pending line comment가 0이어도 전역 코멘트가 있으면 export를 허용한다.
+
+---
+
+## F12.4 Addendum (2026-02-22)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f12_4_header_action_layout_reorder.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `T1` (completed)
+  - Phase 2: `T2` (completed)
+  - Phase 3: `T3` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| T1 | 헤더 액션 그룹 구조 재배치 | P0 | - | completed | `App.test.tsx` pass |
+| T2 | 헤더 compact 스타일 + 반응형 icon-only 규칙 | P0 | T1 | completed | `App.test.tsx` pass |
+| T3 | 버튼 순서/동작 회귀 테스트 | P0 | T1,T2 | completed | `npm test`, `npm run lint`, `npm run build` pass |
+
+### 2) Files Changed (F12.4)
+
+- `src/App.tsx`
+- `src/App.css`
+- `src/App.test.tsx`
+- `src/workspace/workspace-switcher.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Test and Quality Gate Status (F12.4)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm install`: pass (up to date)
+- `npm test -- src/App.test.tsx`: pass
+- `npm test`: pass (`185 passed`)
+- `npm run lint`: pass
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F12.4)
+
+- Group A: `T1 -> T2` (`src/App.tsx`, `src/App.css`, `src/workspace/workspace-switcher.tsx` 상호 의존으로 순차)
+- Group B: `T3` (`src/App.test.tsx` 회귀 검증 + 전체 게이트)
+
+### 5) Blockers and Decisions (F12.4)
+
+- Blockers: 없음
+- Applied decisions:
+  - `Close Workspace` 버튼을 `WorkspaceSwitcher`에서 분리해 workspace action group으로 이동했다.
+  - comments/workspace 액션은 `icon + short label` compact 버튼(`header-action-button`)으로 통일했다.
+  - 반응형 icon-only 전환은 label slot만 숨기고 `aria-label`/`title`로 접근성 이름을 유지했다.
+  - 기존 disabled/핸들러 로직은 동일 조건을 재사용해 회귀를 방지했다.

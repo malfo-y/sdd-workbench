@@ -724,3 +724,43 @@
 
 - `READY`
 - Reason: F12.3 계획 태스크(T1~T5)를 완료했고 자동 테스트/린트/빌드 게이트를 통과함.
+
+---
+
+## F12.4 Addendum (2026-02-22)
+
+### 1) Progress Summary
+
+- Plan source: `/_sdd/drafts/feature_draft_f12_4_header_action_layout_reorder.md` (Part 2)
+- Completed:
+  - 헤더 액션을 `History -> Workspace Switcher -> Comments Group -> Workspace Group` 순으로 재배치
+  - `WorkspaceSwitcher`에서 `Close Workspace` 버튼을 분리하고 App workspace 그룹에서 `Close/Open`을 관리하도록 구조 조정
+  - comments/workspace 액션에 compact 버튼(`icon + short label`) 패턴 도입
+  - 협소 폭 breakpoint에서 label 숨김(icon-only) 규칙 추가 및 `aria-label`/`title` 접근성 보강
+  - 헤더 그룹 DOM 순서 및 compact 버튼 접근성 회귀 테스트 추가
+  - Verification: `npm test`, `npm run lint`, `npm run build` pass
+
+### 2) Phase Review Summary
+
+- Phase 1: proceed
+- Phase 2: proceed
+- Phase 3: proceed
+
+### 3) Cross-Phase Findings
+
+- F12.2/F12.3에서 추가된 comments 액션 버튼은 그룹 내부 순서를 유지하면서 동일 disabled 조건을 재사용해 기능 회귀가 없었다.
+- `WorkspaceSwitcher`의 책임을 선택(select) 중심으로 축소하고 close 제어를 상위(App)에서 관리해 헤더 그룹화 요구를 충족했다.
+- icon-only 전환에서도 접근성 이름을 `aria-label`로 유지해 테스트와 실제 스크린리더 경로가 일관된다.
+- 기존 history/navigation(F07.1) 및 workspace open flow(F01/F03.5/F08) 동작과 충돌 없이 통합됐다.
+
+### 4) Issue Table (Severity / Status)
+
+| Severity | Issue | Status |
+|----------|-------|--------|
+| Improvement | compact 버튼의 사용자 커스터마이즈(라벨/아이콘 선택)는 미지원 | backlog |
+| Improvement | breakpoint(`1240px`)은 고정 값이며 설정 기반 조정은 미지원 | backlog |
+
+### 5) Final Conclusion (F12.4)
+
+- `READY`
+- Reason: F12.4 계획 태스크(T1~T3)를 완료했고 자동 테스트/린트/빌드 게이트를 통과함.

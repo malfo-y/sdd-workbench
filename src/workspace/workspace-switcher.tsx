@@ -5,18 +5,13 @@ type WorkspaceSwitcherProps = {
   workspaces: Array<{ id: WorkspaceId; rootPath: string }>
   activeWorkspaceId: WorkspaceId | null
   onSelectWorkspace: (workspaceId: WorkspaceId) => void
-  onCloseWorkspace: (workspaceId: WorkspaceId) => void
 }
 
 export function WorkspaceSwitcher({
   workspaces,
   activeWorkspaceId,
   onSelectWorkspace,
-  onCloseWorkspace,
 }: WorkspaceSwitcherProps) {
-  const canCloseWorkspace =
-    activeWorkspaceId !== null && workspaces.some(({ id }) => id === activeWorkspaceId)
-
   if (workspaces.length === 0) {
     return (
       <div className="workspace-switcher">
@@ -32,9 +27,6 @@ export function WorkspaceSwitcher({
         >
           <option value="">No workspace</option>
         </select>
-        <button disabled type="button">
-          Close Workspace
-        </button>
       </div>
     )
   }
@@ -57,19 +49,6 @@ export function WorkspaceSwitcher({
           </option>
         ))}
       </select>
-      <button
-        disabled={!canCloseWorkspace}
-        onClick={() => {
-          if (!activeWorkspaceId) {
-            return
-          }
-
-          onCloseWorkspace(activeWorkspaceId)
-        }}
-        type="button"
-      >
-        Close Workspace
-      </button>
     </div>
   )
 }

@@ -186,6 +186,123 @@ function VsCodeIcon() {
   )
 }
 
+function AddIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M12 5V19"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M5 12H19"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function ViewIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M2.5 12C4.7 7.8 8 5.5 12 5.5C16 5.5 19.3 7.8 21.5 12C19.3 16.2 16 18.5 12 18.5C8 18.5 4.7 16.2 2.5 12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <circle cx="12" cy="12" fill="none" r="3" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+function ExportIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M12 4V14"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M8.5 10.5L12 14L15.5 10.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M5 18.5H19"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M6.5 6.5L17.5 17.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M17.5 6.5L6.5 17.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function OpenIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M3 8.5V6.8C3 5.8 3.8 5 4.8 5H10L12 7H19.2C20.2 7 21 7.8 21 8.8V17.2C21 18.2 20.2 19 19.2 19H4.8C3.8 19 3 18.2 3 17.2V11"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M8 12H15"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M11.5 8.5L15 12L11.5 15.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
 function App() {
   const {
     workspaces,
@@ -284,6 +401,15 @@ function App() {
     [comments],
   )
   const hasGlobalComments = globalComments.trim().length > 0
+  const isCommentsActionDisabled =
+    !rootPath ||
+    isReadingComments ||
+    isWritingComments ||
+    isReadingGlobalComments ||
+    isWritingGlobalComments ||
+    isExportingComments
+  const canCloseWorkspace =
+    activeWorkspaceId !== null && workspaces.some(({ id }) => id === activeWorkspaceId)
   const wheelHistoryStateRef = useRef<WheelHistoryState>({
     accumulatedDeltaX: 0,
     lastEventAt: 0,
@@ -1048,78 +1174,110 @@ function App() {
     <main className="app-shell">
       <header className="app-header">
         <h1>SDD Workbench</h1>
-        <div className="app-header-actions">
-          <button
-            disabled={!canGoBack}
-            onClick={goBackInHistory}
-            type="button"
+        <div className="app-header-actions" data-testid="app-header-actions">
+          <div
+            className="header-history-actions"
+            data-testid="header-history-actions"
           >
-            Back
-          </button>
-          <button
-            disabled={!canGoForward}
-            onClick={goForwardInHistory}
-            type="button"
-          >
-            Forward
-          </button>
+            <button
+              disabled={!canGoBack}
+              onClick={goBackInHistory}
+              type="button"
+            >
+              Back
+            </button>
+            <button
+              disabled={!canGoForward}
+              onClick={goForwardInHistory}
+              type="button"
+            >
+              Forward
+            </button>
+          </div>
           <WorkspaceSwitcher
             activeWorkspaceId={activeWorkspaceId}
-            onCloseWorkspace={closeWorkspace}
             onSelectWorkspace={setActiveWorkspace}
             workspaces={workspaces}
           />
-          <button
-            disabled={
-              !rootPath ||
-              isReadingComments ||
-              isWritingComments ||
-              isReadingGlobalComments ||
-              isWritingGlobalComments ||
-              isExportingComments
-            }
-            onClick={() => {
-              setIsGlobalCommentsModalOpen(true)
-            }}
-            type="button"
-          >
-            Add Global Comments
-          </button>
-          <button
-            disabled={
-              !rootPath ||
-              isReadingComments ||
-              isWritingComments ||
-              isReadingGlobalComments ||
-              isWritingGlobalComments ||
-              isExportingComments
-            }
-            onClick={() => {
-              setIsViewCommentsModalOpen(true)
-            }}
-            type="button"
-          >
-            View Comments
-          </button>
-          <button
-            disabled={
-              !rootPath ||
-              isReadingComments ||
-              isWritingComments ||
-              isReadingGlobalComments ||
-              isWritingGlobalComments ||
-              isExportingComments
-            }
-            onClick={() => {
-              setIsExportModalOpen(true)
-            }}
-            type="button"
-          >
-            Export Comments
-          </button>
-          <button onClick={() => void openWorkspace()} type="button">
-            Open Workspace
-          </button>
+          <div className="header-comments-actions" data-testid="header-comments-actions">
+            <button
+              aria-label="Add Global Comments"
+              className="header-action-button"
+              disabled={isCommentsActionDisabled}
+              onClick={() => {
+                setIsGlobalCommentsModalOpen(true)
+              }}
+              title="Add Global Comments"
+              type="button"
+            >
+              <span aria-hidden="true" className="header-action-icon">
+                <AddIcon />
+              </span>
+              <span className="header-action-label">+ Global</span>
+            </button>
+            <button
+              aria-label="View Comments"
+              className="header-action-button"
+              disabled={isCommentsActionDisabled}
+              onClick={() => {
+                setIsViewCommentsModalOpen(true)
+              }}
+              title="View Comments"
+              type="button"
+            >
+              <span aria-hidden="true" className="header-action-icon">
+                <ViewIcon />
+              </span>
+              <span className="header-action-label">View</span>
+            </button>
+            <button
+              aria-label="Export Comments"
+              className="header-action-button"
+              disabled={isCommentsActionDisabled}
+              onClick={() => {
+                setIsExportModalOpen(true)
+              }}
+              title="Export Comments"
+              type="button"
+            >
+              <span aria-hidden="true" className="header-action-icon">
+                <ExportIcon />
+              </span>
+              <span className="header-action-label">Export</span>
+            </button>
+          </div>
+          <div className="header-workspace-actions" data-testid="header-workspace-actions">
+            <button
+              aria-label="Close Workspace"
+              className="header-action-button"
+              disabled={!canCloseWorkspace}
+              onClick={() => {
+                if (!activeWorkspaceId) {
+                  return
+                }
+                closeWorkspace(activeWorkspaceId)
+              }}
+              title="Close Workspace"
+              type="button"
+            >
+              <span aria-hidden="true" className="header-action-icon">
+                <CloseIcon />
+              </span>
+              <span className="header-action-label">Close</span>
+            </button>
+            <button
+              aria-label="Open Workspace"
+              className="header-action-button"
+              onClick={() => void openWorkspace()}
+              title="Open Workspace"
+              type="button"
+            >
+              <span aria-hidden="true" className="header-action-icon">
+                <OpenIcon />
+              </span>
+              <span className="header-action-label">Open</span>
+            </button>
+          </div>
         </div>
       </header>
 

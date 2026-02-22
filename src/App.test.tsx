@@ -271,6 +271,67 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByRole('button', { name: 'Open in VSCode' })).toBeDisabled()
   })
 
+  it('renders header action groups in stable order', () => {
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    const headerActions = screen.getByTestId('app-header-actions')
+    const childClassNames = Array.from(headerActions.children).map((child) =>
+      child.className.toString(),
+    )
+
+    expect(childClassNames).toEqual([
+      'header-history-actions',
+      'workspace-switcher',
+      'header-comments-actions',
+      'header-workspace-actions',
+    ])
+  })
+
+  it('uses compact comment/workspace action buttons with accessible labels', () => {
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    const addGlobalButton = screen.getByRole('button', {
+      name: 'Add Global Comments',
+    })
+    const viewCommentsButton = screen.getByRole('button', {
+      name: 'View Comments',
+    })
+    const exportCommentsButton = screen.getByRole('button', {
+      name: 'Export Comments',
+    })
+    const closeWorkspaceButton = screen.getByRole('button', {
+      name: 'Close Workspace',
+    })
+    const openWorkspaceButton = screen.getByRole('button', {
+      name: 'Open Workspace',
+    })
+
+    for (const button of [
+      addGlobalButton,
+      viewCommentsButton,
+      exportCommentsButton,
+      closeWorkspaceButton,
+      openWorkspaceButton,
+    ]) {
+      expect(button).toHaveClass('header-action-button')
+      expect(button).toHaveAttribute('title')
+    }
+
+    expect(addGlobalButton).toHaveTextContent('+ Global')
+    expect(viewCommentsButton).toHaveTextContent('View')
+    expect(exportCommentsButton).toHaveTextContent('Export')
+    expect(closeWorkspaceButton).toHaveTextContent('Close')
+    expect(openWorkspaceButton).toHaveTextContent('Open')
+  })
+
   it('opens active workspace in iTerm and VSCode', async () => {
     openDialogMock.mockResolvedValueOnce({
       canceled: false,
