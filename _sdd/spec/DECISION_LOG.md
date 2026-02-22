@@ -574,3 +574,71 @@
 - Impact / follow-up:
   - `main.md`의 인벤토리/상태 모델/IPC 계약/F10.2 섹션/수용 기준/테스트 수치를 최신 코드 기준으로 동기화한다.
   - 이미지 프리뷰는 read-only로 고정하고, 확대/축소/패닝 및 추가 포맷(`bmp`, `ico`)은 후속 backlog로 유지한다.
+
+## 2026-02-22 - F11 구현 완료 + review follow-up 반영
+
+- Context:
+  - F11(인라인 코드 코멘트 + LLM Export Bundle) 구현이 완료되었고, 자동 테스트/린트/빌드 게이트를 통과했음.
+  - implementation-review에서 지적된 두 이슈(클립보드 export 성공 판정 불일치, 종료 시 write 중단 가능성)가 후속 수정으로 반영되었음.
+  - 스펙 문서에는 F11이 Planned로 남아 있었고, IPC/수용 기준/검증 수치가 최신 코드와 드리프트 상태였음.
+- Decision:
+  - F11 상태를 `✅ Done`으로 전환한다.
+  - comments source of truth(`.sdd-workbench/comments.json`), `_COMMENTS.md` overwrite export, bundle 길이 제한(`MAX_CLIPBOARD_CHARS=30000`) 정책을 구현 기준으로 고정한다.
+  - clipboard export 성공 피드백은 실제 clipboard write 성공 시에만 집계되도록 고정한다.
+  - 종료 경로는 watcher 정리 전에 in-flight workspace write settle을 최대 5초까지 대기하고, 이후 watcher 종료 타임아웃(1.5초)을 적용한다.
+- Rationale:
+  - F11은 코드 뷰어 우클릭 코멘트 작성과 LLM 전달 번들 생성이라는 핵심 사용자 흐름을 완결했고, 실패 경로까지 포함한 신뢰성 정책을 문서에 고정해야 회귀를 줄일 수 있다.
+  - clipboard 성공/실패 오판은 사용자 신뢰에 직접 영향을 주므로 성공 판정 기준을 구현 동작과 일치시켜야 한다.
+  - 종료 시 write settle 대기를 명시해야 comments 저장/export 중 데이터 손실 가능성을 줄일 수 있다.
+- Alternatives considered:
+  - F11을 partial로 유지하고 후속 기능(렌더 패널 코멘트 진입)까지 포함해 한 번에 done 처리
+  - 종료 경로에서 기존 watcher single-flight만 유지하고 write settle 대기는 도입하지 않음
+- Impact / follow-up:
+  - `main.md` 메타데이터/인벤토리/상태 모델/IPC 계약/Feature Queue/수용 기준/검증 수치를 F11 완료 기준으로 동기화한다.
+  - 후속 코멘트 UX(예: rendered markdown에서 코멘트 진입/가시화)는 신규 feature draft로 분리한다.
+
+## 2026-02-22 - F11.1 구현 완료 반영(rendered markdown 코멘트 진입 + marker + 증분 export)
+
+- Context:
+  - F11.1 구현으로 rendered markdown selection 우클릭 `Add Comment` 진입, 코드/문서 코멘트 marker, 증분 export(`pending-only`, `exportedAt`)가 코드/테스트에 반영되었음.
+  - implementation-review 최신 결론이 `READY`로 확정되었고, mixed export 부분 성공 시나리오(clipboard 실패/file 성공, clipboard 성공/file 실패)가 테스트로 고정되었음.
+  - 기존 `main.md`는 F11까지만 반영되어 F11.1 기능 상태/수용 기준/검증 수치(158 passed)와 드리프트가 있었음.
+- Decision:
+  - F11.1을 스펙 상태 `✅ Done`으로 전환한다.
+  - rendered markdown source popover 액션 순서를 `Add Comment` -> `Go to Source`로 고정한다.
+  - 코멘트 marker 매핑은 exact-match 우선, 실패 시 nearest fallback(동률이면 더 작은 line) 규칙으로 고정한다.
+  - export는 pending comments(`exportedAt` 미지정)만 대상으로 하고, 최소 1개 target 성공 시 snapshot 코멘트에 `exportedAt`를 기록한다.
+  - 테스트/검증 수치는 최신 실행값(`npm test`: 158 passed, `npm run lint`: pass, `npm run build`: pass)으로 동기화한다.
+- Rationale:
+  - 스펙-코드 왕복 루프에서 문서 패널에서 즉시 코멘트를 남기고(진입점), 양쪽 패널에서 코멘트 위치를 확인하는 가시성(marker)을 함께 제공해야 실제 작업 효율이 올라간다.
+  - 증분 export를 고정하면 이미 처리한 코멘트 재전송을 줄여 LLM 작업 흐름의 중복을 줄일 수 있다.
+  - mixed export 결과를 성공 target 기준으로 기록해야 사용자 피드백과 실제 상태(`exportedAt`)가 일치한다.
+- Alternatives considered:
+  - F11.1을 partial 상태로 유지하고 marker/증분 export를 후속으로 분리
+  - marker를 exact-match만 허용하고 fallback 미지원
+  - export 성공 여부를 전체 all-or-nothing으로 처리
+- Impact / follow-up:
+  - `main.md` 메타데이터/인벤토리/상태 규칙/Feature Queue/수용 기준/검증 수치/결론을 F11.1 완료 기준으로 동기화한다.
+  - 후속 backlog는 코멘트 편집/삭제, marker 상세 패널, re-export-all/reset UX로 분리한다.
+
+## 2026-02-22 - 스펙 구조 리라이트(인덱스 + 하위 문서 분할)
+
+- Context:
+  - `/_sdd/spec/main.md`가 1300+ 라인으로 확장되면서 인벤토리/Feature Queue/수용 기준/운영 기준이 단일 파일에 과집중되어 탐색성이 낮아졌음.
+  - F11/F11.1까지 구현 완료된 상태에서 같은 정책(코멘트/증분 export/마커)이 여러 섹션에 반복 기술되어 문서 유지비용이 증가했음.
+  - 사용자 요청으로 `spec-rewrite`를 적용해 스펙 구조를 재정렬할 필요가 생겼음.
+- Decision:
+  - `main.md`는 인덱스/요약 허브로 축소하고, 상세는 `/_sdd/spec/sdd-workbench/` 하위 주제 문서로 분할한다.
+  - 분할 구조는 `01-overview`, `02-architecture`, `03-components`, `04-interfaces`, `05-operational-guides`, `appendix`로 고정한다.
+  - 상세 기능 이력과 리스크/백로그는 appendix로 이동하고, 구현/정책 결정의 source of truth는 계속 `DECISION_LOG.md`로 유지한다.
+- Rationale:
+  - 구현 반영(`spec-update-done`) 시 변경 범위를 주제 문서 단위로 줄이면 드리프트 위험과 리뷰 비용을 낮출 수 있다.
+  - 인덱스-하위문서 구조는 읽기 경로를 단순화하고, 신규 기능(F12+) 추가 시 문서 충돌을 완화한다.
+- Alternatives considered:
+  - 단일 `main.md` 유지 + 섹션 정리만 수행
+  - `main.md`를 유지하고 appendix만 추가
+  - 기능별(F01~) 개별 문서로 과도 분할
+- Impact / follow-up:
+  - `main.md` 링크 허브를 기준으로 하위 문서를 탐색하는 문서 운영 규칙을 적용한다.
+  - 추후 기능 추가 시 우선 해당 주제 문서만 갱신하고, summary 수준 변경만 인덱스에 반영한다.
+  - appendix 비대화 추이를 모니터링하고 필요 시 릴리스 단위 아카이브를 분리한다.
