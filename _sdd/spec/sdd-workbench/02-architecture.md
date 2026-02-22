@@ -78,8 +78,9 @@ Right: Rendered Spec (TOC + link/source actions)
 
 1. CodeViewer/SpecViewer `Add Comment`
 2. `comments.json` 저장(source of truth)
-3. line index 생성 -> 코드/문서 marker 표시
-4. Export 시 pending-only 선택 -> target 성공 시 `exportedAt` 기록
+3. line index(count + entries) 생성 -> 코드/문서 marker 표시
+4. marker hover 시 라인 코멘트 본문 미리보기 popover 표시(read-only)
+5. Export 시 pending-only 선택 -> target 성공 시 `exportedAt` 기록
 
 ## 6. 워크스페이스 경계 규칙
 

@@ -15,6 +15,8 @@ import {
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { getHighlightLanguage } from './language-map'
 import * as syntaxHighlight from './syntax-highlight'
+import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
+import type { CodeComment } from '../code-comments/comment-types'
 
 export type CodeViewerJumpRequest = {
   targetRelativePath: string
@@ -49,6 +51,7 @@ type CodeViewerPanelProps = {
     selectionRange: LineSelectionRange
   }) => void
   commentLineCounts: ReadonlyMap<number, number>
+  commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
 }
 
 type ContextMenuState = {
@@ -57,6 +60,15 @@ type ContextMenuState = {
   relativePath: string
   selectionRange: LineSelectionRange
 }
+
+type CommentHoverState = {
+  x: number
+  y: number
+  lineNumber: number
+  comments: readonly CodeComment[]
+}
+
+const HOVER_POPOVER_CLOSE_DELAY_MS = 120
 
 function isRenderableImagePreview(
   imagePreview: WorkspaceImagePreview | null,
@@ -127,11 +139,14 @@ export function CodeViewerPanel({
   onRequestCopyBoth,
   onRequestAddComment,
   commentLineCounts,
+  commentLineEntries = EMPTY_COMMENT_LINE_ENTRIES,
 }: CodeViewerPanelProps) {
   const [anchorLine, setAnchorLine] = useState<number | null>(null)
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
     null,
   )
+  const [commentHoverState, setCommentHoverState] =
+    useState<CommentHoverState | null>(null)
   const dragSelectionRef = useRef<{
     anchorLine: number
     hasMoved: boolean
@@ -139,6 +154,7 @@ export function CodeViewerPanel({
   const suppressClickRef = useRef(false)
   const lineButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const lastHandledJumpTokenRef = useRef<number | null>(null)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewLines = useMemo(
     () => splitPreviewLines(activeFileContent ?? ''),
     [activeFileContent],
@@ -160,9 +176,24 @@ export function CodeViewerPanel({
   useEffect(() => {
     setAnchorLine(null)
     setContextMenuState(null)
+    setCommentHoverState(null)
     dragSelectionRef.current = null
     suppressClickRef.current = false
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current)
+      hoverCloseTimerRef.current = null
+    }
   }, [activeFile, activeFileImagePreview, previewUnavailableReason])
+
+  useEffect(
+    () => () => {
+      if (hoverCloseTimerRef.current) {
+        clearTimeout(hoverCloseTimerRef.current)
+        hoverCloseTimerRef.current = null
+      }
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!selectionRange) {
@@ -173,6 +204,48 @@ export function CodeViewerPanel({
   const closeContextMenu = useCallback(() => {
     setContextMenuState(null)
   }, [])
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (!hoverCloseTimerRef.current) {
+      return
+    }
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const closeCommentHover = useCallback(() => {
+    clearHoverCloseTimer()
+    setCommentHoverState(null)
+  }, [clearHoverCloseTimer])
+
+  const scheduleCommentHoverClose = useCallback(() => {
+    clearHoverCloseTimer()
+    hoverCloseTimerRef.current = setTimeout(() => {
+      setCommentHoverState(null)
+      hoverCloseTimerRef.current = null
+    }, HOVER_POPOVER_CLOSE_DELAY_MS)
+  }, [clearHoverCloseTimer])
+
+  const handleCommentBadgeMouseEnter = useCallback(
+    (
+      event: MouseEvent<HTMLElement>,
+      lineNumber: number,
+      comments: readonly CodeComment[],
+    ) => {
+      if (comments.length === 0) {
+        closeCommentHover()
+        return
+      }
+      clearHoverCloseTimer()
+      setCommentHoverState({
+        x: event.clientX,
+        y: event.clientY,
+        lineNumber,
+        comments,
+      })
+    },
+    [clearHoverCloseTimer, closeCommentHover],
+  )
 
   useEffect(() => {
     const handleWindowMouseUp = () => {
@@ -316,6 +389,7 @@ export function CodeViewerPanel({
     event.preventDefault()
     dragSelectionRef.current = null
     suppressClickRef.current = false
+    closeCommentHover()
 
     const shouldKeepSelection =
       selectionRange !== null &&
@@ -470,6 +544,16 @@ export function CodeViewerPanel({
                         <span
                           className="code-line-comment-badge"
                           data-testid={`code-line-comment-badge-${lineNumber}`}
+                          onMouseEnter={(event) => {
+                            handleCommentBadgeMouseEnter(
+                              event,
+                              lineNumber,
+                              commentLineEntries.get(lineNumber) ?? [],
+                            )
+                          }}
+                          onMouseLeave={() => {
+                            scheduleCommentHoverClose()
+                          }}
                           title={`${commentCount} comment(s)`}
                         >
                           {commentCount}
@@ -536,6 +620,19 @@ export function CodeViewerPanel({
           y={contextMenuState.y}
         />
       )}
+      {commentHoverState && (
+        <CommentHoverPopover
+          comments={commentHoverState.comments}
+          lineNumber={commentHoverState.lineNumber}
+          onClose={closeCommentHover}
+          onMouseEnter={clearHoverCloseTimer}
+          onMouseLeave={scheduleCommentHoverClose}
+          x={commentHoverState.x}
+          y={commentHoverState.y}
+        />
+      )}
     </section>
   )
 }
+
+const EMPTY_COMMENT_LINE_ENTRIES: ReadonlyMap<number, readonly CodeComment[]> = new Map()

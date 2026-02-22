@@ -34,6 +34,7 @@
 - [ ] 목록 항목에는 최소 `relativePath`, `line range`, `createdAt`, `body`가 표시된다.
 - [ ] 코멘트 본문 편집 후 저장 시 `comments.json`이 갱신되고 badge/count가 즉시 반영된다.
 - [ ] 삭제 액션 실행 시 해당 코멘트가 제거되고 라인 badge/count가 즉시 갱신된다.
+- [ ] `Delete Exported` 액션 실행 시 `exportedAt`가 있는 코멘트만 일괄 제거되고 pending 코멘트는 유지된다.
 - [ ] 긴 코멘트는 접힘 상태(요약)로 시작하고, 확장해서 전체 본문 확인 가능하다.
 - [ ] 저장/삭제 실패 시 배너로 오류를 안내하고 앱은 크래시하지 않는다.
 
@@ -94,7 +95,8 @@
 현재 코멘트는 생성 후 내보내기만 가능하고 수정/삭제가 불가능해 반복 작업에서 관리 비용이 발생한다. F12.2는 코멘트 lifecycle의 관리 단계를 보완한다.
 
 ### Constraints
-- bulk edit/bulk delete는 초기 범위에서 제외한다.
+- bulk edit는 초기 범위에서 제외한다.
+- bulk delete는 `Delete Exported`(export 완료 코멘트 일괄 삭제) 1종만 포함한다.
 - 코멘트 내용 변경 시 line range 재계산/anchor 재생성은 수행하지 않는다.
 
 ### Open Questions
@@ -113,6 +115,7 @@ F12.2는 코멘트 읽기/수정/삭제를 위한 관리 UI를 추가한다. 핵
 ### In Scope
 - `View Comments` 헤더 액션
 - 코멘트 목록 모달(조회/확장/편집/삭제)
+- `Delete Exported` 일괄 정리 액션(`exportedAt` 존재 코멘트 삭제)
 - 저장/삭제 후 badge 및 marker 즉시 동기화
 - 테스트 보강
 
@@ -227,11 +230,12 @@ F12.2는 코멘트 읽기/수정/삭제를 위한 관리 UI를 추가한다. 핵
 **Type**: Feature
 
 **Description**:
-목록 항목에서 삭제 액션을 제공하고, 저장소에서 해당 코멘트를 제거한다.
+목록 항목에서 개별 삭제 액션을 제공하고, `Delete Exported`로 export 완료 코멘트를 일괄 정리한다.
 
 **Acceptance Criteria**:
 - [ ] 삭제 확인 후 코멘트가 목록에서 제거된다.
 - [ ] 저장 성공 시 코드/문서 마커 count가 감소/제거된다.
+- [ ] `Delete Exported` 실행 시 `exportedAt`가 있는 코멘트만 제거되고 pending 코멘트는 유지된다.
 - [ ] 실패 시 배너 에러를 표시하고 원래 목록 상태를 유지한다.
 
 **Target Files**:
@@ -239,7 +243,7 @@ F12.2는 코멘트 읽기/수정/삭제를 위한 관리 UI를 추가한다. 핵
 - [M] `src/App.tsx` -- 삭제 저장 핸들러 구현
 
 **Technical Notes**:
-- 삭제 확인은 modal 내 confirm action(2-step)으로 accidental delete 방지.
+- 개별 삭제/`Delete Exported` 모두 modal 내 confirm action(2-step)으로 accidental delete 방지.
 
 **Dependencies**: T1, T2
 
@@ -285,4 +289,3 @@ F12.2는 코멘트 읽기/수정/삭제를 위한 관리 UI를 추가한다. 핵
 ## Open Questions
 
 - [ ] 삭제 UX를 즉시 삭제로 할지 confirm step으로 고정할지(기본안: confirm step)
-

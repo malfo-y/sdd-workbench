@@ -665,3 +665,26 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`에 F11.2 완료 상태와 계약을 반영한다.
   - 후속으로 앱 재시작 후 rendered spec scroll 복원, TOC active tracking은 별도 backlog로 유지한다.
+
+## 2026-02-22 - F12.1 구현 완료 반영(code/rendered 코멘트 marker hover preview)
+
+- Context:
+  - F12.1 구현으로 코드 뷰어/렌더드 마크다운에서 코멘트 count badge hover 시 본문 preview를 보여주는 기능이 추가되었음.
+  - line index가 count-only에서 line별 comment entries 조회를 포함하도록 확장되었고, rendered markdown은 nearest fallback 매핑을 유지한 채 preview를 제공하게 되었음.
+  - 구현 보고서 기준 전체 품질 게이트(`npm test`, `npm run lint`, `npm run build`)가 통과했고 `npm test` 수치는 `18 files, 169 passed`로 갱신되었음.
+- Decision:
+  - F12.1을 스펙 상태 `✅ Done`으로 전환한다.
+  - 마커 계약을 count badge + hover preview로 확장하고, preview는 read-only로 고정한다.
+  - hover preview는 최대 3개 코멘트만 노출하고 초과는 `+N more`로 요약한다.
+  - 닫힘 조건은 `mouse leave`, `Esc`, outside click으로 고정한다.
+- Rationale:
+  - 코멘트 본문 확인을 위해 모달/파일 탐색으로 이동해야 하는 비용을 줄여 코드 리뷰 속도를 높일 수 있다.
+  - read-only preview와 표시 개수 제한은 정보량과 시야 방해 사이의 균형을 유지한다.
+  - 기존 exact-match/nearest fallback 매핑 정책을 재사용하면 marker 일관성과 구현 복잡도를 동시에 관리할 수 있다.
+- Alternatives considered:
+  - hover 대신 클릭 기반 상세 패널만 제공
+  - preview에 전체 코멘트를 모두 노출
+  - preview에 편집/삭제 액션까지 포함
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`를 F12.1 완료 상태로 동기화한다.
+  - preview 지연값/표시 개수 사용자 설정과 상세 편집/삭제 패널은 backlog로 유지한다.

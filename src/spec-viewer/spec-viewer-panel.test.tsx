@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SpecViewerPanel } from './spec-viewer-panel'
+import type { CodeComment } from '../code-comments/comment-types'
 
 describe('SpecViewerPanel', () => {
   afterEach(() => {
@@ -41,6 +42,7 @@ describe('SpecViewerPanel', () => {
       >()
       .mockReturnValue(true),
     commentLineCounts = new Map<number, number>(),
+    commentLineEntries = new Map<number, readonly CodeComment[]>(),
   }: {
     workspaceRootPath?: string | null
     activeSpecPath?: string | null
@@ -62,10 +64,12 @@ describe('SpecViewerPanel', () => {
       lineRange: { startLine: number; endLine: number } | null,
     ) => boolean
     commentLineCounts?: ReadonlyMap<number, number>
+    commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   } = {}) {
     render(
       <SpecViewerPanel
         activeSpecPath={activeSpecPath}
+        commentLineEntries={commentLineEntries}
         commentLineCounts={commentLineCounts}
         isLoading={isLoading}
         markdownContent={markdownContent}
@@ -453,12 +457,101 @@ describe('SpecViewerPanel', () => {
     renderPanel({
       markdownContent: '# Title\n\nParagraph',
       commentLineCounts: new Map<number, number>([[4, 2]]),
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [
+          4,
+          [
+            {
+              id: 'comment-1',
+              relativePath: 'docs/spec.md',
+              startLine: 4,
+              endLine: 4,
+              body: 'Paragraph comment',
+              anchor: {
+                snippet: 'Paragraph',
+                hash: 'abcd',
+              },
+              createdAt: '2026-02-22T00:00:00.000Z',
+            },
+          ],
+        ],
+      ]),
     })
 
     await waitFor(() => {
       const paragraph = screen.getByText('Paragraph').closest('p')
       expect(paragraph).toHaveAttribute('data-has-comment-marker', 'true')
       expect(paragraph).toHaveAttribute('data-comment-count', '2')
+    })
+  })
+
+  it('shows hover popover on rendered markdown comment marker', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nParagraph',
+      commentLineCounts: new Map<number, number>([[4, 1]]),
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [
+          4,
+          [
+            {
+              id: 'comment-1',
+              relativePath: 'docs/spec.md',
+              startLine: 4,
+              endLine: 4,
+              body: 'Paragraph hover comment',
+              anchor: {
+                snippet: 'Paragraph',
+                hash: 'abcd',
+              },
+              createdAt: '2026-02-22T00:00:00.000Z',
+            },
+          ],
+        ],
+      ]),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-comment-marker-3')).toBeInTheDocument()
+    })
+
+    fireEvent.mouseEnter(screen.getByTestId('spec-comment-marker-3'))
+    expect(screen.getByRole('dialog', { name: 'Comment previews' })).toHaveTextContent(
+      'Paragraph hover comment',
+    )
+
+    fireEvent.mouseDown(document.body)
+    expect(
+      screen.queryByRole('dialog', { name: 'Comment previews' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders a single marker for nested blocks sharing the same source line', async () => {
+    renderPanel({
+      markdownContent: '> quoted line',
+      commentLineCounts: new Map<number, number>([[1, 1]]),
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [
+          1,
+          [
+            {
+              id: 'comment-q1',
+              relativePath: 'docs/spec.md',
+              startLine: 1,
+              endLine: 1,
+              body: 'quoted comment',
+              anchor: {
+                snippet: 'quoted line',
+                hash: 'q111',
+              },
+              createdAt: '2026-02-22T00:00:00.000Z',
+            },
+          ],
+        ],
+      ]),
+    })
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('spec-comment-marker-1')).toHaveLength(1)
     })
   })
 

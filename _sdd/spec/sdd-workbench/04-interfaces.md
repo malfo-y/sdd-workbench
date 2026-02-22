@@ -70,10 +70,12 @@ type CodeComment = {
 
 ## 5. 마커 매핑 규칙
 
-1. 코드 뷰어 마커는 라인별 count badge
-2. rendered markdown 마커는 `data-source-line` 기반 매핑
+1. 코드 뷰어 마커는 라인별 count badge + hover preview를 제공한다.
+2. rendered markdown 마커는 `data-source-line` 기반 매핑 + hover preview를 제공한다.
 3. 매핑 우선순위: exact-match -> nearest fallback
 4. nearest 동률이면 더 작은 line 우선
+5. hover preview는 최대 3개 코멘트를 표시하고, 초과분은 `+N more`로 요약한다.
+6. hover preview는 read-only이며 닫힘 조건은 mouse leave, `Esc`, outside click이다.
 
 ## 6. 파일 트리 변경 마커 가시화 규칙
 

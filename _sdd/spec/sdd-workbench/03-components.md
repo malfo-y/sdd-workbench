@@ -34,7 +34,7 @@
 - `src/code-viewer/code-viewer-panel.tsx`
   - 라인 단위 렌더, 선택/드래그/컨텍스트 메뉴
   - 이미지 프리뷰/preview unavailable 분기
-  - comment count badge 표시
+  - comment count badge + hover popover 표시
 - `src/code-viewer/line-selection.ts`
   - 1-based selection 유틸
 - `src/code-viewer/language-map.ts`, `syntax-highlight.ts`
@@ -45,7 +45,7 @@
 - `src/spec-viewer/spec-viewer-panel.tsx`
   - rendered markdown + TOC + 링크/소스 액션
   - `Add Comment`/`Go to Source` source popover
-  - comment marker 매핑 렌더
+  - comment marker 매핑 렌더 + hover popover
   - spec scroll position capture/restore(런타임)
 - `src/spec-viewer/spec-link-utils.ts`
   - 링크 해석 및 line-range 파싱
@@ -64,6 +64,8 @@
   - parse/serialize
 - `src/code-comments/comment-line-index.ts`
   - 파일/라인 count index + nearest fallback mapping
+- `src/code-comments/comment-hover-popover.tsx`
+  - 코드/문서 공용 코멘트 hover preview UI
 - `src/code-comments/comment-export.ts`
   - `_COMMENTS.md` 및 bundle 렌더
 - `src/code-comments/comment-editor-modal.tsx`

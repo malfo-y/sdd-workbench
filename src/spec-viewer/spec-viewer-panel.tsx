@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type MouseEvent,
   type UIEvent,
 } from 'react'
@@ -12,7 +13,12 @@ import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
-import { mapCommentCountsToRenderedSourceLines } from '../code-comments/comment-line-index'
+import {
+  mapCommentCountsToRenderedSourceLines,
+  mapCommentEntriesToRenderedSourceLines,
+} from '../code-comments/comment-line-index'
+import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
+import type { CodeComment } from '../code-comments/comment-types'
 import { extractMarkdownHeadings } from './markdown-utils'
 import {
   MARKDOWN_SANITIZE_SCHEMA,
@@ -44,6 +50,7 @@ type SpecViewerPanelProps = {
     selectionRange: { startLine: number; endLine: number }
   }) => void
   commentLineCounts: ReadonlyMap<number, number>
+  commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   restoredScrollTop?: number | null
   onScrollPositionChange?: (input: {
     relativePath: string
@@ -66,14 +73,25 @@ type SourcePopoverState = {
   y: number
 }
 
+type CommentHoverState = {
+  lineNumber: number
+  comments: readonly CodeComment[]
+  x: number
+  y: number
+}
+
 const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'blocked placeholder text'
+const HOVER_POPOVER_CLOSE_DELAY_MS = 120
 
 type MarkdownNodeWithPosition = {
+  type?: string
+  tagName?: string
   position?: {
     start?: {
       line?: number
     }
   }
+  children?: MarkdownNodeWithPosition[]
 }
 
 function getMarkdownNodeSourceLine(node: MarkdownNodeWithPosition | undefined) {
@@ -85,30 +103,121 @@ function getMarkdownNodeSourceLine(node: MarkdownNodeWithPosition | undefined) {
   return normalized >= 1 ? normalized : undefined
 }
 
+function isMarkerContainerTag(tagName: string) {
+  return tagName === 'blockquote' || tagName === 'li'
+}
+
+function isPreferredMarkerChildType(type: string | undefined) {
+  return (
+    type === 'paragraph' ||
+    type === 'listItem' ||
+    type === 'heading' ||
+    type === 'code' ||
+    type === 'table'
+  )
+}
+
+function isPreferredMarkerChildTagName(tagName: string | undefined) {
+  return (
+    tagName === 'p' ||
+    tagName === 'li' ||
+    tagName === 'pre' ||
+    tagName === 'table' ||
+    tagName === 'h1' ||
+    tagName === 'h2' ||
+    tagName === 'h3' ||
+    tagName === 'h4' ||
+    tagName === 'h5' ||
+    tagName === 'h6'
+  )
+}
+
+function shouldSuppressMarkerForNestedSameLineChild(
+  tagName: string,
+  node: MarkdownNodeWithPosition | undefined,
+  sourceLine: number | undefined,
+) {
+  if (!isMarkerContainerTag(tagName) || !node || sourceLine === undefined) {
+    return false
+  }
+
+  const childNodes = Array.isArray(node.children) ? node.children : []
+  for (const childNode of childNodes) {
+    if (getMarkdownNodeSourceLine(childNode) !== sourceLine) {
+      continue
+    }
+
+    if (
+      isPreferredMarkerChildType(childNode.type) ||
+      isPreferredMarkerChildTagName(childNode.tagName)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
 function renderBlockWithSourceLine(
   tagName: string,
   props: Record<string, unknown>,
   markerCountsByLine: ReadonlyMap<number, number>,
+  markerEntriesByLine: ReadonlyMap<number, readonly CodeComment[]>,
+  onMarkerMouseEnter: (
+    event: MouseEvent<HTMLElement>,
+    lineNumber: number,
+    comments: readonly CodeComment[],
+  ) => void,
+  onMarkerMouseLeave: () => void,
 ) {
-  const { node, ...restProps } = props
-  const sourceLine = getMarkdownNodeSourceLine(
-    node as MarkdownNodeWithPosition | undefined,
-  )
+  const { node, children, ...restProps } = props as {
+    node?: MarkdownNodeWithPosition
+    children?: ReactNode
+    className?: string
+  }
+  const sourceLine = getMarkdownNodeSourceLine(node)
   const markerCount =
     sourceLine !== undefined ? markerCountsByLine.get(sourceLine) ?? 0 : 0
-  const hasCommentMarker = markerCount > 0
+  const markerComments =
+    sourceLine !== undefined ? markerEntriesByLine.get(sourceLine) ?? [] : []
+  const hasCommentMarker =
+    markerCount > 0 &&
+    markerComments.length > 0 &&
+    !shouldSuppressMarkerForNestedSameLineChild(tagName, node, sourceLine)
   const existingClassName =
     typeof restProps.className === 'string' ? restProps.className : ''
   const mergedClassName = hasCommentMarker
     ? `${existingClassName} spec-comment-marked`.trim()
     : existingClassName
-  return createElement(tagName, {
+  const baseProps = {
     ...restProps,
     className: mergedClassName.length > 0 ? mergedClassName : undefined,
     'data-source-line': sourceLine,
     'data-has-comment-marker': hasCommentMarker ? 'true' : undefined,
     'data-comment-count': hasCommentMarker ? String(markerCount) : undefined,
-  })
+  }
+
+  if (!hasCommentMarker || sourceLine === undefined) {
+    return createElement(tagName, baseProps, children ?? null)
+  }
+
+  return createElement(
+    tagName,
+    baseProps,
+    createElement(
+      'span',
+      {
+        className: 'spec-comment-marker',
+        'data-testid': `spec-comment-marker-${sourceLine}`,
+        onMouseEnter: (event: MouseEvent<HTMLElement>) => {
+          onMarkerMouseEnter(event, sourceLine, markerComments)
+        },
+        onMouseLeave: onMarkerMouseLeave,
+      },
+      String(markerCount),
+    ),
+    children ?? null,
+  )
 }
 
 function areLineCountMapsEqual(
@@ -122,6 +231,30 @@ function areLineCountMapsEqual(
   for (const [line, count] of left.entries()) {
     if ((right.get(line) ?? 0) !== count) {
       return false
+    }
+  }
+
+  return true
+}
+
+function areLineCommentMapsEqual(
+  left: ReadonlyMap<number, readonly CodeComment[]>,
+  right: ReadonlyMap<number, readonly CodeComment[]>,
+) {
+  if (left.size !== right.size) {
+    return false
+  }
+
+  for (const [line, comments] of left.entries()) {
+    const rightComments = right.get(line)
+    if (!rightComments || rightComments.length !== comments.length) {
+      return false
+    }
+
+    for (let index = 0; index < comments.length; index += 1) {
+      if (comments[index]?.id !== rightComments[index]?.id) {
+        return false
+      }
     }
   }
 
@@ -180,6 +313,7 @@ export function SpecViewerPanel({
   onGoToSourceLine,
   onRequestAddComment,
   commentLineCounts,
+  commentLineEntries = EMPTY_COMMENT_LINE_ENTRIES,
   restoredScrollTop = null,
   onScrollPositionChange,
 }: SpecViewerPanelProps) {
@@ -194,22 +328,43 @@ export function SpecViewerPanel({
   )
   const [sourcePopoverState, setSourcePopoverState] =
     useState<SourcePopoverState | null>(null)
+  const [commentHoverState, setCommentHoverState] =
+    useState<CommentHoverState | null>(null)
   const [isTocExpanded, setIsTocExpanded] = useState(false)
   const [resolvedCommentMarkerCounts, setResolvedCommentMarkerCounts] =
     useState<ReadonlyMap<number, number>>(new Map())
+  const [resolvedCommentMarkerEntries, setResolvedCommentMarkerEntries] =
+    useState<ReadonlyMap<number, readonly CodeComment[]>>(new Map())
   const lastAppliedScrollRestoreRef = useRef<{
     specPath: string
     contentLength: number
     scrollTop: number
   } | null>(null)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setIsTocExpanded(false)
     setLinkPopoverState(null)
     setSourcePopoverState(null)
+    setCommentHoverState(null)
     setResolvedCommentMarkerCounts(new Map())
+    setResolvedCommentMarkerEntries(new Map())
     lastAppliedScrollRestoreRef.current = null
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current)
+      hoverCloseTimerRef.current = null
+    }
   }, [activeSpecPath])
+
+  useEffect(
+    () => () => {
+      if (hoverCloseTimerRef.current) {
+        clearTimeout(hoverCloseTimerRef.current)
+        hoverCloseTimerRef.current = null
+      }
+    },
+    [],
+  )
 
   useEffect(() => {
     const contentElement = contentRef.current
@@ -246,6 +401,9 @@ export function SpecViewerPanel({
       setResolvedCommentMarkerCounts((previous) =>
         previous.size > 0 ? new Map() : previous,
       )
+      setResolvedCommentMarkerEntries((previous) =>
+        previous.size > 0 ? new Map() : previous,
+      )
       return
     }
 
@@ -254,11 +412,60 @@ export function SpecViewerPanel({
       commentLineCounts,
       renderedSourceLines,
     )
+    const mappedEntries = mapCommentEntriesToRenderedSourceLines(
+      commentLineEntries,
+      renderedSourceLines,
+    )
 
     setResolvedCommentMarkerCounts((previous) =>
       areLineCountMapsEqual(previous, mappedCounts) ? previous : mappedCounts,
     )
-  }, [activeSpecPath, commentLineCounts, markdownContent])
+    setResolvedCommentMarkerEntries((previous) =>
+      areLineCommentMapsEqual(previous, mappedEntries) ? previous : mappedEntries,
+    )
+  }, [activeSpecPath, commentLineCounts, commentLineEntries, markdownContent])
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (!hoverCloseTimerRef.current) {
+      return
+    }
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const closeCommentHover = useCallback(() => {
+    clearHoverCloseTimer()
+    setCommentHoverState(null)
+  }, [clearHoverCloseTimer])
+
+  const scheduleCommentHoverClose = useCallback(() => {
+    clearHoverCloseTimer()
+    hoverCloseTimerRef.current = setTimeout(() => {
+      setCommentHoverState(null)
+      hoverCloseTimerRef.current = null
+    }, HOVER_POPOVER_CLOSE_DELAY_MS)
+  }, [clearHoverCloseTimer])
+
+  const handleCommentMarkerMouseEnter = useCallback(
+    (
+      event: MouseEvent<HTMLElement>,
+      lineNumber: number,
+      comments: readonly CodeComment[],
+    ) => {
+      if (comments.length === 0) {
+        closeCommentHover()
+        return
+      }
+      clearHoverCloseTimer()
+      setCommentHoverState({
+        lineNumber,
+        comments,
+        x: event.clientX,
+        y: event.clientY,
+      })
+    },
+    [clearHoverCloseTimer, closeCommentHover],
+  )
 
   const closeLinkPopover = useCallback(() => {
     setLinkPopoverState(null)
@@ -289,6 +496,7 @@ export function SpecViewerPanel({
 
   const handleMarkdownLinkClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>, href?: string) => {
+      closeCommentHover()
       setSourcePopoverState(null)
       const resolvedLink = resolveSpecLink(href, activeSpecPath)
       if (resolvedLink.kind === 'anchor') {
@@ -321,7 +529,7 @@ export function SpecViewerPanel({
         y: event.clientY,
       })
     },
-    [activeSpecPath, onOpenRelativePath],
+    [activeSpecPath, closeCommentHover, onOpenRelativePath],
   )
 
   const handleSpecContextMenu = useCallback(
@@ -358,6 +566,7 @@ export function SpecViewerPanel({
       }
 
       event.preventDefault()
+      closeCommentHover()
       setLinkPopoverState(null)
       setSourcePopoverState({
         selectionRange: resolvedSelectionRange,
@@ -365,7 +574,7 @@ export function SpecViewerPanel({
         y: event.clientY,
       })
     },
-    [],
+    [closeCommentHover],
   )
 
   const handleAddComment = useCallback(() => {
@@ -523,6 +732,7 @@ export function SpecViewerPanel({
           <article
             className="spec-viewer-content"
             data-testid="spec-viewer-content"
+            onMouseLeave={scheduleCommentHoverClose}
             onContextMenu={handleSpecContextMenu}
             onScroll={handleContentScroll}
             ref={contentRef}
@@ -574,66 +784,99 @@ export function SpecViewerPanel({
                     'p',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 li: (props) =>
                   renderBlockWithSourceLine(
                     'li',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 blockquote: (props) =>
                   renderBlockWithSourceLine(
                     'blockquote',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 pre: (props) =>
                   renderBlockWithSourceLine(
                     'pre',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 table: (props) =>
                   renderBlockWithSourceLine(
                     'table',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 h1: (props) =>
                   renderBlockWithSourceLine(
                     'h1',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 h2: (props) =>
                   renderBlockWithSourceLine(
                     'h2',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 h3: (props) =>
                   renderBlockWithSourceLine(
                     'h3',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 h4: (props) =>
                   renderBlockWithSourceLine(
                     'h4',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 h5: (props) =>
                   renderBlockWithSourceLine(
                     'h5',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
                 h6: (props) =>
                   renderBlockWithSourceLine(
                     'h6',
                     props as Record<string, unknown>,
                     resolvedCommentMarkerCounts,
+                    resolvedCommentMarkerEntries,
+                    handleCommentMarkerMouseEnter,
+                    scheduleCommentHoverClose,
                   ),
               }}
               rehypePlugins={[rehypeSlug, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
@@ -666,6 +909,19 @@ export function SpecViewerPanel({
           y={linkPopoverState.y}
         />
       )}
+      {commentHoverState && (
+        <CommentHoverPopover
+          comments={commentHoverState.comments}
+          lineNumber={commentHoverState.lineNumber}
+          onClose={closeCommentHover}
+          onMouseEnter={clearHoverCloseTimer}
+          onMouseLeave={scheduleCommentHoverClose}
+          x={commentHoverState.x}
+          y={commentHoverState.y}
+        />
+      )}
     </section>
   )
 }
+
+const EMPTY_COMMENT_LINE_ENTRIES: ReadonlyMap<number, readonly CodeComment[]> = new Map()

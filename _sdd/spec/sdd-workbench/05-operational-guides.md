@@ -30,7 +30,7 @@
 
 ### 4.1 자동 게이트 (2026-02-22 기준)
 
-- `npm test` -> `18 files, 162 passed`
+- `npm test` -> `18 files, 169 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -51,6 +51,7 @@
 6. Back/Forward(mouse/swipe/wheel) 동작
 7. CodeViewer/SpecViewer에서 Add Comment + marker 표시
 8. Export Comments pending-only 및 partial success 배너
+9. CodeViewer/SpecViewer marker hover preview(`+N more`) 동작 확인
 
 ## 5. 개발 환경
 

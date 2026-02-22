@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodeViewerPanel } from './code-viewer-panel'
 import * as syntaxHighlight from './syntax-highlight'
+import type { CodeComment } from '../code-comments/comment-types'
 
 describe('CodeViewerPanel highlighting', () => {
   afterEach(() => {
@@ -137,6 +138,131 @@ describe('CodeViewerPanel highlighting', () => {
         name: 'Copy active file path',
       }),
     ).toBeDisabled()
+  })
+
+  it('shows hover popover on comment badge and closes on escape', () => {
+    const commentsForLine: readonly CodeComment[] = [
+      {
+        id: 'c1',
+        relativePath: 'src/example.ts',
+        startLine: 2,
+        endLine: 2,
+        body: 'First comment body',
+        anchor: { snippet: 'line2', hash: 'a1' },
+        createdAt: '2026-02-22T00:00:00.000Z',
+      },
+      {
+        id: 'c2',
+        relativePath: 'src/example.ts',
+        startLine: 2,
+        endLine: 2,
+        body: 'Second comment body',
+        anchor: { snippet: 'line2', hash: 'a2' },
+        createdAt: '2026-02-22T00:01:00.000Z',
+      },
+      {
+        id: 'c3',
+        relativePath: 'src/example.ts',
+        startLine: 2,
+        endLine: 2,
+        body: 'Third comment body',
+        anchor: { snippet: 'line2', hash: 'a3' },
+        createdAt: '2026-02-22T00:02:00.000Z',
+      },
+      {
+        id: 'c4',
+        relativePath: 'src/example.ts',
+        startLine: 2,
+        endLine: 2,
+        body: 'Fourth comment body',
+        anchor: { snippet: 'line2', hash: 'a4' },
+        createdAt: '2026-02-22T00:03:00.000Z',
+      },
+    ]
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
+        commentLineCounts={new Map([[2, 4]])}
+        commentLineEntries={new Map([[2, commentsForLine]])}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    fireEvent.mouseEnter(screen.getByTestId('code-line-comment-badge-2'))
+
+    expect(screen.getByRole('dialog', { name: 'Comment previews' })).toHaveTextContent(
+      'Comments on line 2',
+    )
+    expect(screen.getByText('First comment body')).toBeInTheDocument()
+    expect(screen.getByText('+1 more')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(
+      screen.queryByRole('dialog', { name: 'Comment previews' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('closes hover popover after leaving hover popover area', () => {
+    vi.useFakeTimers()
+    try {
+      const commentsForLine: readonly CodeComment[] = [
+        {
+          id: 'c1',
+          relativePath: 'src/example.ts',
+          startLine: 2,
+          endLine: 2,
+          body: 'Comment for leave test',
+          anchor: { snippet: 'line2', hash: 'a1' },
+          createdAt: '2026-02-22T00:00:00.000Z',
+        },
+      ]
+
+      render(
+        <CodeViewerPanel
+          activeFile="src/example.ts"
+          activeFileContent={'line1\nline2\nline3'}
+          activeFileImagePreview={null}
+          commentLineCounts={new Map([[2, 1]])}
+          commentLineEntries={new Map([[2, commentsForLine]])}
+          isReadingFile={false}
+          jumpRequest={null}
+          onRequestCopyBoth={() => undefined}
+          onRequestAddComment={() => undefined}
+          onRequestCopyRelativePath={() => undefined}
+          onRequestCopySelectedContent={() => undefined}
+          onSelectRange={() => undefined}
+          previewUnavailableReason={null}
+          readFileError={null}
+          selectionRange={null}
+        />,
+      )
+
+      fireEvent.mouseEnter(screen.getByTestId('code-line-comment-badge-2'))
+      const hoverPopover = screen.getByRole('dialog', { name: 'Comment previews' })
+      expect(hoverPopover).toBeInTheDocument()
+
+      fireEvent.mouseOut(hoverPopover)
+      act(() => {
+        vi.advanceTimersByTime(140)
+      })
+      expect(
+        screen.queryByRole('dialog', { name: 'Comment previews' }),
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('scrolls to requested line when jump request is provided', () => {

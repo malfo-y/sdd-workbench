@@ -11,10 +11,14 @@ import { buildCodeComment } from './code-comments/comment-anchor'
 import { MAX_CLIPBOARD_CHARS } from './code-comments/comment-config'
 import { renderCommentsMarkdown, renderLlmBundle } from './code-comments/comment-export'
 import {
+  buildCommentLineEntryIndex,
   buildCommentLineIndex,
+  getCommentLineEntries,
   getCommentLineCounts,
 } from './code-comments/comment-line-index'
+import { CommentListModal } from './code-comments/comment-list-modal'
 import { CommentEditorModal } from './code-comments/comment-editor-modal'
+import { sanitizeCommentBody } from './code-comments/comment-types'
 import {
   ExportCommentsModal,
   type ExportCommentsModalInput,
@@ -242,19 +246,32 @@ function App() {
   const specScrollPositionsRef = useRef<Record<string, number>>({})
   const [commentDraftState, setCommentDraftState] =
     useState<CommentDraftState | null>(null)
+  const [isViewCommentsModalOpen, setIsViewCommentsModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isExportingComments, setIsExportingComments] = useState(false)
   const commentLineIndex = useMemo(
     () => buildCommentLineIndex(comments),
     [comments],
   )
+  const commentLineEntryIndex = useMemo(
+    () => buildCommentLineEntryIndex(comments),
+    [comments],
+  )
   const activeFileCommentLineCounts = useMemo(
     () => getCommentLineCounts(commentLineIndex, activeFile),
     [activeFile, commentLineIndex],
   )
+  const activeFileCommentLineEntries = useMemo(
+    () => getCommentLineEntries(commentLineEntryIndex, activeFile),
+    [activeFile, commentLineEntryIndex],
+  )
   const activeSpecCommentLineCounts = useMemo(
     () => getCommentLineCounts(commentLineIndex, activeSpec),
     [activeSpec, commentLineIndex],
+  )
+  const activeSpecCommentLineEntries = useMemo(
+    () => getCommentLineEntries(commentLineEntryIndex, activeSpec),
+    [activeSpec, commentLineEntryIndex],
   )
   const pendingComments = useMemo(
     () => comments.filter((comment) => !comment.exportedAt),
@@ -576,6 +593,87 @@ function App() {
       writeToClipboard,
     ],
   )
+
+  const handleUpdateComment = useCallback(
+    async (commentId: string, body: string) => {
+      if (!activeWorkspaceId) {
+        showBanner('Cannot update comment: no active workspace selected.')
+        return
+      }
+
+      const sanitizedBody = sanitizeCommentBody(body)
+      if (sanitizedBody.length === 0) {
+        showBanner('Cannot save comment: comment body is empty.')
+        return
+      }
+
+      const hasTargetComment = comments.some((comment) => comment.id === commentId)
+      if (!hasTargetComment) {
+        showBanner('Cannot update comment: target comment not found.')
+        return
+      }
+
+      const nextComments = comments.map((comment) =>
+        comment.id === commentId
+          ? {
+              ...comment,
+              body: sanitizedBody,
+            }
+          : comment,
+      )
+
+      const saved = await saveComments(nextComments)
+      if (!saved) {
+        return
+      }
+      showBanner('Comment updated.')
+    },
+    [activeWorkspaceId, comments, saveComments, showBanner],
+  )
+
+  const handleDeleteComment = useCallback(
+    async (commentId: string) => {
+      if (!activeWorkspaceId) {
+        showBanner('Cannot delete comment: no active workspace selected.')
+        return
+      }
+
+      const nextComments = comments.filter((comment) => comment.id !== commentId)
+      if (nextComments.length === comments.length) {
+        showBanner('Cannot delete comment: target comment not found.')
+        return
+      }
+
+      const saved = await saveComments(nextComments)
+      if (!saved) {
+        return
+      }
+      showBanner('Comment deleted.')
+    },
+    [activeWorkspaceId, comments, saveComments, showBanner],
+  )
+
+  const handleDeleteExportedComments = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      showBanner('Cannot delete exported comments: no active workspace selected.')
+      return
+    }
+
+    const exportedCommentCount = comments.filter(
+      (comment) => Boolean(comment.exportedAt),
+    ).length
+    if (exportedCommentCount === 0) {
+      showBanner('No exported comments to delete.')
+      return
+    }
+
+    const nextComments = comments.filter((comment) => !comment.exportedAt)
+    const saved = await saveComments(nextComments)
+    if (!saved) {
+      return
+    }
+    showBanner(`Deleted ${exportedCommentCount} exported comment(s).`)
+  }, [activeWorkspaceId, comments, saveComments, showBanner])
 
   const openWorkspaceInExternalApp = useCallback(
     async (target: 'iterm' | 'vscode') => {
@@ -940,6 +1038,20 @@ function App() {
           />
           <button
             disabled={
+              !rootPath ||
+              isReadingComments ||
+              isWritingComments ||
+              isExportingComments
+            }
+            onClick={() => {
+              setIsViewCommentsModalOpen(true)
+            }}
+            type="button"
+          >
+            View Comments
+          </button>
+          <button
+            disabled={
               !rootPath || isReadingComments || isWritingComments || isExportingComments
             }
             onClick={() => {
@@ -1034,6 +1146,7 @@ function App() {
             activeFile={activeFile}
             activeFileContent={activeFileContent}
             activeFileImagePreview={activeFileImagePreview}
+            commentLineEntries={activeFileCommentLineEntries}
             commentLineCounts={activeFileCommentLineCounts}
             isReadingFile={isReadingFile}
             jumpRequest={codeViewerJumpRequest}
@@ -1061,6 +1174,7 @@ function App() {
           <section className="workspace-card spec-panel" data-testid="spec-panel">
             <SpecViewerPanel
               activeSpecPath={activeSpec}
+              commentLineEntries={activeSpecCommentLineEntries}
               commentLineCounts={activeSpecCommentLineCounts}
               isLoading={isReadingSpec}
               markdownContent={activeSpecContent}
@@ -1087,6 +1201,19 @@ function App() {
         onSave={handleSaveComment}
         relativePath={commentDraftState?.relativePath ?? null}
         selectionRange={commentDraftState?.selectionRange ?? null}
+      />
+      <CommentListModal
+        comments={comments}
+        isOpen={isViewCommentsModalOpen}
+        isSaving={isWritingComments}
+        onClose={() => {
+          if (!isWritingComments) {
+            setIsViewCommentsModalOpen(false)
+          }
+        }}
+        onDeleteComment={handleDeleteComment}
+        onDeleteExportedComments={handleDeleteExportedComments}
+        onUpdateComment={handleUpdateComment}
       />
       <ExportCommentsModal
         commentCount={comments.length}

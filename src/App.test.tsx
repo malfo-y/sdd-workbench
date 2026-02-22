@@ -3492,6 +3492,193 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('opens View Comments modal and shows comment metadata', async () => {
+    const workspaceRoot = '/Users/tester/projects/view-comments-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'docs/spec.md:4-6:aaaa1111:2026-02-22T14:00:00.000Z',
+          relativePath: 'docs/spec.md',
+          startLine: 4,
+          endLine: 6,
+          body: 'Need to refine this section',
+          anchor: {
+            snippet: 'Section title',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:00:00.000Z',
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('docs/spec.md:L4-L6')).toBeInTheDocument()
+    expect(screen.getByText('2026-02-22T14:00:00.000Z')).toBeInTheDocument()
+    expect(screen.getByText('Need to refine this section')).toBeInTheDocument()
+  })
+
+  it('updates a comment body from View Comments modal', async () => {
+    const workspaceRoot = '/Users/tester/projects/edit-comments-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:2-2:aaaa1111:2026-02-22T14:10:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 2,
+          endLine: 2,
+          body: 'old body',
+          anchor: {
+            snippet: 'const value = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:10:00.000Z',
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('Edit comment body'), {
+      target: { value: '  updated body  ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    const [writtenRootPath, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenRootPath).toBe(workspaceRoot)
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      id: 'src/a.ts:2-2:aaaa1111:2026-02-22T14:10:00.000Z',
+      body: 'updated body',
+    })
+  })
+
+  it('deletes exported comments only from View Comments modal', async () => {
+    const workspaceRoot = '/Users/tester/projects/delete-exported-comments-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:1-1:aaaa1111:2026-02-22T10:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'pending comment',
+          anchor: {
+            snippet: 'pending',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T10:00:00.000Z',
+        },
+        {
+          id: 'src/b.ts:3-3:bbbb2222:2026-02-22T11:00:00.000Z',
+          relativePath: 'src/b.ts',
+          startLine: 3,
+          endLine: 3,
+          body: 'already exported comment',
+          anchor: {
+            snippet: 'exported',
+            hash: 'bbbb2222',
+          },
+          createdAt: '2026-02-22T11:00:00.000Z',
+          exportedAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Exported' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Delete Exported' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    const [writtenRootPath, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenRootPath).toBe(workspaceRoot)
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      id: 'src/a.ts:1-1:aaaa1111:2026-02-22T10:00:00.000Z',
+    })
+    expect(writtenComments[0]).not.toHaveProperty('exportedAt')
+  })
+
   it('disables clipboard export when bundle exceeds max length and exports files only', async () => {
     const workspaceRoot = '/Users/tester/projects/export-comments-workspace'
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined)

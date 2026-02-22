@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F11.2)
+## A. 기능 이력 (F01~F12.1)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -25,6 +25,7 @@
 | F11 | Done | 2026-02-22 | inline comment + export bundle |
 | F11.1 | Done | 2026-02-22 | markdown comment entry + marker + incremental export |
 | F11.2 | Done | 2026-02-22 | spec jump scroll retention + collapsed marker bubbling |
+| F12.1 | Done | 2026-02-22 | code/rendered comment marker hover preview |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -40,6 +41,7 @@
 - markdown sanitize/리소스 경계 정책
 - 이미지 프리뷰 및 blocked_resource 처리
 - comments 저장/marker/export 및 pending-only 정책
+- code/rendered marker hover preview(`+N more`, read-only)
 
 ## C. 리스크/백로그
 
@@ -52,6 +54,7 @@
 7. marker 상세 패널/코멘트 편집/삭제 UI 미지원
 8. incremental export reset/re-export-all UX 미지원
 9. rendered spec scroll position의 앱 재시작 복원은 미지원(런타임 복원만 지원)
+10. hover preview 지연값/표시 개수 사용자 설정은 미지원
 
 ## D. 이동/정리 내역 (이번 리라이트)
 
