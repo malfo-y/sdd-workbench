@@ -65,6 +65,17 @@ type WorkspaceWriteCommentsResult = {
   error?: string
 }
 
+type WorkspaceReadGlobalCommentsResult = {
+  ok: boolean
+  body: string
+  error?: string
+}
+
+type WorkspaceWriteGlobalCommentsResult = {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceExportCommentsBundleRequest = {
   rootPath: string
   commentsMarkdown?: string
@@ -132,6 +143,17 @@ const workspaceApi = {
       rootPath,
       comments,
     }) as Promise<WorkspaceWriteCommentsResult>
+  },
+  readGlobalComments(rootPath: string) {
+    return ipcRenderer.invoke('workspace:readGlobalComments', {
+      rootPath,
+    }) as Promise<WorkspaceReadGlobalCommentsResult>
+  },
+  writeGlobalComments(rootPath: string, body: string) {
+    return ipcRenderer.invoke('workspace:writeGlobalComments', {
+      rootPath,
+      body,
+    }) as Promise<WorkspaceWriteGlobalCommentsResult>
   },
   exportCommentsBundle(request: WorkspaceExportCommentsBundleRequest) {
     return ipcRenderer.invoke(

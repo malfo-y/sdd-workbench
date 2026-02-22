@@ -682,3 +682,45 @@
 
 - `READY`
 - Reason: F12.2 계획 태스크(T1~T5)를 완료했고 자동 테스트/린트/빌드 게이트를 통과함.
+
+---
+
+## F12.3 Addendum (2026-02-22)
+
+### 1) Progress Summary
+
+- Plan source: `/_sdd/drafts/feature_draft_f12_3_global_comments_capture_and_export_order.md` (Part 2)
+- Completed:
+  - Electron IPC에 `workspace:readGlobalComments` / `workspace:writeGlobalComments` 채널 추가
+  - 전역 코멘트 저장 파일 경로를 `workspace/.sdd-workbench/global-comments.md`로 도입
+  - WorkspaceProvider에 workspace별 전역 코멘트 read/write 상태 및 에러 경로 통합
+  - 헤더 `Add Global Comments` 버튼 + 전용 입력 모달(`global-comments-modal`) 구현
+  - export 렌더 함수(`renderCommentsMarkdown`, `renderLlmBundle`)에 `globalComments` 입력 추가 및 `Global Comments` 선행 배치 적용
+  - pending line comment가 없어도 전역 코멘트가 있으면 export 가능한 경로로 확장
+  - 단위/통합 테스트 보강 및 전체 품질 게이트 통과
+  - Verification: `npm test`, `npm run lint`, `npm run build` pass
+
+### 2) Phase Review Summary
+
+- Phase 1: proceed
+- Phase 2: proceed
+- Phase 3: proceed
+
+### 3) Cross-Phase Findings
+
+- 기존 line comment 데이터 계약(`comments.json`, `exportedAt`)을 유지하고 전역 코멘트를 별도 파일로 분리해 회귀 리스크를 낮췄다.
+- 전역 코멘트 저장/로딩은 comments와 동일한 request-id 가드 및 배너 에러 정책을 재사용해 동시성/실패 경로 일관성을 확보했다.
+- export 본문 구성은 prepend-only 확장이라 기존 bundle 소비 규칙(Constraints + Comments)을 깨지 않는다.
+- View/Edit/Delete(F12.2) 및 hover badge(F12.1) 경로와 독립적으로 동작해 충돌 없이 통합됐다.
+
+### 4) Issue Table (Severity / Status)
+
+| Severity | Issue | Status |
+|----------|-------|--------|
+| Improvement | 전역 코멘트 이력/버전 비교(diff) 기능은 미지원 | backlog |
+| Improvement | 전역 코멘트 편집 충돌(멀티 인스턴스 동시 편집) 보호는 미구현 | backlog |
+
+### 5) Final Conclusion (F12.3)
+
+- `READY`
+- Reason: F12.3 계획 태스크(T1~T5)를 완료했고 자동 테스트/린트/빌드 게이트를 통과함.

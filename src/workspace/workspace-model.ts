@@ -31,6 +31,10 @@ export type WorkspaceSession = {
   isReadingComments: boolean
   isWritingComments: boolean
   commentsError: string | null
+  globalComments: string
+  isReadingGlobalComments: boolean
+  isWritingGlobalComments: boolean
+  globalCommentsError: string | null
 }
 
 export type WorkspaceState = {
@@ -105,6 +109,10 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     isReadingComments: false,
     isWritingComments: false,
     commentsError: null,
+    globalComments: '',
+    isReadingGlobalComments: false,
+    isWritingGlobalComments: false,
+    globalCommentsError: null,
   }
 }
 

@@ -110,6 +110,26 @@ type WorkspaceWriteCommentsResult = {
   error?: string
 }
 
+type WorkspaceReadGlobalCommentsRequest = {
+  rootPath: string
+}
+
+type WorkspaceReadGlobalCommentsResult = {
+  ok: boolean
+  body: string
+  error?: string
+}
+
+type WorkspaceWriteGlobalCommentsRequest = {
+  rootPath: string
+  body: string
+}
+
+type WorkspaceWriteGlobalCommentsResult = {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceExportCommentsBundleRequest = {
   rootPath: string
   commentsMarkdown?: string
@@ -202,6 +222,7 @@ const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
 const BLOCKED_IMAGE_EXTENSIONS = new Set(['.svg'])
 const SDD_WORKBENCH_DIRECTORY = '.sdd-workbench'
 const COMMENTS_FILE_NAME = 'comments.json'
+const GLOBAL_COMMENTS_FILE_NAME = 'global-comments.md'
 const COMMENTS_BUNDLE_EXPORT_DIRECTORY = 'exports'
 const COMMENTS_MARKDOWN_FILE_NAME = '_COMMENTS.md'
 const IMAGE_PREVIEW_BY_EXTENSION: Record<string, string> = {
@@ -250,6 +271,10 @@ function isPathInsideWorkspace(rootPath: string, targetPath: string) {
 function getWorkspaceCommentPaths(rootPath: string) {
   const metadataDirectoryPath = path.join(rootPath, SDD_WORKBENCH_DIRECTORY)
   const commentsJsonPath = path.join(metadataDirectoryPath, COMMENTS_FILE_NAME)
+  const globalCommentsPath = path.join(
+    metadataDirectoryPath,
+    GLOBAL_COMMENTS_FILE_NAME,
+  )
   const bundleExportsDirectoryPath = path.join(
     metadataDirectoryPath,
     COMMENTS_BUNDLE_EXPORT_DIRECTORY,
@@ -259,6 +284,7 @@ function getWorkspaceCommentPaths(rootPath: string) {
   return {
     metadataDirectoryPath,
     commentsJsonPath,
+    globalCommentsPath,
     bundleExportsDirectoryPath,
     commentsMarkdownPath,
   }
@@ -783,6 +809,126 @@ async function handleWorkspaceWriteComments(
   }
 }
 
+async function handleWorkspaceReadGlobalComments(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceReadGlobalCommentsRequest,
+): Promise<WorkspaceReadGlobalCommentsResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        body: '',
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        body: '',
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const { globalCommentsPath } = getWorkspaceCommentPaths(resolvedRootPath)
+    if (!ensurePathWithinWorkspace(resolvedRootPath, globalCommentsPath)) {
+      return {
+        ok: false,
+        body: '',
+        error: 'Cannot read global comments outside the workspace root.',
+      }
+    }
+
+    try {
+      const body = await readFile(globalCommentsPath, 'utf8')
+      return {
+        ok: true,
+        body,
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {
+          ok: true,
+          body: '',
+        }
+      }
+      throw error
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      body: '',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to read global comments.',
+    }
+  }
+}
+
+async function handleWorkspaceWriteGlobalComments(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWriteGlobalCommentsRequest,
+): Promise<WorkspaceWriteGlobalCommentsResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        error: 'rootPath is required.',
+      }
+    }
+
+    if (typeof request.body !== 'string') {
+      return {
+        ok: false,
+        error: 'body must be a string.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const { metadataDirectoryPath, globalCommentsPath } =
+      getWorkspaceCommentPaths(resolvedRootPath)
+    if (
+      !ensurePathWithinWorkspace(resolvedRootPath, metadataDirectoryPath) ||
+      !ensurePathWithinWorkspace(resolvedRootPath, globalCommentsPath)
+    ) {
+      return {
+        ok: false,
+        error: 'Cannot write global comments outside the workspace root.',
+      }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      await mkdir(metadataDirectoryPath, { recursive: true })
+      await writeFileAtomic(globalCommentsPath, request.body)
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to write global comments.',
+    }
+  }
+}
+
 async function handleWorkspaceExportCommentsBundle(
   _event: IpcMainInvokeEvent,
   request: WorkspaceExportCommentsBundleRequest,
@@ -1182,6 +1328,8 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:readFile')
   ipcMain.removeHandler('workspace:readComments')
   ipcMain.removeHandler('workspace:writeComments')
+  ipcMain.removeHandler('workspace:readGlobalComments')
+  ipcMain.removeHandler('workspace:writeGlobalComments')
   ipcMain.removeHandler('workspace:exportCommentsBundle')
   ipcMain.removeHandler('workspace:watchStart')
   ipcMain.removeHandler('workspace:watchStop')
@@ -1192,6 +1340,11 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
   ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
+  ipcMain.handle('workspace:readGlobalComments', handleWorkspaceReadGlobalComments)
+  ipcMain.handle(
+    'workspace:writeGlobalComments',
+    handleWorkspaceWriteGlobalComments,
+  )
   ipcMain.handle(
     'workspace:exportCommentsBundle',
     handleWorkspaceExportCommentsBundle,

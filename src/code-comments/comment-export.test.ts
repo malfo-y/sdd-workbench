@@ -38,6 +38,7 @@ describe('comment-export', () => {
     expect(indexA).toBeGreaterThan(-1)
     expect(indexB).toBeGreaterThan(-1)
     expect(indexA).toBeLessThan(indexB)
+    expect(markdown).toContain('## Comments')
   })
 
   it('renders LLM bundle with instruction and constraints', () => {
@@ -51,5 +52,41 @@ describe('comment-export', () => {
     expect(bundle).toContain('## Constraints')
     expect(bundle).toContain('## Comments')
     expect(bundle).toContain('### src/a.ts:L1-L1')
+  })
+
+  it('prepends global comments before comment sections when provided', () => {
+    const markdown = renderCommentsMarkdown([COMMENT_B], {
+      globalComments: '# Project rules\n- Keep it simple',
+    })
+    const markdownGlobalIndex = markdown.indexOf('## Global Comments')
+    const markdownCommentsIndex = markdown.indexOf('## Comments')
+    expect(markdownGlobalIndex).toBeGreaterThan(-1)
+    expect(markdownCommentsIndex).toBeGreaterThan(-1)
+    expect(markdownGlobalIndex).toBeLessThan(markdownCommentsIndex)
+
+    const bundle = renderLlmBundle({
+      instruction: 'Apply comments',
+      comments: [COMMENT_B],
+      globalComments: 'Always preserve API compatibility.',
+    })
+    const bundleGlobalIndex = bundle.indexOf('## Global Comments')
+    const bundleCommentsIndex = bundle.indexOf('## Comments')
+    expect(bundleGlobalIndex).toBeGreaterThan(-1)
+    expect(bundleCommentsIndex).toBeGreaterThan(-1)
+    expect(bundleGlobalIndex).toBeLessThan(bundleCommentsIndex)
+  })
+
+  it('omits global comments section when global body is empty', () => {
+    const markdown = renderCommentsMarkdown([COMMENT_B], {
+      globalComments: '   ',
+    })
+    expect(markdown).not.toContain('## Global Comments')
+
+    const bundle = renderLlmBundle({
+      instruction: 'Apply comments',
+      comments: [COMMENT_B],
+      globalComments: '\n\n',
+    })
+    expect(bundle).not.toContain('## Global Comments')
   })
 })

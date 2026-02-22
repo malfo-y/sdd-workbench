@@ -60,6 +60,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         comments: CodeCommentRecord[],
       ) => Promise<WorkspaceWriteCommentsResult>
     >()
+  const readGlobalCommentsMock =
+    vi.fn<(rootPath: string) => Promise<WorkspaceReadGlobalCommentsResult>>()
+  const writeGlobalCommentsMock =
+    vi.fn<
+      (rootPath: string, body: string) => Promise<WorkspaceWriteGlobalCommentsResult>
+    >()
   const exportCommentsBundleMock =
     vi.fn<
       (
@@ -97,6 +103,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     readFileMock.mockReset()
     readCommentsMock.mockReset()
     writeCommentsMock.mockReset()
+    readGlobalCommentsMock.mockReset()
+    writeGlobalCommentsMock.mockReset()
     exportCommentsBundleMock.mockReset()
     watchStartMock.mockReset()
     watchStopMock.mockReset()
@@ -112,7 +120,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       ok: true,
       comments: [],
     })
+    readGlobalCommentsMock.mockResolvedValue({
+      ok: true,
+      body: '',
+    })
     writeCommentsMock.mockResolvedValue({ ok: true })
+    writeGlobalCommentsMock.mockResolvedValue({ ok: true })
     exportCommentsBundleMock.mockResolvedValue({ ok: true })
     openInItermMock.mockResolvedValue({ ok: true })
     openInVsCodeMock.mockResolvedValue({ ok: true })
@@ -139,6 +152,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       readFile: readFileMock,
       readComments: readCommentsMock,
       writeComments: writeCommentsMock,
+      readGlobalComments: readGlobalCommentsMock,
+      writeGlobalComments: writeGlobalCommentsMock,
       exportCommentsBundle: exportCommentsBundleMock,
       watchStart: watchStartMock,
       watchStop: watchStopMock,
@@ -3677,6 +3692,201 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       id: 'src/a.ts:1-1:aaaa1111:2026-02-22T10:00:00.000Z',
     })
     expect(writtenComments[0]).not.toHaveProperty('exportedAt')
+  })
+
+  it('opens Add Global Comments modal and saves global comments body', async () => {
+    const workspaceRoot = '/Users/tester/projects/global-comments-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '## Existing context\n- Preserve endpoints',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Add Global Comments' }),
+      ).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Global Comments' }))
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Add global comments' }),
+      ).toBeInTheDocument()
+    })
+
+    const textarea = screen.getByLabelText('Global comments (Markdown)')
+    expect(textarea).toHaveValue('## Existing context\n- Preserve endpoints')
+
+    fireEvent.change(textarea, {
+      target: { value: '## Global Rules\n- Keep API compatibility' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Global Comments' }))
+
+    await waitFor(() => {
+      expect(writeGlobalCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(writeGlobalCommentsMock).toHaveBeenCalledWith(
+      workspaceRoot,
+      '## Global Rules\n- Keep API compatibility',
+    )
+  })
+
+  it('prepends global comments in export markdown and bundle', async () => {
+    const workspaceRoot = '/Users/tester/projects/export-order-workspace'
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:1-1:aaaa1111:2026-02-22T12:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'line comment',
+          anchor: {
+            snippet: 'const a = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '## Shared Context\n- Apply globally',
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: true,
+      commentsPath: `${workspaceRoot}/_COMMENTS.md`,
+      bundlePath: `${workspaceRoot}/.sdd-workbench/exports/20260222-comments-bundle.md`,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      expect(exportCommentsBundleMock).toHaveBeenCalledTimes(1)
+    })
+    const [request] = exportCommentsBundleMock.mock.calls[0]
+    const commentsMarkdown = request.commentsMarkdown ?? ''
+    const bundleMarkdown = request.bundleMarkdown ?? ''
+    expect(commentsMarkdown).toContain('## Global Comments')
+    expect(commentsMarkdown).toContain('## Comments')
+    expect(bundleMarkdown).toContain('## Global Comments')
+    expect(bundleMarkdown).toContain('## Comments')
+
+    const commentsGlobalIndex = commentsMarkdown.indexOf('## Global Comments')
+    const commentsSectionIndex = commentsMarkdown.indexOf('## Comments')
+    expect(commentsGlobalIndex).toBeGreaterThan(-1)
+    expect(commentsGlobalIndex).toBeLessThan(commentsSectionIndex)
+
+    const bundleGlobalIndex = bundleMarkdown.indexOf('## Global Comments')
+    const bundleSectionIndex = bundleMarkdown.indexOf('## Comments')
+    expect(bundleGlobalIndex).toBeGreaterThan(-1)
+    expect(bundleGlobalIndex).toBeLessThan(bundleSectionIndex)
+  })
+
+  it('allows export when only global comments exist and keeps line export status unchanged', async () => {
+    const workspaceRoot = '/Users/tester/projects/global-only-export-workspace'
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: 'Global-only export context',
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: true,
+      commentsPath: `${workspaceRoot}/_COMMENTS.md`,
+      bundlePath: `${workspaceRoot}/.sdd-workbench/exports/20260222-comments-bundle.md`,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+    expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      expect(exportCommentsBundleMock).toHaveBeenCalledTimes(1)
+    })
+    expect(writeCommentsMock).not.toHaveBeenCalled()
+    expect(clipboardWriteText).toHaveBeenCalledTimes(1)
   })
 
   it('disables clipboard export when bundle exceeds max length and exports files only', async () => {

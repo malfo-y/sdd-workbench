@@ -58,6 +58,10 @@ type WorkspaceContextValue = {
   isReadingComments: boolean
   isWritingComments: boolean
   commentsError: string | null
+  globalComments: string
+  isReadingGlobalComments: boolean
+  isWritingGlobalComments: boolean
+  globalCommentsError: string | null
   bannerMessage: string | null
   openWorkspace: () => Promise<void>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
@@ -69,6 +73,8 @@ type WorkspaceContextValue = {
   goForwardInHistory: () => void
   reloadComments: () => Promise<void>
   saveComments: (comments: CodeComment[]) => Promise<boolean>
+  reloadGlobalComments: () => Promise<void>
+  saveGlobalComments: (body: string) => Promise<boolean>
   showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
@@ -185,6 +191,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     {},
   )
   const writeCommentsRequestIdByWorkspaceRef = useRef<
+    Record<WorkspaceId, number>
+  >({})
+  const readGlobalCommentsRequestIdByWorkspaceRef = useRef<
+    Record<WorkspaceId, number>
+  >({})
+  const writeGlobalCommentsRequestIdByWorkspaceRef = useRef<
     Record<WorkspaceId, number>
   >({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
@@ -411,6 +423,76 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const loadWorkspaceGlobalComments = useCallback(
+    async (workspaceId: WorkspaceId, rootPath: string) => {
+      const requestId =
+        (readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId] = requestId
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          isReadingGlobalComments: true,
+          globalCommentsError: null,
+        })),
+      )
+
+      try {
+        const readResult = await window.workspace.readGlobalComments(rootPath)
+        if (
+          readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId] !== requestId
+        ) {
+          return false
+        }
+
+        if (!readResult.ok) {
+          const errorMessage = readResult.error
+            ? `Failed to load global comments: ${readResult.error}`
+            : 'Failed to load global comments.'
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              isReadingGlobalComments: false,
+              globalCommentsError: errorMessage,
+            })),
+          )
+          setBannerMessage(errorMessage)
+          return false
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            globalComments: readResult.body,
+            isReadingGlobalComments: false,
+            globalCommentsError: null,
+          })),
+        )
+        return true
+      } catch (error) {
+        if (
+          readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId] !== requestId
+        ) {
+          return false
+        }
+        const errorMessage =
+          error instanceof Error
+            ? `Failed to load global comments: ${error.message}`
+            : 'Failed to load global comments.'
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            isReadingGlobalComments: false,
+            globalCommentsError: errorMessage,
+          })),
+        )
+        setBannerMessage(errorMessage)
+        return false
+      }
+    },
+    [],
+  )
+
   const saveComments = useCallback(async (nextComments: CodeComment[]) => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
@@ -492,6 +574,89 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [])
 
+  const saveGlobalComments = useCallback(async (body: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const requestId =
+      (writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] ?? 0) +
+      1
+    writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] = requestId
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+        ...currentSession,
+        isWritingGlobalComments: true,
+        globalCommentsError: null,
+      })),
+    )
+
+    try {
+      const writeResult = await window.workspace.writeGlobalComments(
+        workspaceSession.rootPath,
+        body,
+      )
+      if (
+        writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] !==
+        requestId
+      ) {
+        return false
+      }
+
+      if (!writeResult.ok) {
+        const errorMessage = writeResult.error
+          ? `Failed to save global comments: ${writeResult.error}`
+          : 'Failed to save global comments.'
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            isWritingGlobalComments: false,
+            globalCommentsError: errorMessage,
+          })),
+        )
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          globalComments: body,
+          isWritingGlobalComments: false,
+          globalCommentsError: null,
+        })),
+      )
+      return true
+    } catch (error) {
+      if (
+        writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] !==
+        requestId
+      ) {
+        return false
+      }
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to save global comments: ${error.message}`
+          : 'Failed to save global comments.'
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          isWritingGlobalComments: false,
+          globalCommentsError: errorMessage,
+        })),
+      )
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
   const reloadComments = useCallback(async () => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
@@ -505,6 +670,20 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
     await loadWorkspaceComments(activeWorkspaceId, workspaceSession.rootPath)
   }, [loadWorkspaceComments])
+
+  const reloadGlobalComments = useCallback(async () => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return
+    }
+
+    await loadWorkspaceGlobalComments(activeWorkspaceId, workspaceSession.rootPath)
+  }, [loadWorkspaceGlobalComments])
 
   const startWorkspaceWatch = useCallback(
     async (workspaceId: WorkspaceId, rootPath: string) => {
@@ -604,6 +783,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
     delete readCommentsRequestIdByWorkspaceRef.current[workspaceId]
     delete writeCommentsRequestIdByWorkspaceRef.current[workspaceId]
+    delete readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
+    delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
   }, [stopWorkspaceWatch])
@@ -1110,6 +1291,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           delete indexRequestIdByWorkspaceRef.current[workspaceId]
           delete readFileRequestIdByWorkspaceRef.current[workspaceId]
           delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
+          delete readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
+          delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
           setWorkspaceState((previous) =>
             closeWorkspaceInState(previous, workspaceId),
           )
@@ -1173,7 +1356,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
 
     void loadWorkspaceComments(activeWorkspaceId, activeWorkspaceRootPath)
-  }, [activeWorkspaceRootPath, loadWorkspaceComments, workspaceState.activeWorkspaceId])
+    void loadWorkspaceGlobalComments(activeWorkspaceId, activeWorkspaceRootPath)
+  }, [
+    activeWorkspaceRootPath,
+    loadWorkspaceComments,
+    loadWorkspaceGlobalComments,
+    workspaceState.activeWorkspaceId,
+  ])
 
   useEffect(() => {
     if (!hasHydratedSnapshot) {
@@ -1293,6 +1482,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       isReadingComments: activeWorkspace?.isReadingComments ?? false,
       isWritingComments: activeWorkspace?.isWritingComments ?? false,
       commentsError: activeWorkspace?.commentsError ?? null,
+      globalComments: activeWorkspace?.globalComments ?? '',
+      isReadingGlobalComments: activeWorkspace?.isReadingGlobalComments ?? false,
+      isWritingGlobalComments: activeWorkspace?.isWritingGlobalComments ?? false,
+      globalCommentsError: activeWorkspace?.globalCommentsError ?? null,
       bannerMessage,
       openWorkspace,
       setActiveWorkspace,
@@ -1304,6 +1497,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       goForwardInHistory,
       reloadComments,
       saveComments,
+      reloadGlobalComments,
+      saveGlobalComments,
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
@@ -1323,6 +1518,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       goForwardInHistory,
       reloadComments,
       saveComments,
+      reloadGlobalComments,
+      saveGlobalComments,
       showBanner,
       setSelectionRange,
       setExpandedDirectories,

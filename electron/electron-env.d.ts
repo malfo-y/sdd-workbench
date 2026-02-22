@@ -86,6 +86,17 @@ interface WorkspaceWriteCommentsResult {
   error?: string
 }
 
+interface WorkspaceReadGlobalCommentsResult {
+  ok: boolean
+  body: string
+  error?: string
+}
+
+interface WorkspaceWriteGlobalCommentsResult {
+  ok: boolean
+  error?: string
+}
+
 interface WorkspaceExportCommentsBundleRequest {
   rootPath: string
   commentsMarkdown?: string
@@ -139,6 +150,13 @@ interface Window {
       rootPath: string,
       comments: CodeCommentRecord[],
     ) => Promise<WorkspaceWriteCommentsResult>
+    readGlobalComments: (
+      rootPath: string,
+    ) => Promise<WorkspaceReadGlobalCommentsResult>
+    writeGlobalComments: (
+      rootPath: string,
+      body: string,
+    ) => Promise<WorkspaceWriteGlobalCommentsResult>
     exportCommentsBundle: (
       request: WorkspaceExportCommentsBundleRequest,
     ) => Promise<WorkspaceExportCommentsBundleResult>

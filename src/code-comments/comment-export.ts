@@ -3,6 +3,7 @@ import { sortCodeComments, type CodeComment } from './comment-types'
 export type RenderLlmBundleInput = {
   instruction: string
   comments: CodeComment[]
+  globalComments?: string
 }
 
 function renderCommentBlock(comment: CodeComment): string {
@@ -19,11 +20,34 @@ function renderCommentBlock(comment: CodeComment): string {
   ].join('\n')
 }
 
-export function renderCommentsMarkdown(comments: CodeComment[]): string {
+function normalizeGlobalComments(globalComments: string | undefined): string {
+  return typeof globalComments === 'string' ? globalComments.trim() : ''
+}
+
+export function renderCommentsMarkdown(
+  comments: CodeComment[],
+  options?: {
+    globalComments?: string
+  },
+): string {
   const sortedComments = sortCodeComments(comments)
+  const normalizedGlobalComments = normalizeGlobalComments(options?.globalComments)
 
   const sections = sortedComments.map((comment) => renderCommentBlock(comment))
-  const body = sections.length > 0 ? sections.join('\n\n---\n\n') : '_No comments._'
+  const commentsBody =
+    sections.length > 0 ? sections.join('\n\n---\n\n') : '_No comments._'
+  const markdownSections: string[] = []
+
+  if (normalizedGlobalComments.length > 0) {
+    markdownSections.push(
+      '## Global Comments',
+      '',
+      normalizedGlobalComments,
+      '',
+    )
+  }
+
+  markdownSections.push('## Comments', '', commentsBody)
 
   return [
     '# _COMMENTS',
@@ -31,13 +55,14 @@ export function renderCommentsMarkdown(comments: CodeComment[]): string {
     `Generated at: ${new Date().toISOString()}`,
     `Total comments: ${sortedComments.length}`,
     '',
-    body,
+    ...markdownSections,
     '',
   ].join('\n')
 }
 
 export function renderLlmBundle(input: RenderLlmBundleInput): string {
   const sortedComments = sortCodeComments(input.comments)
+  const normalizedGlobalComments = normalizeGlobalComments(input.globalComments)
   const normalizedInstruction = input.instruction.trim() || '(No instruction provided)'
 
   const commentBlocks =
@@ -56,6 +81,9 @@ export function renderLlmBundle(input: RenderLlmBundleInput): string {
     '- Keep changes minimal and explain tradeoffs when assumptions are needed.',
     '- Respect existing workspace boundaries and relative paths exactly as provided.',
     '',
+    ...(normalizedGlobalComments.length > 0
+      ? ['## Global Comments', normalizedGlobalComments, '']
+      : []),
     '## Comments',
     commentBlocks,
     '',

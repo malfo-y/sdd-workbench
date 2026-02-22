@@ -12,6 +12,7 @@ type ExportCommentsModalProps = {
   isExporting: boolean
   commentCount: number
   pendingCommentCount: number
+  allowExportWithoutPendingComments: boolean
   maxClipboardChars: number
   estimateBundleLength: (instruction: string) => number
   onCancel: () => void
@@ -23,6 +24,7 @@ export function ExportCommentsModal({
   isExporting,
   commentCount,
   pendingCommentCount,
+  allowExportWithoutPendingComments,
   maxClipboardChars,
   estimateBundleLength,
   onCancel,
@@ -60,9 +62,11 @@ export function ExportCommentsModal({
     return null
   }
 
+  const hasExportableComments =
+    pendingCommentCount > 0 || allowExportWithoutPendingComments
   const hasAnyTarget =
     (copyToClipboard && !clipboardDisabled) || writeCommentsFile || writeBundleFile
-  const canSubmit = hasAnyTarget && pendingCommentCount > 0
+  const canSubmit = hasAnyTarget && hasExportableComments
 
   return (
     <div className="comment-modal-backdrop" role="presentation">
@@ -151,7 +155,7 @@ export function ExportCommentsModal({
             Select at least one export target.
           </p>
         )}
-        {pendingCommentCount === 0 && (
+        {!hasExportableComments && (
           <p className="comment-modal-warning" role="status">
             No pending comments to export.
           </p>

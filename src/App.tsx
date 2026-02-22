@@ -18,6 +18,7 @@ import {
 } from './code-comments/comment-line-index'
 import { CommentListModal } from './code-comments/comment-list-modal'
 import { CommentEditorModal } from './code-comments/comment-editor-modal'
+import { GlobalCommentsModal } from './code-comments/global-comments-modal'
 import { sanitizeCommentBody } from './code-comments/comment-types'
 import {
   ExportCommentsModal,
@@ -208,6 +209,9 @@ function App() {
     comments,
     isReadingComments,
     isWritingComments,
+    globalComments,
+    isReadingGlobalComments,
+    isWritingGlobalComments,
     bannerMessage,
     openWorkspace,
     setActiveWorkspace,
@@ -218,6 +222,7 @@ function App() {
     goBackInHistory,
     goForwardInHistory,
     saveComments,
+    saveGlobalComments,
     showBanner,
     setSelectionRange,
     setExpandedDirectories,
@@ -246,6 +251,7 @@ function App() {
   const specScrollPositionsRef = useRef<Record<string, number>>({})
   const [commentDraftState, setCommentDraftState] =
     useState<CommentDraftState | null>(null)
+  const [isGlobalCommentsModalOpen, setIsGlobalCommentsModalOpen] = useState(false)
   const [isViewCommentsModalOpen, setIsViewCommentsModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isExportingComments, setIsExportingComments] = useState(false)
@@ -277,6 +283,7 @@ function App() {
     () => comments.filter((comment) => !comment.exportedAt),
     [comments],
   )
+  const hasGlobalComments = globalComments.trim().length > 0
   const wheelHistoryStateRef = useRef<WheelHistoryState>({
     accumulatedDeltaX: 0,
     lastEventAt: 0,
@@ -427,8 +434,27 @@ function App() {
       renderLlmBundle({
         instruction,
         comments: pendingComments,
+        globalComments,
       }).length,
-    [pendingComments],
+    [globalComments, pendingComments],
+  )
+
+  const handleSaveGlobalComments = useCallback(
+    async (body: string) => {
+      if (!activeWorkspaceId || !rootPath) {
+        showBanner('Cannot save global comments: no active workspace selected.')
+        return
+      }
+
+      const saved = await saveGlobalComments(body)
+      if (!saved) {
+        return
+      }
+
+      showBanner('Global comments saved.')
+      setIsGlobalCommentsModalOpen(false)
+    },
+    [activeWorkspaceId, rootPath, saveGlobalComments, showBanner],
   )
 
   const handleRequestAddCommentFromSpec = useCallback(
@@ -467,16 +493,19 @@ function App() {
         return
       }
 
-      if (pendingComments.length === 0) {
+      if (pendingComments.length === 0 && !hasGlobalComments) {
         showBanner('No pending comments to export.')
         return
       }
 
       const exportSnapshot = pendingComments
-      const commentsMarkdown = renderCommentsMarkdown(exportSnapshot)
+      const commentsMarkdown = renderCommentsMarkdown(exportSnapshot, {
+        globalComments,
+      })
       const bundleMarkdown = renderLlmBundle({
         instruction: input.instruction,
         comments: exportSnapshot,
+        globalComments,
       })
       const isClipboardAllowed = bundleMarkdown.length <= MAX_CLIPBOARD_CHARS
       const shouldCopyToClipboard = input.copyToClipboard && isClipboardAllowed
@@ -555,20 +584,22 @@ function App() {
           return
         }
 
-        const exportedCommentIds = new Set(
-          exportSnapshot.map((comment) => comment.id),
-        )
-        const exportTimestamp = new Date().toISOString()
-        const markedComments = comments.map((comment) =>
-          exportedCommentIds.has(comment.id)
-            ? { ...comment, exportedAt: exportTimestamp }
-            : comment,
-        )
+        if (exportSnapshot.length > 0) {
+          const exportedCommentIds = new Set(
+            exportSnapshot.map((comment) => comment.id),
+          )
+          const exportTimestamp = new Date().toISOString()
+          const markedComments = comments.map((comment) =>
+            exportedCommentIds.has(comment.id)
+              ? { ...comment, exportedAt: exportTimestamp }
+              : comment,
+          )
 
-        const isStatusSaved = await saveComments(markedComments)
-        if (!isStatusSaved) {
-          showBanner('Comments exported, but failed to record export status.')
-          return
+          const isStatusSaved = await saveComments(markedComments)
+          if (!isStatusSaved) {
+            showBanner('Comments exported, but failed to record export status.')
+            return
+          }
         }
 
         if (failedTargets.length > 0) {
@@ -586,6 +617,8 @@ function App() {
     [
       activeWorkspaceId,
       comments,
+      globalComments,
+      hasGlobalComments,
       pendingComments,
       rootPath,
       saveComments,
@@ -1041,6 +1074,24 @@ function App() {
               !rootPath ||
               isReadingComments ||
               isWritingComments ||
+              isReadingGlobalComments ||
+              isWritingGlobalComments ||
+              isExportingComments
+            }
+            onClick={() => {
+              setIsGlobalCommentsModalOpen(true)
+            }}
+            type="button"
+          >
+            Add Global Comments
+          </button>
+          <button
+            disabled={
+              !rootPath ||
+              isReadingComments ||
+              isWritingComments ||
+              isReadingGlobalComments ||
+              isWritingGlobalComments ||
               isExportingComments
             }
             onClick={() => {
@@ -1052,7 +1103,12 @@ function App() {
           </button>
           <button
             disabled={
-              !rootPath || isReadingComments || isWritingComments || isExportingComments
+              !rootPath ||
+              isReadingComments ||
+              isWritingComments ||
+              isReadingGlobalComments ||
+              isWritingGlobalComments ||
+              isExportingComments
             }
             onClick={() => {
               setIsExportModalOpen(true)
@@ -1215,9 +1271,21 @@ function App() {
         onDeleteExportedComments={handleDeleteExportedComments}
         onUpdateComment={handleUpdateComment}
       />
+      <GlobalCommentsModal
+        initialValue={globalComments}
+        isOpen={isGlobalCommentsModalOpen}
+        isSaving={isWritingGlobalComments}
+        onCancel={() => {
+          if (!isWritingGlobalComments) {
+            setIsGlobalCommentsModalOpen(false)
+          }
+        }}
+        onSave={handleSaveGlobalComments}
+      />
       <ExportCommentsModal
         commentCount={comments.length}
         estimateBundleLength={estimateBundleLength}
+        allowExportWithoutPendingComments={hasGlobalComments}
         isExporting={isExportingComments}
         isOpen={isExportModalOpen}
         maxClipboardChars={MAX_CLIPBOARD_CHARS}

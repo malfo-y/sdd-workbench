@@ -1068,6 +1068,10 @@
   padding: 8px 4px;
 }
 
+.global-comments-modal .comment-modal-textarea {
+  min-height: 220px;
+}
+
 .export-comments-options {
   border: 1px solid #3f3f3f;
   border-radius: 8px;

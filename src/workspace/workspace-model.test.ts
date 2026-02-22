@@ -269,6 +269,10 @@ describe('workspace-model', () => {
     expect(session.isReadingComments).toBe(false)
     expect(session.isWritingComments).toBe(false)
     expect(session.commentsError).toBeNull()
+    expect(session.globalComments).toBe('')
+    expect(session.isReadingGlobalComments).toBe(false)
+    expect(session.isWritingGlobalComments).toBe(false)
+    expect(session.globalCommentsError).toBeNull()
   })
 
   it('preserves fileLastLineByPath when selection is cleared', () => {

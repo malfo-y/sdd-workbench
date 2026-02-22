@@ -1021,3 +1021,67 @@
   - 삭제 UX는 개별 삭제/`Delete Exported` 모두 2-step confirm으로 고정했다.
   - `Delete Exported`는 `exportedAt` 존재 코멘트만 제거하고 pending 코멘트는 유지한다.
   - 저장 실패 경로는 기존 `saveComments` 배너 처리 경로를 그대로 사용한다.
+
+---
+
+## F12.3 Addendum (2026-02-22)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f12_3_global_comments_capture_and_export_order.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `T1, T2` (completed)
+  - Phase 2: `T3, T4` (completed)
+  - Phase 3: `T5` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| T1 | 전역 코멘트 IPC 채널 추가 | P0 | - | completed | `npm test -- src/App.test.tsx` pass |
+| T2 | workspace 상태에 전역 코멘트 로드/저장 액션 추가 | P0 | T1 | completed | `workspace-model.test.ts` pass |
+| T3 | `Add Global Comments` 모달/버튼 구현 | P0 | T2 | completed | `App.test.tsx` pass |
+| T4 | export 템플릿 전역 코멘트 선행(prepend) 규칙 구현 | P0 | T2,T3 | completed | `comment-export.test.ts`, `App.test.tsx` pass |
+| T5 | 테스트 보강 + 회귀 게이트 검증 | P0 | T3,T4 | completed | `npm test`, `npm run lint`, `npm run build` pass |
+
+### 2) Files Changed (F12.3)
+
+- `electron/main.ts`
+- `electron/preload.ts`
+- `electron/electron-env.d.ts`
+- `src/workspace/workspace-model.ts`
+- `src/workspace/workspace-model.test.ts`
+- `src/workspace/workspace-context.tsx`
+- `src/code-comments/comment-export.ts`
+- `src/code-comments/comment-export.test.ts`
+- `src/code-comments/export-comments-modal.tsx`
+- `src/code-comments/global-comments-modal.tsx` (new)
+- `src/App.tsx`
+- `src/App.css`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Test and Quality Gate Status (F12.3)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm install`: pass (up to date)
+- `npm test -- src/code-comments/comment-export.test.ts src/workspace/workspace-model.test.ts src/App.test.tsx`: pass
+- `npm test`: pass (`183 passed`)
+- `npm run lint`: pass
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F12.3)
+
+- Group A: `T1` (`electron/main.ts`, `electron/preload.ts`, `electron/electron-env.d.ts`)
+- Group B: `T2` (`workspace-model.ts`, `workspace-context.tsx`)
+- Group C: `T3 -> T4` (`App.tsx` 중심 오케스트레이션 충돌로 순차)
+- Group D: `T5` (테스트/게이트)
+
+### 5) Blockers and Decisions (F12.3)
+
+- Blockers: 없음
+- Applied decisions:
+  - 전역 코멘트 파일 경로는 `workspace/.sdd-workbench/global-comments.md`로 고정했다.
+  - 전역 코멘트는 `comments.json`과 분리 저장하고 line comment `exportedAt` 정책은 변경하지 않았다.
+  - export 텍스트(`_COMMENTS.md`, bundle)는 `## Global Comments`를 `## Comments` 앞에 배치한다(빈 경우 생략).
+  - pending line comment가 0이어도 전역 코멘트가 있으면 export를 허용한다.
