@@ -26,7 +26,8 @@ type CodeComment = {
 
 1. 라인 번호는 1-based 기준
 2. 코멘트 source of truth는 `workspaceRoot/.sdd-workbench/comments.json`
-3. `_COMMENTS.md`는 export 산출물(재생성)이며 source of truth가 아님
+3. global comments source of truth는 `workspaceRoot/.sdd-workbench/global-comments.md`
+4. `_COMMENTS.md`는 export 산출물(재생성)이며 source of truth가 아님
 
 ## 2. 링크/경로 해석 규칙
 
@@ -58,19 +59,24 @@ type CodeComment = {
 | `system:openInIterm` / `system:openInVsCode` | Renderer -> Main (`invoke`) | 외부 툴 열기 |
 | `workspace:readComments` | Renderer -> Main (`invoke`) | comments 읽기 |
 | `workspace:writeComments` | Renderer -> Main (`invoke`) | comments 쓰기 |
+| `workspace:readGlobalComments` | Renderer -> Main (`invoke`) | global comments 읽기 |
+| `workspace:writeGlobalComments` | Renderer -> Main (`invoke`) | global comments 쓰기 |
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
 
 ## 4. 코멘트/Export 정책 계약
 
 1. `Add Comment`는 CodeViewer/SpecViewer 모두에서 동일 저장 플로우를 사용한다.
-2. Export 대상은 pending comments(`exportedAt` 없음)만 포함한다.
-3. target 중 1개 이상 성공하면 해당 snapshot comment에 `exportedAt`를 기록한다.
-4. `MAX_CLIPBOARD_CHARS=30000` 초과 시 clipboard target은 비활성화한다.
-5. partial success 시 성공/실패 target을 배너에 분리해 표기한다.
+2. `View Comments` 편집/삭제/Delete Exported는 동일 comments 저장 플로우를 재사용한다.
+3. `Delete Exported`는 `exportedAt`가 있는 line comment만 삭제하고 pending comment는 유지한다.
+4. Export 대상 line comment는 pending comments(`exportedAt` 없음)만 포함한다.
+5. global comments가 비어있지 않으면 export 문서에 `Global Comments` 섹션을 `Comments` 섹션보다 먼저 배치한다.
+6. target 중 1개 이상 성공하면 해당 snapshot line comment에만 `exportedAt`를 기록한다.
+7. `MAX_CLIPBOARD_CHARS=30000` 초과 시 clipboard target은 비활성화한다.
+8. partial success 시 성공/실패 target을 배너에 분리해 표기한다.
 
 ## 5. 마커 매핑 규칙
 
-1. 코드 뷰어 마커는 라인별 count badge + hover preview를 제공한다.
+1. 코드 뷰어 마커는 코멘트 startLine 기준 line별 count badge + hover preview를 제공한다.
 2. rendered markdown 마커는 `data-source-line` 기반 매핑 + hover preview를 제공한다.
 3. 매핑 우선순위: exact-match -> nearest fallback
 4. nearest 동률이면 더 작은 line 우선

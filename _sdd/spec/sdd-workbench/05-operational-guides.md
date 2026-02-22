@@ -20,6 +20,7 @@
 ## 3. 신뢰성 기준
 
 - open/index/read/watch/comments/export 실패 시 앱 크래시 없이 배너 피드백
+- global comments read/write 실패 시 모달을 유지해 즉시 재시도 가능해야 한다.
 - watcher는 open 시 시작, close/unmount 시 정리
 - active file 변경 이벤트는 자동 re-read
 - same-spec source jump는 rendered spec 패널 콘텐츠/스크롤 문맥을 유지해야 한다.
@@ -30,7 +31,7 @@
 
 ### 4.1 자동 게이트 (2026-02-22 기준)
 
-- `npm test` -> `18 files, 169 passed`
+- `npm test` -> `19 files, 188 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -50,8 +51,11 @@
 5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 확인
 6. Back/Forward(mouse/swipe/wheel) 동작
 7. CodeViewer/SpecViewer에서 Add Comment + marker 표시
-8. Export Comments pending-only 및 partial success 배너
-9. CodeViewer/SpecViewer marker hover preview(`+N more`) 동작 확인
+8. View Comments에서 edit/delete/Delete Exported 동작 + 실패 시 모달 유지 확인
+9. Add Global Comments 저장/복원 + Export 시 Global Comments 선행 배치 확인
+10. Export Comments pending-only/partial success 배너 + `exportedAt` 기록 확인
+11. CodeViewer/SpecViewer marker hover preview(`+N more`) 동작 확인
+12. 헤더 compact action(`icon + short label`) 및 협소 폭 icon-only 접근성(`title`/`aria-label`) 확인
 
 ## 5. 개발 환경
 

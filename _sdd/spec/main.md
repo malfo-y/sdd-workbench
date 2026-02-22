@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.24.0`
+- 문서 버전: `0.25.0`
 - 마지막 업데이트: `2026-02-22`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -12,6 +12,9 @@
   - F11.1 draft: `/_sdd/drafts/feature_draft_f11_1_markdown_comment_entry_and_comment_markers.md`
   - F11.2 draft: `/_sdd/drafts/feature_draft_f11_2_spec_jump_scroll_retention_and_collapsed_marker_bubbling.md`
   - F12.1 draft: `/_sdd/drafts/feature_draft_f12_1_comment_badge_hover_popover.md`
+  - F12.2 draft: `/_sdd/drafts/feature_draft_f12_2_view_comments_edit_delete.md`
+  - F12.3 draft: `/_sdd/drafts/feature_draft_f12_3_global_comments_capture_and_export_order.md`
+  - F12.4 draft: `/_sdd/drafts/feature_draft_f12_4_header_action_layout_reorder.md`
 - 리라이트:
   - 단일 대형 문서(`main.md`)를 인덱스 + 주제별 하위 문서로 분할
   - 결정 로그는 `/_sdd/spec/DECISION_LOG.md`를 source of truth로 유지
@@ -20,17 +23,18 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F12.1`
+- 구현 완료 범위: `F01~F12.4`
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 3패널(code/raw spec/rendered spec) 탐색
   2. spec link/selection 기반 code line jump
   3. 컨텍스트 복사 + Open In(iTerm/VSCode)
   4. file watcher 기반 변경 감지 + collapse 버블링 marker 가시화 + history navigation
-  5. inline comment + LLM export bundle + incremental export
-  6. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
-  7. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지
+  5. inline comment + comment 관리(View/Edit/Delete/Delete Exported) + LLM export bundle
+  6. global comments(워크스페이스 단위) + export 선행 prepend + incremental export
+  7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
+  8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + compact header action 그룹
 - 최신 품질 게이트(2026-02-22):
-  - `npm test` -> `18 files, 169 passed`
+  - `npm test` -> `19 files, 188 passed`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 
@@ -49,7 +53,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F12.1), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F12.4), 상세 수용 기준, 리스크/백로그
 
 ---
 

@@ -688,3 +688,26 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`를 F12.1 완료 상태로 동기화한다.
   - preview 지연값/표시 개수 사용자 설정과 상세 편집/삭제 패널은 backlog로 유지한다.
+
+## 2026-02-22 - F12.2/F12.3/F12.4 구현 완료 반영(comment 관리 + global comments + header 액션 재배치)
+
+- Context:
+  - F12.2(`View Comments` 조회/편집/삭제/Delete Exported), F12.3(`Add Global Comments` + export prepend), F12.4(헤더 액션 그룹 compact 재배치) 구현이 완료되었음.
+  - implementation-review follow-up으로 실패 경로 보강(저장 실패 배너 + 모달 상태 유지)과 관련 테스트가 추가되어 최종 판정이 `READY`로 확정되었음.
+  - 최신 품질 게이트는 `npm test`(`19 files, 188 passed`), `npm run lint`, `npm run build` 모두 통과 상태임.
+- Decision:
+  - F12.2/F12.3/F12.4를 스펙 상태 `✅ Done`으로 전환한다.
+  - 코멘트 관리 계약을 `View Comments`(편집/개별삭제/Delete Exported) 기준으로 고정하고, `Delete Exported`는 `exportedAt`가 있는 line comment만 제거하도록 고정한다.
+  - global comments source of truth를 `workspaceRoot/.sdd-workbench/global-comments.md`로 고정하고, export 시 `Global Comments`를 `Comments`보다 먼저 배치한다.
+  - 헤더 액션 순서를 `history -> workspace switcher -> comments group -> workspace group`으로 고정하고, comments/workspace 버튼은 compact(`icon + short label`) + 협소 폭 icon-only 정책을 적용한다.
+- Rationale:
+  - 코멘트 수명주기(생성 후 수정/정리)가 닫혀야 실제 협업 루프에서 누적 노이즈를 제어할 수 있다.
+  - 전역 지시사항을 line comment 앞에 배치하면 LLM 입력 문맥 전달 품질이 안정된다.
+  - 액션 그룹 재배치는 버튼 탐색 비용을 줄이고 상단 레이아웃 밀도를 낮춰 작업 가독성을 개선한다.
+- Alternatives considered:
+  - 코멘트 편집/삭제를 backlog로 유지하고 export 기능만 운영
+  - global comments를 `comments.json` 스키마에 혼합 저장
+  - 헤더 버튼을 기존 단일 그룹으로 유지
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F12.4 기준 구현 상태로 동기화한다.
+  - backlog는 코멘트 스레드/원격 동기화, re-export-all/reset UX, global comments 버전 이력 등으로 재정리한다.

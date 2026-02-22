@@ -21,7 +21,7 @@ Renderer (React)
 ## 3. UI 레이아웃
 
 ```text
-Header: Back/Forward | Workspace Switcher | Close/Open Workspace
+Header: Back/Forward | Workspace Switcher | Comments(Add/View/Export) | Workspace(Close/Open)
 Left: Current Workspace + Open In + FileTree
 Center: Code Preview (text/image/unavailable)
 Right: Rendered Spec (TOC + link/source actions)
@@ -37,11 +37,12 @@ Right: Rendered Spec (TOC + link/source actions)
 - `selectionRange`, `fileLastLineByPath`
 - `changedFiles`, `fileHistory`, `fileHistoryIndex`
 - `comments`, `isReadingComments`, `isWritingComments`, `commentsError`
+- `globalComments`, `isReadingGlobalComments`, `isWritingGlobalComments`, `globalCommentsError`
 
 ### 4.2 전역 상태
 
 - `activeWorkspaceId`, `workspaceOrder`, `workspacesById`
-- UI 보조 상태(`bannerMessage`, `isExportingComments`, spec scroll position map)
+- UI 보조 상태(`bannerMessage`, `isExportingComments`, comment/global/export modal open state, spec scroll position map)
 
 ## 5. 핵심 데이터 플로우
 
@@ -77,14 +78,15 @@ Right: Rendered Spec (TOC + link/source actions)
 ### 5.5 코멘트/내보내기
 
 1. CodeViewer/SpecViewer `Add Comment`
-2. `comments.json` 저장(source of truth)
-3. line index(count + entries) 생성 -> 코드/문서 marker 표시
-4. marker hover 시 라인 코멘트 본문 미리보기 popover 표시(read-only)
-5. Export 시 pending-only 선택 -> target 성공 시 `exportedAt` 기록
+2. `comments.json` 저장(source of truth) + `View Comments` 편집/삭제/Delete Exported 동일 저장 경로 재사용
+3. `Add Global Comments`는 `.sdd-workbench/global-comments.md`에 워크스페이스 단위 저장
+4. line index(startLine 기준 count + entries) 생성 -> 코드/문서 marker 표시
+5. marker hover 시 라인 코멘트 본문 미리보기 popover 표시(read-only)
+6. Export 시 Global Comments 선행 prepend + pending-only line comments 처리, target 성공 시 해당 line comment snapshot에만 `exportedAt` 기록
 
 ## 6. 워크스페이스 경계 규칙
 
 1. 기능 실행 기준은 `activeWorkspaceId`
 2. cross-workspace 자동 fallback 미지원
 3. 전환 시 공유 금지 상태(selection)는 리셋
-4. 세션 상태(active file/spec/expanded/history/comments)는 workspace별 유지
+4. 세션 상태(active file/spec/expanded/history/comments/globalComments)는 workspace별 유지

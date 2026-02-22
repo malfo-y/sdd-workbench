@@ -3682,6 +3682,74 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('keeps edit mode open when comment update fails and shows error banner', async () => {
+    const workspaceRoot = '/Users/tester/projects/edit-comments-fail-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:2-2:aaaa1111:2026-02-22T14:10:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 2,
+          endLine: 2,
+          body: 'old body',
+          anchor: {
+            snippet: 'const value = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:10:00.000Z',
+        },
+      ],
+    })
+    writeCommentsMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'write failed',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('Edit comment body'), {
+      target: { value: 'updated body' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to save comments: write failed',
+      )
+    })
+
+    expect(screen.getByLabelText('Edit comment body')).toHaveValue('updated body')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+  })
+
   it('deletes exported comments only from View Comments modal', async () => {
     const workspaceRoot = '/Users/tester/projects/delete-exported-comments-workspace'
     openDialogMock.mockResolvedValueOnce({
@@ -3755,6 +3823,86 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(writtenComments[0]).not.toHaveProperty('exportedAt')
   })
 
+  it('keeps delete-exported confirmation open when save fails and shows error banner', async () => {
+    const workspaceRoot =
+      '/Users/tester/projects/delete-exported-comments-fail-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:1-1:aaaa1111:2026-02-22T10:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'pending comment',
+          anchor: {
+            snippet: 'pending',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T10:00:00.000Z',
+        },
+        {
+          id: 'src/b.ts:3-3:bbbb2222:2026-02-22T11:00:00.000Z',
+          relativePath: 'src/b.ts',
+          startLine: 3,
+          endLine: 3,
+          body: 'already exported comment',
+          anchor: {
+            snippet: 'exported',
+            hash: 'bbbb2222',
+          },
+          createdAt: '2026-02-22T11:00:00.000Z',
+          exportedAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+    writeCommentsMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'delete failed',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Exported' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Delete Exported' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to save comments: delete failed',
+      )
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'Confirm Delete Exported' }),
+    ).toBeInTheDocument()
+  })
+
   it('opens Add Global Comments modal and saves global comments body', async () => {
     const workspaceRoot = '/Users/tester/projects/global-comments-workspace'
     openDialogMock.mockResolvedValueOnce({
@@ -3804,6 +3952,68 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(writeGlobalCommentsMock).toHaveBeenCalledWith(
       workspaceRoot,
+      '## Global Rules\n- Keep API compatibility',
+    )
+  })
+
+  it('keeps Add Global Comments modal open when save fails and shows error banner', async () => {
+    const workspaceRoot = '/Users/tester/projects/global-comments-fail-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '## Existing context',
+    })
+    writeGlobalCommentsMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'global write failed',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Add Global Comments' }),
+      ).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Global Comments' }))
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Add global comments' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Global comments (Markdown)'), {
+      target: { value: '## Global Rules\n- Keep API compatibility' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Global Comments' }))
+
+    await waitFor(() => {
+      expect(writeGlobalCommentsMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to save global comments: global write failed',
+      )
+    })
+
+    expect(
+      screen.getByRole('dialog', { name: 'Add global comments' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Global comments (Markdown)')).toHaveValue(
       '## Global Rules\n- Keep API compatibility',
     )
   })

@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F12.1)
+## A. 기능 이력 (F01~F12.4)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -26,6 +26,9 @@
 | F11.1 | Done | 2026-02-22 | markdown comment entry + marker + incremental export |
 | F11.2 | Done | 2026-02-22 | spec jump scroll retention + collapsed marker bubbling |
 | F12.1 | Done | 2026-02-22 | code/rendered comment marker hover preview |
+| F12.2 | Done | 2026-02-22 | View Comments + edit/delete/Delete Exported |
+| F12.3 | Done | 2026-02-22 | Add Global Comments + export prepend order |
+| F12.4 | Done | 2026-02-22 | header comments/workspace action compact layout reorder |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -40,8 +43,10 @@
 - Open In(iTerm/VSCode) 액션
 - markdown sanitize/리소스 경계 정책
 - 이미지 프리뷰 및 blocked_resource 처리
-- comments 저장/marker/export 및 pending-only 정책
+- comments 저장/관리(edit/delete/Delete Exported) 및 pending-only 정책
+- global comments 저장/복원 및 export prepend 정책
 - code/rendered marker hover preview(`+N more`, read-only)
+- header action 그룹 재배치 + compact/icon-only 정책
 
 ## C. 리스크/백로그
 
@@ -51,10 +56,11 @@
 4. wheel fallback 임계값 튜닝 필요 가능성
 5. source line mapping은 line-level best-effort 한계 존재
 6. 코멘트 relocation(AST/semantic)은 미지원
-7. marker 상세 패널/코멘트 편집/삭제 UI 미지원
+7. marker 상세 패널/코멘트 스레드 UI 미지원
 8. incremental export reset/re-export-all UX 미지원
-9. rendered spec scroll position의 앱 재시작 복원은 미지원(런타임 복원만 지원)
-10. hover preview 지연값/표시 개수 사용자 설정은 미지원
+9. global comments 버전 이력/다중 문서 분류는 미지원
+10. rendered spec scroll position의 앱 재시작 복원은 미지원(런타임 복원만 지원)
+11. hover preview 지연값/표시 개수 사용자 설정은 미지원
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

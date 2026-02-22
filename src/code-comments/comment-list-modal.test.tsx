@@ -38,9 +38,9 @@ describe('CommentListModal', () => {
         isOpen={false}
         isSaving={false}
         onClose={() => undefined}
-        onDeleteComment={() => undefined}
-        onDeleteExportedComments={() => undefined}
-        onUpdateComment={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
       />,
     )
 
@@ -66,9 +66,9 @@ describe('CommentListModal', () => {
         isOpen
         isSaving={false}
         onClose={() => undefined}
-        onDeleteComment={() => undefined}
-        onDeleteExportedComments={() => undefined}
-        onUpdateComment={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
       />,
     )
 
@@ -83,15 +83,15 @@ describe('CommentListModal', () => {
   })
 
   it('edits comment body and emits sanitized value', () => {
-    const onUpdateComment = vi.fn()
+    const onUpdateComment = vi.fn(() => true)
     render(
       <CommentListModal
         comments={COMMENTS}
         isOpen
         isSaving={false}
         onClose={() => undefined}
-        onDeleteComment={() => undefined}
-        onDeleteExportedComments={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
         onUpdateComment={onUpdateComment}
       />,
     )
@@ -106,7 +106,7 @@ describe('CommentListModal', () => {
   })
 
   it('supports per-comment delete confirmation', () => {
-    const onDeleteComment = vi.fn()
+    const onDeleteComment = vi.fn(() => true)
     render(
       <CommentListModal
         comments={COMMENTS}
@@ -114,8 +114,8 @@ describe('CommentListModal', () => {
         isSaving={false}
         onClose={() => undefined}
         onDeleteComment={onDeleteComment}
-        onDeleteExportedComments={() => undefined}
-        onUpdateComment={() => undefined}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
       />,
     )
 
@@ -126,16 +126,16 @@ describe('CommentListModal', () => {
   })
 
   it('supports delete exported bulk action with confirmation', () => {
-    const onDeleteExportedComments = vi.fn()
+    const onDeleteExportedComments = vi.fn(() => true)
     render(
       <CommentListModal
         comments={COMMENTS}
         isOpen
         isSaving={false}
         onClose={() => undefined}
-        onDeleteComment={() => undefined}
+        onDeleteComment={() => true}
         onDeleteExportedComments={onDeleteExportedComments}
-        onUpdateComment={() => undefined}
+        onUpdateComment={() => true}
       />,
     )
 

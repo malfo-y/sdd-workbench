@@ -757,19 +757,19 @@ function App() {
     async (commentId: string, body: string) => {
       if (!activeWorkspaceId) {
         showBanner('Cannot update comment: no active workspace selected.')
-        return
+        return false
       }
 
       const sanitizedBody = sanitizeCommentBody(body)
       if (sanitizedBody.length === 0) {
         showBanner('Cannot save comment: comment body is empty.')
-        return
+        return false
       }
 
       const hasTargetComment = comments.some((comment) => comment.id === commentId)
       if (!hasTargetComment) {
         showBanner('Cannot update comment: target comment not found.')
-        return
+        return false
       }
 
       const nextComments = comments.map((comment) =>
@@ -783,9 +783,10 @@ function App() {
 
       const saved = await saveComments(nextComments)
       if (!saved) {
-        return
+        return false
       }
       showBanner('Comment updated.')
+      return true
     },
     [activeWorkspaceId, comments, saveComments, showBanner],
   )
@@ -794,20 +795,21 @@ function App() {
     async (commentId: string) => {
       if (!activeWorkspaceId) {
         showBanner('Cannot delete comment: no active workspace selected.')
-        return
+        return false
       }
 
       const nextComments = comments.filter((comment) => comment.id !== commentId)
       if (nextComments.length === comments.length) {
         showBanner('Cannot delete comment: target comment not found.')
-        return
+        return false
       }
 
       const saved = await saveComments(nextComments)
       if (!saved) {
-        return
+        return false
       }
       showBanner('Comment deleted.')
+      return true
     },
     [activeWorkspaceId, comments, saveComments, showBanner],
   )
@@ -815,7 +817,7 @@ function App() {
   const handleDeleteExportedComments = useCallback(async () => {
     if (!activeWorkspaceId) {
       showBanner('Cannot delete exported comments: no active workspace selected.')
-      return
+      return false
     }
 
     const exportedCommentCount = comments.filter(
@@ -823,15 +825,16 @@ function App() {
     ).length
     if (exportedCommentCount === 0) {
       showBanner('No exported comments to delete.')
-      return
+      return false
     }
 
     const nextComments = comments.filter((comment) => !comment.exportedAt)
     const saved = await saveComments(nextComments)
     if (!saved) {
-      return
+      return false
     }
     showBanner(`Deleted ${exportedCommentCount} exported comment(s).`)
+    return true
   }, [activeWorkspaceId, comments, saveComments, showBanner])
 
   const openWorkspaceInExternalApp = useCallback(

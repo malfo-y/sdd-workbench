@@ -10,9 +10,12 @@ type CommentListModalProps = {
   isSaving: boolean
   comments: readonly CodeComment[]
   onClose: () => void
-  onUpdateComment: (commentId: string, body: string) => void | Promise<void>
-  onDeleteComment: (commentId: string) => void | Promise<void>
-  onDeleteExportedComments: () => void | Promise<void>
+  onUpdateComment: (
+    commentId: string,
+    body: string,
+  ) => boolean | Promise<boolean>
+  onDeleteComment: (commentId: string) => boolean | Promise<boolean>
+  onDeleteExportedComments: () => boolean | Promise<boolean>
 }
 
 const COLLAPSED_BODY_MAX_CHARS = 180
@@ -109,6 +112,41 @@ export function CommentListModal({
       sanitizedEditingBody !== editingTargetComment.body,
   )
 
+  const handleSaveEditedComment = async () => {
+    if (!editingCommentId || !canSaveEdit) {
+      return
+    }
+
+    const didSave = await onUpdateComment(editingCommentId, sanitizedEditingBody)
+    if (!didSave) {
+      return
+    }
+
+    setEditingCommentId(null)
+    setEditingBody('')
+  }
+
+  const handleConfirmDeleteComment = async (commentId: string) => {
+    const didDelete = await onDeleteComment(commentId)
+    if (!didDelete) {
+      return
+    }
+
+    setPendingDeleteCommentId(null)
+    setEditingCommentId(null)
+    setEditingBody('')
+  }
+
+  const handleConfirmDeleteExportedComments = async () => {
+    const didDelete = await onDeleteExportedComments()
+    if (!didDelete) {
+      return
+    }
+
+    setIsDeleteExportedConfirmOpen(false)
+    setPendingDeleteCommentId(null)
+  }
+
   return (
     <div className="comment-modal-backdrop" role="presentation">
       <div aria-label="View comments" className="comment-modal comment-list-modal" role="dialog">
@@ -139,9 +177,7 @@ export function CommentListModal({
               <button
                 disabled={isSaving}
                 onClick={() => {
-                  void onDeleteExportedComments()
-                  setIsDeleteExportedConfirmOpen(false)
-                  setPendingDeleteCommentId(null)
+                  void handleConfirmDeleteExportedComments()
                 }}
                 type="button"
               >
@@ -237,12 +273,7 @@ export function CommentListModal({
                       <button
                         disabled={!canSaveEdit}
                         onClick={() => {
-                          if (!editingCommentId || !canSaveEdit) {
-                            return
-                          }
-                          void onUpdateComment(editingCommentId, sanitizedEditingBody)
-                          setEditingCommentId(null)
-                          setEditingBody('')
+                          void handleSaveEditedComment()
                         }}
                         type="button"
                       >
@@ -288,10 +319,7 @@ export function CommentListModal({
                         <button
                           disabled={isSaving}
                           onClick={() => {
-                            void onDeleteComment(comment.id)
-                            setPendingDeleteCommentId(null)
-                            setEditingCommentId(null)
-                            setEditingBody('')
+                            void handleConfirmDeleteComment(comment.id)
                           }}
                           type="button"
                         >

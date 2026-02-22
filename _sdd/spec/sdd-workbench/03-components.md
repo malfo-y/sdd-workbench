@@ -6,15 +6,18 @@
 
 - `src/App.tsx`
   - 3패널 조립, header 액션, 모달 오케스트레이션
+  - header actions를 history/comments/workspace 그룹으로 분리하고 compact 버튼(`icon + short label`) 적용
   - spec 점프/코멘트 요청/내보내기 흐름 연결
 - `src/App.css`
   - 패널 레이아웃, marker/popover/modal 스타일
+  - header action 그룹/반응형 icon-only 규칙(`max-width: 1240px`)
 
 ### 1.2 Workspace State Layer
 
 - `src/workspace/workspace-context.tsx`
   - 멀티 워크스페이스 상태 및 action 집약
   - same-spec source jump에서 불필요한 spec reset/read 최소화
+  - comments/global-comments read-write 액션 제공
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이
 - `src/workspace/workspace-persistence.ts`
@@ -63,13 +66,17 @@
 - `src/code-comments/comment-persistence.ts`
   - parse/serialize
 - `src/code-comments/comment-line-index.ts`
-  - 파일/라인 count index + nearest fallback mapping
+  - 파일/라인(startLine 기준) count index + entries index + nearest fallback mapping
 - `src/code-comments/comment-hover-popover.tsx`
   - 코드/문서 공용 코멘트 hover preview UI
 - `src/code-comments/comment-export.ts`
-  - `_COMMENTS.md` 및 bundle 렌더
+  - `_COMMENTS.md` 및 bundle 렌더(global comments prepend 포함)
 - `src/code-comments/comment-editor-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
+- `src/code-comments/comment-list-modal.tsx`
+  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm)
+- `src/code-comments/global-comments-modal.tsx`
+  - 워크스페이스 전역 코멘트 편집/저장
 
 ### 1.7 Electron Boundary
 
@@ -82,11 +89,11 @@
 
 ## 2. 테스트 맵(핵심)
 
-- 통합: `src/App.test.tsx` (50)
+- 통합: `src/App.test.tsx` (61)
 - 상태모델: `src/workspace/workspace-model.test.ts` (16)
-- spec viewer: `src/spec-viewer/spec-viewer-panel.test.tsx` (15)
-- code viewer: `src/code-viewer/code-viewer-panel.test.tsx` (11)
-- comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export` 테스트
+- spec viewer: `src/spec-viewer/spec-viewer-panel.test.tsx` (19)
+- code viewer: `src/code-viewer/code-viewer-panel.test.tsx` (15)
+- comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export/comment-list-modal` 테스트
 
 ## 3. 유지보수 규칙
 
