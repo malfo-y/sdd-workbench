@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -43,6 +43,8 @@ type WorkspaceFileNode = {
   relativePath: string
   kind: 'file' | 'directory'
   children?: WorkspaceFileNode[]
+  childrenStatus?: 'complete' | 'not-loaded' | 'partial'
+  totalChildCount?: number
 }
 
 type WorkspaceIndexRequest = {
@@ -150,6 +152,19 @@ type WorkspaceExportCommentsBundleResult = {
   error?: string
 }
 
+type WorkspaceIndexDirectoryRequest = {
+  rootPath: string
+  relativePath: string
+}
+
+type WorkspaceIndexDirectoryResult = {
+  ok: boolean
+  children: WorkspaceFileNode[]
+  childrenStatus: 'complete' | 'partial'
+  totalChildCount: number
+  error?: string
+}
+
 type WorkspaceWatchStartRequest = {
   workspaceId: string
   rootPath: string
@@ -235,10 +250,15 @@ const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
   '.sdd-workbench',
 ])
 
+const WORKSPACE_INDEX_SHALLOW_DEPTH = 3
+const WORKSPACE_INDEX_DIRECTORY_CHILD_CAP = 500
+
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
 const MAX_WORKSPACE_INDEX_NODES = 10_000
+const MAX_WORKSPACE_POLL_FILES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
 const WORKSPACE_WATCH_POLL_INTERVAL_MS = 1500
+const WORKSPACE_WATCH_REMOTE_POLL_INTERVAL_MS = 5000
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
 const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
@@ -260,7 +280,13 @@ const fileNameCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 })
+const NETWORK_FS_TYPES = new Set([
+  'sshfs', 'nfs', 'smbfs', 'cifs', 'afpfs', 'webdavfs',
+  'macfuse', 'osxfuse', 'fuse', 'fusefs',
+])
+
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
+const workspacesInFallbackTransition = new Set<string>()
 let stopAllWorkspaceWatchersPromise: Promise<void> | null = null
 let hasRequestedQuitWatcherShutdown = false
 let workspaceWriteOperationsInFlight = 0
@@ -444,6 +470,53 @@ function buildImagePreview(
   }
 }
 
+function detectRemoteMountPoint(rootPath: string): boolean {
+  if (process.platform !== 'darwin' && process.platform !== 'linux') {
+    return false
+  }
+  try {
+    const mountOutput = execFileSync('mount', { encoding: 'utf8', timeout: 3000 })
+    const resolvedRoot = path.resolve(rootPath)
+
+    let bestMountPoint = ''
+    let bestIsRemote = false
+
+    for (const line of mountOutput.split('\n')) {
+      // macOS format: "device on /mount/point (fstype, options)"
+      const match = line.match(/^(.+?) on (.+?) \(([^,)]+)/)
+      if (!match) {
+        continue
+      }
+
+      const device = match[1]
+      const mountPoint = match[2]
+      const fsType = match[3].trim().toLowerCase()
+
+      if (
+        resolvedRoot !== mountPoint &&
+        !resolvedRoot.startsWith(mountPoint + '/')
+      ) {
+        continue
+      }
+
+      // Pick the longest (most specific) mount point that matches
+      if (mountPoint.length <= bestMountPoint.length) {
+        continue
+      }
+
+      bestMountPoint = mountPoint
+      bestIsRemote =
+        NETWORK_FS_TYPES.has(fsType) ||
+        device.includes('@') ||
+        device.includes('://')
+    }
+
+    return bestIsRemote
+  } catch {
+    return false
+  }
+}
+
 function shouldIgnoreWatchPath(rootPath: string, candidatePath: string) {
   const resolvedCandidatePath = path.resolve(candidatePath)
   const relativePath = path.relative(rootPath, resolvedCandidatePath)
@@ -478,31 +551,52 @@ function sortWorkspaceTree(nodes: WorkspaceFileNode[]): WorkspaceFileNode[] {
   })
 }
 
+type BuildWorkspaceTreeResult = {
+  nodes: WorkspaceFileNode[]
+  childrenStatus: 'complete' | 'partial'
+  totalChildCount: number
+}
+
 async function buildWorkspaceTree(
   rootPath: string,
   currentDirectory: string,
   indexBudget: { remainingNodes: number; truncated: boolean },
-): Promise<WorkspaceFileNode[]> {
+  options?: { maxDepth?: number; currentDepth?: number },
+): Promise<BuildWorkspaceTreeResult> {
   if (indexBudget.remainingNodes <= 0) {
     indexBudget.truncated = true
-    return []
+    return { nodes: [], childrenStatus: 'complete', totalChildCount: 0 }
   }
 
+  const maxDepth = options?.maxDepth
+  const currentDepth = options?.currentDepth ?? 0
+
   const entries = await readdir(currentDirectory, { withFileTypes: true })
+
+  const eligibleEntries = entries.filter((entry) => {
+    if (entry.isSymbolicLink()) {
+      return false
+    }
+    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
+      return false
+    }
+    return entry.isFile() || entry.isDirectory()
+  })
+
+  const totalChildCount = eligibleEntries.length
+  const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
+  const cappedEntries = isCapped
+    ? eligibleEntries.slice(0, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+    : eligibleEntries
+  const atDepthLimit = maxDepth !== undefined && currentDepth >= maxDepth
+  const skipRecurse = isCapped || atDepthLimit
+
   const nodes: WorkspaceFileNode[] = []
 
-  for (const entry of entries) {
+  for (const entry of cappedEntries) {
     if (indexBudget.remainingNodes <= 0) {
       indexBudget.truncated = true
       break
-    }
-
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      continue
-    }
-
-    if (entry.isSymbolicLink()) {
-      continue
     }
 
     const absolutePath = path.join(currentDirectory, entry.name)
@@ -514,12 +608,35 @@ async function buildWorkspaceTree(
 
     if (entry.isDirectory()) {
       indexBudget.remainingNodes -= 1
-      const children = await buildWorkspaceTree(rootPath, absolutePath, indexBudget)
+
+      if (skipRecurse) {
+        nodes.push({
+          name: entry.name,
+          relativePath,
+          kind: 'directory',
+          children: [],
+          childrenStatus: 'not-loaded',
+        })
+        continue
+      }
+
+      const childResult = await buildWorkspaceTree(
+        rootPath,
+        absolutePath,
+        indexBudget,
+        { maxDepth, currentDepth: currentDepth + 1 },
+      )
       nodes.push({
         name: entry.name,
         relativePath,
         kind: 'directory',
-        children,
+        children: childResult.nodes,
+        ...(childResult.childrenStatus === 'partial'
+          ? {
+              childrenStatus: childResult.childrenStatus,
+              totalChildCount: childResult.totalChildCount,
+            }
+          : {}),
       })
       continue
     }
@@ -534,7 +651,127 @@ async function buildWorkspaceTree(
     }
   }
 
-  return sortWorkspaceTree(nodes)
+  return {
+    nodes: sortWorkspaceTree(nodes),
+    childrenStatus: isCapped ? 'partial' : 'complete',
+    totalChildCount,
+  }
+}
+
+async function buildDirectoryChildren(
+  rootPath: string,
+  directoryPath: string,
+): Promise<{
+  children: WorkspaceFileNode[]
+  childrenStatus: 'complete' | 'partial'
+  totalChildCount: number
+}> {
+  const entries = await readdir(directoryPath, { withFileTypes: true })
+  const eligibleEntries = entries.filter((entry) => {
+    if (entry.isSymbolicLink()) {
+      return false
+    }
+    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
+      return false
+    }
+    return entry.isFile() || entry.isDirectory()
+  })
+
+  const totalChildCount = eligibleEntries.length
+  const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
+  const cappedEntries = isCapped
+    ? eligibleEntries.slice(0, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+    : eligibleEntries
+
+  const nodes: WorkspaceFileNode[] = []
+  for (const entry of cappedEntries) {
+    const absolutePath = path.join(directoryPath, entry.name)
+    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+    if (!relativePath || relativePath.startsWith('..')) {
+      continue
+    }
+
+    if (entry.isDirectory()) {
+      nodes.push({
+        name: entry.name,
+        relativePath,
+        kind: 'directory',
+        children: [],
+        childrenStatus: 'not-loaded',
+      })
+      continue
+    }
+
+    nodes.push({
+      name: entry.name,
+      relativePath,
+      kind: 'file',
+    })
+  }
+
+  return {
+    children: sortWorkspaceTree(nodes),
+    childrenStatus: isCapped ? 'partial' : 'complete',
+    totalChildCount,
+  }
+}
+
+async function handleWorkspaceIndexDirectory(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceIndexDirectoryRequest,
+): Promise<WorkspaceIndexDirectoryResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    if (!rootPath || !relativePath) {
+      return {
+        ok: false,
+        children: [],
+        childrenStatus: 'complete',
+        totalChildCount: 0,
+        error: 'rootPath and relativePath are required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return {
+        ok: false,
+        children: [],
+        childrenStatus: 'complete',
+        totalChildCount: 0,
+        error: 'Cannot index directories outside the workspace root.',
+      }
+    }
+
+    const targetStats = await stat(resolvedTargetPath)
+    if (!targetStats.isDirectory()) {
+      return {
+        ok: false,
+        children: [],
+        childrenStatus: 'complete',
+        totalChildCount: 0,
+        error: 'Target path is not a directory.',
+      }
+    }
+
+    const result = await buildDirectoryChildren(resolvedRootPath, resolvedTargetPath)
+    return {
+      ok: true,
+      children: result.children,
+      childrenStatus: result.childrenStatus,
+      totalChildCount: result.totalChildCount,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      children: [],
+      childrenStatus: 'complete',
+      totalChildCount: 0,
+      error: error instanceof Error ? error.message : 'Failed to index directory',
+    }
+  }
 }
 
 async function handleWorkspaceOpenDialog(): Promise<WorkspaceOpenDialogResult> {
@@ -593,18 +830,23 @@ async function handleWorkspaceIndex(
       }
     }
 
+    const isRemoteMounted = detectRemoteMountPoint(resolvedRootPath)
     const indexBudget = {
       remainingNodes: MAX_WORKSPACE_INDEX_NODES,
       truncated: false,
     }
-    const fileTree = await buildWorkspaceTree(
+    const depthOptions = isRemoteMounted
+      ? { maxDepth: WORKSPACE_INDEX_SHALLOW_DEPTH, currentDepth: 0 }
+      : undefined
+    const treeResult = await buildWorkspaceTree(
       resolvedRootPath,
       resolvedRootPath,
       indexBudget,
+      depthOptions,
     )
     return {
       ok: true,
-      fileTree,
+      fileTree: treeResult.nodes,
       truncated: indexBudget.truncated,
     }
   } catch (error) {
@@ -1249,10 +1491,30 @@ async function buildWorkspacePollingSnapshot(
 ): Promise<WorkspacePollingSnapshot> {
   const fileMetadataByRelativePath = new Map<string, string>()
   const directoryPaths = new Set<string>()
+  let fileCount = 0
 
   async function walkDirectory(currentDirectory: string): Promise<void> {
+    if (fileCount >= MAX_WORKSPACE_POLL_FILES) {
+      return
+    }
+
     const entries = await readdir(currentDirectory, { withFileTypes: true })
+
+    const eligibleCount = entries.filter(
+      (entry) =>
+        !entry.isSymbolicLink() &&
+        (entry.isFile() || entry.isDirectory()) &&
+        !shouldIgnoreWatchPath(rootPath, path.join(currentDirectory, entry.name)),
+    ).length
+    if (eligibleCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP) {
+      return
+    }
+
     for (const entry of entries) {
+      if (fileCount >= MAX_WORKSPACE_POLL_FILES) {
+        return
+      }
+
       if (entry.isSymbolicLink()) {
         continue
       }
@@ -1283,6 +1545,7 @@ async function buildWorkspacePollingSnapshot(
           relativePath,
           `${fileStats.mtimeMs}:${fileStats.size}`,
         )
+        fileCount += 1
       } catch {
         // Files may disappear while scanning. Skip those transient entries.
       }
@@ -1453,6 +1716,11 @@ async function createNativeWorkspaceWatcherEntry(
   })
 
   watcher.on('error', (error) => {
+    const errorCode = (error as NodeJS.ErrnoException).code
+    if (errorCode === 'EPERM' || errorCode === 'ENOSYS' || errorCode === 'ENOTSUP') {
+      void switchToPollingFallback(workspaceId, resolvedRootPath)
+      return
+    }
     console.error(`Workspace watcher error (${workspaceId}).`, error)
   })
 
@@ -1478,6 +1746,48 @@ async function createPollingWorkspaceWatcherEntry(
     pendingRelativePaths: new Set(),
     hasPendingStructureChanges: false,
     debounceTimer: null,
+  }
+}
+
+async function switchToPollingFallback(
+  workspaceId: string,
+  resolvedRootPath: string,
+) {
+  if (workspacesInFallbackTransition.has(workspaceId)) {
+    return
+  }
+  const existingEntry = workspaceWatchers.get(workspaceId)
+  if (!existingEntry || existingEntry.watchMode !== 'native') {
+    return
+  }
+
+  workspacesInFallbackTransition.add(workspaceId)
+  try {
+    console.warn(
+      `Native watcher unavailable for workspace "${workspaceId}". Switching to polling.`,
+    )
+    await stopWorkspaceWatcher(workspaceId)
+    const pollEntry = await createPollingWorkspaceWatcherEntry(
+      workspaceId,
+      resolvedRootPath,
+      WORKSPACE_WATCH_REMOTE_POLL_INTERVAL_MS,
+    )
+    workspaceWatchers.set(workspaceId, pollEntry)
+    scheduleWorkspacePollingTick(workspaceId)
+
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('workspace:watchFallback', {
+        workspaceId,
+        watchMode: 'polling' as const,
+      })
+    }
+  } catch (error) {
+    console.error(
+      `Failed to switch workspace "${workspaceId}" to polling fallback.`,
+      error,
+    )
+  } finally {
+    workspacesInFallbackTransition.delete(workspaceId)
   }
 }
 
@@ -1554,9 +1864,11 @@ async function handleWorkspaceWatchStart(
       }
     }
 
+    const isRemoteMountedHint = detectRemoteMountPoint(resolvedRootPath)
     const watchModeResolution = resolveWorkspaceWatchMode({
       rootPath: resolvedRootPath,
       watchModePreference: request.watchModePreference,
+      isRemoteMountedHint,
     })
     const existingWatchEntry = workspaceWatchers.get(workspaceId)
     if (
@@ -1575,6 +1887,9 @@ async function handleWorkspaceWatchStart(
       await stopWorkspaceWatcher(workspaceId)
     }
 
+    const remotePollInterval = watchModeResolution.isRemoteMounted
+      ? WORKSPACE_WATCH_REMOTE_POLL_INTERVAL_MS
+      : WORKSPACE_WATCH_POLL_INTERVAL_MS
     let fallbackApplied = false
     let resolvedWatchMode = watchModeResolution.watchMode
     let watchEntry: WorkspaceWatcherEntry
@@ -1582,7 +1897,7 @@ async function handleWorkspaceWatchStart(
       watchEntry =
         resolvedWatchMode === 'native'
           ? await createNativeWorkspaceWatcherEntry(workspaceId, resolvedRootPath)
-          : await createPollingWorkspaceWatcherEntry(workspaceId, resolvedRootPath)
+          : await createPollingWorkspaceWatcherEntry(workspaceId, resolvedRootPath, remotePollInterval)
     } catch (error) {
       if (resolvedWatchMode !== 'native') {
         throw error
@@ -1594,6 +1909,7 @@ async function handleWorkspaceWatchStart(
       watchEntry = await createPollingWorkspaceWatcherEntry(
         workspaceId,
         resolvedRootPath,
+        remotePollInterval,
       )
       resolvedWatchMode = 'polling'
       fallbackApplied = true
@@ -1644,6 +1960,7 @@ async function handleWorkspaceWatchStop(
 function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:openDialog')
   ipcMain.removeHandler('workspace:index')
+  ipcMain.removeHandler('workspace:indexDirectory')
   ipcMain.removeHandler('workspace:readFile')
   ipcMain.removeHandler('workspace:readComments')
   ipcMain.removeHandler('workspace:writeComments')
@@ -1656,6 +1973,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('system:openInVsCode')
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
+  ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectory)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
   ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)

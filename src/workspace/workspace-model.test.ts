@@ -8,6 +8,7 @@ import {
   createWorkspaceSession,
   getWorkspaceFileLastLine,
   MAX_WORKSPACE_FILE_HISTORY,
+  mergeDirectoryChildren,
   pushWorkspaceFileHistory,
   setWorkspaceSelectionRange,
   setActiveWorkspace,
@@ -276,6 +277,7 @@ describe('workspace-model', () => {
     expect(session.watchModePreference).toBe('auto')
     expect(session.watchMode).toBeNull()
     expect(session.isRemoteMounted).toBe(false)
+    expect(session.loadingDirectories).toEqual([])
   })
 
   it('preserves fileLastLineByPath when selection is cleared', () => {
@@ -294,5 +296,101 @@ describe('workspace-model', () => {
     expect(session.fileLastLineByPath).toEqual({
       'src/auth.ts': 6,
     })
+  })
+})
+
+describe('mergeDirectoryChildren', () => {
+  it('merges children into a root-level directory', () => {
+    const tree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [],
+        childrenStatus: 'not-loaded',
+      },
+    ]
+
+    const newChildren: WorkspaceFileNode[] = [
+      { name: 'index.ts', relativePath: 'src/index.ts', kind: 'file' },
+    ]
+
+    const result = mergeDirectoryChildren(tree, 'src', newChildren, 'complete', 1)
+    expect(result).toHaveLength(1)
+    expect(result[0].children).toEqual(newChildren)
+    expect(result[0].childrenStatus).toBe('complete')
+    expect(result[0].totalChildCount).toBe(1)
+  })
+
+  it('merges children into a nested directory', () => {
+    const tree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'utils',
+            relativePath: 'src/utils',
+            kind: 'directory',
+            children: [],
+            childrenStatus: 'not-loaded',
+          },
+        ],
+      },
+    ]
+
+    const newChildren: WorkspaceFileNode[] = [
+      { name: 'math.ts', relativePath: 'src/utils/math.ts', kind: 'file' },
+    ]
+
+    const result = mergeDirectoryChildren(
+      tree,
+      'src/utils',
+      newChildren,
+      'partial',
+      42,
+    )
+    const utilsNode = result[0].children?.[0]
+    expect(utilsNode?.children).toEqual(newChildren)
+    expect(utilsNode?.childrenStatus).toBe('partial')
+    expect(utilsNode?.totalChildCount).toBe(42)
+  })
+
+  it('returns unchanged tree when target directory is not found', () => {
+    const tree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [],
+        childrenStatus: 'not-loaded',
+      },
+    ]
+
+    const result = mergeDirectoryChildren(tree, 'docs', [], 'complete', 0)
+    expect(result).toEqual(tree)
+  })
+
+  it('propagates partial status from merge', () => {
+    const tree: WorkspaceFileNode[] = [
+      {
+        name: 'lib',
+        relativePath: 'lib',
+        kind: 'directory',
+        children: [],
+        childrenStatus: 'not-loaded',
+      },
+    ]
+
+    const newChildren: WorkspaceFileNode[] = [
+      { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+      { name: 'b.ts', relativePath: 'lib/b.ts', kind: 'file' },
+    ]
+
+    const result = mergeDirectoryChildren(tree, 'lib', newChildren, 'partial', 600)
+    expect(result[0].childrenStatus).toBe('partial')
+    expect(result[0].totalChildCount).toBe(600)
+    expect(result[0].children).toHaveLength(2)
   })
 })

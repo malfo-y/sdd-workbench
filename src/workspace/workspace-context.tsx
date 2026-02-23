@@ -15,6 +15,7 @@ import {
   createWorkspaceId,
   getWorkspaceFileLastLine,
   listWorkspaces,
+  mergeDirectoryChildren,
   pushWorkspaceFileHistory,
   setWorkspaceSelectionRange as setWorkspaceSelectionRangeInModel,
   setActiveWorkspace as setActiveWorkspaceInState,
@@ -64,6 +65,7 @@ type WorkspaceContextValue = {
   isReadingGlobalComments: boolean
   isWritingGlobalComments: boolean
   globalCommentsError: string | null
+  loadingDirectories: string[]
   watchModePreference: WorkspaceWatchModePreference
   watchMode: WorkspaceWatchMode | null
   isRemoteMounted: boolean
@@ -86,6 +88,7 @@ type WorkspaceContextValue = {
   showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
+  loadDirectoryChildren: (relativePath: string) => Promise<void>
   setWatchModePreference: (
     preference: WorkspaceWatchModePreference,
   ) => Promise<void>
@@ -148,6 +151,34 @@ function collectFileRelativePaths(
   }
 
   return output
+}
+
+function isFilePathPotentiallyPresent(
+  tree: WorkspaceFileNode[],
+  filePath: string,
+): boolean {
+  for (const node of tree) {
+    if (node.kind === 'file' && node.relativePath === filePath) {
+      return true
+    }
+
+    if (
+      node.kind === 'directory' &&
+      filePath.startsWith(node.relativePath + '/')
+    ) {
+      if (node.childrenStatus === 'not-loaded') {
+        return true
+      }
+
+      if (node.children) {
+        if (isFilePathPotentiallyPresent(node.children, filePath)) {
+          return true
+        }
+      }
+    }
+  }
+
+  return false
 }
 
 function createWorkspaceStateFromSnapshot(
@@ -293,10 +324,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
             const activeFileStillExists =
               currentSession.activeFile !== null &&
-              indexedFilePathSet.has(currentSession.activeFile)
+              (indexedFilePathSet.has(currentSession.activeFile) ||
+                isFilePathPotentiallyPresent(
+                  indexResult.fileTree,
+                  currentSession.activeFile,
+                ))
             const activeSpecStillExists =
               currentSession.activeSpec !== null &&
-              indexedFilePathSet.has(currentSession.activeSpec)
+              (indexedFilePathSet.has(currentSession.activeSpec) ||
+                isFilePathPotentiallyPresent(
+                  indexResult.fileTree,
+                  currentSession.activeSpec,
+                ))
 
             return {
               ...currentSession,
@@ -1304,6 +1343,86 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const loadDirectoryChildren = useCallback(
+    async (relativePath: string) => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
+        return
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      if (!workspaceSession) {
+        return
+      }
+
+      if (workspaceSession.loadingDirectories.includes(relativePath)) {
+        return
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          loadingDirectories: [
+            ...currentSession.loadingDirectories,
+            relativePath,
+          ],
+        })),
+      )
+
+      try {
+        const result = await window.workspace.indexDirectory(
+          workspaceSession.rootPath,
+          relativePath,
+        )
+
+        if (workspaceStateRef.current.activeWorkspaceId !== activeWorkspaceId) {
+          return
+        }
+
+        if (!result.ok) {
+          setBannerMessage(
+            result.error
+              ? `Failed to load directory: ${result.error}`
+              : 'Failed to load directory.',
+          )
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            fileTree: mergeDirectoryChildren(
+              currentSession.fileTree,
+              relativePath,
+              result.children,
+              result.childrenStatus,
+              result.totalChildCount,
+            ),
+            loadingDirectories: currentSession.loadingDirectories.filter(
+              (dir) => dir !== relativePath,
+            ),
+          })),
+        )
+      } catch (error) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            loadingDirectories: currentSession.loadingDirectories.filter(
+              (dir) => dir !== relativePath,
+            ),
+          })),
+        )
+        setBannerMessage(
+          error instanceof Error
+            ? `Failed to load directory: ${error.message}`
+            : 'Failed to load directory.',
+        )
+      }
+    },
+    [],
+  )
+
   const setWatchModePreference = useCallback(
     async (preference: WorkspaceWatchModePreference) => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -1537,6 +1656,25 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [loadWorkspaceFile, loadWorkspaceIndex, loadWorkspaceSpec])
 
+  useEffect(() => {
+    const unsubscribe = window.workspace.onWatchFallback((fallbackEvent) => {
+      if (!fallbackEvent.workspaceId) {
+        return
+      }
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, fallbackEvent.workspaceId, (currentSession) => ({
+          ...currentSession,
+          watchMode: fallbackEvent.watchMode,
+          isRemoteMounted: true,
+        })),
+      )
+      setBannerMessage(
+        'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
+      )
+    })
+    return unsubscribe
+  }, [])
+
   const activeWorkspace = workspaceState.activeWorkspaceId
     ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
     : null
@@ -1576,6 +1714,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       isReadingGlobalComments: activeWorkspace?.isReadingGlobalComments ?? false,
       isWritingGlobalComments: activeWorkspace?.isWritingGlobalComments ?? false,
       globalCommentsError: activeWorkspace?.globalCommentsError ?? null,
+      loadingDirectories: activeWorkspace?.loadingDirectories ?? [],
       watchModePreference: activeWorkspace?.watchModePreference ?? 'auto',
       watchMode: activeWorkspace?.watchMode ?? null,
       isRemoteMounted: activeWorkspace?.isRemoteMounted ?? false,
@@ -1595,6 +1734,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
+      loadDirectoryChildren,
       setWatchModePreference,
       clearBanner,
     }),
@@ -1617,6 +1757,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
+      loadDirectoryChildren,
       setWatchModePreference,
       clearBanner,
     ],

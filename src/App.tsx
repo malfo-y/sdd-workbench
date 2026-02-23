@@ -69,6 +69,7 @@ const TRACKPAD_HISTORY_MIN_AXIS_DELTA = 18
 const TRACKPAD_HISTORY_TRIGGER_DELTA = 120
 const TRACKPAD_HISTORY_IDLE_RESET_MS = 160
 const TRACKPAD_HISTORY_COOLDOWN_MS = 380
+const COMMENT_BANNER_AUTODISMISS_MS = 5000
 
 type PaneSizes = {
   left: number
@@ -95,6 +96,10 @@ type CommentDraftState = {
 type GlobalCommentsModalState = {
   workspaceId: string
   initialValue: string
+}
+
+type CommentBannerState = {
+  message: string
 }
 
 function buildSpecScrollStateKey(
@@ -348,6 +353,7 @@ function App() {
     globalComments,
     isReadingGlobalComments,
     isWritingGlobalComments,
+    loadingDirectories,
     watchModePreference,
     watchMode,
     isRemoteMounted,
@@ -365,6 +371,7 @@ function App() {
     showBanner,
     setSelectionRange,
     setExpandedDirectories,
+    loadDirectoryChildren,
     setWatchModePreference,
     clearBanner,
   } = useWorkspace()
@@ -443,6 +450,18 @@ function App() {
     cooldownUntil: 0,
     lastTriggeredDirection: null,
   })
+  const [commentBannerState, setCommentBannerState] =
+    useState<CommentBannerState | null>(null)
+
+  const showCommentBanner = useCallback(
+    (message: string) => {
+      showBanner(message)
+      setCommentBannerState({
+        message,
+      })
+    },
+    [showBanner],
+  )
 
   const writeToClipboard = useCallback(
     async (
@@ -531,7 +550,7 @@ function App() {
       selectionRange: LineSelectionRange
     }) => {
       if (!activeWorkspaceId) {
-        showBanner('Cannot add comment: no active workspace selected.')
+        showCommentBanner('Cannot add comment: no active workspace selected.')
         return
       }
 
@@ -542,7 +561,7 @@ function App() {
         fileContent: input.content,
       })
     },
-    [activeWorkspaceId, showBanner],
+    [activeWorkspaceId, showCommentBanner],
   )
 
   const handleSaveComment = useCallback(
@@ -553,7 +572,7 @@ function App() {
 
       if (!activeWorkspaceId || activeWorkspaceId !== commentDraftState.workspaceId) {
         setCommentDraftState(null)
-        showBanner('Cannot save comment: active workspace changed.')
+        showCommentBanner('Cannot save comment: active workspace changed.')
         return
       }
 
@@ -570,16 +589,22 @@ function App() {
           return
         }
         setCommentDraftState(null)
-        showBanner('Comment saved.')
+        showCommentBanner('Comment saved.')
       } catch (error) {
-        showBanner(
+        showCommentBanner(
           error instanceof Error
             ? `Cannot save comment: ${error.message}`
             : 'Cannot save comment.',
         )
       }
     },
-    [activeWorkspaceId, commentDraftState, comments, saveComments, showBanner],
+    [
+      activeWorkspaceId,
+      commentDraftState,
+      comments,
+      saveComments,
+      showCommentBanner,
+    ],
   )
 
   const estimateBundleLength = useCallback(
@@ -596,7 +621,7 @@ function App() {
     async (body: string) => {
       const targetWorkspaceId = globalCommentsModalState?.workspaceId
       if (!targetWorkspaceId) {
-        showBanner('Cannot save global comments: no active workspace selected.')
+        showCommentBanner('Cannot save global comments: no active workspace selected.')
         return
       }
 
@@ -607,13 +632,13 @@ function App() {
           return
         }
 
-        showBanner('Global comments saved.')
+        showCommentBanner('Global comments saved.')
         setGlobalCommentsModalState(null)
       } finally {
         setIsSavingGlobalCommentsModal(false)
       }
     },
-    [globalCommentsModalState, saveGlobalComments, showBanner],
+    [globalCommentsModalState, saveGlobalComments, showCommentBanner],
   )
 
   const handleRequestAddCommentFromSpec = useCallback(
@@ -622,7 +647,7 @@ function App() {
       selectionRange: LineSelectionRange
     }) => {
       if (!activeWorkspaceId) {
-        showBanner('Cannot add comment: no active workspace selected.')
+        showCommentBanner('Cannot add comment: no active workspace selected.')
         return
       }
 
@@ -631,7 +656,7 @@ function App() {
         input.relativePath !== activeSpec ||
         activeSpecContent === null
       ) {
-        showBanner('Cannot add comment: active spec content is unavailable.')
+        showCommentBanner('Cannot add comment: active spec content is unavailable.')
         return
       }
 
@@ -642,18 +667,18 @@ function App() {
         fileContent: activeSpecContent,
       })
     },
-    [activeSpec, activeSpecContent, activeWorkspaceId, showBanner],
+    [activeSpec, activeSpecContent, activeWorkspaceId, showCommentBanner],
   )
 
   const handleExportComments = useCallback(
     async (input: ExportCommentsModalInput) => {
       if (!rootPath || !activeWorkspaceId) {
-        showBanner('Cannot export comments: no active workspace selected.')
+        showCommentBanner('Cannot export comments: no active workspace selected.')
         return
       }
 
       if (pendingComments.length === 0 && !hasGlobalComments) {
-        showBanner('No pending comments to export.')
+        showCommentBanner('No pending comments to export.')
         return
       }
 
@@ -670,7 +695,7 @@ function App() {
       const shouldCopyToClipboard = input.copyToClipboard && isClipboardAllowed
 
       if (input.copyToClipboard && !isClipboardAllowed) {
-        showBanner(
+        showCommentBanner(
           `Clipboard copy skipped: bundle exceeds ${MAX_CLIPBOARD_CHARS.toLocaleString()} characters.`,
         )
       }
@@ -732,14 +757,14 @@ function App() {
 
         if (completedTargets.length === 0) {
           if (fileExportError) {
-            showBanner(`Failed to export comments: ${fileExportError}`)
+            showCommentBanner(`Failed to export comments: ${fileExportError}`)
             return
           }
           if (failedTargets.length > 0) {
-            showBanner(`Failed export target: ${failedTargets.join(', ')}.`)
+            showCommentBanner(`Failed export target: ${failedTargets.join(', ')}.`)
             return
           }
-          showBanner('No export target selected.')
+          showCommentBanner('No export target selected.')
           return
         }
 
@@ -756,17 +781,17 @@ function App() {
 
           const isStatusSaved = await saveComments(markedComments)
           if (!isStatusSaved) {
-            showBanner('Comments exported, but failed to record export status.')
+            showCommentBanner('Comments exported, but failed to record export status.')
             return
           }
         }
 
         if (failedTargets.length > 0) {
-          showBanner(
+          showCommentBanner(
             `Comments exported: ${completedTargets.join(', ')}. Failed: ${failedTargets.join(', ')}.`,
           )
         } else {
-          showBanner(`Comments exported: ${completedTargets.join(', ')}.`)
+          showCommentBanner(`Comments exported: ${completedTargets.join(', ')}.`)
         }
         setIsExportModalOpen(false)
       } finally {
@@ -781,7 +806,7 @@ function App() {
       pendingComments,
       rootPath,
       saveComments,
-      showBanner,
+      showCommentBanner,
       writeToClipboard,
     ],
   )
@@ -789,19 +814,19 @@ function App() {
   const handleUpdateComment = useCallback(
     async (commentId: string, body: string) => {
       if (!activeWorkspaceId) {
-        showBanner('Cannot update comment: no active workspace selected.')
+        showCommentBanner('Cannot update comment: no active workspace selected.')
         return false
       }
 
       const sanitizedBody = sanitizeCommentBody(body)
       if (sanitizedBody.length === 0) {
-        showBanner('Cannot save comment: comment body is empty.')
+        showCommentBanner('Cannot save comment: comment body is empty.')
         return false
       }
 
       const hasTargetComment = comments.some((comment) => comment.id === commentId)
       if (!hasTargetComment) {
-        showBanner('Cannot update comment: target comment not found.')
+        showCommentBanner('Cannot update comment: target comment not found.')
         return false
       }
 
@@ -818,22 +843,22 @@ function App() {
       if (!saved) {
         return false
       }
-      showBanner('Comment updated.')
+      showCommentBanner('Comment updated.')
       return true
     },
-    [activeWorkspaceId, comments, saveComments, showBanner],
+    [activeWorkspaceId, comments, saveComments, showCommentBanner],
   )
 
   const handleDeleteComment = useCallback(
     async (commentId: string) => {
       if (!activeWorkspaceId) {
-        showBanner('Cannot delete comment: no active workspace selected.')
+        showCommentBanner('Cannot delete comment: no active workspace selected.')
         return false
       }
 
       const nextComments = comments.filter((comment) => comment.id !== commentId)
       if (nextComments.length === comments.length) {
-        showBanner('Cannot delete comment: target comment not found.')
+        showCommentBanner('Cannot delete comment: target comment not found.')
         return false
       }
 
@@ -841,15 +866,15 @@ function App() {
       if (!saved) {
         return false
       }
-      showBanner('Comment deleted.')
+      showCommentBanner('Comment deleted.')
       return true
     },
-    [activeWorkspaceId, comments, saveComments, showBanner],
+    [activeWorkspaceId, comments, saveComments, showCommentBanner],
   )
 
   const handleDeleteExportedComments = useCallback(async () => {
     if (!activeWorkspaceId) {
-      showBanner('Cannot delete exported comments: no active workspace selected.')
+      showCommentBanner('Cannot delete exported comments: no active workspace selected.')
       return false
     }
 
@@ -857,7 +882,7 @@ function App() {
       (comment) => Boolean(comment.exportedAt),
     ).length
     if (exportedCommentCount === 0) {
-      showBanner('No exported comments to delete.')
+      showCommentBanner('No exported comments to delete.')
       return false
     }
 
@@ -866,9 +891,9 @@ function App() {
     if (!saved) {
       return false
     }
-    showBanner(`Deleted ${exportedCommentCount} exported comment(s).`)
+    showCommentBanner(`Deleted ${exportedCommentCount} exported comment(s).`)
     return true
-  }, [activeWorkspaceId, comments, saveComments, showBanner])
+  }, [activeWorkspaceId, comments, saveComments, showCommentBanner])
 
   const openWorkspaceInExternalApp = useCallback(
     async (target: 'iterm' | 'vscode') => {
@@ -1125,6 +1150,26 @@ function App() {
     }
   }, [activeFile, activeWorkspaceId, commentDraftState])
 
+  useEffect(() => {
+    if (!bannerMessage) {
+      setCommentBannerState(null)
+      return
+    }
+
+    if (!commentBannerState || bannerMessage !== commentBannerState.message) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      clearBanner()
+      setCommentBannerState(null)
+    }, COMMENT_BANNER_AUTODISMISS_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [bannerMessage, clearBanner, commentBannerState])
+
   const navigateHistory = useCallback(
     (direction: 'back' | 'forward') => {
       if (direction === 'back') {
@@ -1221,11 +1266,16 @@ function App() {
     }
   }, [navigateHistory])
 
+  const handleDismissBanner = useCallback(() => {
+    setCommentBannerState(null)
+    clearBanner()
+  }, [clearBanner])
+
   return (
     <main className="app-shell">
       <header className="app-header">
-        <h1>SDD Workbench</h1>
-        <div className="app-header-actions" data-testid="app-header-actions">
+        <div className="app-header-left" data-testid="app-header-left">
+          <h1>SDD Workbench</h1>
           <div
             className="header-history-actions"
             data-testid="header-history-actions"
@@ -1245,95 +1295,105 @@ function App() {
               Forward
             </button>
           </div>
-          <WorkspaceSwitcher
-            activeWorkspaceId={activeWorkspaceId}
-            onSelectWorkspace={setActiveWorkspace}
-            workspaces={workspaces}
-          />
-          <div className="header-comments-actions" data-testid="header-comments-actions">
-            <button
-              aria-label="Add Global Comments"
-              className="header-action-button"
-              disabled={isCommentsActionDisabled}
-              onClick={() => {
-                if (!activeWorkspaceId) {
-                  return
-                }
-                setGlobalCommentsModalState({
-                  workspaceId: activeWorkspaceId,
-                  initialValue: globalComments,
-                })
-              }}
-              title="Add Global Comments"
-              type="button"
-            >
-              <span aria-hidden="true" className="header-action-icon">
-                <AddIcon />
-              </span>
-              <span className="header-action-label">+ Global</span>
-            </button>
-            <button
-              aria-label="View Comments"
-              className="header-action-button"
-              disabled={isCommentsActionDisabled}
-              onClick={() => {
-                setIsViewCommentsModalOpen(true)
-              }}
-              title="View Comments"
-              type="button"
-            >
-              <span aria-hidden="true" className="header-action-icon">
-                <ViewIcon />
-              </span>
-              <span className="header-action-label">View</span>
-            </button>
-            <button
-              aria-label="Export Comments"
-              className="header-action-button"
-              disabled={isCommentsActionDisabled}
-              onClick={() => {
-                setIsExportModalOpen(true)
-              }}
-              title="Export Comments"
-              type="button"
-            >
-              <span aria-hidden="true" className="header-action-icon">
-                <ExportIcon />
-              </span>
-              <span className="header-action-label">Export</span>
-            </button>
+        </div>
+        <div className="app-header-actions" data-testid="app-header-actions">
+          <div className="header-comments-group" data-testid="header-comments-group">
+            <span className="header-action-group-label">Code comments</span>
+            <div className="header-comments-actions" data-testid="header-comments-actions">
+              <button
+                aria-label="Add Global Comments"
+                className="header-action-button"
+                disabled={isCommentsActionDisabled}
+                onClick={() => {
+                  if (!activeWorkspaceId) {
+                    return
+                  }
+                  setGlobalCommentsModalState({
+                    workspaceId: activeWorkspaceId,
+                    initialValue: globalComments,
+                  })
+                }}
+                title="Add Global Comments"
+                type="button"
+              >
+                <span aria-hidden="true" className="header-action-icon">
+                  <AddIcon />
+                </span>
+                <span className="header-action-label">+ Global</span>
+              </button>
+              <button
+                aria-label="View Comments"
+                className="header-action-button"
+                disabled={isCommentsActionDisabled}
+                onClick={() => {
+                  setIsViewCommentsModalOpen(true)
+                }}
+                title="View Comments"
+                type="button"
+              >
+                <span aria-hidden="true" className="header-action-icon">
+                  <ViewIcon />
+                </span>
+                <span className="header-action-label">View</span>
+              </button>
+              <button
+                aria-label="Export Comments"
+                className="header-action-button"
+                disabled={isCommentsActionDisabled}
+                onClick={() => {
+                  setIsExportModalOpen(true)
+                }}
+                title="Export Comments"
+                type="button"
+              >
+                <span aria-hidden="true" className="header-action-icon">
+                  <ExportIcon />
+                </span>
+                <span className="header-action-label">Export</span>
+              </button>
+            </div>
           </div>
-          <div className="header-workspace-actions" data-testid="header-workspace-actions">
-            <button
-              aria-label="Close Workspace"
-              className="header-action-button"
-              disabled={!canCloseWorkspace}
-              onClick={() => {
-                if (!activeWorkspaceId) {
-                  return
-                }
-                closeWorkspace(activeWorkspaceId)
-              }}
-              title="Close Workspace"
-              type="button"
-            >
-              <span aria-hidden="true" className="header-action-icon">
-                <CloseIcon />
-              </span>
-              <span className="header-action-label">Close</span>
-            </button>
-            <button
-              aria-label="Open Workspace"
-              className="header-action-button"
-              onClick={() => void openWorkspace()}
-              title="Open Workspace"
-              type="button"
-            >
-              <span aria-hidden="true" className="header-action-icon">
-                <OpenIcon />
-              </span>
-              <span className="header-action-label">Open</span>
-            </button>
+          <div className="header-workspace-group" data-testid="header-workspace-group">
+            <span className="header-action-group-label">Workspace</span>
+            <div className="header-workspace-controls">
+              <WorkspaceSwitcher
+                activeWorkspaceId={activeWorkspaceId}
+                onSelectWorkspace={setActiveWorkspace}
+                workspaces={workspaces}
+              />
+              <div className="header-workspace-actions" data-testid="header-workspace-actions">
+                <button
+                  aria-label="Open Workspace"
+                  className="header-action-button"
+                  onClick={() => void openWorkspace()}
+                  title="Open Workspace"
+                  type="button"
+                >
+                  <span aria-hidden="true" className="header-action-icon">
+                    <OpenIcon />
+                  </span>
+                  <span className="header-action-label">Open</span>
+                </button>
+                <button
+                  aria-label="Close Workspace"
+                  className="header-action-button"
+                  disabled={!canCloseWorkspace}
+                  onClick={() => {
+                    if (!activeWorkspaceId) {
+                      return
+                    }
+                    closeWorkspace(activeWorkspaceId)
+                  }}
+                  title="Close Workspace"
+                  type="button"
+                >
+                  <span aria-hidden="true" className="header-action-icon">
+                    <CloseIcon />
+                  </span>
+                  <span className="header-action-label">Close</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -1341,7 +1401,7 @@ function App() {
       {bannerMessage && (
         <div className="text-banner" role="alert">
           <span>{bannerMessage}</span>
-          <button onClick={clearBanner}>Dismiss</button>
+          <button onClick={handleDismissBanner}>Dismiss</button>
         </div>
       )}
 
@@ -1431,9 +1491,11 @@ function App() {
               expandedDirectories={expandedDirectories}
               fileTree={fileTree}
               changedFiles={changedFiles}
+              loadingDirectories={loadingDirectories}
               isIndexing={isIndexing}
               onExpandedDirectoriesChange={setExpandedDirectories}
               onRequestCopyRelativePath={handleCopyRelativePath}
+              onRequestLoadDirectory={loadDirectoryChildren}
               onSelectFile={selectFile}
               rootPath={rootPath}
             />
@@ -1512,6 +1574,7 @@ function App() {
       />
       <CommentListModal
         comments={comments}
+        globalComments={globalComments}
         isOpen={isViewCommentsModalOpen}
         isSaving={isWritingComments}
         onClose={() => {
@@ -1537,6 +1600,7 @@ function App() {
       <ExportCommentsModal
         commentCount={comments.length}
         estimateBundleLength={estimateBundleLength}
+        hasGlobalComments={hasGlobalComments}
         allowExportWithoutPendingComments={hasGlobalComments}
         isExporting={isExportingComments}
         isOpen={isExportModalOpen}

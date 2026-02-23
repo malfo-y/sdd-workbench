@@ -42,6 +42,7 @@ export type WorkspaceSession = {
   watchModePreference: WorkspaceWatchModePreference
   watchMode: WorkspaceWatchMode | null
   isRemoteMounted: boolean
+  loadingDirectories: string[]
 }
 
 export type WorkspaceState = {
@@ -123,6 +124,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     watchModePreference: 'auto',
     watchMode: null,
     isRemoteMounted: false,
+    loadingDirectories: [],
   }
 }
 
@@ -482,4 +484,45 @@ export function listWorkspaces(
         rootPath: string
       } => workspace !== null,
     )
+}
+
+export function mergeDirectoryChildren(
+  tree: WorkspaceFileNode[],
+  directoryRelativePath: string,
+  children: WorkspaceFileNode[],
+  childrenStatus: 'complete' | 'partial',
+  totalChildCount: number,
+): WorkspaceFileNode[] {
+  return tree.map((node): WorkspaceFileNode => {
+    if (node.kind !== 'directory') {
+      return node
+    }
+
+    if (node.relativePath === directoryRelativePath) {
+      return {
+        ...node,
+        children,
+        childrenStatus,
+        totalChildCount,
+      }
+    }
+
+    if (
+      node.children &&
+      directoryRelativePath.startsWith(node.relativePath + '/')
+    ) {
+      return {
+        ...node,
+        children: mergeDirectoryChildren(
+          node.children,
+          directoryRelativePath,
+          children,
+          childrenStatus,
+          totalChildCount,
+        ),
+      }
+    }
+
+    return node
+  })
 }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { StrictMode } from 'react'
 import App from './App'
@@ -82,12 +82,22 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     >()
   const watchStopMock =
     vi.fn<(workspaceId: string) => Promise<WorkspaceWatchControlResult>>()
+  const indexDirectoryMock =
+    vi.fn<
+      (
+        rootPath: string,
+        relativePath: string,
+      ) => Promise<WorkspaceIndexDirectoryResult>
+    >()
   const openInItermMock = vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const openInVsCodeMock =
     vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
+  const watchFallbackListeners = new Set<(event: WorkspaceWatchFallbackEvent) => void>()
+  const onWatchFallbackMock =
+    vi.fn<(listener: (event: WorkspaceWatchFallbackEvent) => void) => () => void>()
   const historyNavigateListeners = new Set<
     (event: WorkspaceHistoryNavigationEvent) => void
   >()
@@ -101,6 +111,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   beforeEach(() => {
     openDialogMock.mockReset()
     indexWorkspaceMock.mockReset()
+    indexDirectoryMock.mockReset()
     readFileMock.mockReset()
     readCommentsMock.mockReset()
     writeCommentsMock.mockReset()
@@ -112,8 +123,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     openInItermMock.mockReset()
     openInVsCodeMock.mockReset()
     onWatchEventMock.mockReset()
+    onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
     watchListeners.clear()
+    watchFallbackListeners.clear()
     historyNavigateListeners.clear()
     watchStartMock.mockResolvedValue({
       ok: true,
@@ -133,12 +146,24 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     writeCommentsMock.mockResolvedValue({ ok: true })
     writeGlobalCommentsMock.mockResolvedValue({ ok: true })
     exportCommentsBundleMock.mockResolvedValue({ ok: true })
+    indexDirectoryMock.mockResolvedValue({
+      ok: true,
+      children: [],
+      childrenStatus: 'complete' as const,
+      totalChildCount: 0,
+    })
     openInItermMock.mockResolvedValue({ ok: true })
     openInVsCodeMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
         watchListeners.delete(listener)
+      }
+    })
+    onWatchFallbackMock.mockImplementation((listener) => {
+      watchFallbackListeners.add(listener)
+      return () => {
+        watchFallbackListeners.delete(listener)
       }
     })
     onHistoryNavigateMock.mockImplementation((listener) => {
@@ -155,6 +180,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     window.workspace = {
       openDialog: openDialogMock,
       index: indexWorkspaceMock,
+      indexDirectory: indexDirectoryMock,
       readFile: readFileMock,
       readComments: readCommentsMock,
       writeComments: writeCommentsMock,
@@ -164,6 +190,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       watchStart: watchStartMock,
       watchStop: watchStopMock,
       onWatchEvent: onWatchEventMock,
+      onWatchFallback: onWatchFallbackMock,
       onHistoryNavigate: onHistoryNavigateMock,
       openInIterm: openInItermMock,
       openInVsCode: openInVsCodeMock,
@@ -384,11 +411,18 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
 
     expect(childClassNames).toEqual([
-      'header-history-actions',
-      'workspace-switcher',
-      'header-comments-actions',
-      'header-workspace-actions',
+      'header-comments-group',
+      'header-workspace-group',
     ])
+    expect(screen.getByTestId('app-header-left')).toContainElement(
+      screen.getByTestId('header-history-actions'),
+    )
+    expect(screen.getByTestId('header-comments-group')).toHaveTextContent(
+      'Code comments',
+    )
+    expect(screen.getByTestId('header-workspace-group')).toHaveTextContent(
+      'Workspace',
+    )
   })
 
   it('uses compact comment/workspace action buttons with accessible labels', () => {
@@ -430,6 +464,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(exportCommentsButton).toHaveTextContent('Export')
     expect(closeWorkspaceButton).toHaveTextContent('Close')
     expect(openWorkspaceButton).toHaveTextContent('Open')
+
+    const workspaceButtons = Array.from(
+      screen.getByTestId('header-workspace-actions').querySelectorAll('button'),
+    ).map((button) => button.textContent?.trim())
+    expect(workspaceButtons).toEqual(['Open', 'Close'])
   })
 
   it('opens active workspace in iTerm and VSCode', async () => {
@@ -3760,6 +3799,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         },
       ],
     })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '## Global Notes\n- Keep consistency',
+    })
 
     render(
       <WorkspaceProvider>
@@ -3782,6 +3825,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByText('docs/spec.md:L4-L6')).toBeInTheDocument()
     expect(screen.getByText('2026-02-22T14:00:00.000Z')).toBeInTheDocument()
     expect(screen.getByText('Need to refine this section')).toBeInTheDocument()
+    expect(screen.getByTestId('comment-list-global-body')).toHaveTextContent(
+      '## Global Notes',
+    )
   })
 
   it('updates a comment body from View Comments modal', async () => {
@@ -3845,6 +3891,102 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       id: 'src/a.ts:2-2:aaaa1111:2026-02-22T14:10:00.000Z',
       body: 'updated body',
     })
+  })
+
+  it('auto-dismisses comment banners after 5 seconds', async () => {
+    const workspaceRoot = '/Users/tester/projects/comment-banner-autodismiss'
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:2-2:aaaa1111:2026-02-22T14:10:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 2,
+          endLine: 2,
+          body: 'old body',
+          anchor: {
+            snippet: 'const value = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:10:00.000Z',
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('Edit comment body'), {
+      target: { value: 'updated body' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Comment updated.')
+    })
+
+    const autoDismissCall = setTimeoutSpy.mock.calls.find(
+      (call) => call[1] === 5000,
+    )
+    expect(autoDismissCall).toBeDefined()
+    const timeoutHandler = autoDismissCall?.[0]
+    expect(typeof timeoutHandler).toBe('function')
+
+    await act(async () => {
+      (timeoutHandler as () => void)()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  it('does not auto-dismiss non-comment banners', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+    openDialogMock.mockResolvedValueOnce({
+      canceled: true,
+      selectedPath: null,
+      error: 'permission denied',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('permission denied')
+    })
+
+    expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 5000)
   })
 
   it('keeps edit mode open when comment update fails and shows error banner', async () => {
@@ -4348,6 +4490,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
     })
+    expect(screen.getByText('Global comments: included')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Export' }))
 
@@ -4420,6 +4563,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
     })
     expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
+    expect(screen.getByText('Global comments: included')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Export' }))
@@ -4489,6 +4633,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
     })
+    expect(screen.getByText('Global comments: not included')).toBeInTheDocument()
 
     const clipboardCheckbox = screen.getByLabelText('Copy bundle to clipboard')
     expect(clipboardCheckbox).toBeDisabled()
@@ -4525,6 +4670,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
     })
     expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
+    expect(screen.getByText('Global comments: not included')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
   })
 

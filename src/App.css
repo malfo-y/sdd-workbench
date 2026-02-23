@@ -23,6 +23,12 @@
   margin: 0;
 }
 
+.app-header-left {
+  align-items: center;
+  display: inline-flex;
+  gap: 12px;
+}
+
 .app-header-actions {
   align-items: center;
   display: flex;
@@ -32,14 +38,30 @@
 
 .header-history-actions,
 .header-comments-actions,
-.header-workspace-actions {
+.header-workspace-actions,
+.header-workspace-controls {
   align-items: center;
   display: inline-flex;
   gap: 8px;
 }
 
-.header-workspace-actions {
+.header-comments-group,
+.header-workspace-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.header-workspace-group {
   margin-left: auto;
+}
+
+.header-action-group-label {
+  color: #9e9e9e;
+  font-size: 0.75rem;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
 }
 
 .header-action-button {
@@ -748,6 +770,26 @@
   padding-top: 8px;
 }
 
+.tree-node-placeholder {
+  margin: 2px 0;
+}
+
+.tree-placeholder-text {
+  color: #9e9e9e;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.tree-node-cap {
+  margin: 2px 0;
+}
+
+.tree-cap-text {
+  color: #9e9e9e;
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
 .code-viewer-panel {
   box-sizing: border-box;
   border: 1px solid #484848;
@@ -1092,6 +1134,32 @@
   justify-content: flex-end;
 }
 
+.comment-list-global-section {
+  background: #121212;
+  border: 1px solid #3f3f3f;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.comment-list-global-section h3 {
+  color: #c3c3c3;
+  font-size: 0.84rem;
+  margin: 0 0 8px;
+}
+
+.comment-list-global-body {
+  color: #d3d3d3;
+  font: inherit;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.comment-list-global-empty {
+  color: #9e9e9e;
+  margin: 0;
+}
+
 .comment-list-items {
   display: flex;
   flex-direction: column;
@@ -1196,14 +1264,25 @@
     flex-direction: column;
   }
 
+  .app-header-left {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .app-header-actions {
     align-items: flex-start;
     gap: 8px;
     width: 100%;
   }
 
-  .header-workspace-actions {
+  .header-workspace-group {
     margin-left: 0;
+    width: 100%;
+  }
+
+  .header-workspace-controls {
+    width: 100%;
   }
 
   .workspace-switcher {

@@ -2,6 +2,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FileTreePanel } from './file-tree-panel'
 
+const defaultLazyProps = {
+  loadingDirectories: [] as string[],
+  onRequestLoadDirectory: () => undefined,
+}
+
 describe('FileTreePanel context copy', () => {
   afterEach(() => {
     cleanup()
@@ -34,6 +39,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -78,6 +84,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -118,6 +125,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -157,6 +165,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -203,6 +212,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -242,6 +252,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -282,6 +293,7 @@ describe('FileTreePanel context copy', () => {
         onRequestCopyRelativePath={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        {...defaultLazyProps}
       />,
     )
 
@@ -291,5 +303,143 @@ describe('FileTreePanel context copy', () => {
     expect(
       screen.getByTestId('tree-changed-indicator-src/utils/math.ts'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('FileTreePanel lazy directory loading', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('calls onRequestLoadDirectory when expanding a not-loaded directory', () => {
+    const onRequestLoadDirectory = vi.fn()
+    const onExpandedDirectoriesChange = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'deep',
+            relativePath: 'deep',
+            kind: 'directory',
+            children: [],
+            childrenStatus: 'not-loaded',
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={onRequestLoadDirectory}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'deep' }))
+    expect(onRequestLoadDirectory).toHaveBeenCalledWith('deep')
+    expect(onExpandedDirectoriesChange).toHaveBeenCalledWith(['deep'])
+  })
+
+  it('shows loading placeholder when directory is in loadingDirectories', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['deep']}
+        fileTree={[
+          {
+            name: 'deep',
+            relativePath: 'deep',
+            kind: 'directory',
+            children: [],
+            childrenStatus: 'not-loaded',
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={['deep']}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+  })
+
+  it('renders partial directory cap message', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['big']}
+        fileTree={[
+          {
+            name: 'big',
+            relativePath: 'big',
+            kind: 'directory',
+            children: [
+              {
+                name: 'a.ts',
+                relativePath: 'big/a.ts',
+                kind: 'file',
+              },
+            ],
+            childrenStatus: 'partial',
+            totalChildCount: 750,
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    expect(screen.getByText('Showing 1 of 750 items')).toBeInTheDocument()
+  })
+
+  it('does not call onRequestLoadDirectory for already-loaded directory', () => {
+    const onRequestLoadDirectory = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'loaded',
+            relativePath: 'loaded',
+            kind: 'directory',
+            children: [
+              {
+                name: 'file.ts',
+                relativePath: 'loaded/file.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={onRequestLoadDirectory}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'loaded' }))
+    expect(onRequestLoadDirectory).not.toHaveBeenCalled()
   })
 })

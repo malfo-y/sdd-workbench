@@ -32,6 +32,8 @@ interface WorkspaceFileNode {
   relativePath: string
   kind: 'file' | 'directory'
   children?: WorkspaceFileNode[]
+  childrenStatus?: 'complete' | 'not-loaded' | 'partial'
+  totalChildCount?: number
 }
 
 interface WorkspaceIndexResult {
@@ -130,6 +132,24 @@ interface WorkspaceWatchEvent {
   hasStructureChanges?: boolean
 }
 
+interface WorkspaceWatchFallbackEvent {
+  workspaceId: string
+  watchMode: WorkspaceWatchMode
+}
+
+interface WorkspaceIndexDirectoryRequest {
+  rootPath: string
+  relativePath: string
+}
+
+interface WorkspaceIndexDirectoryResult {
+  ok: boolean
+  children: WorkspaceFileNode[]
+  childrenStatus: 'complete' | 'partial'
+  totalChildCount: number
+  error?: string
+}
+
 type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
 
 type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
@@ -148,6 +168,10 @@ interface Window {
   workspace: {
     openDialog: () => Promise<WorkspaceOpenDialogResult>
     index: (rootPath: string) => Promise<WorkspaceIndexResult>
+    indexDirectory: (
+      rootPath: string,
+      relativePath: string,
+    ) => Promise<WorkspaceIndexDirectoryResult>
     readFile: (
       rootPath: string,
       relativePath: string,
@@ -175,6 +199,9 @@ interface Window {
     watchStop: (workspaceId: string) => Promise<WorkspaceWatchControlResult>
     onWatchEvent: (
       listener: (event: WorkspaceWatchEvent) => void,
+    ) => () => void
+    onWatchFallback: (
+      listener: (event: WorkspaceWatchFallbackEvent) => void,
     ) => () => void
     onHistoryNavigate: (
       listener: (event: WorkspaceHistoryNavigationEvent) => void,

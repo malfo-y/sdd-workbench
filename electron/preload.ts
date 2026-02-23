@@ -11,6 +11,16 @@ type WorkspaceFileNode = {
   relativePath: string
   kind: 'file' | 'directory'
   children?: WorkspaceFileNode[]
+  childrenStatus?: 'complete' | 'not-loaded' | 'partial'
+  totalChildCount?: number
+}
+
+type WorkspaceIndexDirectoryResult = {
+  ok: boolean
+  children: WorkspaceFileNode[]
+  childrenStatus: 'complete' | 'partial'
+  totalChildCount: number
+  error?: string
 }
 
 type WorkspaceIndexResult = {
@@ -103,6 +113,11 @@ type WorkspaceWatchControlResult = {
   error?: string
 }
 
+type WorkspaceWatchFallbackEvent = {
+  workspaceId: string
+  watchMode: WorkspaceWatchMode
+}
+
 type WorkspaceWatchEvent = {
   workspaceId: string
   changedRelativePaths: string[]
@@ -133,6 +148,12 @@ const workspaceApi = {
     return ipcRenderer.invoke('workspace:index', {
       rootPath,
     }) as Promise<WorkspaceIndexResult>
+  },
+  indexDirectory(rootPath: string, relativePath: string) {
+    return ipcRenderer.invoke('workspace:indexDirectory', {
+      rootPath,
+      relativePath,
+    }) as Promise<WorkspaceIndexDirectoryResult>
   },
   readFile(rootPath: string, relativePath: string) {
     return ipcRenderer.invoke('workspace:readFile', {
@@ -194,6 +215,18 @@ const workspaceApi = {
     ipcRenderer.on('workspace:watchEvent', handler)
     return () => {
       ipcRenderer.off('workspace:watchEvent', handler)
+    }
+  },
+  onWatchFallback(listener: (event: WorkspaceWatchFallbackEvent) => void) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: WorkspaceWatchFallbackEvent,
+    ) => {
+      listener(payload)
+    }
+    ipcRenderer.on('workspace:watchFallback', handler)
+    return () => {
+      ipcRenderer.off('workspace:watchFallback', handler)
     }
   },
   onHistoryNavigate(
