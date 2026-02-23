@@ -5,6 +5,9 @@
 ```ts
 type SelectionState = { startLine: number; endLine: number } | null
 
+type WorkspaceWatchMode = 'native' | 'polling'
+type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
+
 type CodeComment = {
   id: string
   relativePath: string
@@ -28,6 +31,7 @@ type CodeComment = {
 2. 코멘트 source of truth는 `workspaceRoot/.sdd-workbench/comments.json`
 3. global comments source of truth는 `workspaceRoot/.sdd-workbench/global-comments.md`
 4. `_COMMENTS.md`는 export 산출물(재생성)이며 source of truth가 아님
+5. watcher 선호값(`watchModePreference`)은 workspace 세션 snapshot에 영속화된다.
 
 ## 2. 링크/경로 해석 규칙
 
@@ -53,7 +57,7 @@ type CodeComment = {
 | `workspace:openDialog` | Renderer -> Main (`invoke`) | 워크스페이스 선택 |
 | `workspace:index` | Renderer -> Main (`invoke`) | 파일 트리 인덱싱 (`truncated` 포함) |
 | `workspace:readFile` | Renderer -> Main (`invoke`) | 파일 본문/이미지 payload 읽기 |
-| `workspace:watchStart` / `workspace:watchStop` | Renderer -> Main (`invoke`) | watcher lifecycle |
+| `workspace:watchStart` / `workspace:watchStop` | Renderer -> Main (`invoke`) | watcher lifecycle + watch mode resolution |
 | `workspace:watchEvent` | Main -> Renderer (`send`) | 변경 파일 + 구조변경 플래그 |
 | `workspace:historyNavigate` | Main -> Renderer (`send`) | back/forward 이벤트 |
 | `system:openInIterm` / `system:openInVsCode` | Renderer -> Main (`invoke`) | 외부 툴 열기 |
@@ -62,6 +66,13 @@ type CodeComment = {
 | `workspace:readGlobalComments` | Renderer -> Main (`invoke`) | global comments 읽기 |
 | `workspace:writeGlobalComments` | Renderer -> Main (`invoke`) | global comments 쓰기 |
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
+
+`workspace:watchStart` 계약 요약:
+
+- request: `{ workspaceId, rootPath, watchModePreference?: 'auto'|'native'|'polling' }`
+- response: `{ ok, watchMode?: 'native'|'polling', isRemoteMounted?: boolean, fallbackApplied?: boolean, error?: string }`
+- 해석 규칙: `override(native|polling) > auto 휴리스틱(/Volumes/* => polling)`
+- fallback 규칙: `native` 시작 실패 시 `polling`으로 강등 성공 후 `fallbackApplied=true`
 
 ## 4. 코멘트/Export 정책 계약
 

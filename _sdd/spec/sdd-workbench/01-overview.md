@@ -12,6 +12,7 @@
 4. 외부 파일 변경(watcher)을 UI에서 안정적으로 반영
 5. 코멘트 수집/관리/내보내기/hover preview 루프(F11~F12.4)로 LLM 협업 효율화
 6. 스펙-코드 왕복 시 rendered 문맥(스크롤 위치) 보존으로 탐색 비용 최소화
+7. 원격 마운트 워크스페이스(`/Volumes/*`)에서도 watcher 신뢰성을 유지(`auto/native/polling`)
 
 ## 3. 범위
 
@@ -24,6 +25,7 @@
 - same-spec source jump 시 rendered spec scroll 유지(런타임)
 - 우클릭 기반 컨텍스트 복사
 - watcher 기반 changed indicator + collapse 버블링 가시화
+- 원격 마운트(`/Volumes/*`) auto polling + watch mode 수동 override(`Auto/Native/Polling`)
 - 파일 히스토리 Back/Forward + 입력 바인딩(mouse/swipe/wheel)
 - 앱 재시작 시 세션 복원(workspaces/active file/active spec/line resume)
 - inline comment + export bundle + incremental export
@@ -53,7 +55,13 @@
 1. 코드/트리에서 우클릭으로 상대경로/선택 내용을 복사하고
 2. 필요 시 Open In(iTerm/VSCode)로 외부 작업으로 전환한다.
 
-### 4.3 코멘트-LLM 흐름
+### 4.3 원격 워크스페이스 감시 흐름(F15)
+
+1. `/Volumes/*` 경로를 열면 auto 모드에서 polling watcher로 시작한다.
+2. 필요 시 Watch Mode(`Auto/Native/Polling`)를 변경해 모드를 강제한다.
+3. native 시작 실패 시 polling fallback과 배너 안내로 감시 가용성을 유지한다.
+
+### 4.4 코멘트-LLM 흐름
 
 1. CodeViewer 또는 rendered markdown에서 `Add Comment`로 코멘트를 저장
 2. `View Comments`에서 코멘트 조회/편집/삭제/Delete Exported를 수행
@@ -80,7 +88,8 @@
 | 코멘트 관리(View/Edit/Delete) | Implemented | F12.2 |
 | Global Comments + export prepend | Implemented | F12.3 |
 | 헤더 액션 그룹 compact 재배치 | Implemented | F12.4 |
+| 원격 워크스페이스 watch mode 정책 | Implemented | F15 |
 
 ## 6. Open Questions
 
-- 현재 없음 (`2026-02-22`)
+- 현재 없음 (`2026-02-23`)

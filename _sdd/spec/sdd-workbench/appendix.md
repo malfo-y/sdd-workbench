@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F12.4)
+## A. 기능 이력 (F01~F15)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -29,6 +29,7 @@
 | F12.2 | Done | 2026-02-22 | View Comments + edit/delete/Delete Exported |
 | F12.3 | Done | 2026-02-22 | Add Global Comments + export prepend order |
 | F12.4 | Done | 2026-02-22 | header comments/workspace action compact layout reorder |
+| F15 | Done | 2026-02-23 | SSHFS 원격 워크스페이스 watch mode(auto/override) + polling fallback |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -47,6 +48,7 @@
 - global comments 저장/복원 및 export prepend 정책
 - code/rendered marker hover preview(`+N more`, read-only)
 - header action 그룹 재배치 + compact/icon-only 정책
+- 원격 마운트(`/Volumes/*`) watcher 모드 자동 판정 + 수동 override + fallback 정책
 
 ## C. 리스크/백로그
 
@@ -61,6 +63,7 @@
 9. global comments 버전 이력/다중 문서 분류는 미지원
 10. rendered spec scroll position의 앱 재시작 복원은 미지원(런타임 복원만 지원)
 11. hover preview 지연값/표시 개수 사용자 설정은 미지원
+12. remote mount 휴리스틱은 `/Volumes/*` 고정이며 플랫폼별 고급 탐지는 미지원
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

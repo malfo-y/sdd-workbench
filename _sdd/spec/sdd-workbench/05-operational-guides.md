@@ -7,6 +7,7 @@
 - 코드 프리뷰 제한: 2MB 초과 시 preview unavailable
 - 하이라이트 재계산은 file content/language 변경 시에만 수행
 - watcher 이벤트는 debounce 처리
+- polling watcher는 기본 1500ms 간격으로 메타데이터 diff(`mtimeMs + size`)를 수행
 - 파일 트리 changed marker 버블링 계산은 1-pass(O(n)) 기준으로 유지
 
 ## 2. 보안 기준
@@ -22,6 +23,8 @@
 - open/index/read/watch/comments/export 실패 시 앱 크래시 없이 배너 피드백
 - global comments read/write 실패 시 모달을 유지해 즉시 재시도 가능해야 한다.
 - watcher는 open 시 시작, close/unmount 시 정리
+- `/Volumes/*` + auto는 polling 기본값을 사용하고, 수동 override(`native|polling`)가 우선한다.
+- native watcher 시작 실패 시 polling fallback으로 degraded success를 유지한다.
 - active file 변경 이벤트는 자동 re-read
 - same-spec source jump는 rendered spec 패널 콘텐츠/스크롤 문맥을 유지해야 한다.
 - 세션 복원은 부분 실패 continue 정책
@@ -29,9 +32,9 @@
 
 ## 4. 테스트 운영
 
-### 4.1 자동 게이트 (2026-02-22 기준)
+### 4.1 자동 게이트 (2026-02-23 기준)
 
-- `npm test` -> `19 files, 188 passed`
+- `npm test` -> `20 files, 197 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -56,6 +59,10 @@
 10. Export Comments pending-only/partial success 배너 + `exportedAt` 기록 확인
 11. CodeViewer/SpecViewer marker hover preview(`+N more`) 동작 확인
 12. 헤더 compact action(`icon + short label`) 및 협소 폭 icon-only 접근성(`title`/`aria-label`) 확인
+13. `/Volumes/*` 워크스페이스에서 `REMOTE` 배지 표시 확인
+14. watch mode `Auto`일 때 `/Volumes/*` -> polling, non-`/Volumes/*` -> native 판정 확인
+15. watch mode를 `Native/Polling`으로 변경했을 때 override 우선 적용 확인
+16. native 실패 시 polling fallback 배너 노출 및 변경 감지 유지 확인
 
 ## 5. 개발 환경
 

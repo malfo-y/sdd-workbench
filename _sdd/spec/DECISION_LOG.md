@@ -711,3 +711,28 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F12.4 기준 구현 상태로 동기화한다.
   - backlog는 코멘트 스레드/원격 동기화, re-export-all/reset UX, global comments 버전 이력 등으로 재정리한다.
+
+## 2026-02-23 - F15 구현 완료 반영(SSHFS 원격 워크스페이스 watch mode auto/override + fallback)
+
+- Context:
+  - F15 구현으로 SSHFS(또는 유사 마운트) 경로를 기존 워크스페이스 흐름과 동일하게 열되, watcher 모드를 `auto|native|polling` 정책으로 제어할 수 있게 되었음.
+  - Main 프로세스에 watch mode resolver(`electron/workspace-watch-mode.ts`)와 polling runtime(기본 1500ms metadata diff)이 추가되었고, native 시작 실패 시 polling fallback이 적용되도록 변경되었음.
+  - 최신 구현 리뷰 기준 품질 게이트는 `npm test`(`20 files, 197 passed`), `npm run lint`, `npm run build` 모두 통과 상태임.
+- Decision:
+  - F15를 스펙 상태 `✅ Done`으로 전환한다.
+  - `watchModePreference='auto'`일 때 `/Volumes/*`는 remote mount로 간주해 기본 `polling`으로 시작한다.
+  - `watchModePreference='native'|'polling'`이면 휴리스틱보다 사용자 override를 우선 적용한다.
+  - `workspace:watchStart` 응답 계약을 `watchMode`, `isRemoteMounted`, `fallbackApplied` 포함 형태로 고정한다.
+  - native watcher 시작 실패는 hard-fail 대신 polling fallback(degraded success)으로 처리하고 배너로 안내한다.
+  - 세션 영속화 스냅샷에 workspace별 `watchModePreference`를 포함해 재시작 후에도 사용자 의도를 복원한다.
+- Rationale:
+  - 원격 마운트 환경은 native watcher 신뢰도가 환경 의존적이므로 auto + override + fallback 조합이 운영 안정성을 가장 높인다.
+  - `/Volumes/*` 규칙은 MVP 단계에서 구현 복잡도를 낮추면서도 macOS SSHFS 실사용 경로를 직접 커버할 수 있다.
+  - degraded success 정책은 감시 기능 중단을 줄이고 사용자 체감 신뢰성을 높인다.
+- Alternatives considered:
+  - override 없이 auto 휴리스틱만 제공
+  - native 실패 시 watchStart를 즉시 실패 처리
+  - remote 판정을 별도 프로토콜 탐지/마운트 테이블 파싱으로 확장
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F15 완료 기준으로 동기화한다.
+  - 후속 backlog로 remote 판정 고도화(플랫폼별 mount metadata)와 polling 최적화(open/recent/expanded 범위 축소)를 유지한다.

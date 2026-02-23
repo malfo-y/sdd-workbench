@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.25.0`
-- 마지막 업데이트: `2026-02-22`
+- 문서 버전: `0.26.0`
+- 마지막 업데이트: `2026-02-23`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -15,6 +15,7 @@
   - F12.2 draft: `/_sdd/drafts/feature_draft_f12_2_view_comments_edit_delete.md`
   - F12.3 draft: `/_sdd/drafts/feature_draft_f12_3_global_comments_capture_and_export_order.md`
   - F12.4 draft: `/_sdd/drafts/feature_draft_f12_4_header_action_layout_reorder.md`
+  - F15 draft: `/_sdd/drafts/feature_draft_f15_remote_workspace_via_sshfs.md`
 - 리라이트:
   - 단일 대형 문서(`main.md`)를 인덱스 + 주제별 하위 문서로 분할
   - 결정 로그는 `/_sdd/spec/DECISION_LOG.md`를 source of truth로 유지
@@ -23,7 +24,7 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F12.4`
+- 구현 완료 범위: `F01~F15`
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 3패널(code/raw spec/rendered spec) 탐색
   2. spec link/selection 기반 code line jump
@@ -33,8 +34,9 @@
   6. global comments(워크스페이스 단위) + export 선행 prepend + incremental export
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
   8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + compact header action 그룹
-- 최신 품질 게이트(2026-02-22):
-  - `npm test` -> `19 files, 188 passed`
+  9. SSHFS 마운트 원격 워크스페이스(`/Volumes/*`) 자동 polling + 수동 watch mode override
+- 최신 품질 게이트(2026-02-23):
+  - `npm test` -> `20 files, 197 passed`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 
@@ -53,7 +55,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F12.4), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F15), 상세 수용 기준, 리스크/백로그
 
 ---
 
@@ -77,7 +79,7 @@
 
 ## 5. Open Questions
 
-- 현재 없음 (`2026-02-22` 기준)
+- 현재 없음 (`2026-02-23` 기준)
 
 ---
 

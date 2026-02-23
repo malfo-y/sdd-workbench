@@ -17,11 +17,12 @@
 - `src/workspace/workspace-context.tsx`
   - 멀티 워크스페이스 상태 및 action 집약
   - same-spec source jump에서 불필요한 spec reset/read 최소화
+  - workspace별 watch mode preference 변경/재시작 + fallback 배너 처리
   - comments/global-comments read-write 액션 제공
 - `src/workspace/workspace-model.ts`
-  - 순수 상태 전이
+  - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted` 포함)
 - `src/workspace/workspace-persistence.ts`
-  - 세션 snapshot hydrate/persist
+  - 세션 snapshot hydrate/persist(`watchModePreference` 영속화)
 - `src/workspace/workspace-switcher.tsx`
   - 활성 workspace 선택/닫기
 
@@ -81,7 +82,9 @@
 ### 1.7 Electron Boundary
 
 - `electron/main.ts`
-  - IPC handler, watch lifecycle, export 파일 쓰기, system open
+  - IPC handler, watch lifecycle(native/polling/fallback), export 파일 쓰기, system open
+- `electron/workspace-watch-mode.ts`
+  - `/Volumes/*` 휴리스틱 + override 우선순위 기반 watch mode resolver
 - `electron/preload.ts`
   - `window.workspace` 브리지
 - `electron/electron-env.d.ts`
@@ -89,10 +92,12 @@
 
 ## 2. 테스트 맵(핵심)
 
-- 통합: `src/App.test.tsx` (61)
-- 상태모델: `src/workspace/workspace-model.test.ts` (16)
-- spec viewer: `src/spec-viewer/spec-viewer-panel.test.tsx` (19)
-- code viewer: `src/code-viewer/code-viewer-panel.test.tsx` (15)
+- 통합: `src/App.test.tsx` (watch mode UI/fallback/hydrate 시나리오 포함)
+- 상태모델: `src/workspace/workspace-model.test.ts`
+- 상태 영속화: `src/workspace/workspace-persistence.test.ts`
+- spec viewer: `src/spec-viewer/spec-viewer-panel.test.tsx`
+- code viewer: `src/code-viewer/code-viewer-panel.test.tsx`
+- electron resolver: `electron/workspace-watch-mode.test.ts`
 - comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export/comment-list-modal` 테스트
 
 ## 3. 유지보수 규칙
