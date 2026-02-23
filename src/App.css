@@ -975,59 +975,9 @@
   white-space: pre-wrap;
 }
 
-.code-line-content .token.comment,
-.code-line-content .token.prolog,
-.code-line-content .token.doctype,
-.code-line-content .token.cdata {
-  color: #7f8c98;
-}
-
-.code-line-content .token.punctuation {
-  color: #c0cad6;
-}
-
-.code-line-content .token.property,
-.code-line-content .token.tag,
-.code-line-content .token.boolean,
-.code-line-content .token.number,
-.code-line-content .token.constant,
-.code-line-content .token.symbol,
-.code-line-content .token.deleted {
-  color: #e8ab6f;
-}
-
-.code-line-content .token.selector,
-.code-line-content .token.attr-name,
-.code-line-content .token.string,
-.code-line-content .token.char,
-.code-line-content .token.builtin,
-.code-line-content .token.inserted {
-  color: #90c98e;
-}
-
-.code-line-content .token.operator,
-.code-line-content .token.entity,
-.code-line-content .token.url,
-.code-line-content .language-css .token.string,
-.code-line-content .style .token.string {
-  color: #94c3ed;
-}
-
-.code-line-content .token.atrule,
-.code-line-content .token.attr-value,
-.code-line-content .token.keyword {
-  color: #c4a4f4;
-}
-
-.code-line-content .token.function,
-.code-line-content .token.class-name {
-  color: #f3d87b;
-}
-
-.code-line-content .token.regex,
-.code-line-content .token.important,
-.code-line-content .token.variable {
-  color: #f08e8e;
+.code-line-content span {
+  /* Shiki generates inline color styles; this ensures unstyled tokens get the default color */
+  color: inherit;
 }
 
 .spec-viewer-content [data-has-comment-marker='true'] {

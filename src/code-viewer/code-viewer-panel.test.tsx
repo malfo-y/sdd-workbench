@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodeViewerPanel } from './code-viewer-panel'
 import * as syntaxHighlight from './syntax-highlight'
@@ -10,7 +10,12 @@ describe('CodeViewerPanel highlighting', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses python highlighting for .py files and keeps line selection', () => {
+  it('uses python highlighting for .py files and keeps line selection', async () => {
+    vi.spyOn(syntaxHighlight, 'highlightPreviewLines').mockResolvedValue([
+      '<span style="color:#f97583">def</span> <span style="color:#b392f0">hello</span>():',
+      '    <span style="color:#79b8ff">return</span> 1',
+    ])
+
     const onSelectRange = vi.fn()
 
     render(
@@ -41,12 +46,59 @@ describe('CodeViewerPanel highlighting', () => {
     )
 
     const firstLine = screen.getByTestId('code-line-1').querySelector('.code-line-content')
-    expect(firstLine?.innerHTML).toContain('token keyword')
+    await waitFor(() => {
+      expect(firstLine?.innerHTML).toContain('<span style="color:')
+    })
 
     fireEvent.click(screen.getByTestId('code-line-2'))
     expect(onSelectRange).toHaveBeenCalledWith({
       startLine: 2,
       endLine: 2,
+    })
+  })
+
+  it('shows plaintext initially and updates after async highlighting completes', async () => {
+    let resolveHighlight!: (lines: string[]) => void
+    vi.spyOn(syntaxHighlight, 'highlightPreviewLines').mockReturnValue(
+      new Promise<string[]>((resolve) => {
+        resolveHighlight = resolve
+      }),
+    )
+
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'const x = 1\nconst y = 2'}
+        activeFileImagePreview={null}
+        commentLineCounts={new Map()}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    const firstLineContent = screen
+      .getByTestId('code-line-1')
+      .querySelector('.code-line-content')
+    expect(firstLineContent?.innerHTML).not.toContain('<span style="color:')
+    expect(firstLineContent?.innerHTML).toContain('const')
+
+    await act(async () => {
+      resolveHighlight([
+        '<span style="color:#79b8ff">const</span> x = 1',
+        '<span style="color:#79b8ff">const</span> y = 2',
+      ])
+    })
+
+    await waitFor(() => {
+      expect(firstLineContent?.innerHTML).toContain('<span style="color:')
     })
   })
 
@@ -539,11 +591,10 @@ describe('CodeViewerPanel highlighting', () => {
     expect(onRequestCopyBoth).not.toHaveBeenCalled()
   })
 
-  it('does not recompute highlighted lines when only selection changes', () => {
-    const highlightPreviewLinesSpy = vi.spyOn(
-      syntaxHighlight,
-      'highlightPreviewLines',
-    )
+  it('does not recompute highlighted lines when only selection changes', async () => {
+    const highlightPreviewLinesSpy = vi
+      .spyOn(syntaxHighlight, 'highlightPreviewLines')
+      .mockResolvedValue(['line1', 'line2', 'line3'])
 
     const { rerender } = render(
       <CodeViewerPanel
@@ -567,7 +618,9 @@ describe('CodeViewerPanel highlighting', () => {
       />,
     )
 
-    expect(highlightPreviewLinesSpy).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(highlightPreviewLinesSpy).toHaveBeenCalledTimes(1)
+    })
 
     rerender(
       <CodeViewerPanel

@@ -14,7 +14,7 @@ import {
 } from './line-selection'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { getHighlightLanguage } from './language-map'
-import * as syntaxHighlight from './syntax-highlight'
+import { escapeHtml, highlightPreviewLines } from './syntax-highlight'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import type { CodeComment } from '../code-comments/comment-types'
 
@@ -168,10 +168,29 @@ export function CodeViewerPanel({
     : null
   const isImagePreviewMode = Boolean(imagePreview)
   const displayLanguage = isImagePreviewMode ? 'image' : highlightLanguage
-  const highlightedPreviewLines = useMemo(
-    () => syntaxHighlight.highlightPreviewLines(previewLines, highlightLanguage),
-    [previewLines, highlightLanguage],
+  const plaintextLines = useMemo(
+    () => previewLines.map((line) => (line.length > 0 ? escapeHtml(line) : ' ')),
+    [previewLines],
   )
+  const [highlightedLines, setHighlightedLines] = useState<string[]>(plaintextLines)
+
+  useEffect(() => {
+    setHighlightedLines(plaintextLines)
+
+    if (highlightLanguage === 'plaintext' || previewLines.length === 0) {
+      return
+    }
+
+    let cancelled = false
+    highlightPreviewLines(previewLines, highlightLanguage).then((result) => {
+      if (!cancelled) {
+        setHighlightedLines(result)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [previewLines, highlightLanguage, plaintextLines])
 
   useEffect(() => {
     setAnchorLine(null)
@@ -510,7 +529,7 @@ export function CodeViewerPanel({
             {previewLines.map((_, lineIndex) => {
               const lineNumber = lineIndex + 1
               const isSelected = isLineSelected(lineNumber)
-              const highlightedLine = highlightedPreviewLines[lineIndex] ?? ' '
+              const highlightedLine = highlightedLines[lineIndex] ?? ' '
               const commentCount = commentLineCounts.get(lineNumber) ?? 0
 
               return (
