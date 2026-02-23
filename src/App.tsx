@@ -199,6 +199,29 @@ function ItermIcon() {
   )
 }
 
+function FinderIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M4 4.5C4 3.67 4.67 3 5.5 3H18.5C19.33 3 20 3.67 20 4.5V19.5C20 20.33 19.33 21 18.5 21H5.5C4.67 21 4 20.33 4 19.5V4.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <circle cx="9.5" cy="10" fill="currentColor" r="1.2" />
+      <circle cx="14.5" cy="10" fill="currentColor" r="1.2" />
+      <path
+        d="M9 14.5C9.8 15.6 11 16.2 12 16.2C13 16.2 14.2 15.6 15 14.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.4"
+      />
+    </svg>
+  )
+}
+
 function VsCodeIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -882,17 +905,26 @@ function App() {
   }, [activeWorkspaceId, comments, saveComments, showCommentBanner])
 
   const openWorkspaceInExternalApp = useCallback(
-    async (target: 'iterm' | 'vscode') => {
+    async (target: 'iterm' | 'vscode' | 'finder') => {
       if (!rootPath) {
         return
       }
 
-      const targetLabel = target === 'iterm' ? 'iTerm' : 'VSCode'
+      const targetLabels: Record<typeof target, string> = {
+        iterm: 'iTerm',
+        vscode: 'VSCode',
+        finder: 'Finder',
+      }
+      const targetLabel = targetLabels[target]
       try {
-        const result =
-          target === 'iterm'
-            ? await window.workspace.openInIterm(rootPath)
-            : await window.workspace.openInVsCode(rootPath)
+        let result: SystemOpenInResult
+        if (target === 'iterm') {
+          result = await window.workspace.openInIterm(rootPath)
+        } else if (target === 'vscode') {
+          result = await window.workspace.openInVsCode(rootPath)
+        } else {
+          result = await window.workspace.openInFinder(rootPath)
+        }
         if (!result.ok) {
           showBanner(result.error ?? `Failed to open workspace in ${targetLabel}.`)
         }
@@ -1454,6 +1486,17 @@ function App() {
                   type="button"
                 >
                   <VsCodeIcon />
+                </button>
+                <button
+                  aria-label="Open in Finder"
+                  className="workspace-open-in-button"
+                  data-testid="workspace-open-in-finder"
+                  disabled={!rootPath}
+                  onClick={() => void openWorkspaceInExternalApp('finder')}
+                  title="Open in Finder"
+                  type="button"
+                >
+                  <FinderIcon />
                 </button>
               </div>
             </div>

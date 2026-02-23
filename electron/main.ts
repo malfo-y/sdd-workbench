@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile, execFileSync } from 'node:child_process'
 import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
@@ -1369,6 +1369,48 @@ async function handleSystemOpenInVsCode(
   return handleSystemOpenInApplication(request, 'Visual Studio Code')
 }
 
+async function handleSystemOpenInFinder(
+  _event: IpcMainInvokeEvent,
+  request: SystemOpenInRequest,
+): Promise<SystemOpenInResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const errorMessage = await shell.openPath(resolvedRootPath)
+    if (errorMessage) {
+      return {
+        ok: false,
+        error: errorMessage,
+      }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to open workspace in Finder.',
+    }
+  }
+}
+
 function sendWorkspaceWatchEvent(payload: WorkspaceWatchEventPayload) {
   if (!win || win.isDestroyed()) {
     return
@@ -1971,6 +2013,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:watchStop')
   ipcMain.removeHandler('system:openInIterm')
   ipcMain.removeHandler('system:openInVsCode')
+  ipcMain.removeHandler('system:openInFinder')
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
   ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectory)
@@ -1990,6 +2033,7 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStop)
   ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
   ipcMain.handle('system:openInVsCode', handleSystemOpenInVsCode)
+  ipcMain.handle('system:openInFinder', handleSystemOpenInFinder)
 }
 
 function createWindow() {

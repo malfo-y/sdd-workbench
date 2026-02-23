@@ -92,6 +92,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   const openInItermMock = vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const openInVsCodeMock =
     vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
+  const openInFinderMock =
+    vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
@@ -122,6 +124,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     watchStopMock.mockReset()
     openInItermMock.mockReset()
     openInVsCodeMock.mockReset()
+    openInFinderMock.mockReset()
     onWatchEventMock.mockReset()
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
@@ -154,6 +157,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     openInItermMock.mockResolvedValue({ ok: true })
     openInVsCodeMock.mockResolvedValue({ ok: true })
+    openInFinderMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
@@ -194,6 +198,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       onHistoryNavigate: onHistoryNavigateMock,
       openInIterm: openInItermMock,
       openInVsCode: openInVsCodeMock,
+      openInFinder: openInFinderMock,
     }
   })
 
@@ -302,6 +307,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     expect(screen.getByRole('button', { name: 'Open in iTerm' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Open in VSCode' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Open in Finder' })).toBeDisabled()
   })
 
   it('shows resolved watch mode metadata and restarts watcher on preference change', async () => {
@@ -468,7 +474,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(workspaceButtons).toEqual(['Open', 'Close'])
   })
 
-  it('opens active workspace in iTerm and VSCode', async () => {
+  it('opens active workspace in iTerm, VSCode, and Finder', async () => {
     openDialogMock.mockResolvedValueOnce({
       canceled: false,
       selectedPath: '/Users/tester/projects/sdd-workbench',
@@ -494,17 +500,23 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     const openInItermButton = screen.getByRole('button', { name: 'Open in iTerm' })
     const openInVsCodeButton = screen.getByRole('button', { name: 'Open in VSCode' })
+    const openInFinderButton = screen.getByRole('button', { name: 'Open in Finder' })
     expect(openInItermButton).toBeEnabled()
     expect(openInVsCodeButton).toBeEnabled()
+    expect(openInFinderButton).toBeEnabled()
 
     fireEvent.click(openInItermButton)
     fireEvent.click(openInVsCodeButton)
+    fireEvent.click(openInFinderButton)
 
     await waitFor(() => {
       expect(openInItermMock).toHaveBeenCalledWith(
         '/Users/tester/projects/sdd-workbench',
       )
       expect(openInVsCodeMock).toHaveBeenCalledWith(
+        '/Users/tester/projects/sdd-workbench',
+      )
+      expect(openInFinderMock).toHaveBeenCalledWith(
         '/Users/tester/projects/sdd-workbench',
       )
     })
@@ -540,6 +552,39 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Failed to launch VSCode.')
+    })
+  })
+
+  it('shows error banner when open in Finder request fails', async () => {
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    openInFinderMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'Failed to open in Finder.',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open in Finder' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to open in Finder.')
     })
   })
 

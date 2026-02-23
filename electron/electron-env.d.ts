@@ -208,5 +208,6 @@ interface Window {
     ) => () => void
     openInIterm: (rootPath: string) => Promise<SystemOpenInResult>
     openInVsCode: (rootPath: string) => Promise<SystemOpenInResult>
+    openInFinder: (rootPath: string) => Promise<SystemOpenInResult>
   }
 }

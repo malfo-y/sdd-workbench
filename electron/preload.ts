@@ -253,6 +253,11 @@ const workspaceApi = {
       rootPath,
     }) as Promise<SystemOpenInResult>
   },
+  openInFinder(rootPath: string) {
+    return ipcRenderer.invoke('system:openInFinder', {
+      rootPath,
+    }) as Promise<SystemOpenInResult>
+  },
 }
 
 contextBridge.exposeInMainWorld('workspace', workspaceApi)
