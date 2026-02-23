@@ -19,6 +19,8 @@ import {
 } from '../code-comments/comment-line-index'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import type { CodeComment } from '../code-comments/comment-types'
+import { highlightLines } from '../code-viewer/syntax-highlight'
+import type { HighlightLanguage } from '../code-viewer/language-map'
 import { extractMarkdownHeadings } from './markdown-utils'
 import {
   MARKDOWN_SANITIZE_SCHEMA,
@@ -301,6 +303,53 @@ function hasVisibleSelectionInElement(
     containsSelectionNode(element, selection.anchorNode) ||
     containsSelectionNode(element, selection.focusNode)
   )
+}
+
+const MARKDOWN_LANGUAGE_ALIASES: Record<string, string> = {
+  ts: 'typescript',
+  js: 'javascript',
+  py: 'python',
+  bash: 'shellscript',
+  sh: 'shellscript',
+  zsh: 'shellscript',
+  yml: 'yaml',
+  rb: 'ruby',
+  kt: 'kotlin',
+  gql: 'graphql',
+  htm: 'html',
+}
+
+function resolveMarkdownLanguage(tag: string): HighlightLanguage {
+  const normalized = tag.toLowerCase()
+  return (MARKDOWN_LANGUAGE_ALIASES[normalized] ?? normalized) as HighlightLanguage
+}
+
+function HighlightedCodeBlock({
+  code,
+  language,
+}: {
+  code: string
+  language: HighlightLanguage
+}) {
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    highlightLines(code, language).then((lines) => {
+      if (!cancelled) {
+        setHighlightedHtml(lines.join('\n'))
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [code, language])
+
+  if (highlightedHtml === null) {
+    return <code>{code}</code>
+  }
+
+  return <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
 }
 
 export function SpecViewerPanel({
@@ -777,6 +826,25 @@ export function SpecViewerPanel({
                       loading="lazy"
                       src={resolvedImageSource}
                     />
+                  )
+                },
+                code: ({ node, className, children, ...codeProps }) => {
+                  void node
+                  const languageMatch =
+                    typeof className === 'string'
+                      ? className.match(/language-(\w+)/)
+                      : null
+                  if (!languageMatch) {
+                    return (
+                      <code className={className} {...codeProps}>
+                        {children}
+                      </code>
+                    )
+                  }
+                  const language = resolveMarkdownLanguage(languageMatch[1])
+                  const codeText = String(children).replace(/\n$/, '')
+                  return (
+                    <HighlightedCodeBlock code={codeText} language={language} />
                   )
                 },
                 p: (props) =>
