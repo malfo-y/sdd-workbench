@@ -2038,7 +2038,7 @@ function registerIpcHandlers() {
 
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    icon: path.join(process.env.VITE_PUBLIC, 'sdd_icon.png'),
     width: 1440,
     height: 900,
     minWidth: 1100,
