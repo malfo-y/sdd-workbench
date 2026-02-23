@@ -438,9 +438,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     const viewCommentsButton = screen.getByRole('button', {
       name: 'View Comments',
     })
-    const exportCommentsButton = screen.getByRole('button', {
-      name: 'Export Comments',
-    })
     const closeWorkspaceButton = screen.getByRole('button', {
       name: 'Close Workspace',
     })
@@ -448,10 +445,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       name: 'Open Workspace',
     })
 
+    expect(screen.queryByRole('button', { name: 'Export Comments' })).not.toBeInTheDocument()
+
     for (const button of [
       addGlobalButton,
       viewCommentsButton,
-      exportCommentsButton,
       closeWorkspaceButton,
       openWorkspaceButton,
     ]) {
@@ -461,7 +459,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     expect(addGlobalButton).toHaveTextContent('+ Global')
     expect(viewCommentsButton).toHaveTextContent('View')
-    expect(exportCommentsButton).toHaveTextContent('Export')
     expect(closeWorkspaceButton).toHaveTextContent('Close')
     expect(openWorkspaceButton).toHaveTextContent('Open')
 
@@ -4483,10 +4480,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('export-selected-button'))
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
     })
@@ -4555,10 +4556,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('export-selected-button'))
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
     })
@@ -4573,6 +4578,85 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(writeCommentsMock).not.toHaveBeenCalled()
     expect(clipboardWriteText).toHaveBeenCalledTimes(1)
+  })
+
+  it('excludes global comments from export when global checkbox is unchecked', async () => {
+    const workspaceRoot = '/Users/tester/projects/global-checkbox-uncheck-workspace'
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:1-1:aaaa1111:2026-02-22T12:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'line comment',
+          anchor: {
+            snippet: 'const a = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '## Shared Context\n- Apply globally',
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: true,
+      commentsPath: `${workspaceRoot}/_COMMENTS.md`,
+      bundlePath: `${workspaceRoot}/.sdd-workbench/exports/20260222-comments-bundle.md`,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    // Uncheck the global comments checkbox
+    fireEvent.click(screen.getByTestId('include-global-comments-checkbox'))
+
+    fireEvent.click(screen.getByTestId('export-selected-button'))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+    expect(screen.getByText('Global comments: not included')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      expect(exportCommentsBundleMock).toHaveBeenCalledTimes(1)
+    })
+    const [request] = exportCommentsBundleMock.mock.calls[0]
+    const bundleMarkdown = request.bundleMarkdown ?? ''
+    expect(bundleMarkdown).not.toContain('## Global Comments')
   })
 
   it('disables clipboard export when bundle exceeds max length and exports files only', async () => {
@@ -4625,10 +4709,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('export-selected-button'))
 
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
@@ -4664,7 +4752,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       exportedAt: expect.any(String),
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    // Re-open View Comments, manually select the now-exported comment, verify 0 pending
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByLabelText('Select comment from src/a.ts:L1'))
+    fireEvent.click(screen.getByTestId('export-selected-button'))
 
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
@@ -4726,10 +4820,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('export-selected-button'))
 
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
@@ -4808,10 +4906,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Export Comments' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export Comments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId('export-selected-button'))
 
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()

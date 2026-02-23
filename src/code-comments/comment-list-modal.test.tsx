@@ -42,6 +42,7 @@ describe('CommentListModal', () => {
         onDeleteComment={() => true}
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
       />,
     )
 
@@ -71,6 +72,7 @@ describe('CommentListModal', () => {
         onDeleteComment={() => true}
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
       />,
     )
 
@@ -96,6 +98,7 @@ describe('CommentListModal', () => {
         onDeleteComment={() => true}
         onDeleteExportedComments={() => true}
         onUpdateComment={onUpdateComment}
+        onRequestExport={vi.fn()}
       />,
     )
 
@@ -120,6 +123,7 @@ describe('CommentListModal', () => {
         onDeleteComment={onDeleteComment}
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
       />,
     )
 
@@ -141,6 +145,7 @@ describe('CommentListModal', () => {
         onDeleteComment={() => true}
         onDeleteExportedComments={onDeleteExportedComments}
         onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
       />,
     )
 
@@ -161,6 +166,7 @@ describe('CommentListModal', () => {
         onDeleteComment={() => true}
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
       />,
     )
 
@@ -183,11 +189,260 @@ describe('CommentListModal', () => {
         onDeleteComment={() => true}
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
       />,
     )
 
     expect(screen.getByTestId('comment-list-global-empty')).toHaveTextContent(
       'No global comments.',
     )
+  })
+
+  it('default selection: pending comments checked, exported comments unchecked', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    // b-comment (no exportedAt) should be checked by default
+    expect(screen.getByLabelText('Select comment from src/b.ts:L5')).toBeChecked()
+    // a-comment (has exportedAt) should be unchecked by default
+    expect(screen.getByLabelText('Select comment from src/a.ts:L2-L3')).not.toBeChecked()
+    expect(screen.getByTestId('comment-list-selection-count')).toHaveTextContent('1 selected')
+  })
+
+  it('Select All checks all comments', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select All' }))
+
+    expect(screen.getByLabelText('Select comment from src/a.ts:L2-L3')).toBeChecked()
+    expect(screen.getByLabelText('Select comment from src/b.ts:L5')).toBeChecked()
+    expect(screen.getByTestId('comment-list-selection-count')).toHaveTextContent('2 selected')
+  })
+
+  it('Deselect All unchecks all comments', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect All' }))
+
+    expect(screen.getByLabelText('Select comment from src/a.ts:L2-L3')).not.toBeChecked()
+    expect(screen.getByLabelText('Select comment from src/b.ts:L5')).not.toBeChecked()
+    expect(screen.getByTestId('comment-list-selection-count')).toHaveTextContent('0 selected')
+  })
+
+  it('toggling a checkbox updates selection count', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    // Initially 1 selected (pending b-comment)
+    expect(screen.getByTestId('comment-list-selection-count')).toHaveTextContent('1 selected')
+
+    // Check the exported a-comment
+    fireEvent.click(screen.getByLabelText('Select comment from src/a.ts:L2-L3'))
+    expect(screen.getByTestId('comment-list-selection-count')).toHaveTextContent('2 selected')
+
+    // Uncheck b-comment
+    fireEvent.click(screen.getByLabelText('Select comment from src/b.ts:L5'))
+    expect(screen.getByTestId('comment-list-selection-count')).toHaveTextContent('1 selected')
+  })
+
+  it('Export Selected button shows pending count and calls onRequestExport', () => {
+    const onRequestExport = vi.fn()
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={onRequestExport}
+      />,
+    )
+
+    // Default: 1 pending (b-comment) selected
+    const exportButton = screen.getByTestId('export-selected-button')
+    expect(exportButton).toHaveTextContent('Export Selected (1)')
+    expect(exportButton).toBeEnabled()
+
+    fireEvent.click(exportButton)
+    expect(onRequestExport).toHaveBeenCalledWith(['b-comment'], true)
+  })
+
+  it('Export Selected button is disabled when 0 selected and no global comments', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect All' }))
+
+    expect(screen.getByTestId('export-selected-button')).toBeDisabled()
+  })
+
+  it('Export Selected button is enabled with 0 selected when global comments exist', () => {
+    const onRequestExport = vi.fn()
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments="Some global context"
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={onRequestExport}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect All' }))
+
+    const exportButton = screen.getByTestId('export-selected-button')
+    expect(exportButton).toHaveTextContent('Export Selected (0)')
+    expect(exportButton).toBeEnabled()
+
+    fireEvent.click(exportButton)
+    expect(onRequestExport).toHaveBeenCalledWith([], true)
+  })
+
+  it('renders include-in-export checkbox when global comments exist', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments="Some global context"
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    const checkbox = screen.getByTestId('include-global-comments-checkbox')
+    expect(checkbox).toBeInTheDocument()
+    expect(checkbox).toBeChecked()
+  })
+
+  it('hides include-in-export checkbox when global comments are empty', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByTestId('include-global-comments-checkbox')).not.toBeInTheDocument()
+  })
+
+  it('unchecking global checkbox passes includeGlobalComments=false to onRequestExport', () => {
+    const onRequestExport = vi.fn()
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments="Some global context"
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={onRequestExport}
+      />,
+    )
+
+    fireEvent.click(screen.getByTestId('include-global-comments-checkbox'))
+    fireEvent.click(screen.getByTestId('export-selected-button'))
+
+    expect(onRequestExport).toHaveBeenCalledWith(['b-comment'], false)
+  })
+
+  it('Export Selected disabled when 0 selected and global checkbox unchecked', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments="Some global context"
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deselect All' }))
+    // With global comments checked, should still be enabled
+    expect(screen.getByTestId('export-selected-button')).toBeEnabled()
+
+    // Uncheck the global checkbox
+    fireEvent.click(screen.getByTestId('include-global-comments-checkbox'))
+    expect(screen.getByTestId('export-selected-button')).toBeDisabled()
   })
 })

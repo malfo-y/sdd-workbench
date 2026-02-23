@@ -247,34 +247,6 @@ function ViewIcon() {
   )
 }
 
-function ExportIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path
-        d="M12 4V14"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M8.5 10.5L12 14L15.5 10.5"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M5 18.5H19"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  )
-}
 
 function CloseIcon() {
   return (
@@ -404,6 +376,8 @@ function App() {
     useState(false)
   const [isViewCommentsModalOpen, setIsViewCommentsModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [exportSelectedCommentIds, setExportSelectedCommentIds] = useState<string[] | null>(null)
+  const [exportIncludeGlobalComments, setExportIncludeGlobalComments] = useState(false)
   const [isExportingComments, setIsExportingComments] = useState(false)
   const commentLineIndex = useMemo(
     () => buildCommentLineIndex(comments),
@@ -607,14 +581,21 @@ function App() {
     ],
   )
 
+  const effectiveExportGlobalComments = exportIncludeGlobalComments ? globalComments : ''
+  const effectiveExportHasGlobalComments = exportIncludeGlobalComments && hasGlobalComments
+
   const estimateBundleLength = useCallback(
-    (instruction: string) =>
-      renderLlmBundle({
+    (instruction: string) => {
+      const commentsForEstimate = exportSelectedCommentIds
+        ? comments.filter((c) => exportSelectedCommentIds.includes(c.id))
+        : pendingComments
+      return renderLlmBundle({
         instruction,
-        comments: pendingComments,
-        globalComments,
-      }).length,
-    [globalComments, pendingComments],
+        comments: commentsForEstimate,
+        globalComments: effectiveExportGlobalComments,
+      }).length
+    },
+    [comments, effectiveExportGlobalComments, exportSelectedCommentIds, pendingComments],
   )
 
   const handleSaveGlobalComments = useCallback(
@@ -677,19 +658,21 @@ function App() {
         return
       }
 
-      if (pendingComments.length === 0 && !hasGlobalComments) {
+      const exportSnapshot = exportSelectedCommentIds
+        ? comments.filter((c) => exportSelectedCommentIds.includes(c.id))
+        : pendingComments
+
+      if (exportSnapshot.length === 0 && !effectiveExportHasGlobalComments) {
         showCommentBanner('No pending comments to export.')
         return
       }
-
-      const exportSnapshot = pendingComments
       const commentsMarkdown = renderCommentsMarkdown(exportSnapshot, {
-        globalComments,
+        globalComments: effectiveExportGlobalComments,
       })
       const bundleMarkdown = renderLlmBundle({
         instruction: input.instruction,
         comments: exportSnapshot,
-        globalComments,
+        globalComments: effectiveExportGlobalComments,
       })
       const isClipboardAllowed = bundleMarkdown.length <= MAX_CLIPBOARD_CHARS
       const shouldCopyToClipboard = input.copyToClipboard && isClipboardAllowed
@@ -794,6 +777,8 @@ function App() {
           showCommentBanner(`Comments exported: ${completedTargets.join(', ')}.`)
         }
         setIsExportModalOpen(false)
+        setExportSelectedCommentIds(null)
+        setExportIncludeGlobalComments(false)
       } finally {
         setIsExportingComments(false)
       }
@@ -801,8 +786,9 @@ function App() {
     [
       activeWorkspaceId,
       comments,
-      globalComments,
-      hasGlobalComments,
+      effectiveExportGlobalComments,
+      effectiveExportHasGlobalComments,
+      exportSelectedCommentIds,
       pendingComments,
       rootPath,
       saveComments,
@@ -1336,21 +1322,6 @@ function App() {
                 </span>
                 <span className="header-action-label">View</span>
               </button>
-              <button
-                aria-label="Export Comments"
-                className="header-action-button"
-                disabled={isCommentsActionDisabled}
-                onClick={() => {
-                  setIsExportModalOpen(true)
-                }}
-                title="Export Comments"
-                type="button"
-              >
-                <span aria-hidden="true" className="header-action-icon">
-                  <ExportIcon />
-                </span>
-                <span className="header-action-label">Export</span>
-              </button>
             </div>
           </div>
           <div className="header-workspace-group" data-testid="header-workspace-group">
@@ -1585,6 +1556,12 @@ function App() {
         onDeleteComment={handleDeleteComment}
         onDeleteExportedComments={handleDeleteExportedComments}
         onUpdateComment={handleUpdateComment}
+        onRequestExport={(selectedIds, includeGlobal) => {
+          setExportSelectedCommentIds(selectedIds)
+          setExportIncludeGlobalComments(includeGlobal)
+          setIsViewCommentsModalOpen(false)
+          setIsExportModalOpen(true)
+        }}
       />
       <GlobalCommentsModal
         initialValue={globalCommentsModalState?.initialValue ?? ''}
@@ -1598,17 +1575,21 @@ function App() {
         onSave={handleSaveGlobalComments}
       />
       <ExportCommentsModal
-        commentCount={comments.length}
+        commentCount={exportSelectedCommentIds ? exportSelectedCommentIds.length : comments.length}
         estimateBundleLength={estimateBundleLength}
-        hasGlobalComments={hasGlobalComments}
-        allowExportWithoutPendingComments={hasGlobalComments}
+        hasGlobalComments={effectiveExportHasGlobalComments}
+        allowExportWithoutPendingComments={effectiveExportHasGlobalComments}
         isExporting={isExportingComments}
         isOpen={isExportModalOpen}
         maxClipboardChars={MAX_CLIPBOARD_CHARS}
-        pendingCommentCount={pendingComments.length}
+        pendingCommentCount={exportSelectedCommentIds
+          ? comments.filter((c) => exportSelectedCommentIds.includes(c.id) && !c.exportedAt).length
+          : pendingComments.length}
         onCancel={() => {
           if (!isExportingComments) {
             setIsExportModalOpen(false)
+            setExportSelectedCommentIds(null)
+            setExportIncludeGlobalComments(false)
           }
         }}
         onConfirm={handleExportComments}
