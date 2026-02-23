@@ -92,6 +92,11 @@ type CommentDraftState = {
   fileContent: string
 }
 
+type GlobalCommentsModalState = {
+  workspaceId: string
+  initialValue: string
+}
+
 function buildSpecScrollStateKey(
   workspaceId: string | null,
   relativePath: string,
@@ -386,7 +391,10 @@ function App() {
   const specScrollPositionsRef = useRef<Record<string, number>>({})
   const [commentDraftState, setCommentDraftState] =
     useState<CommentDraftState | null>(null)
-  const [isGlobalCommentsModalOpen, setIsGlobalCommentsModalOpen] = useState(false)
+  const [globalCommentsModalState, setGlobalCommentsModalState] =
+    useState<GlobalCommentsModalState | null>(null)
+  const [isSavingGlobalCommentsModal, setIsSavingGlobalCommentsModal] =
+    useState(false)
   const [isViewCommentsModalOpen, setIsViewCommentsModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isExportingComments, setIsExportingComments] = useState(false)
@@ -425,6 +433,7 @@ function App() {
     isWritingComments ||
     isReadingGlobalComments ||
     isWritingGlobalComments ||
+    isSavingGlobalCommentsModal ||
     isExportingComments
   const canCloseWorkspace =
     activeWorkspaceId !== null && workspaces.some(({ id }) => id === activeWorkspaceId)
@@ -585,20 +594,26 @@ function App() {
 
   const handleSaveGlobalComments = useCallback(
     async (body: string) => {
-      if (!activeWorkspaceId || !rootPath) {
+      const targetWorkspaceId = globalCommentsModalState?.workspaceId
+      if (!targetWorkspaceId) {
         showBanner('Cannot save global comments: no active workspace selected.')
         return
       }
 
-      const saved = await saveGlobalComments(body)
-      if (!saved) {
-        return
-      }
+      setIsSavingGlobalCommentsModal(true)
+      try {
+        const saved = await saveGlobalComments(body, targetWorkspaceId)
+        if (!saved) {
+          return
+        }
 
-      showBanner('Global comments saved.')
-      setIsGlobalCommentsModalOpen(false)
+        showBanner('Global comments saved.')
+        setGlobalCommentsModalState(null)
+      } finally {
+        setIsSavingGlobalCommentsModal(false)
+      }
     },
-    [activeWorkspaceId, rootPath, saveGlobalComments, showBanner],
+    [globalCommentsModalState, saveGlobalComments, showBanner],
   )
 
   const handleRequestAddCommentFromSpec = useCallback(
@@ -1241,7 +1256,13 @@ function App() {
               className="header-action-button"
               disabled={isCommentsActionDisabled}
               onClick={() => {
-                setIsGlobalCommentsModalOpen(true)
+                if (!activeWorkspaceId) {
+                  return
+                }
+                setGlobalCommentsModalState({
+                  workspaceId: activeWorkspaceId,
+                  initialValue: globalComments,
+                })
               }}
               title="Add Global Comments"
               type="button"
@@ -1503,12 +1524,12 @@ function App() {
         onUpdateComment={handleUpdateComment}
       />
       <GlobalCommentsModal
-        initialValue={globalComments}
-        isOpen={isGlobalCommentsModalOpen}
-        isSaving={isWritingGlobalComments}
+        initialValue={globalCommentsModalState?.initialValue ?? ''}
+        isOpen={globalCommentsModalState !== null}
+        isSaving={isSavingGlobalCommentsModal}
         onCancel={() => {
-          if (!isWritingGlobalComments) {
-            setIsGlobalCommentsModalOpen(false)
+          if (!isSavingGlobalCommentsModal) {
+            setGlobalCommentsModalState(null)
           }
         }}
         onSave={handleSaveGlobalComments}

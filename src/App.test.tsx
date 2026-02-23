@@ -4121,6 +4121,112 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('keeps global comments scoped to the workspace where the modal was opened', async () => {
+    const workspaceRootA = '/Users/tester/projects/global-comments-workspace-a'
+    const workspaceRootB = '/Users/tester/projects/global-comments-workspace-b'
+    const globalCommentsByRoot = new Map<string, string>([
+      [workspaceRootA, ''],
+      [workspaceRootB, ''],
+    ])
+
+    readGlobalCommentsMock.mockImplementation(async (rootPath: string) => ({
+      ok: true,
+      body: globalCommentsByRoot.get(rootPath) ?? '',
+    }))
+    writeGlobalCommentsMock.mockImplementation(
+      async (rootPath: string, body: string) => {
+        globalCommentsByRoot.set(rootPath, body)
+        return { ok: true }
+      },
+    )
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRootA,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRootB,
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        workspaceRootA,
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        workspaceRootB,
+      )
+    })
+
+    fireEvent.change(screen.getByTestId('workspace-switcher-select'), {
+      target: { value: workspaceRootA },
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        workspaceRootA,
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Global Comments' }))
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Add global comments' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Global comments (Markdown)'), {
+      target: { value: 'Workspace A global note' },
+    })
+
+    fireEvent.change(screen.getByTestId('workspace-switcher-select'), {
+      target: { value: workspaceRootB },
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+        'title',
+        workspaceRootB,
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Global Comments' }))
+    await waitFor(() => {
+      expect(writeGlobalCommentsMock).toHaveBeenCalledWith(
+        workspaceRootA,
+        'Workspace A global note',
+      )
+    })
+
+    expect(globalCommentsByRoot.get(workspaceRootA)).toBe('Workspace A global note')
+    expect(globalCommentsByRoot.get(workspaceRootB)).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Global Comments' }))
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Add global comments' }),
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Global comments (Markdown)')).toHaveValue('')
+  })
+
   it('keeps Add Global Comments modal open when save fails and shows error banner', async () => {
     const workspaceRoot = '/Users/tester/projects/global-comments-fail-workspace'
     openDialogMock.mockResolvedValueOnce({

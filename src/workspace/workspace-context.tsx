@@ -79,7 +79,10 @@ type WorkspaceContextValue = {
   reloadComments: () => Promise<void>
   saveComments: (comments: CodeComment[]) => Promise<boolean>
   reloadGlobalComments: () => Promise<void>
-  saveGlobalComments: (body: string) => Promise<boolean>
+  saveGlobalComments: (
+    body: string,
+    workspaceId?: WorkspaceId,
+  ) => Promise<boolean>
   showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
@@ -583,48 +586,83 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [])
 
-  const saveGlobalComments = useCallback(async (body: string) => {
-    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
-    if (!activeWorkspaceId) {
-      return false
-    }
-
-    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
-    if (!workspaceSession) {
-      return false
-    }
-
-    const requestId =
-      (writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] ?? 0) +
-      1
-    writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] = requestId
-
-    setWorkspaceState((previous) =>
-      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-        ...currentSession,
-        isWritingGlobalComments: true,
-        globalCommentsError: null,
-      })),
-    )
-
-    try {
-      const writeResult = await window.workspace.writeGlobalComments(
-        workspaceSession.rootPath,
-        body,
-      )
-      if (
-        writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] !==
-        requestId
-      ) {
+  const saveGlobalComments = useCallback(
+    async (body: string, workspaceId?: WorkspaceId) => {
+      const targetWorkspaceId =
+        workspaceId ?? workspaceStateRef.current.activeWorkspaceId
+      if (!targetWorkspaceId) {
         return false
       }
 
-      if (!writeResult.ok) {
-        const errorMessage = writeResult.error
-          ? `Failed to save global comments: ${writeResult.error}`
-          : 'Failed to save global comments.'
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[targetWorkspaceId]
+      if (!workspaceSession) {
+        return false
+      }
+
+      const requestId =
+        (writeGlobalCommentsRequestIdByWorkspaceRef.current[targetWorkspaceId] ?? 0) +
+        1
+      writeGlobalCommentsRequestIdByWorkspaceRef.current[targetWorkspaceId] =
+        requestId
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+          ...currentSession,
+          isWritingGlobalComments: true,
+          globalCommentsError: null,
+        })),
+      )
+
+      try {
+        const writeResult = await window.workspace.writeGlobalComments(
+          workspaceSession.rootPath,
+          body,
+        )
+        if (
+          writeGlobalCommentsRequestIdByWorkspaceRef.current[targetWorkspaceId] !==
+          requestId
+        ) {
+          return false
+        }
+
+        if (!writeResult.ok) {
+          const errorMessage = writeResult.error
+            ? `Failed to save global comments: ${writeResult.error}`
+            : 'Failed to save global comments.'
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+              ...currentSession,
+              isWritingGlobalComments: false,
+              globalCommentsError: errorMessage,
+            })),
+          )
+          setBannerMessage(errorMessage)
+          return false
+        }
+
         setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+          updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            globalComments: body,
+            isWritingGlobalComments: false,
+            globalCommentsError: null,
+          })),
+        )
+        return true
+      } catch (error) {
+        if (
+          writeGlobalCommentsRequestIdByWorkspaceRef.current[targetWorkspaceId] !==
+          requestId
+        ) {
+          return false
+        }
+        const errorMessage =
+          error instanceof Error
+            ? `Failed to save global comments: ${error.message}`
+            : 'Failed to save global comments.'
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
             ...currentSession,
             isWritingGlobalComments: false,
             globalCommentsError: errorMessage,
@@ -633,38 +671,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         setBannerMessage(errorMessage)
         return false
       }
-
-      setWorkspaceState((previous) =>
-        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-          ...currentSession,
-          globalComments: body,
-          isWritingGlobalComments: false,
-          globalCommentsError: null,
-        })),
-      )
-      return true
-    } catch (error) {
-      if (
-        writeGlobalCommentsRequestIdByWorkspaceRef.current[activeWorkspaceId] !==
-        requestId
-      ) {
-        return false
-      }
-      const errorMessage =
-        error instanceof Error
-          ? `Failed to save global comments: ${error.message}`
-          : 'Failed to save global comments.'
-      setWorkspaceState((previous) =>
-        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-          ...currentSession,
-          isWritingGlobalComments: false,
-          globalCommentsError: errorMessage,
-        })),
-      )
-      setBannerMessage(errorMessage)
-      return false
-    }
-  }, [])
+    },
+    [],
+  )
 
   const reloadComments = useCallback(async () => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
