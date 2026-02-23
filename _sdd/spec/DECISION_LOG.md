@@ -783,3 +783,23 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F12.5 기준으로 동기화한다.
   - 향후 backlog에서 배너 duration 사용자 설정, global comments 고급 편집 경험은 별도 기능으로 다룬다.
+
+## 2026-02-23 - F17 구현 완료 반영(Global 포함 체크박스 + Delete Exported 하단 이동)
+
+- Context:
+  - F17(F17 follow-up) 구현으로 View Comments 모달에 global comments "Include in export" 체크박스를 추가하고, Delete Exported 버튼을 중간 위치에서 모달 하단 좌측으로 이동하는 UX 개선이 완료되었음.
+  - `onRequestExport` 콜백이 `(string[], boolean)` 시그니처로 확장되어 `App.tsx`가 `effectiveExportGlobalComments`/`effectiveExportHasGlobalComments`를 계산하고 export 모달에 전달함.
+  - 품질 게이트: `npm test`(`20 files, 225 passed`), `npm run lint`, `npx tsc --noEmit` 모두 통과.
+- Decision:
+  - F17을 스펙 상태 `✅ Done`으로 전환한다.
+  - View Comments 모달에서 global comments가 존재하면 "Include in export" 체크박스(기본 체크)를 제공하고, 체크 해제 시 export에서 global comments를 제외한다.
+  - Delete Exported 버튼은 모달 하단 액션 바 좌측(`margin-right: auto`)에 배치하여 Export Selected/Close 버튼과 시각적으로 분리한다.
+  - Export Selected 버튼의 활성화 조건에 `hasGlobalComments && includeGlobalComments`를 반영한다.
+- Rationale:
+  - global comments를 항상 포함하면 특정 export에서 불필요한 전역 컨텍스트가 포함될 수 있으므로, 사용자에게 선택권을 제공한다.
+  - Delete Exported는 파괴적 작업이므로 주요 액션(Export/Close)과 물리적으로 분리해 오작동 가능성을 낮춘다.
+- Alternatives considered:
+  - Export 모달에서 체크박스를 제공하는 방안(View Comments에서 미리 결정하는 것이 흐름에 자연스러움)
+  - Delete Exported를 별도 섹션에 유지하는 방안(하단 통합이 공간 효율적)
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`를 F17 기준으로 동기화한다.

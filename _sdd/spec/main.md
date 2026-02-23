@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.28.0`
+- 문서 버전: `0.29.0`
 - 마지막 업데이트: `2026-02-23`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -25,20 +25,20 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F16`
+- 구현 완료 범위: `F01~F17`
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 3패널(code/raw spec/rendered spec) 탐색
   2. spec link/selection 기반 code line jump
   3. 컨텍스트 복사 + Open In(iTerm/VSCode)
   4. file watcher 기반 변경 감지 + collapse 버블링 marker 가시화 + history navigation
   5. inline comment + comment 관리(View/Edit/Delete/Delete Exported) + LLM export bundle
-  6. global comments(워크스페이스 단위) + export 선행 prepend + incremental export
+  6. global comments(워크스페이스 단위) + export 선행 prepend + incremental export + global 포함 체크박스 선택
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
   8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + comment 피드백 auto-dismiss + header action 그룹 명확화
   9. SSHFS 마운트 원격 워크스페이스 자동 polling + 수동 watch mode override
   10. 대규모 워크스페이스 지원: remote 깊이제한 + 디렉토리별 child cap + on-demand 확장 + 과대 디렉토리 polling 제외
 - 최신 품질 게이트(2026-02-23):
-  - `npm test` -> `20 files, 213 passed`
+  - `npm test` -> `20 files, 225 passed`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 
@@ -57,7 +57,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F15), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F17), 상세 수용 기준, 리스크/백로그
 
 ---
 

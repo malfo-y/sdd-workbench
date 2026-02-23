@@ -351,3 +351,14 @@
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F16/SYNC_20260223_093624_IMPLEMENTATION_PLAN.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_PLAN.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F16/SYNC_20260223_093624_IMPLEMENTATION_PROGRESS.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F16/SYNC_20260223_093624_IMPLEMENTATION_REPORT.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+## f17
+
+### Sync Record - 2026-02-23T10:52:59Z
+
+- note: spec sync (F17 done — global comments export checkbox + Delete Exported bottom-left move; reflected in `main.md`, `01-overview.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`, `DECISION_LOG.md`)
+- copied files:
+  - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+  - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`

@@ -34,7 +34,7 @@
 - View Comments 모달 기반 코멘트 편집/삭제/Delete Exported
 - Add Global Comments + export 선행 prepend
 - code/rendered marker hover preview로 코멘트 본문 요약 확인
-- View Comments 상단 global comments 표시 + Export modal global 포함 상태 표시
+- View Comments 상단 global comments 표시 + "Include in export" 체크박스로 global 포함 선택 + Export modal global 포함 상태 표시
 - 코멘트 배너 5초 auto-dismiss(코멘트 액션 경로 한정)
 - header comments/workspace 액션 그룹 + title 옆 Back/Forward 배치
 
@@ -78,7 +78,8 @@
 2. `View Comments`에서 코멘트 조회/편집/삭제/Delete Exported를 수행
 3. `Add Global Comments`로 워크스페이스 전역 지시사항을 관리
 4. 코드/문서 marker와 hover preview로 코멘트 분포/본문 요약을 확인
-5. `Export Comments`에서 Global Comments 선행 + pending-only line comment bundle을 내보내고 `exportedAt`를 기록
+5. `View Comments`에서 "Include in export" 체크박스로 Global Comments 포함 여부를 선택
+6. `Export Comments`에서 Global Comments 선행 + pending-only line comment bundle을 내보내고 `exportedAt`를 기록
 
 ## 5. 현재 기능 커버리지 요약
 
@@ -102,6 +103,7 @@
 | 코멘트 피드백 auto-dismiss + global 가시성 + 헤더 좌측 history 배치 | Implemented | F12.5 |
 | 원격 워크스페이스 watch mode 정책 | Implemented | F15 |
 | Lazy indexing + on-demand 디렉토리 확장 | Implemented | F16 |
+| Global 포함 체크박스 + Delete Exported 하단 이동 | Implemented | F17 |
 
 ## 6. Open Questions
 
