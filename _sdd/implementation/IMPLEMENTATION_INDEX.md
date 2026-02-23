@@ -362,3 +362,11 @@
   - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
   - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
   - `_sdd/implementation/features/f17/SYNC_20260223_105259_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+## F18
+
+### Sync Record - 2026-02-23T12:19:05Z
+
+- note: spec sync (F18 done — PrismJS→Shiki syntax highlighting migration; reflected in `main.md`, `01-overview.md`, `03-components.md`, `05-operational-guides.md`, `appendix.md`, `DECISION_LOG.md`)
+- copied files:
+  - `_sdd/implementation/features/F18/SYNC_20260223_121905_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`

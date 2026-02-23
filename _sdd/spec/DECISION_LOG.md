@@ -803,3 +803,29 @@
   - Delete Exported를 별도 섹션에 유지하는 방안(하단 통합이 공간 효율적)
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`를 F17 기준으로 동기화한다.
+
+## 2026-02-23 - F18 구현 완료 반영(PrismJS → Shiki 코드 하이라이팅 마이그레이션)
+
+- Context:
+  - PrismJS는 RegExp 기반 토큰화로 지원 언어가 9개에 불과하고, TextMate 문법 대비 토큰 정확도가 낮았음.
+  - Electron renderer 환경에서 Shiki 기본 WASM 엔진(oniguruma)은 모듈 로드 시점에 크래시를 일으킴.
+  - Vite 빌드 환경에서 `import(\`shiki/langs/${variable}.mjs\`)` 동적 import는 번들링 불가.
+- Decision:
+  - PrismJS를 완전 제거하고 Shiki(`shiki/core` + `shiki/engine/javascript`)로 전환한다.
+  - JS regex 엔진을 사용하여 WASM 의존성을 제거하고, 정적 `LANG_IMPORTS` 맵으로 35개 언어를 lazy 로드한다.
+  - `highlightLines`/`highlightPreviewLines`를 비동기 API로 제공하고, 완료 전까지 plaintext fallback을 표시한다.
+  - Highlighter는 모듈 수준 싱글톤(`Promise<HighlighterCore>`)으로 캐시하여 중복 생성을 방지한다.
+  - 테마는 `github-dark` 단일 테마로 고정하고, 토큰 색상은 inline `style="color:..."` 으로 적용한다.
+- Rationale:
+  - JS regex 엔진은 WASM 대비 약간의 성능 차이가 있지만, Electron renderer 호환성을 보장한다.
+  - 정적 import 맵은 Vite 빌드 분석이 가능하여 tree-shaking과 코드 분할을 정상 수행한다.
+  - 비동기 + plaintext fallback은 파일 전환 시 빈 화면 없이 즉시 콘텐츠를 표시한다.
+- Alternatives considered:
+  - Shiki 기본 번들(`createHighlighter` from `shiki`) — WASM 크래시로 불가
+  - 동적 template literal import — Vite 번들링 불가로 런타임 404
+  - PrismJS 유지 + 언어 확장 — TextMate 문법 정확도에 근본적 한계
+- Impact / follow-up:
+  - `package.json`에서 `prismjs`/`@types/prismjs` 제거, `shiki` 추가.
+  - `App.css`에서 `.token.*` PrismJS 규칙 제거.
+  - 지원 언어 9개 → 35+개로 확장, 추가 언어는 `LANG_IMPORTS`에 thunk 추가만으로 가능.
+  - 품질 게이트: `npm test`(`21 files, 241 passed`), `npm run lint`, `npx tsc --noEmit` 모두 통과.

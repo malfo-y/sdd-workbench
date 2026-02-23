@@ -5,7 +5,7 @@
 - 파일 트리 초기 렌더 cap: 500
 - 인덱싱 cap: 10,000 (`truncated` 배너 표시)
 - 코드 프리뷰 제한: 2MB 초과 시 preview unavailable
-- 하이라이트 재계산은 file content/language 변경 시에만 수행
+- 하이라이트(Shiki 비동기)는 file content/language 변경 시에만 수행하며, 완료 전까지 plaintext fallback 표시
 - watcher 이벤트는 debounce 처리
 - polling watcher는 로컬 1500ms / 원격 마운트 5000ms 간격으로 메타데이터 diff(`mtimeMs + size`)를 수행
 - polling watcher는 child cap(`500`) 초과 디렉토리를 자동 제외하여 과대 디렉토리 반복 스캔을 방지
@@ -38,7 +38,7 @@
 
 ### 4.1 자동 게이트 (2026-02-23 기준)
 
-- `npm test` -> `20 files, 213 passed`
+- `npm test` -> `21 files, 241 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -76,7 +76,7 @@
 
 ## 5. 개발 환경
 
-- Runtime: `react`, `react-dom`, `react-markdown`, `remark-gfm`, `rehype-sanitize`, `prismjs`, `chokidar`
+- Runtime: `react`, `react-dom`, `react-markdown`, `remark-gfm`, `rehype-sanitize`, `shiki`, `chokidar`
 - Build/Test: `electron`, `vite`, `typescript`, `eslint`, `vitest`, `@testing-library/*`
 
 실행 명령:

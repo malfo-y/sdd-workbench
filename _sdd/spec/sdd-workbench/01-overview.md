@@ -104,6 +104,7 @@
 | 원격 워크스페이스 watch mode 정책 | Implemented | F15 |
 | Lazy indexing + on-demand 디렉토리 확장 | Implemented | F16 |
 | Global 포함 체크박스 + Delete Exported 하단 이동 | Implemented | F17 |
+| Shiki 기반 코드 하이라이팅(40+ 언어, 비동기) | Implemented | F18 |
 
 ## 6. Open Questions
 

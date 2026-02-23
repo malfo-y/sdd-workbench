@@ -47,7 +47,8 @@
 - `src/code-viewer/line-selection.ts`
   - 1-based selection 유틸
 - `src/code-viewer/language-map.ts`, `syntax-highlight.ts`
-  - 확장자 매핑 + syntax highlight
+  - Shiki 기반 비동기 syntax highlight(JS regex 엔진, 40+ 언어 lazy 로드, github-dark 테마)
+  - 확장자/파일명 → Shiki `BundledLanguage` 매핑 + plaintext fallback
 
 ### 1.5 Spec Viewer Layer
 
@@ -108,6 +109,7 @@
 - code viewer: `src/code-viewer/code-viewer-panel.test.tsx`
 - file tree lazy load: `src/file-tree/file-tree-panel.test.tsx`
 - electron resolver: `electron/workspace-watch-mode.test.ts`
+- syntax highlight: `src/code-viewer/syntax-highlight.test.ts`
 - comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export/comment-list-modal` 테스트
 
 ## 3. 유지보수 규칙

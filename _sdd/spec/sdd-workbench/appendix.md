@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F17)
+## A. 기능 이력 (F01~F18)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -33,6 +33,7 @@
 | F15 | Done | 2026-02-23 | SSHFS 원격 워크스페이스 watch mode(auto/override) + polling fallback |
 | F16 | Done | 2026-02-23 | lazy indexing(remote 깊이제한 + child cap 500) + on-demand 디렉토리 확장 + 과대 디렉토리 polling 제외 |
 | F17 | Done | 2026-02-23 | View Comments global 포함 체크박스 + Delete Exported 하단 좌측 이동 |
+| F18 | Done | 2026-02-23 | Shiki 기반 코드 하이라이팅(PrismJS 제거, 40+ 언어, 비동기 + plaintext fallback) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -53,6 +54,7 @@
 - header action 그룹 재배치 + compact/icon-only 정책
 - 코멘트 배너 auto-dismiss(5s) + `View Comments`/`Export Comments` global 가시성 명시
 - `View Comments` global comments "Include in export" 체크박스 + Delete Exported 하단 좌측 배치
+- Shiki 기반 syntax highlight(JS regex 엔진, 40+ 언어 lazy 로드, github-dark 테마, 비동기 + plaintext fallback)
 - 원격 마운트(`mount` 명령 기반 네트워크 FS 감지) watcher 모드 자동 판정 + 수동 override + fallback 정책
 - 대규모 워크스페이스 lazy indexing(remote 깊이제한 3레벨 + 디렉토리별 child cap 500) + on-demand 확장
 - polling watcher child cap 초과 디렉토리 자동 제외
