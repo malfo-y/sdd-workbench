@@ -10,6 +10,36 @@ import { CopyActionPopover } from '../context-menu/copy-action-popover'
 
 const INITIAL_RENDER_NODE_LIMIT = 500
 
+const FILE_ICON_MAP: Record<string, string> = {
+  '.py': '🐍',
+  '.md': '📝',
+  '.ts': '🔷',
+  '.tsx': '🔷',
+  '.js': '🟡',
+  '.jsx': '🟡',
+  '.json': '📋',
+  '.css': '🎨',
+  '.html': '🌐',
+  '.yml': '⚙️',
+  '.yaml': '⚙️',
+  '.toml': '⚙️',
+  '.sh': '📜',
+  '.bash': '📜',
+  '.zsh': '📜',
+  '.png': '🖼️',
+  '.jpg': '🖼️',
+  '.jpeg': '🖼️',
+  '.gif': '🖼️',
+  '.svg': '🖼️',
+}
+
+function getFileIcon(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex < 0) return '📄'
+  const ext = fileName.slice(dotIndex).toLowerCase()
+  return FILE_ICON_MAP[ext] ?? '📄'
+}
+
 type FileTreePanelProps = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
@@ -217,6 +247,7 @@ function renderFileTreeNodes(
           onClick={() => onSelectFile(node.relativePath)}
           type="button"
         >
+          <span aria-hidden className="tree-file-icon">{getFileIcon(node.name)}</span>
           <span className="tree-file-name">{node.name}</span>
           {isChanged && (
             <span

@@ -741,7 +741,15 @@
   width: 100%;
 }
 
+.tree-file-icon {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  line-height: 1;
+  width: 14px;
+}
+
 .tree-file-name {
+  font-size: 0.9rem;
   min-width: 0;
 }
 
