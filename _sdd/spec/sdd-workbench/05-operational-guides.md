@@ -34,7 +34,7 @@
 
 ### 4.1 자동 게이트 (2026-02-23 기준)
 
-- `npm test` -> `20 files, 197 passed`
+- `npm test` -> `20 files, 202 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -63,6 +63,8 @@
 14. watch mode `Auto`일 때 `/Volumes/*` -> polling, non-`/Volumes/*` -> native 판정 확인
 15. watch mode를 `Native/Polling`으로 변경했을 때 override 우선 적용 확인
 16. native 실패 시 polling fallback 배너 노출 및 변경 감지 유지 확인
+17. 코멘트 액션 배너가 5초 후 자동 dismiss되고 `Dismiss`로 즉시 닫히는지 확인
+18. `View Comments` 상단 global comments(read-only/empty), `Export Comments`의 global 포함 상태(`included`/`not included`) 표기를 확인
 
 ## 5. 개발 환경
 

@@ -10,7 +10,7 @@
 2. 스펙 문서 링크/선택에서 코드 라인으로 즉시 점프
 3. CLI 협업을 위한 컨텍스트 복사 및 외부 툴 연동(Open In) 지원
 4. 외부 파일 변경(watcher)을 UI에서 안정적으로 반영
-5. 코멘트 수집/관리/내보내기/hover preview 루프(F11~F12.4)로 LLM 협업 효율화
+5. 코멘트 수집/관리/내보내기/hover preview/피드백 루프(F11~F12.5)로 LLM 협업 효율화
 6. 스펙-코드 왕복 시 rendered 문맥(스크롤 위치) 보존으로 탐색 비용 최소화
 7. 원격 마운트 워크스페이스(`/Volumes/*`)에서도 watcher 신뢰성을 유지(`auto/native/polling`)
 
@@ -32,7 +32,9 @@
 - View Comments 모달 기반 코멘트 편집/삭제/Delete Exported
 - Add Global Comments + export 선행 prepend
 - code/rendered marker hover preview로 코멘트 본문 요약 확인
-- header comments/workspace 액션 그룹 compact UI
+- View Comments 상단 global comments 표시 + Export modal global 포함 상태 표시
+- 코멘트 배너 5초 auto-dismiss(코멘트 액션 경로 한정)
+- header comments/workspace 액션 그룹 + title 옆 Back/Forward 배치
 
 ### 3.2 MVP 제외 범위
 
@@ -88,6 +90,7 @@
 | 코멘트 관리(View/Edit/Delete) | Implemented | F12.2 |
 | Global Comments + export prepend | Implemented | F12.3 |
 | 헤더 액션 그룹 compact 재배치 | Implemented | F12.4 |
+| 코멘트 피드백 auto-dismiss + global 가시성 + 헤더 좌측 history 배치 | Implemented | F12.5 |
 | 원격 워크스페이스 watch mode 정책 | Implemented | F15 |
 
 ## 6. Open Questions

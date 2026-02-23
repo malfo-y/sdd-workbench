@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.26.0`
+- 문서 버전: `0.27.0`
 - 마지막 업데이트: `2026-02-23`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -15,6 +15,7 @@
   - F12.2 draft: `/_sdd/drafts/feature_draft_f12_2_view_comments_edit_delete.md`
   - F12.3 draft: `/_sdd/drafts/feature_draft_f12_3_global_comments_capture_and_export_order.md`
   - F12.4 draft: `/_sdd/drafts/feature_draft_f12_4_header_action_layout_reorder.md`
+  - F12.5 draft: `/_sdd/drafts/feature_draft_f12_5_comment_feedback_autodismiss_and_action_group_clarity.md`
   - F15 draft: `/_sdd/drafts/feature_draft_f15_remote_workspace_via_sshfs.md`
 - 리라이트:
   - 단일 대형 문서(`main.md`)를 인덱스 + 주제별 하위 문서로 분할
@@ -33,10 +34,10 @@
   5. inline comment + comment 관리(View/Edit/Delete/Delete Exported) + LLM export bundle
   6. global comments(워크스페이스 단위) + export 선행 prepend + incremental export
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
-  8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + compact header action 그룹
+  8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + comment 피드백 auto-dismiss + header action 그룹 명확화
   9. SSHFS 마운트 원격 워크스페이스(`/Volumes/*`) 자동 polling + 수동 watch mode override
 - 최신 품질 게이트(2026-02-23):
-  - `npm test` -> `20 files, 197 passed`
+  - `npm test` -> `20 files, 202 passed`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 

@@ -736,3 +736,26 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F15 완료 기준으로 동기화한다.
   - 후속 backlog로 remote 판정 고도화(플랫폼별 mount metadata)와 polling 최적화(open/recent/expanded 범위 축소)를 유지한다.
+
+## 2026-02-23 - F12.5 구현 완료 반영(comment feedback auto-dismiss + global 가시성 + header action clarity)
+
+- Context:
+  - F12.5 구현으로 코멘트 액션 피드백 배너 auto-dismiss, `View Comments`의 global comments 상단 노출, `Export Comments`의 global 포함 상태 표시, 헤더 액션 그룹 명확화가 코드/테스트에 반영되었음.
+  - 최신 구현 산출물(`IMPLEMENTATION_PROGRESS.md`, `IMPLEMENTATION_REPORT.md`)에 F12.5 Addendum이 기록되었고 품질 게이트는 `npm test`(`20 files, 202 passed`), `npm run lint`, `npm run build` 통과 상태임.
+- Decision:
+  - F12.5를 스펙 상태 `✅ Done`으로 전환한다.
+  - 코멘트 액션 경로 배너는 5초 auto-dismiss를 기본으로 하되 사용자 `Dismiss` 즉시 종료를 유지한다.
+  - `View Comments`는 global comments(read-only/empty 상태 포함)를 line comments 상단에 고정 노출한다.
+  - `Export Comments` 모달은 global comments 포함 여부(`included`/`not included`)를 명시한다.
+  - 헤더 액션은 `Title + Back/Forward`(좌측)와 `Code comments`/`Workspace` 그룹(우측)으로 구분한다.
+- Rationale:
+  - 코멘트 작업 후 배너 잔류를 줄여 화면 점유를 완화하면서도 수동 종료 경로를 유지하면 피드백 가시성과 집중 흐름을 함께 확보할 수 있다.
+  - global comments의 조회/내보내기 포함 여부를 UI에서 즉시 확인 가능해야 코멘트 번들의 실제 전달 컨텍스트를 예측할 수 있다.
+  - 헤더 그룹 경계를 명확히 하면 코멘트 액션과 워크스페이스 액션의 인지 혼선을 줄일 수 있다.
+- Alternatives considered:
+  - 모든 배너(워크스페이스/IO 포함)에 auto-dismiss 적용
+  - global comments를 View/Export에 노출하지 않고 기존 `Add Global Comments` 모달에서만 확인
+  - 헤더 액션을 단일 버튼열로 유지
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F12.5 기준으로 동기화한다.
+  - 향후 backlog에서 배너 duration 사용자 설정, global comments 고급 편집 경험은 별도 기능으로 다룬다.

@@ -29,6 +29,7 @@
 | F12.2 | Done | 2026-02-22 | View Comments + edit/delete/Delete Exported |
 | F12.3 | Done | 2026-02-22 | Add Global Comments + export prepend order |
 | F12.4 | Done | 2026-02-22 | header comments/workspace action compact layout reorder |
+| F12.5 | Done | 2026-02-23 | comment feedback auto-dismiss + global 가시성 + header action group clarity |
 | F15 | Done | 2026-02-23 | SSHFS 원격 워크스페이스 watch mode(auto/override) + polling fallback |
 
 ## B. 상세 수용 기준 (요약)
@@ -48,6 +49,7 @@
 - global comments 저장/복원 및 export prepend 정책
 - code/rendered marker hover preview(`+N more`, read-only)
 - header action 그룹 재배치 + compact/icon-only 정책
+- 코멘트 배너 auto-dismiss(5s) + `View Comments`/`Export Comments` global 가시성 명시
 - 원격 마운트(`/Volumes/*`) watcher 모드 자동 판정 + 수동 override + fallback 정책
 
 ## C. 리스크/백로그

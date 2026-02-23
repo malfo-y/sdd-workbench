@@ -6,7 +6,8 @@
 
 - `src/App.tsx`
   - 3패널 조립, header 액션, 모달 오케스트레이션
-  - header actions를 history/comments/workspace 그룹으로 분리하고 compact 버튼(`icon + short label`) 적용
+  - header left(title + history) + header right(comments/workspace) 그룹으로 분리하고 compact 버튼(`icon + short label`) 적용
+  - 코멘트 전용 배너 helper + auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
 - `src/App.css`
   - 패널 레이아웃, marker/popover/modal 스타일
@@ -24,7 +25,7 @@
 - `src/workspace/workspace-persistence.ts`
   - 세션 snapshot hydrate/persist(`watchModePreference` 영속화)
 - `src/workspace/workspace-switcher.tsx`
-  - 활성 workspace 선택/닫기
+  - 활성 workspace 선택
 
 ### 1.3 File Tree Layer
 
@@ -74,8 +75,9 @@
   - `_COMMENTS.md` 및 bundle 렌더(global comments prepend 포함)
 - `src/code-comments/comment-editor-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
+  - export target/길이 가드 + global comments 포함 상태 표시
 - `src/code-comments/comment-list-modal.tsx`
-  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm)
+  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm) + global comments 상단 read-only 섹션
 - `src/code-comments/global-comments-modal.tsx`
   - 워크스페이스 전역 코멘트 편집/저장
 
