@@ -1,4 +1,4 @@
-import type { WorkspaceState } from './workspace-model'
+import type { WorkspaceState, WorkspaceWatchModePreference } from './workspace-model'
 
 export const WORKSPACE_SESSION_STORAGE_KEY = 'sdd-workbench:workspace-session:v1'
 export const WORKSPACE_SESSION_SCHEMA_VERSION = 1
@@ -10,6 +10,7 @@ export type PersistedWorkspaceSession = {
   activeSpec: string | null
   expandedDirectories: string[]
   fileLastLineByPath: Record<string, number>
+  watchModePreference: WorkspaceWatchModePreference
 }
 
 export type WorkspaceSessionSnapshot = {
@@ -75,6 +76,15 @@ function normalizeFileLastLineByPath(
   return Object.fromEntries(limitedEntries)
 }
 
+function normalizeWatchModePreference(
+  value: unknown,
+): WorkspaceWatchModePreference {
+  if (value === 'native' || value === 'polling' || value === 'auto') {
+    return value
+  }
+  return 'auto'
+}
+
 function normalizeWorkspaceSession(
   value: unknown,
 ): PersistedWorkspaceSession | null {
@@ -93,6 +103,9 @@ function normalizeWorkspaceSession(
     activeSpec: isNonEmptyString(value.activeSpec) ? value.activeSpec : null,
     expandedDirectories: normalizeUniqueStringArray(expandedDirectories),
     fileLastLineByPath: normalizeFileLastLineByPath(fileLastLineByPath),
+    watchModePreference: normalizeWatchModePreference(
+      value.watchModePreference,
+    ),
   }
 }
 
@@ -163,6 +176,9 @@ export function createWorkspaceSessionSnapshot(
       ),
       fileLastLineByPath: normalizeFileLastLineByPath(
         workspaceSession.fileLastLineByPath,
+      ),
+      watchModePreference: normalizeWatchModePreference(
+        workspaceSession.watchModePreference,
       ),
     }
   }

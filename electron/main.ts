@@ -4,6 +4,11 @@ import { execFile } from 'node:child_process'
 import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import {
+  resolveWorkspaceWatchMode,
+  type WorkspaceWatchMode,
+  type WorkspaceWatchModePreference,
+} from './workspace-watch-mode'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -148,6 +153,7 @@ type WorkspaceExportCommentsBundleResult = {
 type WorkspaceWatchStartRequest = {
   workspaceId: string
   rootPath: string
+  watchModePreference?: WorkspaceWatchModePreference
 }
 
 type WorkspaceWatchStopRequest = {
@@ -156,6 +162,9 @@ type WorkspaceWatchStopRequest = {
 
 type WorkspaceWatchControlResult = {
   ok: boolean
+  watchMode?: WorkspaceWatchMode
+  isRemoteMounted?: boolean
+  fallbackApplied?: boolean
   error?: string
 }
 
@@ -186,11 +195,24 @@ type SystemOpenInResult = {
 type WorkspaceWatcherEntry = {
   workspaceId: string
   rootPath: string
-  watcher: FSWatcher
+  watchMode: WorkspaceWatchMode
   pendingRelativePaths: Set<string>
   hasPendingStructureChanges: boolean
   debounceTimer: ReturnType<typeof setTimeout> | null
-}
+} & (
+  | {
+      watchMode: 'native'
+      watcher: FSWatcher
+    }
+  | {
+      watchMode: 'polling'
+      pollTimer: ReturnType<typeof setTimeout> | null
+      pollIntervalMs: number
+      fileMetadataByRelativePath: Map<string, string>
+      directoryPaths: Set<string>
+      pollingInProgress: boolean
+    }
+)
 
 const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
   '.git',
@@ -216,6 +238,7 @@ const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
 const MAX_WORKSPACE_INDEX_NODES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
+const WORKSPACE_WATCH_POLL_INTERVAL_MS = 1500
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
 const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
@@ -1187,6 +1210,277 @@ function queueWorkspaceWatchEvent(
   }, WATCH_EVENT_DEBOUNCE_MS)
 }
 
+function queueWorkspaceWatchBatchEvent(
+  workspaceId: string,
+  changedRelativePaths: string[],
+  hasStructureChanges: boolean,
+) {
+  const watchEntry = workspaceWatchers.get(workspaceId)
+  if (!watchEntry) {
+    return
+  }
+
+  for (const relativePath of changedRelativePaths) {
+    if (!relativePath || relativePath.startsWith('..')) {
+      continue
+    }
+    watchEntry.pendingRelativePaths.add(relativePath)
+  }
+  if (hasStructureChanges) {
+    watchEntry.hasPendingStructureChanges = true
+  }
+
+  if (watchEntry.debounceTimer !== null) {
+    return
+  }
+
+  watchEntry.debounceTimer = setTimeout(() => {
+    flushWorkspaceWatchEvent(workspaceId)
+  }, WATCH_EVENT_DEBOUNCE_MS)
+}
+
+type WorkspacePollingSnapshot = {
+  fileMetadataByRelativePath: Map<string, string>
+  directoryPaths: Set<string>
+}
+
+async function buildWorkspacePollingSnapshot(
+  rootPath: string,
+): Promise<WorkspacePollingSnapshot> {
+  const fileMetadataByRelativePath = new Map<string, string>()
+  const directoryPaths = new Set<string>()
+
+  async function walkDirectory(currentDirectory: string): Promise<void> {
+    const entries = await readdir(currentDirectory, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+
+      const absolutePath = path.join(currentDirectory, entry.name)
+      const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+      if (!relativePath || relativePath.startsWith('..')) {
+        continue
+      }
+
+      if (shouldIgnoreWatchPath(rootPath, absolutePath)) {
+        continue
+      }
+
+      if (entry.isDirectory()) {
+        directoryPaths.add(relativePath)
+        await walkDirectory(absolutePath)
+        continue
+      }
+
+      if (!entry.isFile()) {
+        continue
+      }
+
+      try {
+        const fileStats = await stat(absolutePath)
+        fileMetadataByRelativePath.set(
+          relativePath,
+          `${fileStats.mtimeMs}:${fileStats.size}`,
+        )
+      } catch {
+        // Files may disappear while scanning. Skip those transient entries.
+      }
+    }
+  }
+
+  await walkDirectory(rootPath)
+  return {
+    fileMetadataByRelativePath,
+    directoryPaths,
+  }
+}
+
+function diffWorkspacePollingSnapshot(
+  previousSnapshot: WorkspacePollingSnapshot,
+  nextSnapshot: WorkspacePollingSnapshot,
+) {
+  const changedRelativePaths = new Set<string>()
+  let hasStructureChanges = false
+
+  for (const [relativePath, nextMetadata] of nextSnapshot.fileMetadataByRelativePath) {
+    const previousMetadata =
+      previousSnapshot.fileMetadataByRelativePath.get(relativePath)
+    if (!previousMetadata) {
+      changedRelativePaths.add(relativePath)
+      hasStructureChanges = true
+      continue
+    }
+    if (previousMetadata !== nextMetadata) {
+      changedRelativePaths.add(relativePath)
+    }
+  }
+
+  for (const relativePath of previousSnapshot.fileMetadataByRelativePath.keys()) {
+    if (nextSnapshot.fileMetadataByRelativePath.has(relativePath)) {
+      continue
+    }
+    changedRelativePaths.add(relativePath)
+    hasStructureChanges = true
+  }
+
+  for (const directoryPath of nextSnapshot.directoryPaths) {
+    if (!previousSnapshot.directoryPaths.has(directoryPath)) {
+      hasStructureChanges = true
+    }
+  }
+  for (const directoryPath of previousSnapshot.directoryPaths) {
+    if (!nextSnapshot.directoryPaths.has(directoryPath)) {
+      hasStructureChanges = true
+    }
+  }
+
+  return {
+    changedRelativePaths: Array.from(changedRelativePaths).sort(),
+    hasStructureChanges,
+  }
+}
+
+function scheduleWorkspacePollingTick(workspaceId: string) {
+  const watchEntry = workspaceWatchers.get(workspaceId)
+  if (!watchEntry || watchEntry.watchMode !== 'polling') {
+    return
+  }
+
+  if (watchEntry.pollTimer !== null) {
+    return
+  }
+
+  watchEntry.pollTimer = setTimeout(() => {
+    const currentWatchEntry = workspaceWatchers.get(workspaceId)
+    if (!currentWatchEntry || currentWatchEntry.watchMode !== 'polling') {
+      return
+    }
+    currentWatchEntry.pollTimer = null
+    if (currentWatchEntry.pollingInProgress) {
+      scheduleWorkspacePollingTick(workspaceId)
+      return
+    }
+
+    currentWatchEntry.pollingInProgress = true
+    void (async () => {
+      try {
+        const nextSnapshot = await buildWorkspacePollingSnapshot(
+          currentWatchEntry.rootPath,
+        )
+        const liveWatchEntry = workspaceWatchers.get(workspaceId)
+        if (
+          !liveWatchEntry ||
+          liveWatchEntry.watchMode !== 'polling' ||
+          liveWatchEntry !== currentWatchEntry
+        ) {
+          return
+        }
+
+        const diff = diffWorkspacePollingSnapshot(
+          {
+            fileMetadataByRelativePath:
+              currentWatchEntry.fileMetadataByRelativePath,
+            directoryPaths: currentWatchEntry.directoryPaths,
+          },
+          nextSnapshot,
+        )
+
+        currentWatchEntry.fileMetadataByRelativePath =
+          nextSnapshot.fileMetadataByRelativePath
+        currentWatchEntry.directoryPaths = nextSnapshot.directoryPaths
+
+        if (
+          diff.changedRelativePaths.length > 0 ||
+          diff.hasStructureChanges
+        ) {
+          queueWorkspaceWatchBatchEvent(
+            workspaceId,
+            diff.changedRelativePaths,
+            diff.hasStructureChanges,
+          )
+        }
+      } catch (error) {
+        console.error(
+          `Workspace polling watcher error (${workspaceId}).`,
+          error,
+        )
+      } finally {
+        const liveWatchEntry = workspaceWatchers.get(workspaceId)
+        if (
+          liveWatchEntry &&
+          liveWatchEntry.watchMode === 'polling' &&
+          liveWatchEntry === currentWatchEntry
+        ) {
+          liveWatchEntry.pollingInProgress = false
+          scheduleWorkspacePollingTick(workspaceId)
+        }
+      }
+    })()
+  }, watchEntry.pollIntervalMs)
+}
+
+async function createNativeWorkspaceWatcherEntry(
+  workspaceId: string,
+  resolvedRootPath: string,
+): Promise<WorkspaceWatcherEntry> {
+  const watcher = chokidar.watch(resolvedRootPath, {
+    ignored: (candidatePath) =>
+      shouldIgnoreWatchPath(resolvedRootPath, candidatePath),
+    ignoreInitial: true,
+    persistent: true,
+    followSymlinks: false,
+  })
+
+  const watchEntry: WorkspaceWatcherEntry = {
+    workspaceId,
+    rootPath: resolvedRootPath,
+    watchMode: 'native',
+    watcher,
+    pendingRelativePaths: new Set(),
+    hasPendingStructureChanges: false,
+    debounceTimer: null,
+  }
+
+  watcher.on('all', (eventName, candidatePath) => {
+    if (
+      !WATCHABLE_FILE_EVENTS.has(eventName) &&
+      !WATCHABLE_STRUCTURE_EVENTS.has(eventName)
+    ) {
+      return
+    }
+    queueWorkspaceWatchEvent(workspaceId, eventName, candidatePath)
+  })
+
+  watcher.on('error', (error) => {
+    console.error(`Workspace watcher error (${workspaceId}).`, error)
+  })
+
+  return watchEntry
+}
+
+async function createPollingWorkspaceWatcherEntry(
+  workspaceId: string,
+  resolvedRootPath: string,
+  pollIntervalMs = WORKSPACE_WATCH_POLL_INTERVAL_MS,
+): Promise<WorkspaceWatcherEntry> {
+  const initialSnapshot = await buildWorkspacePollingSnapshot(resolvedRootPath)
+
+  return {
+    workspaceId,
+    rootPath: resolvedRootPath,
+    watchMode: 'polling',
+    pollTimer: null,
+    pollIntervalMs,
+    fileMetadataByRelativePath: initialSnapshot.fileMetadataByRelativePath,
+    directoryPaths: initialSnapshot.directoryPaths,
+    pollingInProgress: false,
+    pendingRelativePaths: new Set(),
+    hasPendingStructureChanges: false,
+    debounceTimer: null,
+  }
+}
+
 async function stopWorkspaceWatcher(workspaceId: string) {
   const watchEntry = workspaceWatchers.get(workspaceId)
   if (!watchEntry) {
@@ -1200,7 +1494,18 @@ async function stopWorkspaceWatcher(workspaceId: string) {
   }
   watchEntry.pendingRelativePaths.clear()
   watchEntry.hasPendingStructureChanges = false
-  await watchEntry.watcher.close()
+  if (watchEntry.watchMode === 'native') {
+    await watchEntry.watcher.close()
+    return
+  }
+
+  if (watchEntry.pollTimer !== null) {
+    clearTimeout(watchEntry.pollTimer)
+    watchEntry.pollTimer = null
+  }
+  watchEntry.pollingInProgress = false
+  watchEntry.fileMetadataByRelativePath.clear()
+  watchEntry.directoryPaths.clear()
 }
 
 async function stopAllWorkspaceWatchers() {
@@ -1249,48 +1554,62 @@ async function handleWorkspaceWatchStart(
       }
     }
 
+    const watchModeResolution = resolveWorkspaceWatchMode({
+      rootPath: resolvedRootPath,
+      watchModePreference: request.watchModePreference,
+    })
     const existingWatchEntry = workspaceWatchers.get(workspaceId)
-    if (existingWatchEntry?.rootPath === resolvedRootPath) {
-      return { ok: true }
+    if (
+      existingWatchEntry?.rootPath === resolvedRootPath &&
+      existingWatchEntry.watchMode === watchModeResolution.watchMode
+    ) {
+      return {
+        ok: true,
+        watchMode: existingWatchEntry.watchMode,
+        isRemoteMounted: watchModeResolution.isRemoteMounted,
+        fallbackApplied: false,
+      }
     }
 
     if (existingWatchEntry) {
       await stopWorkspaceWatcher(workspaceId)
     }
 
-    const watcher = chokidar.watch(resolvedRootPath, {
-      ignored: (candidatePath) =>
-        shouldIgnoreWatchPath(resolvedRootPath, candidatePath),
-      ignoreInitial: true,
-      persistent: true,
-      followSymlinks: false,
-    })
-
-    const watchEntry: WorkspaceWatcherEntry = {
-      workspaceId,
-      rootPath: resolvedRootPath,
-      watcher,
-      pendingRelativePaths: new Set(),
-      hasPendingStructureChanges: false,
-      debounceTimer: null,
-    }
-    workspaceWatchers.set(workspaceId, watchEntry)
-
-    watcher.on('all', (eventName, candidatePath) => {
-      if (
-        !WATCHABLE_FILE_EVENTS.has(eventName) &&
-        !WATCHABLE_STRUCTURE_EVENTS.has(eventName)
-      ) {
-        return
+    let fallbackApplied = false
+    let resolvedWatchMode = watchModeResolution.watchMode
+    let watchEntry: WorkspaceWatcherEntry
+    try {
+      watchEntry =
+        resolvedWatchMode === 'native'
+          ? await createNativeWorkspaceWatcherEntry(workspaceId, resolvedRootPath)
+          : await createPollingWorkspaceWatcherEntry(workspaceId, resolvedRootPath)
+    } catch (error) {
+      if (resolvedWatchMode !== 'native') {
+        throw error
       }
-      queueWorkspaceWatchEvent(workspaceId, eventName, candidatePath)
-    })
+      console.error(
+        `Failed to start native workspace watcher (${workspaceId}). Falling back to polling.`,
+        error,
+      )
+      watchEntry = await createPollingWorkspaceWatcherEntry(
+        workspaceId,
+        resolvedRootPath,
+      )
+      resolvedWatchMode = 'polling'
+      fallbackApplied = true
+    }
 
-    watcher.on('error', (error) => {
-      console.error(`Workspace watcher error (${workspaceId}).`, error)
-    })
+    workspaceWatchers.set(workspaceId, watchEntry)
+    if (watchEntry.watchMode === 'polling') {
+      scheduleWorkspacePollingTick(workspaceId)
+    }
 
-    return { ok: true }
+    return {
+      ok: true,
+      watchMode: watchEntry.watchMode,
+      isRemoteMounted: watchModeResolution.isRemoteMounted,
+      fallbackApplied,
+    }
   } catch (error) {
     return {
       ok: false,

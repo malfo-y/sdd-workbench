@@ -80,6 +80,7 @@ describe('workspace-persistence', () => {
       fileLastLineByPath: {
         'src/main.ts': 12,
       },
+      watchModePreference: 'polling',
     }))
 
     const snapshot = createWorkspaceSessionSnapshot(state)
@@ -98,7 +99,31 @@ describe('workspace-persistence', () => {
       fileLastLineByPath: {
         'src/main.ts': 12,
       },
+      watchModePreference: 'polling',
     })
+  })
+
+  it('defaults watch mode preference to auto when missing in persisted payload', () => {
+    const workspaceId = createWorkspaceId(ROOT_PATH)
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: workspaceId,
+      workspaceOrder: [workspaceId],
+      workspacesById: {
+        [workspaceId]: {
+          rootPath: ROOT_PATH,
+          activeFile: 'src/main.ts',
+          activeSpec: null,
+          expandedDirectories: [],
+          fileLastLineByPath: {},
+        },
+      },
+    })
+
+    const loadedSnapshot = loadWorkspaceSessionSnapshot()
+    expect(loadedSnapshot?.workspacesById[workspaceId]?.watchModePreference).toBe(
+      'auto',
+    )
   })
 
   it('returns null when snapshot schema version is unsupported', () => {

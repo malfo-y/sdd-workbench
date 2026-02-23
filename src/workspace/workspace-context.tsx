@@ -22,6 +22,8 @@ import {
   updateWorkspaceSession,
   type LineSelectionRange,
   type WorkspaceId,
+  type WorkspaceWatchMode,
+  type WorkspaceWatchModePreference,
   type WorkspaceState,
 } from './workspace-model'
 import {
@@ -62,6 +64,9 @@ type WorkspaceContextValue = {
   isReadingGlobalComments: boolean
   isWritingGlobalComments: boolean
   globalCommentsError: string | null
+  watchModePreference: WorkspaceWatchModePreference
+  watchMode: WorkspaceWatchMode | null
+  isRemoteMounted: boolean
   bannerMessage: string | null
   openWorkspace: () => Promise<void>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
@@ -78,6 +83,9 @@ type WorkspaceContextValue = {
   showBanner: (message: string) => void
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
+  setWatchModePreference: (
+    preference: WorkspaceWatchModePreference,
+  ) => Promise<void>
   clearBanner: () => void
 }
 
@@ -163,6 +171,7 @@ function createWorkspaceStateFromSnapshot(
           activeSpec: persistedWorkspaceSession.activeSpec,
           expandedDirectories: persistedWorkspaceSession.expandedDirectories,
           fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
+          watchModePreference: persistedWorkspaceSession.watchModePreference,
         }),
       )
   }
@@ -686,15 +695,40 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   }, [loadWorkspaceGlobalComments])
 
   const startWorkspaceWatch = useCallback(
-    async (workspaceId: WorkspaceId, rootPath: string) => {
-      if (watchedWorkspaceIdsRef.current.has(workspaceId)) {
+    async (
+      workspaceId: WorkspaceId,
+      rootPath: string,
+      options?: {
+        forceRestart?: boolean
+        watchModePreference?: WorkspaceWatchModePreference
+      },
+    ) => {
+      const forceRestart = options?.forceRestart ?? false
+      const existingWorkspaceSession =
+        workspaceStateRef.current.workspacesById[workspaceId]
+      const watchModePreference =
+        options?.watchModePreference ??
+        existingWorkspaceSession?.watchModePreference ??
+        'auto'
+
+      if (watchedWorkspaceIdsRef.current.has(workspaceId) && !forceRestart) {
         return true
+      }
+
+      if (forceRestart && watchedWorkspaceIdsRef.current.has(workspaceId)) {
+        watchedWorkspaceIdsRef.current.delete(workspaceId)
+        try {
+          await window.workspace.watchStop(workspaceId)
+        } catch {
+          // Restart should still proceed even if previous watcher cleanup fails.
+        }
       }
 
       try {
         const watchStartResult = await window.workspace.watchStart(
           workspaceId,
           rootPath,
+          watchModePreference,
         )
         if (!watchStartResult.ok) {
           setBannerMessage(
@@ -703,6 +737,22 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               : 'Failed to start watcher.',
           )
           return false
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            watchMode:
+              watchStartResult.watchMode ?? currentSession.watchMode,
+            isRemoteMounted:
+              watchStartResult.isRemoteMounted ??
+              currentSession.isRemoteMounted,
+          })),
+        )
+        if (watchStartResult.fallbackApplied) {
+          setBannerMessage(
+            'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
+          )
         }
         watchedWorkspaceIdsRef.current.add(workspaceId)
         return true
@@ -1245,6 +1295,37 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const setWatchModePreference = useCallback(
+    async (preference: WorkspaceWatchModePreference) => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
+        return
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      if (!workspaceSession) {
+        return
+      }
+      const targetRootPath = workspaceSession.rootPath
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+          return {
+            ...currentSession,
+            watchModePreference: preference,
+          }
+        }),
+      )
+
+      await startWorkspaceWatch(activeWorkspaceId, targetRootPath, {
+        forceRestart: true,
+        watchModePreference: preference,
+      })
+    },
+    [startWorkspaceWatch],
+  )
+
   useEffect(() => {
     let isDisposed = false
 
@@ -1486,6 +1567,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       isReadingGlobalComments: activeWorkspace?.isReadingGlobalComments ?? false,
       isWritingGlobalComments: activeWorkspace?.isWritingGlobalComments ?? false,
       globalCommentsError: activeWorkspace?.globalCommentsError ?? null,
+      watchModePreference: activeWorkspace?.watchModePreference ?? 'auto',
+      watchMode: activeWorkspace?.watchMode ?? null,
+      isRemoteMounted: activeWorkspace?.isRemoteMounted ?? false,
       bannerMessage,
       openWorkspace,
       setActiveWorkspace,
@@ -1502,6 +1586,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
+      setWatchModePreference,
       clearBanner,
     }),
     [
@@ -1523,6 +1608,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       showBanner,
       setSelectionRange,
       setExpandedDirectories,
+      setWatchModePreference,
       clearBanner,
     ],
   )

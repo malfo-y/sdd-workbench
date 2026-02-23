@@ -2,20 +2,23 @@
 
 ## 1) Progress Overview (tasks/criteria completion)
 
-- Baseline drafts:
-  - `/_sdd/drafts/feature_draft_f12_1_comment_badge_hover_popover.md`
-  - `/_sdd/drafts/feature_draft_f12_2_view_comments_edit_delete.md`
-  - `/_sdd/drafts/feature_draft_f12_3_global_comments_capture_and_export_order.md`
-  - `/_sdd/drafts/feature_draft_f12_4_header_action_layout_reorder.md`
-- Review scope: F12.1 ~ F12.4 구현/테스트/리포트 정합성
-- Follow-up fix scope (this update): 리뷰 지적사항(F12.2/F12.3 실패 경로 테스트 보강 + F12.2 실패 시 UI 상태 유지) 반영
+- Baseline:
+  - `/_sdd/implementation/IMPLEMENTATION_PLAN.md` (F15)
+  - `/_sdd/drafts/feature_draft_f15_remote_workspace_via_sshfs.md`
+- Review scope: F15 T1~T9 구현/테스트/수용기준
+- 최신 보강: 리뷰 지적 2건(fallback 경로 테스트, hydrate preference 전달 테스트) 반영 완료
 
-| Scope | Expected | Observed | Status |
+| Task | Expected | Observed Evidence | Status |
 |---|---|---|---|
-| F12.1 hover popover | 코드/렌더드 마크다운 배지 hover popover + `+N more` + ESC/바깥클릭/hover-out 닫힘 | 구현/테스트 유지 | done |
-| F12.2 view/edit/delete | View Comments 모달, 편집/삭제/Delete Exported, 저장 실패 시 배너 + 상태 유지 | 실패 경로 테스트 추가, 모달 상태 유지 로직 반영 | done |
-| F12.3 global comments | Add Global Comments 저장/복원 + export 선행 배치 | 글로벌 코멘트 저장 실패 경로 테스트 추가 | done |
-| F12.4 header layout reorder | 헤더 그룹 순서/compact 접근성 유지 | 구현/테스트 유지 | done |
+| T1 | watchStart 계약 확장 | `electron/electron-env.d.ts`, `electron/preload.ts`, `electron/main.ts` | done |
+| T2 | `/Volumes` 휴리스틱 + override | `electron/workspace-watch-mode.ts` + 단위 테스트 | done |
+| T3 | polling 런타임 + 이벤트 송신 | `electron/main.ts` polling snapshot/diff/schedule | done |
+| T4 | native 실패 fallback | `fallbackApplied` 처리 + 배너 안내 | done |
+| T5 | session 상태 확장 | `watchModePreference/watchMode/isRemoteMounted` | done |
+| T6 | preference 영속화/복원 | persistence 스키마 + restore 반영 | done |
+| T7 | UI 모드 표시/선택 | Current Workspace 카드 mode/preference/REMOTE | done |
+| T8 | resolver 테스트 | `electron/workspace-watch-mode.test.ts` | done |
+| T9 | 통합 테스트 보강 | `src/App.test.tsx` fallback/hydrate 시나리오 포함 | done |
 
 ## 2) Findings by severity
 
@@ -23,26 +26,23 @@
 
 ## 3) Test Status and blind spots
 
-실행 검증(2026-02-22):
-- `npm test -- src/App.test.tsx src/spec-viewer/spec-viewer-panel.test.tsx src/code-viewer/code-viewer-panel.test.tsx src/code-comments/comment-list-modal.test.tsx src/code-comments/comment-export.test.ts`  
-  -> **5 files, 104 passed, 0 failed**
+실행 검증(2026-02-23):
+- `npm test` -> **20 files, 197 passed, 0 failed**
 - `npm run lint` -> pass
-- `npm run build` -> pass
 
-추가된 핵심 실패 경로 검증:
-- View Comments 편집 저장 실패 시 배너 노출 + 편집 상태 유지 (`src/App.test.tsx`)
-- Delete Exported 저장 실패 시 배너 노출 + confirm 상태 유지 (`src/App.test.tsx`)
-- Add Global Comments 저장 실패 시 배너 노출 + 모달 유지 (`src/App.test.tsx`)
+이번 보강으로 해결된 항목:
+- `fallbackApplied=true` 배너 노출 회귀 검증 추가
+- hydrate 복원 시 persisted `watchModePreference` 전달 검증 추가
 
-남은 블라인드 스팟:
-- CSS 반응형(`icon-only`)은 런타임 viewport 기반 시각 회귀가 필요할 수 있어 E2E 시각 검증이 있으면 더 안전함.
+잔여 블라인드 스팟:
+- 없음(현재 F15 범위 기준)
 
 ## 4) Recommended Next Steps
 
-1. 필요 시 브라우저 크기별(특히 `max-width: 1240px`) 헤더 액션 icon-only 상태를 수동 스모크로 한 번 더 확인한다.
-2. 다음 기능(F12.5/F13 등) 착수 전에 현재 상태로 커밋해 기준점을 고정한다.
+1. `spec-update-done`로 F15 구현 결과를 스펙에 동기화한다.
+2. 이후 F15 수동 스모크에서 `/Volumes` 마운트 실제 환경(native 실패/fallback)만 한 번 확인한다.
 
 ## 5) Final readiness verdict
 
 - Verdict: `READY`
-- Reason: 이전 리뷰 이슈(실패 경로 테스트 공백, 실패 시 UI 상태 손실)를 코드/테스트로 해소했고, 품질 게이트를 통과했다.
+- Reason: F15 구현/테스트/품질게이트가 모두 충족되었고, 직전 리뷰의 Medium 이슈 2건도 테스트로 해소되었다.

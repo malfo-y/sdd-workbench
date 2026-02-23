@@ -112,8 +112,15 @@ interface WorkspaceExportCommentsBundleResult {
   error?: string
 }
 
+type WorkspaceWatchMode = 'native' | 'polling'
+
+type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
+
 interface WorkspaceWatchControlResult {
   ok: boolean
+  watchMode?: WorkspaceWatchMode
+  isRemoteMounted?: boolean
+  fallbackApplied?: boolean
   error?: string
 }
 
@@ -163,6 +170,7 @@ interface Window {
     watchStart: (
       workspaceId: string,
       rootPath: string,
+      watchModePreference?: WorkspaceWatchModePreference,
     ) => Promise<WorkspaceWatchControlResult>
     watchStop: (workspaceId: string) => Promise<WorkspaceWatchControlResult>
     onWatchEvent: (

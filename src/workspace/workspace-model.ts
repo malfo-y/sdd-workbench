@@ -7,6 +7,10 @@ export type LineSelectionRange = {
   endLine: number
 }
 
+export type WorkspaceWatchMode = 'native' | 'polling'
+
+export type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
+
 export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
@@ -35,6 +39,9 @@ export type WorkspaceSession = {
   isReadingGlobalComments: boolean
   isWritingGlobalComments: boolean
   globalCommentsError: string | null
+  watchModePreference: WorkspaceWatchModePreference
+  watchMode: WorkspaceWatchMode | null
+  isRemoteMounted: boolean
 }
 
 export type WorkspaceState = {
@@ -113,6 +120,9 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     isReadingGlobalComments: false,
     isWritingGlobalComments: false,
     globalCommentsError: null,
+    watchModePreference: 'auto',
+    watchMode: null,
+    isRemoteMounted: false,
   }
 }
 

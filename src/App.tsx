@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ChangeEvent,
 } from 'react'
 import './App.css'
 import { buildCodeComment } from './code-comments/comment-anchor'
@@ -39,7 +40,10 @@ import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
 import { abbreviateWorkspacePath } from './workspace/path-format'
 import { useWorkspace } from './workspace/use-workspace'
 import { WorkspaceSwitcher } from './workspace/workspace-switcher'
-import type { LineSelectionRange } from './workspace/workspace-model'
+import type {
+  LineSelectionRange,
+  WorkspaceWatchModePreference,
+} from './workspace/workspace-model'
 
 function collectWorkspaceFilePaths(
   nodes: WorkspaceFileNode[],
@@ -93,6 +97,16 @@ function buildSpecScrollStateKey(
   relativePath: string,
 ) {
   return `${workspaceId ?? '__none__'}::${relativePath}`
+}
+
+function formatWorkspaceWatchMode(watchMode: 'native' | 'polling' | null) {
+  if (watchMode === 'native') {
+    return 'Native'
+  }
+  if (watchMode === 'polling') {
+    return 'Polling'
+  }
+  return 'Not started'
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -329,6 +343,9 @@ function App() {
     globalComments,
     isReadingGlobalComments,
     isWritingGlobalComments,
+    watchModePreference,
+    watchMode,
+    isRemoteMounted,
     bannerMessage,
     openWorkspace,
     setActiveWorkspace,
@@ -343,6 +360,7 @@ function App() {
     showBanner,
     setSelectionRange,
     setExpandedDirectories,
+    setWatchModePreference,
     clearBanner,
   } = useWorkspace()
   const displayPath = rootPath
@@ -859,6 +877,21 @@ function App() {
     [rootPath, showBanner],
   )
 
+  const handleWatchModePreferenceChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const preference = event.target.value as WorkspaceWatchModePreference
+      if (
+        preference !== 'auto' &&
+        preference !== 'native' &&
+        preference !== 'polling'
+      ) {
+        return
+      }
+      void setWatchModePreference(preference)
+    },
+    [setWatchModePreference],
+  )
+
   const workspaceLayoutStyle = useMemo(
     () =>
       ({
@@ -1307,6 +1340,43 @@ function App() {
               >
                 {displayPath}
               </p>
+              <div className="workspace-watch-status">
+                <span className="workspace-watch-status-label">Mode:</span>
+                <span
+                  className="workspace-watch-status-value"
+                  data-testid="workspace-watch-mode-value"
+                >
+                  {formatWorkspaceWatchMode(watchMode)}
+                </span>
+                {isRemoteMounted && (
+                  <span
+                    className="workspace-remote-badge"
+                    data-testid="workspace-remote-badge"
+                  >
+                    REMOTE
+                  </span>
+                )}
+              </div>
+              <div className="workspace-watch-preference">
+                <label
+                  className="workspace-watch-preference-label"
+                  htmlFor="workspace-watch-preference-select"
+                >
+                  Watch Mode
+                </label>
+                <select
+                  className="workspace-watch-preference-select"
+                  data-testid="workspace-watch-mode-preference"
+                  disabled={!rootPath}
+                  id="workspace-watch-preference-select"
+                  onChange={handleWatchModePreferenceChange}
+                  value={watchModePreference}
+                >
+                  <option value="auto">Auto</option>
+                  <option value="native">Native</option>
+                  <option value="polling">Polling</option>
+                </select>
+              </div>
             </div>
             <div className="workspace-open-in">
               <span className="workspace-open-in-label">Open In:</span>

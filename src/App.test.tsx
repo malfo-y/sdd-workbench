@@ -77,6 +77,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       (
         workspaceId: string,
         rootPath: string,
+        watchModePreference?: WorkspaceWatchModePreference,
       ) => Promise<WorkspaceWatchControlResult>
     >()
   const watchStopMock =
@@ -114,7 +115,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     onHistoryNavigateMock.mockReset()
     watchListeners.clear()
     historyNavigateListeners.clear()
-    watchStartMock.mockResolvedValue({ ok: true })
+    watchStartMock.mockResolvedValue({
+      ok: true,
+      watchMode: 'native',
+      isRemoteMounted: false,
+      fallbackApplied: false,
+    })
     watchStopMock.mockResolvedValue({ ok: true })
     readCommentsMock.mockResolvedValue({
       ok: true,
@@ -269,6 +275,100 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     expect(screen.getByRole('button', { name: 'Open in iTerm' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Open in VSCode' })).toBeDisabled()
+  })
+
+  it('shows resolved watch mode metadata and restarts watcher on preference change', async () => {
+    const workspaceRoot = '/Volumes/remote-workspace/project-a'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    watchStartMock.mockImplementation(
+      async (_workspaceId, _rootPath, watchModePreference = 'auto') => ({
+        ok: true,
+        watchMode: watchModePreference === 'native' ? 'native' : 'polling',
+        isRemoteMounted: true,
+        fallbackApplied: false,
+      }),
+    )
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
+        'Polling',
+      )
+    })
+    expect(screen.getByTestId('workspace-remote-badge')).toHaveTextContent(
+      'REMOTE',
+    )
+    expect(screen.getByTestId('workspace-watch-mode-preference')).toHaveValue(
+      'auto',
+    )
+
+    fireEvent.change(screen.getByTestId('workspace-watch-mode-preference'), {
+      target: { value: 'native' },
+    })
+
+    await waitFor(() => {
+      expect(watchStartMock).toHaveBeenLastCalledWith(
+        workspaceRoot,
+        workspaceRoot,
+        'native',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
+        'Native',
+      )
+    })
+  })
+
+  it('shows fallback banner when watchStart applies polling fallback', async () => {
+    const workspaceRoot = '/Users/tester/watch-fallback'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    watchStartMock.mockResolvedValueOnce({
+      ok: true,
+      watchMode: 'polling',
+      isRemoteMounted: false,
+      fallbackApplied: true,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Fallback to polling watcher is active.',
+      )
+    })
+    expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
+      'Polling',
+    )
   })
 
   it('renders header action groups in stable order', () => {
@@ -842,6 +942,67 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(
       (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement).options,
     ).toHaveLength(2)
+  })
+
+  it('uses persisted watch mode preference during restore watchStart', async () => {
+    const projectRoot = '/Users/tester/restore-watch-preference'
+    const projectId = projectRoot
+
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: projectId,
+      workspaceOrder: [projectId],
+      workspacesById: {
+        [projectId]: {
+          rootPath: projectRoot,
+          activeFile: 'main.ts',
+          expandedDirectories: [],
+          fileLastLineByPath: { 'main.ts': 1 },
+          watchModePreference: 'polling',
+        },
+      },
+    })
+
+    watchStartMock.mockImplementation(
+      async (_workspaceId, _rootPath, watchModePreference = 'auto') => ({
+        ok: true,
+        watchMode: watchModePreference === 'polling' ? 'polling' : 'native',
+        isRemoteMounted: false,
+        fallbackApplied: false,
+      }),
+    )
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [{ name: 'main.ts', relativePath: 'main.ts', kind: 'file' }],
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'const main = true',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(watchStartMock).toHaveBeenCalledWith(
+        projectRoot,
+        projectRoot,
+        'polling',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-watch-mode-preference')).toHaveValue(
+        'polling',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
+        'Polling',
+      )
+    })
   })
 
   it('restores image active file and expanded directories on app mount', async () => {
@@ -1941,7 +2102,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
     await waitFor(() => {
-      expect(watchStartMock).toHaveBeenCalledWith(workspaceRoot, workspaceRoot)
+      expect(watchStartMock).toHaveBeenCalledWith(
+        workspaceRoot,
+        workspaceRoot,
+        'auto',
+      )
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))

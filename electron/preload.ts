@@ -91,8 +91,15 @@ type WorkspaceExportCommentsBundleResult = {
   error?: string
 }
 
+type WorkspaceWatchMode = 'native' | 'polling'
+
+type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
+
 type WorkspaceWatchControlResult = {
   ok: boolean
+  watchMode?: WorkspaceWatchMode
+  isRemoteMounted?: boolean
+  fallbackApplied?: boolean
   error?: string
 }
 
@@ -161,10 +168,15 @@ const workspaceApi = {
       request,
     ) as Promise<WorkspaceExportCommentsBundleResult>
   },
-  watchStart(workspaceId: string, rootPath: string) {
+  watchStart(
+    workspaceId: string,
+    rootPath: string,
+    watchModePreference: WorkspaceWatchModePreference = 'auto',
+  ) {
     return ipcRenderer.invoke('workspace:watchStart', {
       workspaceId,
       rootPath,
+      watchModePreference,
     }) as Promise<WorkspaceWatchControlResult>
   },
   watchStop(workspaceId: string) {
