@@ -37,6 +37,7 @@ Right: Rendered Spec (TOC + link/source actions)
 - `activeSpec`, `activeSpecContent`
 - `selectionRange`, `fileLastLineByPath`
 - `changedFiles`, `fileHistory`, `fileHistoryIndex`
+- `loadingDirectories`
 - `watchModePreference`, `watchMode`, `isRemoteMounted`
 - `comments`, `isReadingComments`, `isWritingComments`, `commentsError`
 - `globalComments`, `isReadingGlobalComments`, `isWritingGlobalComments`, `globalCommentsError`
@@ -54,7 +55,7 @@ Right: Rendered Spec (TOC + link/source actions)
 2. `workspace:index`
 3. session 생성 또는 기존 focus
 4. watcher 시작(`workspace:watchStart`, preference 전달)
-5. Main에서 mode 해석(`/Volumes/*` + auto -> polling, override 우선)
+5. Main에서 mode 해석(`mount` 명령 네트워크 FS 감지 + auto -> polling, override 우선)
 6. native 실패 시 polling fallback(degraded success) + 배너 안내
 
 ### 5.2 파일 읽기/표시
@@ -94,10 +95,18 @@ Right: Rendered Spec (TOC + link/source actions)
 ### 5.6 원격 워크스페이스 watcher 모드(F15)
 
 1. `watchModePreference`는 workspace별로 `auto|native|polling` 상태를 유지/복원한다.
-2. `auto`는 `/Volumes/*`를 remote mount로 간주해 polling을 선택한다.
+2. `auto`는 `mount` 명령 파싱으로 네트워크 FS(`sshfs`, `nfs`, `cifs`, `afpfs`, `webdavfs`, `osxfuse`, `macfuse`, `fuse`)를 감지해 polling을 선택한다.
 3. `native|polling` 선택 시 휴리스틱보다 사용자 override가 우선한다.
-4. polling 모드는 1500ms 간격 메타데이터 diff(`mtimeMs + size`)로 변경 이벤트를 생성한다.
+4. polling 모드는 원격 마운트 5000ms / 로컬 1500ms 간격 메타데이터 diff(`mtimeMs + size`)로 변경 이벤트를 생성한다.
 5. watchStart 응답에는 `watchMode`, `isRemoteMounted`, `fallbackApplied`가 포함된다.
+
+### 5.7 대규모 워크스페이스 lazy indexing(F16)
+
+1. 인덱싱 시 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`)을 적용하여 초과 디렉토리는 첫 500개만 로드하고 `partial` 상태로 표시한다.
+2. 원격 마운트에서는 추가로 깊이 제한(`WORKSPACE_INDEX_SHALLOW_DEPTH=3`)을 적용해 초기 로드 속도를 확보한다.
+3. `not-loaded` 디렉토리를 확장하면 `workspace:indexDirectory` IPC를 통해 on-demand로 자식을 로드한다.
+4. polling watcher는 child cap 초과 디렉토리를 자동 제외하여 과대 디렉토리의 반복 스캔을 방지한다.
+5. 구조 변경 re-index 시 lazy-loaded 디렉토리는 `not-loaded`로 리셋되고, 사용자가 다시 확장해야 로드된다.
 
 ## 6. 워크스페이스 경계 규칙
 

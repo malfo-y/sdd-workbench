@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F15)
+## A. 기능 이력 (F01~F16)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -31,6 +31,7 @@
 | F12.4 | Done | 2026-02-22 | header comments/workspace action compact layout reorder |
 | F12.5 | Done | 2026-02-23 | comment feedback auto-dismiss + global 가시성 + header action group clarity |
 | F15 | Done | 2026-02-23 | SSHFS 원격 워크스페이스 watch mode(auto/override) + polling fallback |
+| F16 | Done | 2026-02-23 | lazy indexing(remote 깊이제한 + child cap 500) + on-demand 디렉토리 확장 + 과대 디렉토리 polling 제외 |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -50,7 +51,9 @@
 - code/rendered marker hover preview(`+N more`, read-only)
 - header action 그룹 재배치 + compact/icon-only 정책
 - 코멘트 배너 auto-dismiss(5s) + `View Comments`/`Export Comments` global 가시성 명시
-- 원격 마운트(`/Volumes/*`) watcher 모드 자동 판정 + 수동 override + fallback 정책
+- 원격 마운트(`mount` 명령 기반 네트워크 FS 감지) watcher 모드 자동 판정 + 수동 override + fallback 정책
+- 대규모 워크스페이스 lazy indexing(remote 깊이제한 3레벨 + 디렉토리별 child cap 500) + on-demand 확장
+- polling watcher child cap 초과 디렉토리 자동 제외
 
 ## C. 리스크/백로그
 
@@ -65,7 +68,9 @@
 9. global comments 버전 이력/다중 문서 분류는 미지원
 10. rendered spec scroll position의 앱 재시작 복원은 미지원(런타임 복원만 지원)
 11. hover preview 지연값/표시 개수 사용자 설정은 미지원
-12. remote mount 휴리스틱은 `/Volumes/*` 고정이며 플랫폼별 고급 탐지는 미지원
+12. remote mount 감지는 `mount` 명령 파싱 기반이며 Windows/Linux 고급 탐지는 미지원
+13. lazy-loaded 디렉토리는 browse-only이며 watcher 범위에 포함되지 않음
+14. on-demand 로드 후 구조 변경 re-index 시 lazy-loaded 디렉토리는 `not-loaded`로 리셋됨
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

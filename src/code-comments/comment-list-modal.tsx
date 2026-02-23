@@ -9,6 +9,7 @@ type CommentListModalProps = {
   isOpen: boolean
   isSaving: boolean
   comments: readonly CodeComment[]
+  globalComments: string
   onClose: () => void
   onUpdateComment: (
     commentId: string,
@@ -43,6 +44,7 @@ export function CommentListModal({
   isOpen,
   isSaving,
   comments,
+  globalComments,
   onClose,
   onUpdateComment,
   onDeleteComment,
@@ -84,6 +86,7 @@ export function CommentListModal({
   const exportedCommentCount = sortedComments.filter(
     (comment) => Boolean(comment.exportedAt),
   ).length
+  const hasGlobalComments = globalComments.trim().length > 0
 
   if (!isOpen) {
     return null
@@ -156,6 +159,28 @@ export function CommentListModal({
             {sortedComments.length} comment(s) total
           </p>
         </div>
+
+        <section
+          className="comment-list-global-section"
+          data-testid="comment-list-global-section"
+        >
+          <h3>Global Comments</h3>
+          {hasGlobalComments ? (
+            <pre
+              className="comment-list-global-body"
+              data-testid="comment-list-global-body"
+            >
+              {globalComments}
+            </pre>
+          ) : (
+            <p
+              className="comment-list-global-empty"
+              data-testid="comment-list-global-empty"
+            >
+              No global comments.
+            </p>
+          )}
+        </section>
 
         <div className="comment-list-modal-actions">
           {!isDeleteExportedConfirmOpen && (

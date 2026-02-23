@@ -7,6 +7,7 @@ export type WorkspaceWatchModeResolvedBy = 'override' | 'heuristic'
 export type ResolveWorkspaceWatchModeInput = {
   rootPath: string
   watchModePreference?: WorkspaceWatchModePreference
+  isRemoteMountedHint?: boolean
 }
 
 export type ResolveWorkspaceWatchModeResult = {
@@ -50,7 +51,8 @@ export function resolveWorkspaceWatchMode(
   input: ResolveWorkspaceWatchModeInput,
 ): ResolveWorkspaceWatchModeResult {
   const preference = resolvePreference(input.watchModePreference)
-  const isRemoteMounted = isRemoteMountedWorkspace(input.rootPath)
+  const isRemoteMounted =
+    input.isRemoteMountedHint === true || isRemoteMountedWorkspace(input.rootPath)
 
   if (preference === 'native' || preference === 'polling') {
     return {

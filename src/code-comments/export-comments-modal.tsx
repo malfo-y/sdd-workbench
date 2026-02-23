@@ -12,6 +12,7 @@ type ExportCommentsModalProps = {
   isExporting: boolean
   commentCount: number
   pendingCommentCount: number
+  hasGlobalComments: boolean
   allowExportWithoutPendingComments: boolean
   maxClipboardChars: number
   estimateBundleLength: (instruction: string) => number
@@ -24,6 +25,7 @@ export function ExportCommentsModal({
   isExporting,
   commentCount,
   pendingCommentCount,
+  hasGlobalComments,
   allowExportWithoutPendingComments,
   maxClipboardChars,
   estimateBundleLength,
@@ -90,6 +92,9 @@ export function ExportCommentsModal({
         <h2>Export Comments</h2>
         <p className="comment-modal-meta">{commentCount} comment(s) included</p>
         <p className="comment-modal-meta">{pendingCommentCount} pending comment(s)</p>
+        <p className="comment-modal-meta">
+          Global comments: {hasGlobalComments ? 'included' : 'not included'}
+        </p>
         <label className="comment-modal-label" htmlFor="export-instruction">
           Instruction for LLM
         </label>

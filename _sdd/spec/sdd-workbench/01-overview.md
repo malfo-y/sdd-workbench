@@ -12,7 +12,8 @@
 4. 외부 파일 변경(watcher)을 UI에서 안정적으로 반영
 5. 코멘트 수집/관리/내보내기/hover preview/피드백 루프(F11~F12.5)로 LLM 협업 효율화
 6. 스펙-코드 왕복 시 rendered 문맥(스크롤 위치) 보존으로 탐색 비용 최소화
-7. 원격 마운트 워크스페이스(`/Volumes/*`)에서도 watcher 신뢰성을 유지(`auto/native/polling`)
+7. 원격 마운트 워크스페이스에서도 watcher 신뢰성을 유지(`auto/native/polling`)
+8. 대규모/원격 워크스페이스에서 lazy indexing + on-demand 디렉토리 확장으로 빠른 초기 로드
 
 ## 3. 범위
 
@@ -25,7 +26,8 @@
 - same-spec source jump 시 rendered spec scroll 유지(런타임)
 - 우클릭 기반 컨텍스트 복사
 - watcher 기반 changed indicator + collapse 버블링 가시화
-- 원격 마운트(`/Volumes/*`) auto polling + watch mode 수동 override(`Auto/Native/Polling`)
+- 원격 마운트 auto polling + watch mode 수동 override(`Auto/Native/Polling`)
+- 대규모 디렉토리 lazy indexing(remote 깊이제한 3레벨 + 디렉토리별 child cap 500) + on-demand 확장
 - 파일 히스토리 Back/Forward + 입력 바인딩(mouse/swipe/wheel)
 - 앱 재시작 시 세션 복원(workspaces/active file/active spec/line resume)
 - inline comment + export bundle + incremental export
@@ -59,9 +61,16 @@
 
 ### 4.3 원격 워크스페이스 감시 흐름(F15)
 
-1. `/Volumes/*` 경로를 열면 auto 모드에서 polling watcher로 시작한다.
+1. 원격 마운트 경로를 열면 auto 모드에서 polling watcher로 시작한다.
 2. 필요 시 Watch Mode(`Auto/Native/Polling`)를 변경해 모드를 강제한다.
 3. native 시작 실패 시 polling fallback과 배너 안내로 감시 가용성을 유지한다.
+
+### 4.5 대규모 워크스페이스 탐색 흐름(F16)
+
+1. 초기 인덱싱 시 디렉토리별 child cap(500)을 적용하여 과대 디렉토리를 `partial`로 표시한다.
+2. 원격 마운트에서는 추가로 깊이 제한(3레벨)을 적용해 초기 로드 속도를 확보한다.
+3. `not-loaded` 디렉토리를 확장하면 on-demand로 해당 디렉토리의 자식을 로드한다.
+4. polling watcher는 child cap 초과 디렉토리를 자동 제외하여 과대 디렉토리의 반복 스캔을 방지한다.
 
 ### 4.4 코멘트-LLM 흐름
 
@@ -92,7 +101,8 @@
 | 헤더 액션 그룹 compact 재배치 | Implemented | F12.4 |
 | 코멘트 피드백 auto-dismiss + global 가시성 + 헤더 좌측 history 배치 | Implemented | F12.5 |
 | 원격 워크스페이스 watch mode 정책 | Implemented | F15 |
+| Lazy indexing + on-demand 디렉토리 확장 | Implemented | F16 |
 
 ## 6. Open Questions
 
-- 현재 없음 (`2026-02-23`)
+- 현재 없음 (`2026-02-23` 기준)

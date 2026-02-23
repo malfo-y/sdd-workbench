@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.27.0`
+- 문서 버전: `0.28.0`
 - 마지막 업데이트: `2026-02-23`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -25,7 +25,7 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F15`
+- 구현 완료 범위: `F01~F16`
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 3패널(code/raw spec/rendered spec) 탐색
   2. spec link/selection 기반 code line jump
@@ -35,9 +35,10 @@
   6. global comments(워크스페이스 단위) + export 선행 prepend + incremental export
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
   8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + comment 피드백 auto-dismiss + header action 그룹 명확화
-  9. SSHFS 마운트 원격 워크스페이스(`/Volumes/*`) 자동 polling + 수동 watch mode override
+  9. SSHFS 마운트 원격 워크스페이스 자동 polling + 수동 watch mode override
+  10. 대규모 워크스페이스 지원: remote 깊이제한 + 디렉토리별 child cap + on-demand 확장 + 과대 디렉토리 polling 제외
 - 최신 품질 게이트(2026-02-23):
-  - `npm test` -> `20 files, 202 passed`
+  - `npm test` -> `20 files, 213 passed`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 

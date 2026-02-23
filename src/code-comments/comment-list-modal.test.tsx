@@ -35,6 +35,7 @@ describe('CommentListModal', () => {
     render(
       <CommentListModal
         comments={COMMENTS}
+        globalComments=""
         isOpen={false}
         isSaving={false}
         onClose={() => undefined}
@@ -63,6 +64,7 @@ describe('CommentListModal', () => {
             createdAt: '2026-02-22T00:02:00.000Z',
           },
         ]}
+        globalComments=""
         isOpen
         isSaving={false}
         onClose={() => undefined}
@@ -87,6 +89,7 @@ describe('CommentListModal', () => {
     render(
       <CommentListModal
         comments={COMMENTS}
+        globalComments=""
         isOpen
         isSaving={false}
         onClose={() => undefined}
@@ -110,6 +113,7 @@ describe('CommentListModal', () => {
     render(
       <CommentListModal
         comments={COMMENTS}
+        globalComments=""
         isOpen
         isSaving={false}
         onClose={() => undefined}
@@ -130,6 +134,7 @@ describe('CommentListModal', () => {
     render(
       <CommentListModal
         comments={COMMENTS}
+        globalComments=""
         isOpen
         isSaving={false}
         onClose={() => undefined}
@@ -143,5 +148,46 @@ describe('CommentListModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Delete Exported' }))
 
     expect(onDeleteExportedComments).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders global comments section above line comments', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments={'## Global\n- shared context'}
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+      />,
+    )
+
+    expect(screen.getByTestId('comment-list-global-body')).toHaveTextContent(
+      '## Global',
+    )
+    expect(screen.getByTestId('comment-list-global-body')).toHaveTextContent(
+      '- shared context',
+    )
+  })
+
+  it('renders empty state when global comments are blank', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments="   "
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+      />,
+    )
+
+    expect(screen.getByTestId('comment-list-global-empty')).toHaveTextContent(
+      'No global comments.',
+    )
   })
 })

@@ -7,8 +7,12 @@
 - 코드 프리뷰 제한: 2MB 초과 시 preview unavailable
 - 하이라이트 재계산은 file content/language 변경 시에만 수행
 - watcher 이벤트는 debounce 처리
-- polling watcher는 기본 1500ms 간격으로 메타데이터 diff(`mtimeMs + size`)를 수행
+- polling watcher는 로컬 1500ms / 원격 마운트 5000ms 간격으로 메타데이터 diff(`mtimeMs + size`)를 수행
+- polling watcher는 child cap(`500`) 초과 디렉토리를 자동 제외하여 과대 디렉토리 반복 스캔을 방지
 - 파일 트리 changed marker 버블링 계산은 1-pass(O(n)) 기준으로 유지
+- 원격 마운트 인덱싱 시 깊이 제한(`WORKSPACE_INDEX_SHALLOW_DEPTH=3`) 적용으로 초기 로드 최적화
+- 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`) 적용으로 과대 디렉토리 cap 처리
+- `not-loaded` 디렉토리 on-demand 확장은 `workspace:indexDirectory` IPC 단건 호출
 
 ## 2. 보안 기준
 
@@ -23,7 +27,7 @@
 - open/index/read/watch/comments/export 실패 시 앱 크래시 없이 배너 피드백
 - global comments read/write 실패 시 모달을 유지해 즉시 재시도 가능해야 한다.
 - watcher는 open 시 시작, close/unmount 시 정리
-- `/Volumes/*` + auto는 polling 기본값을 사용하고, 수동 override(`native|polling`)가 우선한다.
+- `auto` + 네트워크 FS 감지(`mount` 명령 파싱)는 polling 기본값을 사용하고, 수동 override(`native|polling`)가 우선한다.
 - native watcher 시작 실패 시 polling fallback으로 degraded success를 유지한다.
 - active file 변경 이벤트는 자동 re-read
 - same-spec source jump는 rendered spec 패널 콘텐츠/스크롤 문맥을 유지해야 한다.
@@ -34,7 +38,7 @@
 
 ### 4.1 자동 게이트 (2026-02-23 기준)
 
-- `npm test` -> `20 files, 202 passed`
+- `npm test` -> `20 files, 213 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -65,6 +69,10 @@
 16. native 실패 시 polling fallback 배너 노출 및 변경 감지 유지 확인
 17. 코멘트 액션 배너가 5초 후 자동 dismiss되고 `Dismiss`로 즉시 닫히는지 확인
 18. `View Comments` 상단 global comments(read-only/empty), `Export Comments`의 global 포함 상태(`included`/`not included`) 표기를 확인
+19. 대규모/원격 워크스페이스에서 초기 인덱싱 시 깊이 제한(원격) 및 child cap(500) 적용 확인
+20. `not-loaded` 디렉토리 확장 시 on-demand 로드 + "Loading..." placeholder 동작 확인
+21. `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시 확인
+22. polling watcher가 child cap 초과 디렉토리를 제외하고 스캔하는지 확인
 
 ## 5. 개발 환경
 

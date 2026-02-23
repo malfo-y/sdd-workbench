@@ -20,8 +20,10 @@
   - same-spec source jump에서 불필요한 spec reset/read 최소화
   - workspace별 watch mode preference 변경/재시작 + fallback 배너 처리
   - comments/global-comments read-write 액션 제공
+  - `loadDirectoryChildren` on-demand 디렉토리 확장 + `isFilePathPotentiallyPresent` lazy tree 보호
 - `src/workspace/workspace-model.ts`
-  - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted` 포함)
+  - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
+  - `mergeDirectoryChildren` 순수 함수(트리 노드 교체)
 - `src/workspace/workspace-persistence.ts`
   - 세션 snapshot hydrate/persist(`watchModePreference` 영속화)
 - `src/workspace/workspace-switcher.tsx`
@@ -33,6 +35,8 @@
   - 디렉토리 토글형 트리 렌더
   - 파일/디렉토리 우클릭 경로 복사
   - changed marker 표시(visible 파일 + collapse 버블링 상위 디렉토리)
+  - `not-loaded` 디렉토리 확장 시 on-demand 로드 트리거 + "Loading..." placeholder
+  - `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시
 
 ### 1.4 Code Viewer Layer
 
@@ -85,6 +89,9 @@
 
 - `electron/main.ts`
   - IPC handler, watch lifecycle(native/polling/fallback), export 파일 쓰기, system open
+  - `detectRemoteMountPoint` (`mount` 명령 파싱 기반 네트워크 FS 감지)
+  - `buildDirectoryChildren` + `handleWorkspaceIndexDirectory` (on-demand 디렉토리 IPC)
+  - polling watcher child cap 초과 디렉토리 자동 제외
 - `electron/workspace-watch-mode.ts`
   - `/Volumes/*` 휴리스틱 + override 우선순위 기반 watch mode resolver
 - `electron/preload.ts`
@@ -99,6 +106,7 @@
 - 상태 영속화: `src/workspace/workspace-persistence.test.ts`
 - spec viewer: `src/spec-viewer/spec-viewer-panel.test.tsx`
 - code viewer: `src/code-viewer/code-viewer-panel.test.tsx`
+- file tree lazy load: `src/file-tree/file-tree-panel.test.tsx`
 - electron resolver: `electron/workspace-watch-mode.test.ts`
 - comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export/comment-list-modal` 테스트
 

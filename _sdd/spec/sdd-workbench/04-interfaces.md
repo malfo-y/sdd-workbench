@@ -8,6 +8,15 @@ type SelectionState = { startLine: number; endLine: number } | null
 type WorkspaceWatchMode = 'native' | 'polling'
 type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
 
+interface WorkspaceFileNode {
+  name: string
+  relativePath: string
+  type: 'file' | 'directory'
+  children?: WorkspaceFileNode[]
+  childrenStatus?: 'complete' | 'not-loaded' | 'partial'
+  totalChildCount?: number
+}
+
 type CodeComment = {
   id: string
   relativePath: string
@@ -66,13 +75,20 @@ type CodeComment = {
 | `workspace:readGlobalComments` | Renderer -> Main (`invoke`) | global comments 읽기 |
 | `workspace:writeGlobalComments` | Renderer -> Main (`invoke`) | global comments 쓰기 |
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
+| `workspace:indexDirectory` | Renderer -> Main (`invoke`) | on-demand 단일 디렉토리 자식 로드 |
 
 `workspace:watchStart` 계약 요약:
 
 - request: `{ workspaceId, rootPath, watchModePreference?: 'auto'|'native'|'polling' }`
 - response: `{ ok, watchMode?: 'native'|'polling', isRemoteMounted?: boolean, fallbackApplied?: boolean, error?: string }`
-- 해석 규칙: `override(native|polling) > auto 휴리스틱(/Volumes/* => polling)`
+- 해석 규칙: `override(native|polling) > auto 휴리스틱(mount 명령 네트워크 FS 감지 => polling)`
 - fallback 규칙: `native` 시작 실패 시 `polling`으로 강등 성공 후 `fallbackApplied=true`
+
+`workspace:indexDirectory` 계약 요약:
+
+- request: `{ rootPath, relativePath }`
+- response: `{ ok, children?: WorkspaceFileNode[], childrenStatus?: 'complete'|'partial', totalChildCount?: number, error?: string }`
+- 디렉토리별 child cap(`500`) 적용, 초과 시 `partial` + `totalChildCount` 반환
 
 ## 4. 코멘트/Export 정책 계약
 
@@ -98,7 +114,17 @@ type CodeComment = {
 5. hover preview는 최대 3개 코멘트를 표시하고, 초과분은 `+N more`로 요약한다.
 6. hover preview는 read-only이며 닫힘 조건은 mouse leave, `Esc`, outside click이다.
 
-## 6. 파일 트리 변경 마커 가시화 규칙
+## 6. 대규모 워크스페이스 lazy indexing 규칙
+
+1. 인덱싱 시 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`)을 적용한다.
+2. 원격 마운트(`detectRemoteMountPoint` 기반)에서는 추가로 깊이 제한(`WORKSPACE_INDEX_SHALLOW_DEPTH=3`)을 적용한다.
+3. child cap 초과 디렉토리는 첫 500개 항목만 포함하고 `childrenStatus='partial'` + `totalChildCount`를 설정한다.
+4. 깊이 제한 도달 디렉토리는 `children=[]`, `childrenStatus='not-loaded'`로 설정한다.
+5. `not-loaded` 디렉토리 확장 시 `workspace:indexDirectory`로 on-demand 로드한다.
+6. polling watcher는 child cap 초과 디렉토리를 자동 제외하여 과대 디렉토리 반복 스캔을 방지한다.
+7. `isFilePathPotentiallyPresent` 헬퍼로 un-indexed 서브트리 내 active file이 re-index 시 클리어되지 않도록 보호한다.
+
+## 7. 파일 트리 변경 마커 가시화 규칙
 
 1. 변경 파일이 현재 visible이면 파일 노드에 `●`를 표시한다.
 2. 변경 파일이 collapse된 디렉토리 하위에 있으면 nearest visible collapsed ancestor 디렉토리에 `●`를 표시한다.

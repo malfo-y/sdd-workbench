@@ -66,4 +66,46 @@ describe('workspace-watch-mode', () => {
       resolvedBy: 'heuristic',
     })
   })
+
+  it('resolves to polling when isRemoteMountedHint is true', () => {
+    expect(
+      resolveWorkspaceWatchMode({
+        rootPath: '/Users/tester/bc-cloud/remote-project',
+        watchModePreference: 'auto',
+        isRemoteMountedHint: true,
+      }),
+    ).toEqual({
+      watchMode: 'polling',
+      isRemoteMounted: true,
+      resolvedBy: 'heuristic',
+    })
+  })
+
+  it('resolves to native when isRemoteMountedHint is false and path is local', () => {
+    expect(
+      resolveWorkspaceWatchMode({
+        rootPath: '/Users/tester/project-a',
+        watchModePreference: 'auto',
+        isRemoteMountedHint: false,
+      }),
+    ).toEqual({
+      watchMode: 'native',
+      isRemoteMounted: false,
+      resolvedBy: 'heuristic',
+    })
+  })
+
+  it('respects native override even when isRemoteMountedHint is true', () => {
+    expect(
+      resolveWorkspaceWatchMode({
+        rootPath: '/Users/tester/bc-cloud/remote-project',
+        watchModePreference: 'native',
+        isRemoteMountedHint: true,
+      }),
+    ).toEqual({
+      watchMode: 'native',
+      isRemoteMounted: true,
+      resolvedBy: 'override',
+    })
+  })
 })

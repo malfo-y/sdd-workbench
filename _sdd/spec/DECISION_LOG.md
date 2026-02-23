@@ -737,6 +737,30 @@
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F15 완료 기준으로 동기화한다.
   - 후속 backlog로 remote 판정 고도화(플랫폼별 mount metadata)와 polling 최적화(open/recent/expanded 범위 축소)를 유지한다.
 
+## 2026-02-23 - F16 구현 완료 반영(대규모/원격 워크스페이스 lazy indexing + on-demand 디렉토리 확장)
+
+- Context:
+  - F16 구현으로 대규모/원격 워크스페이스의 초기 인덱싱 성능과 polling watcher 안정성을 개선했음.
+  - 원격 마운트 감지가 `/Volumes/*` 고정 패턴에서 `mount` 명령 파싱 기반 네트워크 FS 감지로 업그레이드되었음.
+  - 최신 품질 게이트는 `npm test`(`20 files, 213 passed`), `npm run lint`, `npm run build` 모두 통과 상태임.
+- Decision:
+  - F16을 스펙 상태 `Done`으로 전환한다.
+  - 인덱싱은 **디렉토리별 child cap(`500`)** 과 **원격 마운트 한정 깊이 제한(`3`)** 을 병용한다.
+  - polling watcher는 **child-count 기반 디렉토리 제외** 만 적용하고 깊이 제한은 적용하지 않는다.
+  - 원격 마운트 감지는 `mount` 명령 출력에서 네트워크 FS 타입(`sshfs`, `nfs`, `cifs`, `afpfs`, `webdavfs`, `osxfuse`, `macfuse`, `fuse`)을 파싱한다.
+  - `not-loaded` 디렉토리는 `workspace:indexDirectory` IPC로 on-demand 로드하며, 구조 변경 re-index 시 `not-loaded`로 리셋된다.
+- Rationale:
+  - 인덱싱과 watching의 성능 병목이 다르므로 전략을 분리: 인덱싱은 sshfs 전체 트리 워킹 비용이 병목이라 깊이 제한이 효과적이고, watching은 과대 디렉토리의 반복 스캔이 병목이라 child-count 기반 제외가 효과적이다.
+  - 깊이 제한을 원격 마운트에만 적용하면 로컬 워크스페이스의 deep-but-small 디렉토리가 정상 인덱싱/감시된다.
+  - `mount` 명령 파싱은 `/Volumes/*` 고정 패턴보다 FUSE 마운트 포인트를 더 정확히 감지한다.
+- Alternatives considered:
+  - 인덱싱에도 child-count 기반만 적용(원격에서 전체 트리 워킹이 여전히 느림)
+  - watching에도 깊이 제한 적용(로컬 deep 디렉토리의 변경 감지가 누락됨)
+  - `/Volumes/*` 패턴만 유지(FUSE 마운트 포인트가 `/Volumes` 외부일 때 감지 실패)
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F16 완료 기준으로 동기화한다.
+  - 후속 backlog로 Windows/Linux remote mount 감지, lazy-loaded 디렉토리 watching 확장, on-demand re-index 최적화를 유지한다.
+
 ## 2026-02-23 - F12.5 구현 완료 반영(comment feedback auto-dismiss + global 가시성 + header action clarity)
 
 - Context:

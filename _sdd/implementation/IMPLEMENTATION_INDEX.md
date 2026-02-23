@@ -341,3 +341,13 @@
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F12_5/SYNC_20260223_064900_IMPLEMENTATION_REPORT_PHASE_1.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F12_5/SYNC_20260223_064900_IMPLEMENTATION_REPORT_PHASE_2.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F12_5/SYNC_20260223_064900_IMPLEMENTATION_REPORT_PHASE_3.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+
+## F16
+
+### Sync Record - 2026-02-23T09:36:24Z
+
+- note: spec sync (F16 done — lazy indexing + on-demand directory expansion + polling watcher child cap exclusion; reflected in `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`, `DECISION_LOG.md`)
+- copied files:
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F16/SYNC_20260223_093624_IMPLEMENTATION_PLAN.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F16/SYNC_20260223_093624_IMPLEMENTATION_PROGRESS.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/features/F16/SYNC_20260223_093624_IMPLEMENTATION_REPORT.md <- /Users/hyunjoonlee/github/sdd-workbench/_sdd/implementation/IMPLEMENTATION_REPORT.md`

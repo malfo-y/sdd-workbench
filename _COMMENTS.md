@@ -1,12 +1,20 @@
 # _COMMENTS
 
-Generated at: 2026-02-22T06:23:51.418Z
-Total comments: 1
+Generated at: 2026-02-23T06:08:50.288Z
+Total comments: 0
 
-### _sdd/drafts/feature_draft_f12_2_view_comments_edit_delete.md:L1-L1
+## Global Comments
 
-Pending 하고 있지 않은 (export가 된) 모든 코멘트를 지우는 기능도 추가해 줘.
+코드 코멘트 관련 작업을 하고 위에 뜨는 알림창이 5초 후에는 자동으로 dismiss 되게 해 줘.
 
-- anchor.hash: 111ce352
-- anchor.snippet: # Feature Draft: F12.2 View Comments + Edit/Delete
-- createdAt: 2026-02-22T06:22:25.738Z
+view comments를 할 때 global comments도 같이 보여야 함. 아마 맨 위에 보이게 하면 될 것.
+
+위에 global, view, export, close, open 이 다 같이 있어서 헷갈리는데, 
+Code comments  (global) (view) (export)    Workspace (workspace 선택창)  (open) (close)
+이렇게 보이면 좋겠음. 
+
+Export comment 할 때 global comment 도 있으면 따로 표시해 줘야 함.
+
+## Comments
+
+_No comments._
