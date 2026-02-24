@@ -829,3 +829,27 @@
   - `App.css`에서 `.token.*` PrismJS 규칙 제거.
   - 지원 언어 9개 → 35+개로 확장, 추가 언어는 `LANG_IMPORTS`에 thunk 추가만으로 가능.
   - 품질 게이트: `npm test`(`21 files, 241 passed`), `npm run lint`, `npx tsc --noEmit` 모두 통과.
+
+## 2026-02-24 - F19 구현 완료 반영(active file Git diff 라인 마커 MVP)
+
+- Context:
+  - F19 구현으로 active file 기준 Git diff 라인 마커(added/modified)가 코드 뷰어에 추가되었음.
+  - Main 프로세스에 `workspace:getGitLineMarkers` IPC가 추가되었고, `git diff --no-color --unified=0 HEAD -- <relativePath>` 파싱 유틸(`electron/git-line-markers.ts`)이 도입되었음.
+  - 최신 품질 게이트는 `npm test`(`22 files, 250 passed`), `npm run lint`, `npm run build` 모두 통과 상태임.
+- Decision:
+  - F19를 스펙 상태 `✅ Done`으로 전환한다.
+  - Git 라인 마커는 MVP에서 `added`(green)/`modified`(blue)만 지원한다.
+  - deletion-only hunk는 라인 마커 표시 범위에서 제외한다.
+  - marker 조회는 active file 단건 IPC로 제한하고, 전체 트리 diff 스캔은 도입하지 않는다.
+  - Git 실패/비저장소 경로/`HEAD` 부재/파일 없음은 배너 없이 marker 비표시로 safe degrade한다.
+- Rationale:
+  - diff 전문 UI 없이도 변경 밀집 구간을 즉시 식별해 검토 속도를 높일 수 있다.
+  - 단건 조회 정책은 성능 리스크를 최소화하면서 실사용 가치를 확보한다.
+  - deleted marker를 분리하면 MVP 복잡도를 통제하면서 후속 확장 여지를 남길 수 있다.
+- Alternatives considered:
+  - added/modified/deleted를 한 번에 모두 구현
+  - 파일 트리 전체 diff 인덱스를 선계산해 모든 파일 marker를 미리 표시
+  - Git 실패 시 사용자 배너를 매번 노출
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F19 완료 기준으로 동기화한다.
+  - deleted-only 라인(red) marker, diff 상세 뷰/툴팁은 후속 backlog로 유지한다.

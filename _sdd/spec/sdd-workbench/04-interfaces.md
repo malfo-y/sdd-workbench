@@ -7,6 +7,11 @@ type SelectionState = { startLine: number; endLine: number } | null
 
 type WorkspaceWatchMode = 'native' | 'polling'
 type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
+type WorkspaceGitLineMarkerKind = 'added' | 'modified'
+type WorkspaceGitLineMarker = {
+  line: number
+  kind: WorkspaceGitLineMarkerKind
+}
 
 interface WorkspaceFileNode {
   name: string
@@ -69,6 +74,7 @@ type CodeComment = {
 | `workspace:watchStart` / `workspace:watchStop` | Renderer -> Main (`invoke`) | watcher lifecycle + watch mode resolution |
 | `workspace:watchEvent` | Main -> Renderer (`send`) | 변경 파일 + 구조변경 플래그 |
 | `workspace:historyNavigate` | Main -> Renderer (`send`) | back/forward 이벤트 |
+| `workspace:getGitLineMarkers` | Renderer -> Main (`invoke`) | active file 단건 Git diff line marker 조회 |
 | `system:openInIterm` / `system:openInVsCode` | Renderer -> Main (`invoke`) | 외부 툴 열기 |
 | `workspace:readComments` | Renderer -> Main (`invoke`) | comments 읽기 |
 | `workspace:writeComments` | Renderer -> Main (`invoke`) | comments 쓰기 |
@@ -89,6 +95,13 @@ type CodeComment = {
 - request: `{ rootPath, relativePath }`
 - response: `{ ok, children?: WorkspaceFileNode[], childrenStatus?: 'complete'|'partial', totalChildCount?: number, error?: string }`
 - 디렉토리별 child cap(`500`) 적용, 초과 시 `partial` + `totalChildCount` 반환
+
+`workspace:getGitLineMarkers` 계약 요약:
+
+- request: `{ rootPath, relativePath }`
+- response: `{ ok, markers: Array<{ line: number; kind: 'added'|'modified' }>, error?: string }`
+- 비교 기준: `git diff --no-color --unified=0 HEAD -- <relativePath>`
+- 실패/비저장소/`HEAD` 부재/파일 없음은 `ok=false|true` + `markers=[]`로 safe degrade(throw 금지)
 
 ## 4. 코멘트/Export 정책 계약
 
@@ -113,6 +126,10 @@ type CodeComment = {
 4. nearest 동률이면 더 작은 line 우선
 5. hover preview는 최대 3개 코멘트를 표시하고, 초과분은 `+N more`로 요약한다.
 6. hover preview는 read-only이며 닫힘 조건은 mouse leave, `Esc`, outside click이다.
+7. Git 라인 마커는 active file 기준 line별 `added|modified`만 표시한다.
+8. `oldCount=0, newCount>0` hunk는 `added`, `oldCount>0, newCount>0` hunk는 교집합을 `modified`, 초과 new 라인은 `added`로 매핑한다.
+9. deletion-only hunk(`newCount=0`)는 MVP에서 표시하지 않는다.
+10. image preview/preview unavailable 모드에서는 Git 라인 마커를 렌더하지 않는다.
 
 ## 6. 대규모 워크스페이스 lazy indexing 규칙
 

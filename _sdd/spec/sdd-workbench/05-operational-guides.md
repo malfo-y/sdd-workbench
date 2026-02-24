@@ -13,6 +13,7 @@
 - 원격 마운트 인덱싱 시 깊이 제한(`WORKSPACE_INDEX_SHALLOW_DEPTH=3`) 적용으로 초기 로드 최적화
 - 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`) 적용으로 과대 디렉토리 cap 처리
 - `not-loaded` 디렉토리 on-demand 확장은 `workspace:indexDirectory` IPC 단건 호출
+- Git line marker 조회는 active file 단건(`workspace:getGitLineMarkers`)으로 제한하고 전체 트리 diff 스캔은 금지
 
 ## 2. 보안 기준
 
@@ -30,15 +31,16 @@
 - `auto` + 네트워크 FS 감지(`mount` 명령 파싱)는 polling 기본값을 사용하고, 수동 override(`native|polling`)가 우선한다.
 - native watcher 시작 실패 시 polling fallback으로 degraded success를 유지한다.
 - active file 변경 이벤트는 자동 re-read
+- Git line marker 조회 실패/비저장소 경로/`HEAD` 부재는 UI 크래시 없이 marker 비표시로 degrade한다.
 - same-spec source jump는 rendered spec 패널 콘텐츠/스크롤 문맥을 유지해야 한다.
 - 세션 복원은 부분 실패 continue 정책
 - 종료 경로는 write settle(max 5s) 후 watcher 종료(timeout 1.5s)
 
 ## 4. 테스트 운영
 
-### 4.1 자동 게이트 (2026-02-23 기준)
+### 4.1 자동 게이트 (2026-02-24 기준)
 
-- `npm test` -> `21 files, 241 passed`
+- `npm test` -> `22 files, 250 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -73,6 +75,7 @@
 20. `not-loaded` 디렉토리 확장 시 on-demand 로드 + "Loading..." placeholder 동작 확인
 21. `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시 확인
 22. polling watcher가 child cap 초과 디렉토리를 제외하고 스캔하는지 확인
+23. 텍스트 파일에서 Git added(초록)/modified(파랑) 라인 마커가 표시되고, 이미지/preview unavailable에서는 비표시인지 확인
 
 ## 5. 개발 환경
 

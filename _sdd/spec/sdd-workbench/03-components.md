@@ -11,18 +11,21 @@
   - spec 점프/코멘트 요청/내보내기 흐름 연결
 - `src/App.css`
   - 패널 레이아웃, marker/popover/modal 스타일
+  - code line Git marker(`added`/`modified`) 색상 스타일
   - header action 그룹/반응형 icon-only 규칙(`max-width: 1240px`)
 
 ### 1.2 Workspace State Layer
 
 - `src/workspace/workspace-context.tsx`
   - 멀티 워크스페이스 상태 및 action 집약
+  - active file read/refresh/전환 시 `workspace:getGitLineMarkers` 재조회 및 세션 상태 반영
   - same-spec source jump에서 불필요한 spec reset/read 최소화
   - workspace별 watch mode preference 변경/재시작 + fallback 배너 처리
   - comments/global-comments read-write 액션 제공
   - `loadDirectoryChildren` on-demand 디렉토리 확장 + `isFilePathPotentiallyPresent` lazy tree 보호
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
+  - session 상태에 `activeFileGitLineMarkers` 포함
   - `mergeDirectoryChildren` 순수 함수(트리 노드 교체)
 - `src/workspace/workspace-persistence.ts`
   - 세션 snapshot hydrate/persist(`watchModePreference` 영속화)
@@ -42,6 +45,7 @@
 
 - `src/code-viewer/code-viewer-panel.tsx`
   - 라인 단위 렌더, 선택/드래그/컨텍스트 메뉴
+  - line number 옆 Git marker(`added`/`modified`) 렌더
   - 이미지 프리뷰/preview unavailable 분기
   - comment count badge + hover popover 표시
 - `src/code-viewer/line-selection.ts`
@@ -90,13 +94,16 @@
 
 - `electron/main.ts`
   - IPC handler, watch lifecycle(native/polling/fallback), export 파일 쓰기, system open
+  - `workspace:getGitLineMarkers` 단건 diff 조회(`git diff --unified=0 HEAD -- <relativePath>`) + 실패 safe degrade
   - `detectRemoteMountPoint` (`mount` 명령 파싱 기반 네트워크 FS 감지)
   - `buildDirectoryChildren` + `handleWorkspaceIndexDirectory` (on-demand 디렉토리 IPC)
   - polling watcher child cap 초과 디렉토리 자동 제외
 - `electron/workspace-watch-mode.ts`
   - `/Volumes/*` 휴리스틱 + override 우선순위 기반 watch mode resolver
+- `electron/git-line-markers.ts`
+  - unified diff hunk 파싱으로 라인 마커(`added`/`modified`) 계산
 - `electron/preload.ts`
-  - `window.workspace` 브리지
+  - `window.workspace` 브리지(`getGitLineMarkers` 포함)
 - `electron/electron-env.d.ts`
   - renderer 타입 계약
 
@@ -109,6 +116,7 @@
 - code viewer: `src/code-viewer/code-viewer-panel.test.tsx`
 - file tree lazy load: `src/file-tree/file-tree-panel.test.tsx`
 - electron resolver: `electron/workspace-watch-mode.test.ts`
+- electron git parser: `electron/git-line-markers.test.ts`
 - syntax highlight: `src/code-viewer/syntax-highlight.test.ts`
 - comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export/comment-list-modal` 테스트
 

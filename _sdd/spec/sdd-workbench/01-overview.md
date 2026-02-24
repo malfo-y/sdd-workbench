@@ -37,6 +37,7 @@
 - View Comments 상단 global comments 표시 + "Include in export" 체크박스로 global 포함 선택 + Export modal global 포함 상태 표시
 - 코멘트 배너 5초 auto-dismiss(코멘트 액션 경로 한정)
 - header comments/workspace 액션 그룹 + title 옆 Back/Forward 배치
+- active file Git diff 라인 마커(added/modified) 표시
 
 ### 3.2 MVP 제외 범위
 
@@ -105,7 +106,8 @@
 | Lazy indexing + on-demand 디렉토리 확장 | Implemented | F16 |
 | Global 포함 체크박스 + Delete Exported 하단 이동 | Implemented | F17 |
 | Shiki 기반 코드 하이라이팅(40+ 언어, 비동기) | Implemented | F18 |
+| active file Git diff 라인 마커(added/modified) | Implemented | F19 |
 
 ## 6. Open Questions
 
-- 현재 없음 (`2026-02-23` 기준)
+- 현재 없음 (`2026-02-24` 기준)

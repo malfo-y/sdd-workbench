@@ -34,6 +34,7 @@ Right: Rendered Spec (TOC + link/source actions)
 
 - `rootPath`, `fileTree`, `expandedDirectories`
 - `activeFile`, `activeFileContent`, `activeFileImagePreview`
+- `activeFileGitLineMarkers`
 - `activeSpec`, `activeSpecContent`
 - `selectionRange`, `fileLastLineByPath`
 - `changedFiles`, `fileHistory`, `fileHistoryIndex`
@@ -62,8 +63,10 @@ Right: Rendered Spec (TOC + link/source actions)
 
 1. 파일 선택 -> `workspace:readFile`
 2. 텍스트면 CodeViewer line 렌더
-3. 이미지면 `imagePreview` 렌더
-4. preview 불가면 reason 기반 placeholder 표시
+3. 텍스트 파일이면 `workspace:getGitLineMarkers`로 active file 라인 마커(added/modified)를 조회
+4. 이미지면 `imagePreview` 렌더
+5. preview 불가면 reason 기반 placeholder 표시
+6. Git 조회 실패/비저장소 경로는 마커만 빈 배열로 degrade(배너 없음)
 
 ### 5.3 Spec 탐색 점프
 

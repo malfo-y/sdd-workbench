@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F18)
+## A. 기능 이력 (F01~F19)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -34,6 +34,7 @@
 | F16 | Done | 2026-02-23 | lazy indexing(remote 깊이제한 + child cap 500) + on-demand 디렉토리 확장 + 과대 디렉토리 polling 제외 |
 | F17 | Done | 2026-02-23 | View Comments global 포함 체크박스 + Delete Exported 하단 좌측 이동 |
 | F18 | Done | 2026-02-23 | Shiki 기반 코드 하이라이팅(PrismJS 제거, 40+ 언어, 비동기 + plaintext fallback) |
+| F19 | Done | 2026-02-24 | active file Git diff 라인 마커(added/modified, deleted 제외 MVP) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -58,6 +59,7 @@
 - 원격 마운트(`mount` 명령 기반 네트워크 FS 감지) watcher 모드 자동 판정 + 수동 override + fallback 정책
 - 대규모 워크스페이스 lazy indexing(remote 깊이제한 3레벨 + 디렉토리별 child cap 500) + on-demand 확장
 - polling watcher child cap 초과 디렉토리 자동 제외
+- active file 단건 Git diff 기반 라인 마커(added/modified) + 실패 safe degrade + image/preview unavailable 비표시
 
 ## C. 리스크/백로그
 
@@ -75,6 +77,7 @@
 12. remote mount 감지는 `mount` 명령 파싱 기반이며 Windows/Linux 고급 탐지는 미지원
 13. lazy-loaded 디렉토리는 browse-only이며 watcher 범위에 포함되지 않음
 14. on-demand 로드 후 구조 변경 re-index 시 lazy-loaded 디렉토리는 `not-loaded`로 리셋됨
+15. Git deleted-only 라인(빨강) 마커는 MVP 범위에서 미지원
 
 ## D. 이동/정리 내역 (이번 리라이트)
 
