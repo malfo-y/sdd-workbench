@@ -418,6 +418,7 @@ function App() {
   const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
     useState<CodeViewerJumpRequest | null>(null)
   const previousActiveFileRef = useRef<string | null>(null)
+  const historyNavigationRef = useRef(false)
   const specScrollPositionsRef = useRef<Record<string, number>>({})
   const [commentDraftState, setCommentDraftState] =
     useState<CommentDraftState | null>(null)
@@ -1158,6 +1159,11 @@ function App() {
       return
     }
 
+    if (historyNavigationRef.current) {
+      historyNavigationRef.current = false
+      setActiveTab(activeFile.endsWith('.md') ? 'spec' : 'code')
+    }
+
     if (
       !selectionRange ||
       selectionRange.startLine !== selectionRange.endLine
@@ -1209,6 +1215,7 @@ function App() {
 
   const navigateHistory = useCallback(
     (direction: 'back' | 'forward') => {
+      historyNavigationRef.current = true
       if (direction === 'back') {
         goBackInHistory()
         return

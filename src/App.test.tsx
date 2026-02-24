@@ -1970,6 +1970,69 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('auto-switches tab when navigating history between code and spec files', async () => {
+    const workspaceRoot = '/Users/tester/history-tab-switch'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'app.ts', relativePath: 'app.ts', kind: 'file' },
+        { name: 'spec.md', relativePath: 'spec.md', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'app.ts' })).toBeInTheDocument()
+    })
+
+    // Select code file -> Code tab active
+    fireEvent.click(screen.getByRole('button', { name: 'app.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('app.ts')
+    })
+    const codeTab = screen.getByTestId('content-tab-bar').querySelector('.content-tab-button.is-active')
+    expect(codeTab).toHaveTextContent('Code')
+
+    // Select spec file -> Spec tab active
+    fireEvent.click(screen.getByRole('button', { name: 'spec.md' }))
+    await waitFor(() => {
+      const specTab = screen.getByTestId('content-tab-bar').querySelector('.content-tab-button.is-active')
+      expect(specTab).toHaveTextContent('Spec')
+    })
+
+    // Navigate back -> should switch to Code tab (app.ts)
+    emitHistoryNavigateEvent({ direction: 'back', source: 'swipe' })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('app.ts')
+    })
+    await waitFor(() => {
+      const activeTab = screen.getByTestId('content-tab-bar').querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Code')
+    })
+
+    // Navigate forward -> should switch to Spec tab (spec.md)
+    emitHistoryNavigateEvent({ direction: 'forward', source: 'app-command' })
+    await waitFor(() => {
+      const activeTab = screen.getByTestId('content-tab-bar').querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Spec')
+    })
+  })
+
   it('applies watcher changed indicators per workspace', async () => {
     const projectARoot = '/Users/tester/watch-a'
     const projectBRoot = '/Users/tester/watch-b'
