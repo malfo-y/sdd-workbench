@@ -775,3 +775,249 @@ describe('CodeViewerPanel highlighting', () => {
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// F21: 텍스트 검색
+// ---------------------------------------------------------------------------
+
+const defaultSearchProps = {
+  activeFile: 'src/example.ts',
+  activeFileContent: 'const foo = 1\nconst bar = 2\nfoo.call(bar)\nconst baz = 3',
+  activeFileImagePreview: null,
+  commentLineCounts: new Map(),
+  isReadingFile: false,
+  jumpRequest: null,
+  onRequestCopyBoth: () => undefined,
+  onRequestAddComment: () => undefined,
+  onRequestCopyRelativePath: () => undefined,
+  onRequestCopySelectedContent: () => undefined,
+  onSelectRange: () => undefined,
+  previewUnavailableReason: null,
+  readFileError: null,
+  selectionRange: null,
+} as const
+
+describe('CodeViewerPanel search', () => {
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('does not show search bar by default', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    expect(screen.queryByTestId('code-viewer-search-bar')).not.toBeInTheDocument()
+  })
+
+  it('opens search bar on Ctrl+F', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    expect(screen.getByTestId('code-viewer-search-bar')).toBeInTheDocument()
+  })
+
+  it('opens search bar on Meta+F (Cmd+F)', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+    expect(screen.getByTestId('code-viewer-search-bar')).toBeInTheDocument()
+  })
+
+  it('highlights matching lines on query input', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // lines 1 and 3 contain 'foo'
+    expect(screen.getByTestId('code-line-1').closest('.code-line-row')).toHaveClass(
+      'is-search-match',
+    )
+    expect(screen.getByTestId('code-line-3').closest('.code-line-row')).toHaveClass(
+      'is-search-match',
+    )
+    expect(screen.getByTestId('code-line-2').closest('.code-line-row')).not.toHaveClass(
+      'is-search-match',
+    )
+  })
+
+  it('shows match count in N / M format', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // 'foo' matches lines 1 and 3
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('1 / 2')
+  })
+
+  it('shows No results when there are no matches', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'zzznomatch' },
+    })
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('No results')
+  })
+
+  it('applies is-search-focus to the current focus match line', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // first match (line 1) should be focused
+    expect(screen.getByTestId('code-line-1').closest('.code-line-row')).toHaveClass(
+      'is-search-focus',
+    )
+    expect(screen.getByTestId('code-line-3').closest('.code-line-row')).not.toHaveClass(
+      'is-search-focus',
+    )
+  })
+
+  it('moves to next match on next button click', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // initially focused on line 1 (index 0)
+    fireEvent.click(screen.getByTestId('code-viewer-search-next'))
+    // now focused on line 3 (index 1, the 2nd match)
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('2 / 2')
+    expect(screen.getByTestId('code-line-3').closest('.code-line-row')).toHaveClass(
+      'is-search-focus',
+    )
+  })
+
+  it('moves to prev match on prev button click', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // advance to second match first
+    fireEvent.click(screen.getByTestId('code-viewer-search-next'))
+    // then go back
+    fireEvent.click(screen.getByTestId('code-viewer-search-prev'))
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('1 / 2')
+    expect(screen.getByTestId('code-line-1').closest('.code-line-row')).toHaveClass(
+      'is-search-focus',
+    )
+  })
+
+  it('wraps around to first match after last on next click', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // advance to last match (line 3)
+    fireEvent.click(screen.getByTestId('code-viewer-search-next'))
+    // wrap: next from last → first
+    fireEvent.click(screen.getByTestId('code-viewer-search-next'))
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('1 / 2')
+  })
+
+  it('wraps around to last match before first on prev click', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    // at first match, go prev → should wrap to last
+    fireEvent.click(screen.getByTestId('code-viewer-search-prev'))
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('2 / 2')
+  })
+
+  it('moves to next match on Enter in search input', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    fireEvent.keyDown(screen.getByTestId('code-viewer-search-input'), { key: 'Enter' })
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('2 / 2')
+  })
+
+  it('moves to prev match on Shift+Enter in search input', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    fireEvent.keyDown(screen.getByTestId('code-viewer-search-input'), {
+      key: 'Enter',
+      shiftKey: true,
+    })
+    expect(screen.getByTestId('code-viewer-search-count')).toHaveTextContent('2 / 2')
+  })
+
+  it('closes search bar on Escape in search input', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    expect(screen.getByTestId('code-viewer-search-bar')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByTestId('code-viewer-search-input'), { key: 'Escape' })
+    expect(screen.queryByTestId('code-viewer-search-bar')).not.toBeInTheDocument()
+  })
+
+  it('closes search bar on close button click', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.click(screen.getByTestId('code-viewer-search-close'))
+    expect(screen.queryByTestId('code-viewer-search-bar')).not.toBeInTheDocument()
+  })
+
+  it('clears search highlights after closing the search bar', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    fireEvent.click(screen.getByTestId('code-viewer-search-close'))
+    expect(screen.getByTestId('code-line-1').closest('.code-line-row')).not.toHaveClass(
+      'is-search-match',
+    )
+  })
+
+  it('resets search state when activeFile changes', () => {
+    const { rerender } = render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'foo' },
+    })
+    expect(screen.getByTestId('code-viewer-search-bar')).toBeInTheDocument()
+    rerender(
+      <CodeViewerPanel
+        {...defaultSearchProps}
+        activeFile="src/other.ts"
+        activeFileContent="other content"
+      />,
+    )
+    expect(screen.queryByTestId('code-viewer-search-bar')).not.toBeInTheDocument()
+  })
+
+  it('does not show search bar in image preview mode', () => {
+    render(
+      <CodeViewerPanel
+        {...defaultSearchProps}
+        activeFile="images/photo.png"
+        activeFileContent={null}
+        activeFileImagePreview={{
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+        }}
+      />,
+    )
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    expect(screen.queryByTestId('code-viewer-search-bar')).not.toBeInTheDocument()
+  })
+
+  it('is case-insensitive when searching', () => {
+    render(<CodeViewerPanel {...defaultSearchProps} />)
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    fireEvent.change(screen.getByTestId('code-viewer-search-input'), {
+      target: { value: 'FOO' },
+    })
+    expect(screen.getByTestId('code-line-1').closest('.code-line-row')).toHaveClass(
+      'is-search-match',
+    )
+  })
+})

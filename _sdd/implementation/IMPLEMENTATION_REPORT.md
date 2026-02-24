@@ -1,93 +1,87 @@
-# Implementation Report: F20 Export 버그 수정 및 코멘트→코드 점프
+# Implementation Report: F21 — Code Viewer 텍스트 검색
 
 **Date**: 2026-02-24
-**Plan**: `_sdd/drafts/feature_draft_f20_export_bugfix_and_comment_jump.md`
+**Feature**: F21 — Code Viewer substring 텍스트 검색 + 라인 단위 이동
 
 ---
 
 ## Progress Summary
 
-- **Total Tasks**: 3
-- **Completed**: 3
-- **Tests Added**: +12 (250 → 262)
-- **All Passing**: Yes (262/262, 23 files)
-- **Lint**: Clean
+- Total Tasks: 1
+- Completed: 1
+- Tests Added: 19
+- All Passing: Yes
+
+### Baseline → Final
+| 항목 | 베이스라인 | 최종 |
+|------|-----------|------|
+| Test files | 23 | 23 |
+| Tests passed | 262 | **281** |
+| Lint | pass | pass |
+| Build | pass | pass |
 
 ---
 
-## Parallel Execution Stats
+## Completed
 
-| Metric | 값 |
-|--------|----|
-| Total Groups Dispatched | 2 |
-| Tasks Run in Parallel | 2 (Task 1 + Task 2, Phase 1) |
-| Sequential Fallbacks | 1 (Task 3, Phase 2 — App.tsx 충돌) |
-| Sub-agent Failures | 0 |
+- [x] Task 1: 검색 바 UI + 매칭 로직 + 라인 하이라이트 + 키보드 단축키 (19 tests)
 
----
-
-## Completed Tasks
-
-- [x] **Task 1**: Export pending-only 제한 제거 (+2 tests) [parallel: Phase 1 Group 1]
-- [x] **Task 2**: Export 카운트에 global comments 반영 (+7 tests) [parallel: Phase 1 Group 1]
-- [x] **Task 3**: 코멘트 target 클릭→코드 점프 (+3 tests) [sequential: Phase 2]
-
----
-
-## Changes by File
-
-| 파일 | 변경 유형 | 내용 |
-|------|----------|------|
-| `src/App.tsx` | M | `allowExportWithoutPendingComments` 조건 수정 + `onJumpToComment` 콜백 추가 |
-| `src/App.css` | M | `.comment-modal-target-jump` 버튼 스타일 추가 |
-| `src/code-comments/export-comments-modal.tsx` | M | 카운트 텍스트 조건부 `+ global comments` 표시 |
-| `src/code-comments/comment-export.ts` | M | `Total comments` 라인에 `(+ global comments)` 표기 |
-| `src/code-comments/comment-list-modal.tsx` | M | `onJumpToComment` prop 추가, target `<p>` → `<button>` 변경 |
-| `src/App.test.tsx` | M | Task 1 테스트 수정 1개 + 신규 3개 추가 |
-| `src/code-comments/comment-export.test.ts` | M | 신규 테스트 3개 추가 |
-| `src/code-comments/export-comments-modal.test.tsx` | C | 신규 파일 (테스트 4개) |
-| `src/code-comments/comment-list-modal.test.tsx` | M | `onJumpToComment={vi.fn()}` 기존 render에 추가 + 신규 테스트 2개 |
+### TDD 진행
+| Acceptance Criterion | RED | GREEN | REFACTOR | 상태 |
+|----------------------|-----|-------|----------|------|
+| 검색 바 기본 비표시 | ✓ | ✓ | ✓ | 완료 |
+| Ctrl+F로 검색 바 열기 | ✓ | ✓ | ✓ | 완료 |
+| Meta+F(Cmd+F)로 검색 바 열기 | ✓ | ✓ | ✓ | 완료 |
+| substring 매칭 + 라인 하이라이트 | ✓ | ✓ | ✓ | 완료 |
+| 매치 카운트 N / M 표시 | ✓ | ✓ | ✓ | 완료 |
+| No results 표시 | ✓ | ✓ | ✓ | 완료 |
+| is-search-focus 현재 매치 표시 | ✓ | ✓ | ✓ | 완료 |
+| 다음 매치 버튼 이동 | ✓ | ✓ | ✓ | 완료 |
+| 이전 매치 버튼 이동 | ✓ | ✓ | ✓ | 완료 |
+| wrap-around 다음→첫 매치 | ✓ | ✓ | ✓ | 완료 |
+| wrap-around 이전→마지막 매치 | ✓ | ✓ | ✓ | 완료 |
+| Enter 다음 매치 이동 | ✓ | ✓ | ✓ | 완료 |
+| Shift+Enter 이전 매치 이동 | ✓ | ✓ | ✓ | 완료 |
+| Escape 검색 닫기 | ✓ | ✓ | ✓ | 완료 |
+| 닫기 버튼 검색 닫기 | ✓ | ✓ | ✓ | 완료 |
+| 닫기 시 하이라이트 해제 | ✓ | ✓ | ✓ | 완료 |
+| 파일 변경 시 검색 초기화 | ✓ | ✓ | ✓ | 완료 |
+| 이미지 프리뷰 모드 비표시 | ✓ | ✓ | ✓ | 완료 |
+| case-insensitive 검색 | ✓ | ✓ | ✓ | 완료 |
 
 ---
 
-## Test Summary
+## 생성/수정된 파일
 
-| 구분 | 수 |
-|------|----|
-| Baseline | 250 tests (22 files) |
-| Phase 1 추가 | +8 (Task 1: 2, Task 2: 7 — 1개는 수정) |
-| Phase 2 추가 | +4 (Task 3: 2 unit + 2 integration) |
-| **최종** | **262 tests (23 files)** |
+| 파일 | 변경 | 내용 |
+|------|------|------|
+| `src/code-viewer/code-viewer-panel.tsx` | M | 검색 상태 4개, `searchMatchLines` useMemo, `searchMatchLineSet` useMemo, Ctrl/Cmd+F useEffect, 파일변경 리셋, 네비게이션 핸들러 4개, 검색 바 JSX, 라인 className 확장 |
+| `src/App.css` | M | `.code-viewer-search-bar`, `.code-viewer-search-input`, `.code-viewer-search-count`, `.code-viewer-search-nav-button`, `.code-viewer-search-close-button`, `.is-search-match`, `.is-search-focus` 스타일 |
+| `src/code-viewer/code-viewer-panel.test.tsx` | M | `describe('CodeViewerPanel search')` — 19개 테스트 추가 |
+
+---
+
+## 발견 사항
+
+### scrollIntoView jsdom 이슈
+- `lineButtonRefs.current[n]?.scrollIntoView()` 호출 시 jsdom에서 "not a function" 오류 발생
+- 기존 jumpRequest 코드와 동일하게 `typeof el.scrollIntoView === 'function'` 가드로 해결
+
+### 성능 최적화 (REFACTOR)
+- 초기 구현: `searchMatchLines.includes(lineNumber)` — O(n) 라인 단위 렌더 시 O(n²)
+- REFACTOR: `searchMatchLineSet = new Set(searchMatchLines)` 로 O(1) 조회로 개선
 
 ---
 
 ## Quality Assessment
 
-### Phase 1 Review
-- **Critical Issues**: 0
-- **Quality Issues**: 0
-- **Discoveries**:
-  - Task 1: 기존 테스트 `disables clipboard export when bundle exceeds max length`가 버그 동작을 그대로 검증하고 있었음 → `toBeDisabled()` → `toBeEnabled()` 수정
-  - Task 2: `normalizedGlobalComments` 변수가 이미 함수 스코프에서 존재해 추가 변수 없이 인라인 조건식 적용 가능
+### Phase Review
+| Category | Issues | Status |
+|----------|--------|--------|
+| Security | 0 | Clean |
+| Error Handling | 0 | Clean |
+| Code Patterns | 0 | Clean (기존 패턴 일관성 유지) |
+| Performance | 1 resolved | includes→Set 최적화 완료 |
+| Test Quality | 0 | 19개 독립 테스트 |
 
-### Phase 2 Review
-- **Critical Issues**: 0
-- **Quality Issues**: 0
-- **Discoveries**:
-  - `selectFile`의 실제 반환 타입이 `void` (plan에서 `boolean`으로 명시했으나 실제 다름). `workspaceFilePathSet.has(relativePath)` 체크로 파일 존재 여부를 선행 검증하는 방식으로 구현.
-  - React 18 배칭에서 `selectFile` → `setSelectionRange` → `setCodeViewerJumpRequest` 호출 순서가 중요. 순서를 지켜 구현됨.
-
-### Cross-Phase Review
-- 모든 모듈 간 연동 정상
-- 기존 export 흐름(header 직접 호출)에 영향 없음
-- `onJumpToComment` 콜백이 View Comments 모달을 통해서만 진입 가능한 구조 유지
-
----
-
-## Conclusion
-
-**상태**: ✅ READY
-
-버그 2건 수정 및 코멘트→코드 점프 기능 모두 완료. 262/262 테스트 통과, lint clean.
-
-다음 단계: `spec-update-done` 스킬로 스펙 동기화 권장
+### Conclusion: **READY**

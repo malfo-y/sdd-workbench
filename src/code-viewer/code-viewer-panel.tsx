@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
 } from 'react'
 import {
@@ -150,6 +151,10 @@ export function CodeViewerPanel({
   )
   const [commentHoverState, setCommentHoverState] =
     useState<CommentHoverState | null>(null)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const dragSelectionRef = useRef<{
     anchorLine: number
     hasMoved: boolean
@@ -177,6 +182,45 @@ export function CodeViewerPanel({
   )
   const [highlightedLines, setHighlightedLines] = useState<string[]>(plaintextLines)
 
+  const searchMatchLines = useMemo<number[]>(() => {
+    if (!searchQuery) {
+      return []
+    }
+    const query = searchQuery.toLowerCase()
+    const result: number[] = []
+    for (let i = 0; i < previewLines.length; i++) {
+      if (previewLines[i].toLowerCase().includes(query)) {
+        result.push(i + 1) // 1-based line number
+      }
+    }
+    return result
+  }, [previewLines, searchQuery])
+
+  const searchMatchLineSet = useMemo(
+    () => new Set(searchMatchLines),
+    [searchMatchLines],
+  )
+
+  useEffect(() => {
+    setCurrentMatchIndex(0)
+  }, [searchMatchLines])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'f' && (event.ctrlKey || event.metaKey) && !isImagePreviewMode) {
+        event.preventDefault()
+        setIsSearchOpen(true)
+        setTimeout(() => {
+          searchInputRef.current?.focus()
+        }, 0)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isImagePreviewMode])
+
   useEffect(() => {
     setHighlightedLines(plaintextLines)
 
@@ -199,6 +243,9 @@ export function CodeViewerPanel({
     setAnchorLine(null)
     setContextMenuState(null)
     setCommentHoverState(null)
+    setIsSearchOpen(false)
+    setSearchQuery('')
+    setCurrentMatchIndex(0)
     dragSelectionRef.current = null
     suppressClickRef.current = false
     if (hoverCloseTimerRef.current) {
@@ -325,6 +372,59 @@ export function CodeViewerPanel({
     }
     lastHandledJumpTokenRef.current = jumpRequest.token
   }, [activeFile, activeFileContent, jumpRequest, previewLines])
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false)
+    setSearchQuery('')
+    setCurrentMatchIndex(0)
+  }, [])
+
+  const scrollToMatchLine = useCallback((lineNumber: number) => {
+    const el = lineButtonRefs.current[lineNumber]
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'center' })
+    }
+  }, [])
+
+  const goToNextMatch = useCallback(() => {
+    if (searchMatchLines.length === 0) {
+      return
+    }
+    const nextIndex = (currentMatchIndex + 1) % searchMatchLines.length
+    setCurrentMatchIndex(nextIndex)
+    const targetLine = searchMatchLines[nextIndex]
+    if (targetLine !== undefined) {
+      scrollToMatchLine(targetLine)
+    }
+  }, [currentMatchIndex, scrollToMatchLine, searchMatchLines])
+
+  const goToPrevMatch = useCallback(() => {
+    if (searchMatchLines.length === 0) {
+      return
+    }
+    const prevIndex =
+      (currentMatchIndex - 1 + searchMatchLines.length) % searchMatchLines.length
+    setCurrentMatchIndex(prevIndex)
+    const targetLine = searchMatchLines[prevIndex]
+    if (targetLine !== undefined) {
+      scrollToMatchLine(targetLine)
+    }
+  }, [currentMatchIndex, scrollToMatchLine, searchMatchLines])
+
+  const handleSearchInputKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Escape') {
+        closeSearch()
+      } else if (event.key === 'Enter') {
+        if (event.shiftKey) {
+          goToPrevMatch()
+        } else {
+          goToNextMatch()
+        }
+      }
+    },
+    [closeSearch, goToNextMatch, goToPrevMatch],
+  )
 
   const handleLineClick = (lineNumber: number, extendSelection: boolean) => {
     if (suppressClickRef.current) {
@@ -476,6 +576,58 @@ export function CodeViewerPanel({
         </p>
       </header>
 
+      {isSearchOpen && !isImagePreviewMode && (
+        <div className="code-viewer-search-bar" data-testid="code-viewer-search-bar">
+          <input
+            className="code-viewer-search-input"
+            data-testid="code-viewer-search-input"
+            onChange={(event) => {
+              setSearchQuery(event.target.value)
+            }}
+            onKeyDown={handleSearchInputKeyDown}
+            placeholder="Search…"
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+          />
+          <span
+            className="code-viewer-search-count"
+            data-testid="code-viewer-search-count"
+          >
+            {searchMatchLines.length === 0
+              ? 'No results'
+              : `${currentMatchIndex + 1} / ${searchMatchLines.length}`}
+          </span>
+          <button
+            aria-label="Previous match"
+            className="code-viewer-search-nav-button"
+            data-testid="code-viewer-search-prev"
+            onClick={goToPrevMatch}
+            type="button"
+          >
+            ▲
+          </button>
+          <button
+            aria-label="Next match"
+            className="code-viewer-search-nav-button"
+            data-testid="code-viewer-search-next"
+            onClick={goToNextMatch}
+            type="button"
+          >
+            ▼
+          </button>
+          <button
+            aria-label="Close search"
+            className="code-viewer-search-close-button"
+            data-testid="code-viewer-search-close"
+            onClick={closeSearch}
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {!activeFile && (
         <p className="code-viewer-empty" data-testid="code-viewer-empty">
           Select a file to preview its content.
@@ -535,10 +687,20 @@ export function CodeViewerPanel({
               const highlightedLine = highlightedLines[lineIndex] ?? ' '
               const commentCount = commentLineCounts.get(lineNumber) ?? 0
               const gitLineMarkerKind = gitLineMarkers.get(lineNumber) ?? null
+              const isSearchMatchLine = isSearchOpen && searchMatchLineSet.has(lineNumber)
+              const isSearchFocusLine =
+                isSearchMatchLine && searchMatchLines[currentMatchIndex] === lineNumber
 
               return (
                 <li
-                  className={`code-line-row ${isSelected ? 'is-selected' : ''}`}
+                  className={[
+                    'code-line-row',
+                    isSelected ? 'is-selected' : '',
+                    isSearchMatchLine ? 'is-search-match' : '',
+                    isSearchFocusLine ? 'is-search-focus' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   key={lineNumber}
                 >
                   <button
