@@ -35,6 +35,7 @@
 | F17 | Done | 2026-02-23 | View Comments global 포함 체크박스 + Delete Exported 하단 좌측 이동 |
 | F18 | Done | 2026-02-23 | Shiki 기반 코드 하이라이팅(PrismJS 제거, 40+ 언어, 비동기 + plaintext fallback) |
 | F19 | Done | 2026-02-24 | active file Git diff 라인 마커(added/modified, deleted 제외 MVP) |
+| F20 | Done | 2026-02-24 | export pending-only 제한 완화(선택 export 시) + global comments export 카운트 반영 + View Comments target 클릭→코드 점프 |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -49,8 +50,10 @@
 - Open In(iTerm/VSCode) 액션
 - markdown sanitize/리소스 경계 정책
 - 이미지 프리뷰 및 blocked_resource 처리
-- comments 저장/관리(edit/delete/Delete Exported) 및 pending-only 정책
+- comments 저장/관리(edit/delete/Delete Exported) 및 export 대상 선택 정책(기본: pending-only, View Comments 선택 시: 선택 코멘트 모두)
+- View Comments target 클릭 시 해당 파일/라인으로 점프 + 모달 자동 닫힘(파일 없음 시 무시)
 - global comments 저장/복원 및 export prepend 정책
+- export 모달 global comments 포함 시 `N comment(s) + global comments included` 카운트 표시, `_COMMENTS.md` `Total comments (+ global comments)` 표기
 - code/rendered marker hover preview(`+N more`, read-only)
 - header action 그룹 재배치 + compact/icon-only 정책
 - 코멘트 배너 auto-dismiss(5s) + `View Comments`/`Export Comments` global 가시성 명시

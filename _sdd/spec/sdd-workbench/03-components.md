@@ -84,9 +84,9 @@
   - `_COMMENTS.md` 및 bundle 렌더(global comments prepend 포함)
 - `src/code-comments/comment-editor-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
-  - export target/길이 가드 + global comments 포함 상태 표시(View Comments 체크박스 상태 반영)
+  - export target/길이 가드 + global comments 포함 상태 표시(View Comments 체크박스 상태 반영) + 코멘트 갯수에 global comments 포함 여부 표시(`N comment(s) + global comments included`)
 - `src/code-comments/comment-list-modal.tsx`
-  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm, 하단 좌측 배치) + global comments 상단 read-only 섹션 + "Include in export" 체크박스
+  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm, 하단 좌측 배치) + global comments 상단 read-only 섹션 + "Include in export" 체크박스 + 코멘트 target 클릭 시 해당 파일/라인으로 점프(모달 닫힘)
 - `src/code-comments/global-comments-modal.tsx`
   - 워크스페이스 전역 코멘트 편집/저장
 
