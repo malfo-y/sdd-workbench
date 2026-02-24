@@ -53,7 +53,7 @@ export function renderCommentsMarkdown(
     '# _COMMENTS',
     '',
     `Generated at: ${new Date().toISOString()}`,
-    `Total comments: ${sortedComments.length}`,
+    `Total comments: ${sortedComments.length}${normalizedGlobalComments.length > 0 ? ' (+ global comments)' : ''}`,
     '',
     ...markdownSections,
     '',

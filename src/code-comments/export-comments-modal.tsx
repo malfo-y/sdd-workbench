@@ -90,7 +90,9 @@ export function ExportCommentsModal({
         role="dialog"
       >
         <h2>Export Comments</h2>
-        <p className="comment-modal-meta">{commentCount} comment(s) included</p>
+        <p className="comment-modal-meta">
+          {commentCount} comment(s){hasGlobalComments ? ' + global comments' : ''} included
+        </p>
         <p className="comment-modal-meta">{pendingCommentCount} pending comment(s)</p>
         <p className="comment-modal-meta">
           Global comments: {hasGlobalComments ? 'included' : 'not included'}

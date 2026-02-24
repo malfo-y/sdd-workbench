@@ -1131,6 +1131,21 @@
   overflow-wrap: anywhere;
 }
 
+.comment-modal-target-jump {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+  text-underline-offset: 2px;
+}
+.comment-modal-target-jump:hover {
+  text-decoration-color: rgba(255, 255, 255, 0.7);
+}
+
 .comment-modal-textarea {
   background: #111;
   border: 1px solid #4a4a4a;

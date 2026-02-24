@@ -4004,6 +4004,148 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('jumps to comment code line and closes View Comments modal when target clicked', async () => {
+    const workspaceRoot = '/Users/tester/projects/jump-comment-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [
+            {
+              name: 'a.ts',
+              relativePath: 'src/a.ts',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:2-3:aaaa1111:2026-02-22T14:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 2,
+          endLine: 3,
+          body: 'Review this block',
+          anchor: {
+            snippet: 'some code',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:00:00.000Z',
+        },
+      ],
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'line1\nline2\nline3\n',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    // Click the target jump button
+    fireEvent.click(screen.getByRole('button', { name: 'src/a.ts:L2-L3' }))
+
+    // Modal should be closed
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'View comments' })).not.toBeInTheDocument()
+    })
+
+    // Active file should be updated
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('src/a.ts')
+    })
+
+    // Selection range should be updated
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+        'Selection: L2-L3',
+      )
+    })
+  })
+
+  it('closes View Comments modal but does not jump when comment file is not in workspace', async () => {
+    const workspaceRoot = '/Users/tester/projects/jump-missing-file-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/missing.ts:1-1:bbbb2222:2026-02-22T14:00:00.000Z',
+          relativePath: 'src/missing.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'Comment on missing file',
+          anchor: {
+            snippet: 'code',
+            hash: 'bbbb2222',
+          },
+          createdAt: '2026-02-22T14:00:00.000Z',
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    // Click the target jump button for a file not in workspace
+    fireEvent.click(screen.getByRole('button', { name: 'src/missing.ts:L1' }))
+
+    // Modal should be closed
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'View comments' })).not.toBeInTheDocument()
+    })
+
+    // Active file should remain as "No active file" since selectFile returned false
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('No active file')
+  })
+
   it('updates a comment body from View Comments modal', async () => {
     const workspaceRoot = '/Users/tester/projects/edit-comments-workspace'
     openDialogMock.mockResolvedValueOnce({
@@ -4942,7 +5084,70 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
     expect(screen.getByText('Global comments: not included')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
+  })
+
+  it('allows export of already-exported comments when selected from View Comments', async () => {
+    const workspaceRoot = '/Users/tester/projects/exported-only-from-view-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValue({
+      ok: true,
+      comments: [
+        {
+          id: 'src/b.ts:5-5:bbbb2222:2026-02-22T10:00:00.000Z',
+          relativePath: 'src/b.ts',
+          startLine: 5,
+          endLine: 5,
+          body: 'This comment was already exported.',
+          anchor: {
+            snippet: 'const b = 2',
+            hash: 'bbbb2222',
+          },
+          createdAt: '2026-02-22T10:00:00.000Z',
+          exportedAt: '2026-02-22T11:00:00.000Z',
+        },
+      ],
+    })
+    exportCommentsBundleMock.mockResolvedValueOnce({
+      ok: true,
+      commentsPath: `${workspaceRoot}/_COMMENTS.md`,
+      bundlePath: `${workspaceRoot}/.sdd-workbench/exports/20260222_110000-comments-bundle.md`,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    // Select the already-exported comment and click export
+    fireEvent.click(screen.getByLabelText('Select comment from src/b.ts:L5'))
+    fireEvent.click(screen.getByTestId('export-selected-button'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+    expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
+    expect(screen.getByText('Global comments: not included')).toBeInTheDocument()
+    // Export button must be enabled when comments are explicitly selected from View Comments
+    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
   })
 
   it('keeps file export success when clipboard copy fails during mixed export', async () => {

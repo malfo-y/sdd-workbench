@@ -89,4 +89,28 @@ describe('comment-export', () => {
     })
     expect(bundle).not.toContain('## Global Comments')
   })
+
+  it('includes "(+ global comments)" in Total comments line when globalComments is provided', () => {
+    const markdown = renderCommentsMarkdown([COMMENT_A, COMMENT_B], {
+      globalComments: 'Some global context',
+    })
+
+    expect(markdown).toContain('Total comments: 2 (+ global comments)')
+  })
+
+  it('does not include "(+ global comments)" in Total comments line when globalComments is absent', () => {
+    const markdown = renderCommentsMarkdown([COMMENT_A, COMMENT_B])
+
+    expect(markdown).toContain('Total comments: 2')
+    expect(markdown).not.toContain('(+ global comments)')
+  })
+
+  it('does not include "(+ global comments)" in Total comments line when globalComments is empty/whitespace', () => {
+    const markdown = renderCommentsMarkdown([COMMENT_B], {
+      globalComments: '   ',
+    })
+
+    expect(markdown).toContain('Total comments: 1')
+    expect(markdown).not.toContain('(+ global comments)')
+  })
 })

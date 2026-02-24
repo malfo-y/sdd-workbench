@@ -43,6 +43,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -73,6 +74,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -99,6 +101,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={onUpdateComment}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -124,6 +127,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -146,6 +150,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={onDeleteExportedComments}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -167,6 +172,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -190,6 +196,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -210,6 +217,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -232,6 +240,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -254,6 +263,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -276,6 +286,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -304,6 +315,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={onRequestExport}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -328,6 +340,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -349,6 +362,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={onRequestExport}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -374,6 +388,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -394,6 +409,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -413,6 +429,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={onRequestExport}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -434,6 +451,7 @@ describe('CommentListModal', () => {
         onDeleteExportedComments={() => true}
         onUpdateComment={() => true}
         onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
       />,
     )
 
@@ -444,5 +462,50 @@ describe('CommentListModal', () => {
     // Uncheck the global checkbox
     fireEvent.click(screen.getByTestId('include-global-comments-checkbox'))
     expect(screen.getByTestId('export-selected-button')).toBeDisabled()
+  })
+
+  it('renders comment target as a button element', () => {
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    const jumpButton = screen.getByRole('button', { name: 'src/a.ts:L2-L3' })
+    expect(jumpButton).toBeInTheDocument()
+    expect(jumpButton.tagName).toBe('BUTTON')
+  })
+
+  it('calls onJumpToComment with correct args when target button is clicked', () => {
+    const onJumpToComment = vi.fn()
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={onJumpToComment}
+      />,
+    )
+
+    // Click the jump button for a-comment (src/a.ts L2-L3)
+    fireEvent.click(screen.getByRole('button', { name: 'src/a.ts:L2-L3' }))
+
+    expect(onJumpToComment).toHaveBeenCalledOnce()
+    expect(onJumpToComment).toHaveBeenCalledWith('src/a.ts', 2, 3)
   })
 })

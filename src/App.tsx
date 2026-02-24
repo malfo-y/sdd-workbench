@@ -1614,6 +1614,20 @@ function App() {
           setIsViewCommentsModalOpen(false)
           setIsExportModalOpen(true)
         }}
+        onJumpToComment={(relativePath, startLine, endLine) => {
+          setIsViewCommentsModalOpen(false)
+          if (!workspaceFilePathSet.has(relativePath)) {
+            return
+          }
+          selectFile(relativePath)
+          setSelectionRange({ startLine, endLine })
+          jumpRequestTokenRef.current += 1
+          setCodeViewerJumpRequest({
+            targetRelativePath: relativePath,
+            lineNumber: startLine,
+            token: jumpRequestTokenRef.current,
+          })
+        }}
       />
       <GlobalCommentsModal
         initialValue={globalCommentsModalState?.initialValue ?? ''}
@@ -1630,7 +1644,7 @@ function App() {
         commentCount={exportSelectedCommentIds ? exportSelectedCommentIds.length : comments.length}
         estimateBundleLength={estimateBundleLength}
         hasGlobalComments={effectiveExportHasGlobalComments}
-        allowExportWithoutPendingComments={effectiveExportHasGlobalComments}
+        allowExportWithoutPendingComments={Boolean(exportSelectedCommentIds) || effectiveExportHasGlobalComments}
         isExporting={isExportingComments}
         isOpen={isExportModalOpen}
         maxClipboardChars={MAX_CLIPBOARD_CHARS}

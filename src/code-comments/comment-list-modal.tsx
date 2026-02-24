@@ -18,6 +18,7 @@ type CommentListModalProps = {
   onDeleteComment: (commentId: string) => boolean | Promise<boolean>
   onDeleteExportedComments: () => boolean | Promise<boolean>
   onRequestExport: (selectedCommentIds: string[], includeGlobalComments: boolean) => void
+  onJumpToComment: (relativePath: string, startLine: number, endLine: number) => void
 }
 
 const COLLAPSED_BODY_MAX_CHARS = 180
@@ -51,6 +52,7 @@ export function CommentListModal({
   onDeleteComment,
   onDeleteExportedComments,
   onRequestExport,
+  onJumpToComment,
 }: CommentListModalProps) {
   const sortedComments = useMemo(() => sortCodeComments([...comments]), [comments])
   const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
@@ -285,12 +287,19 @@ export function CommentListModal({
                 </label>
                 <div className="comment-list-item-content">
                   <div className="comment-list-item-meta">
-                    <p className="comment-modal-target" title={comment.relativePath}>
+                    <button
+                      className="comment-modal-target comment-modal-target-jump"
+                      onClick={() => {
+                        onJumpToComment(comment.relativePath, comment.startLine, comment.endLine)
+                      }}
+                      title={`Jump to ${comment.relativePath}:${formatLineRange(comment.startLine, comment.endLine)}`}
+                      type="button"
+                    >
                       {comment.relativePath}:{formatLineRange(
                         comment.startLine,
                         comment.endLine,
                       )}
-                    </p>
+                    </button>
                     <p className="comment-modal-meta">{comment.createdAt}</p>
                     {comment.exportedAt && (
                       <p className="comment-modal-meta">exported: {comment.exportedAt}</p>
