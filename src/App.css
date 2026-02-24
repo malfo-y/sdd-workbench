@@ -991,7 +991,7 @@
   cursor: pointer;
   display: grid;
   font: inherit;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 56px minmax(0, 1fr);
   padding: 2px 0;
   text-align: left;
   width: 100%;
