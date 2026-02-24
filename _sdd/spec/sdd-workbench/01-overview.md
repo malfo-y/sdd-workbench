@@ -6,7 +6,7 @@
 
 ## 2. 핵심 목표
 
-1. 스펙(Markdown)과 코드를 동시에 보는 3패널 워크벤치 제공
+1. 스펙(Markdown)과 코드를 탭 전환으로 보는 2패널 워크벤치 제공
 2. 스펙 문서 링크/선택에서 코드 라인으로 즉시 점프
 3. CLI 협업을 위한 컨텍스트 복사 및 외부 툴 연동(Open In) 지원
 4. 외부 파일 변경(watcher)을 UI에서 안정적으로 반영
@@ -21,7 +21,7 @@
 
 - 멀티 워크스페이스 열기/전환/닫기
 - 파일 트리 탐색 및 코드 프리뷰
-- Markdown raw+rendered 동시 뷰
+- Code/Spec 탭 전환 뷰(비활성 탭 display:none 보존)
 - spec->code 링크 점프 및 rendered selection source jump
 - same-spec source jump 시 rendered spec scroll 유지(런타임)
 - 우클릭 기반 컨텍스트 복사
@@ -36,9 +36,10 @@
 - code/rendered marker hover preview로 코멘트 본문 요약 확인
 - View Comments 상단 global comments 표시 + "Include in export" 체크박스로 global 포함 선택 + Export modal global 포함 상태 표시
 - 코멘트 배너 5초 auto-dismiss(코멘트 액션 경로 한정)
-- header comments/workspace 액션 그룹 + title 옆 Back/Forward 배치
+- header comments 액션 그룹 + title 옆 Back/Forward + Code/Spec 탭 배치
 - active file Git diff 라인 마커(added/modified) 표시
 - Cmd+Shift+Up/Down 워크스페이스 키보드 순환 전환
+- 2패널 탭 레이아웃(Code/Spec 탭 전환) + 워크스페이스 관리 사이드바 통합 + Cmd+Shift+Left/Right 탭 전환
 
 ### 3.2 MVP 제외 범위
 
@@ -52,9 +53,9 @@
 
 ### 4.1 탐색 흐름
 
-1. 워크스페이스를 추가로 열고(active workspace 선택)
-2. 파일 트리에서 코드/스펙 파일을 탐색하며
-3. rendered 스펙 링크/선택으로 코드 위치를 왕복 점프한다.
+1. 워크스페이스를 추가로 열고(사이드바에서 선택/전환)
+2. 파일 트리에서 파일을 선택하면 파일 타입에 따라 Code/Spec 탭이 자동 전환되고
+3. Code/Spec 탭을 수동 전환하거나(`Cmd+Shift+Left/Right`) rendered 스펙 링크로 코드 위치를 점프한다.
 
 ### 4.2 컨텍스트 전달 흐름
 
@@ -111,6 +112,7 @@
 | Export 선택 제한 완화 + comment-to-code jump | Implemented | F20 |
 | Code viewer 텍스트 검색 | Implemented | F21 |
 | 키보드 워크스페이스 전환(Cmd+Shift+Up/Down) | Implemented | F22 |
+| 2패널 탭 레이아웃 + 사이드바 워크스페이스 관리 | Implemented | F23 |
 
 ## 6. Open Questions
 

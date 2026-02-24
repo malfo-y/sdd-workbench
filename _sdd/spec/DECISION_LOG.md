@@ -874,3 +874,32 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `05-operational-guides.md`, `appendix.md`를 F22 완료 기준으로 동기화한다.
   - 품질 게이트: `npm test`(`23 files, 285 passed`), `npm run lint`, `npx tsc --noEmit` 모두 통과.
+
+## 2026-02-24 - F23 2패널 탭 레이아웃(3패널→2패널 전환)
+
+- Context:
+  - 기존 3패널 레이아웃(사이드바 | 코드 | 스펙)은 넓은 화면이 필요하여 작은 모니터/분할 화면에서 불편했음.
+  - 코드와 스펙을 동시에 볼 필요가 적고, 탭 전환으로 충분한 경우가 대부분이었음.
+  - 워크스페이스 관리 컨트롤이 헤더에 있어 헤더가 과밀했음.
+- Decision:
+  - 3패널 레이아웃을 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 콘텐츠)으로 변경한다.
+  - 헤더: 좌측(타이틀 + Back/Forward + Code/Spec 탭) + 우측(코멘트 액션).
+  - 워크스페이스 관리(선택기/Open/Close)를 사이드바 상단으로 이동한다.
+  - CSS Grid 3열→2열, 리사이저 2개→1개로 단순화한다.
+  - `PaneSizes`를 `{ left, content }`로 단순화한다(`center`/`right` 제거).
+  - 비활성 탭은 `display: none`으로 숨겨 DOM/스크롤 위치를 보존한다(언마운트 방지).
+  - `.md` 파일 선택 시 Spec 탭, 그 외 파일 선택 시 Code 탭으로 자동 전환한다.
+  - spec 점프/Go to Source/코멘트 target 점프 시 Code 탭으로 자동 전환한다.
+  - `Cmd+Shift+Left/Right`로 Code/Spec 탭 키보드 전환을 지원한다.
+  - 탭 상태(`activeTab`)는 워크스페이스별이 아닌 전역 UI 상태로 관리한다.
+- Rationale:
+  - 2패널로 최소 앱 폭이 크게 축소되어 다양한 화면 크기에 대응 가능.
+  - 탭 전환으로 콘텐츠 영역이 넓어져 코드/스펙 가독성 향상.
+  - `display: none` 방식으로 spec 스크롤 위치 복원이 자연스럽게 동작.
+  - 워크스페이스 컨트롤을 사이드바에 모으면 헤더가 간결해지고 기능 그룹화가 명확.
+- Alternatives considered:
+  - 3패널 유지 + 반응형 접기: 구현 복잡도 대비 이점 미미
+  - 탭 상태를 워크스페이스별로 관리: 전환 시 혼란 가능성 + 불필요한 복잡도
+- Impact / follow-up:
+  - `main.md`(v0.35.0), `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F23 완료 기준으로 동기화한다.
+  - 품질 게이트: `npm test`(`23 files, 285 passed`), `npm run lint`, `npm run build` 모두 통과.

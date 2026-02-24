@@ -407,3 +407,13 @@
   - `_sdd/implementation/features/F22/SYNC_20260224_112559_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
   - `_sdd/implementation/features/F22/SYNC_20260224_112559_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
   - `_sdd/implementation/features/F22/SYNC_20260224_112559_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+## f23
+
+### Sync Record - 2026-02-24T12:34:40Z
+
+- note: spec sync (F23 done — 2패널 탭 레이아웃: 3패널→2패널(사이드바 + Code/Spec 탭 콘텐츠), 워크스페이스 관리 사이드바 이동, 리사이저 1개, `PaneSizes = { left, content }`, `.md`→Spec 탭 자동 전환, spec 점프/Go to Source→Code 탭 자동 전환, `Cmd+Shift+Left/Right` 탭 키보드 전환; reflected in `main.md`(v0.35.0), `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`, `DECISION_LOG.md`; draft: `_sdd/drafts/feature_draft_f23_two_panel_tab_layout.md`)
+- copied files:
+  - `_sdd/implementation/features/f23/SYNC_20260224_123440_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/f23/SYNC_20260224_123440_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f23/SYNC_20260224_123440_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`

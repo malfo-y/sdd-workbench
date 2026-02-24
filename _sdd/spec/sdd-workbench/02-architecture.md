@@ -21,12 +21,18 @@ Renderer (React)
 ## 3. UI 레이아웃
 
 ```text
-Header Left: Title + Back/Forward
-Header Right: Comments(Add/View/Export) | Workspace(Workspace Switcher/Open/Close)
-Left: Current Workspace + Open In + FileTree
-Center: Code Preview (text/image/unavailable)
-Right: Rendered Spec (TOC + link/source actions)
+Header Left: Title + Back/Forward + [Code|Spec] Tab
+Header Right: Comments(Add Global/View)
+Left Sidebar: Workspace(Selector/Open/Close) + Current Path + Open In + FileTree
+Content: Code Preview OR Rendered Spec (tab-switched, display:none 방식 비활성 탭 보존)
 ```
+
+- 2패널 탭 레이아웃: 좌측 사이드바 + 우측 콘텐츠(Code/Spec 탭 전환)
+- CSS Grid 2열: `minmax(220px, var(--pane-left)) 12px minmax(360px, var(--pane-content))`
+- 리사이저 1개(사이드바 ↔ 콘텐츠)
+- 비활성 탭은 `display: none`으로 숨겨 스크롤 위치/상태 보존
+- `.md` 파일 선택 시 Spec 탭 자동 전환, 그 외 파일은 Code 탭 자동 전환
+- `Cmd+Shift+Left/Right`로 Code/Spec 탭 키보드 전환
 
 ## 4. 상태 도메인
 
@@ -46,6 +52,7 @@ Right: Rendered Spec (TOC + link/source actions)
 ### 4.2 전역 상태
 
 - `activeWorkspaceId`, `workspaceOrder`, `workspacesById`
+- `activeTab` (`'code' | 'spec'`): 현재 활성 콘텐츠 탭(워크스페이스별이 아닌 전역 UI 상태)
 - UI 보조 상태(`bannerMessage`, `commentBannerState`, `isExportingComments`, comment/global/export modal open state, spec scroll position map)
 
 ## 5. 핵심 데이터 플로우
@@ -71,11 +78,12 @@ Right: Rendered Spec (TOC + link/source actions)
 ### 5.3 Spec 탐색 점프
 
 1. rendered markdown 링크 인터셉트
-2. same-workspace면 file open + optional line jump
+2. same-workspace면 file open + optional line jump + Code 탭 자동 전환
 3. same-spec source jump는 read/reset을 최소화하고 기존 rendered 문맥을 유지
 4. spec panel scrollTop은 `workspace + spec path` 기준으로 런타임 저장/복원
 5. external/unresolved면 copy popover
-6. selection 우클릭 `Go to Source` -> activeSpec line jump
+6. selection 우클릭 `Go to Source` -> activeSpec line jump + Code 탭 자동 전환
+7. View Comments 코멘트 target 클릭 시 Code 탭 자동 전환 + 코드 라인 점프
 
 ### 5.4 File Tree 변경 마커 가시성
 

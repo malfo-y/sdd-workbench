@@ -22,6 +22,9 @@ interface WorkspaceFileNode {
   totalChildCount?: number
 }
 
+type ContentTab = 'code' | 'spec'
+type PaneSizes = { left: number; content: number }
+
 type CodeComment = {
   id: string
   relativePath: string

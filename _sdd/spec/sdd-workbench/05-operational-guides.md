@@ -54,7 +54,7 @@
 ### 4.3 수동 스모크 체크
 
 1. 멀티 워크스페이스 추가/전환/닫기
-2. code/spec 패널 왕복 점프
+2. Code/Spec 탭 전환(클릭 + `Cmd+Shift+Left/Right`) + 탭 전환 시 스크롤 위치 유지 확인
 3. watcher 변경 마커 및 active file 자동 반영
 4. collapse 상태에서 변경 마커가 상위 디렉토리로 버블링되는지 확인
 5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 확인
@@ -78,6 +78,10 @@
 23. 텍스트 파일에서 Git added(초록)/modified(파랑) 라인 마커가 표시되고, 이미지/preview unavailable에서는 비표시인지 확인
 24. 워크스페이스 2개 이상에서 `Cmd+Shift+Down`(다음)/`Cmd+Shift+Up`(이전) 전환 확인 + 순서 미변경 + wrap-around 확인
 25. 워크스페이스 1개일 때 `Cmd+Shift+Up/Down` 무동작 확인
+26. `.md` 파일 선택 시 Spec 탭 자동 전환, 비-`.md` 파일 선택 시 Code 탭 자동 전환 확인
+27. spec 링크 점프/Go to Source/코멘트 target 클릭 시 Code 탭 자동 전환 확인
+28. 워크스페이스 관리(선택기/Open/Close)가 사이드바에 표시되고 헤더에 없는지 확인
+29. 리사이저 1개(사이드바 ↔ 콘텐츠)로 좌우 비율 조정 동작 확인
 
 ## 5. 개발 환경
 

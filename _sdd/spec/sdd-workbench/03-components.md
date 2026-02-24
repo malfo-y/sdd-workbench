@@ -5,15 +5,24 @@
 ### 1.1 App Shell
 
 - `src/App.tsx`
-  - 3패널 조립, header 액션, 모달 오케스트레이션
-  - header left(title + history) + header right(comments/workspace) 그룹으로 분리하고 compact 버튼(`icon + short label`) 적용
+  - 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 콘텐츠) 조립, header 액션, 모달 오케스트레이션
+  - header left(title + history + Code/Spec 탭 바) + header right(comments) 그룹
+  - 워크스페이스 관리(선택기/Open/Close)는 사이드바 상단에 배치
+  - `activeTab` 상태(`'code' | 'spec'`)로 콘텐츠 영역 전환, `display: none`으로 비활성 탭 보존
+  - `.md` 파일 선택 시 Spec 탭 자동 전환, 그 외 파일은 Code 탭 자동 전환
+  - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환
   - 코멘트 전용 배너 helper + auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
   - `Cmd+Shift+Up/Down` 키보드 워크스페이스 순환 전환 리스너
+  - `Cmd+Shift+Left/Right` 키보드 탭 전환 리스너
+  - 리사이즈 핸들 1개(사이드바 ↔ 콘텐츠), `PaneSizes = { left, content }`
 - `src/App.css`
-  - 패널 레이아웃, marker/popover/modal 스타일
+  - 2열 CSS Grid 레이아웃(`--pane-left` + `--pane-content`), 리사이저 1개
+  - `content-tab-bar`/`content-tab-button` 탭 전환 스타일(활성/비활성 시각 구분)
+  - `content-pane-wrapper`(`.is-hidden` 토글) 탭 콘텐츠 가시성
+  - `sidebar-workspace-group`/`sidebar-workspace-controls` 사이드바 워크스페이스 관리 스타일
   - code line Git marker(`added`/`modified`) 색상 스타일
-  - header action 그룹/반응형 icon-only 규칙(`max-width: 1240px`)
+  - code viewer 검색 바 스타일(`.code-viewer-search-*`)
 
 ### 1.2 Workspace State Layer
 

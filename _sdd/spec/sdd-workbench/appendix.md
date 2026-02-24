@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F22)
+## A. 기능 이력 (F01~F23)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -38,6 +38,7 @@
 | F20 | Done | 2026-02-24 | export pending-only 제한 완화(선택 export 시) + global comments export 카운트 반영 + View Comments target 클릭→코드 점프 |
 | F21 | Done | 2026-02-24 | code viewer 텍스트 검색(Ctrl/Cmd+F, substring case-insensitive, 라인 이동 + wrap-around) |
 | F22 | Done | 2026-02-24 | Cmd+Shift+Up/Down 워크스페이스 순환 전환(순서 유지 + wrap-around) |
+| F23 | Done | 2026-02-24 | 2패널 탭 레이아웃(3패널→2패널, Code/Spec 탭 전환, 워크스페이스 관리 사이드바 이동, 리사이저 1개, Cmd+Shift+Left/Right 탭 전환) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -67,6 +68,7 @@
 - active file 단건 Git diff 기반 라인 마커(added/modified) + 실패 safe degrade + image/preview unavailable 비표시
 - code viewer 텍스트 검색: `Ctrl/Cmd+F` 토글(이미지/preview unavailable 모드 무시), substring case-insensitive 매칭, 매치 라인 `is-search-match`/`is-search-focus` 하이라이트, 이전/다음 이동(버튼 + Enter/Shift+Enter) + wrap-around, `N / M` 카운트 + `No results` 표시, Escape/닫기로 하이라이트 해제, 파일 변경 시 검색 상태 자동 초기화
 - 워크스페이스 키보드 전환: `Cmd+Shift+Up`(이전)/`Cmd+Shift+Down`(다음) 순서 유지 순환, 워크스페이스 1개일 때 무동작, 드롭다운 전환은 기존 MRU 동작 유지
+- 2패널 탭 레이아웃: 3패널(사이드바/코드/스펙)→2패널(사이드바 + 탭 콘텐츠), Code/Spec 탭 클릭 전환, 탭 전환 시 스크롤 위치 유지(`display: none` 비활성 탭 보존), `.md` 파일→Spec 탭/그 외→Code 탭 자동 전환, spec 점프/Go to Source/코멘트 점프→Code 탭 자동 전환, 워크스페이스 관리(선택기/Open/Close) 사이드바 상단 배치, 리사이저 1개(사이드바 ↔ 콘텐츠), `Cmd+Shift+Left/Right` 탭 키보드 전환, `PaneSizes = { left, content }` 단순화
 
 ## C. 리스크/백로그
 
