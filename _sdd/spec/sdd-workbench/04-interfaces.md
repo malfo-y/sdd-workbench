@@ -147,3 +147,13 @@ type CodeComment = {
 1. 변경 파일이 현재 visible이면 파일 노드에 `●`를 표시한다.
 2. 변경 파일이 collapse된 디렉토리 하위에 있으면 nearest visible collapsed ancestor 디렉토리에 `●`를 표시한다.
 3. 디렉토리를 확장하면 마커는 더 하위 visible 노드로 이동한다.
+
+## 8. 코드 뷰어 텍스트 검색 규칙
+
+1. `Ctrl+F`(또는 `Cmd+F`) 단축키로 검색 바를 토글한다. 이미지 프리뷰/preview unavailable 모드에서는 단축키를 무시한다.
+2. 검색 매칭은 현재 파일의 원본 라인 텍스트를 대상으로 substring case-insensitive 방식(`line.toLowerCase().includes(query.toLowerCase())`)으로 수행한다.
+3. 매치가 있는 라인에 `.is-search-match` CSS 클래스를 적용하고, 현재 포커스된 매치 라인에 `.is-search-focus`를 추가 적용한다.
+4. 이전(▲)/다음(▼) 버튼 또는 `Enter`/`Shift+Enter`로 매치 라인을 순환 이동(`scrollIntoView({ block: 'center' })`)한다. 마지막 매치에서 다음 → 첫 매치로, 첫 매치에서 이전 → 마지막 매치로 wrap-around한다.
+5. 검색 바에는 현재 매치 위치를 `N / M` 형식으로 표시하며, 매치 0건일 때 `No results`를 표시한다.
+6. `Escape` 또는 닫기 버튼으로 검색 바를 닫으면 모든 검색 하이라이트가 해제된다.
+7. activeFile이 변경되면 검색 상태(검색어, 포커스 인덱스, 열림 여부)를 전체 초기화한다.

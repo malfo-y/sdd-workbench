@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F19)
+## A. 기능 이력 (F01~F21)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -36,6 +36,7 @@
 | F18 | Done | 2026-02-23 | Shiki 기반 코드 하이라이팅(PrismJS 제거, 40+ 언어, 비동기 + plaintext fallback) |
 | F19 | Done | 2026-02-24 | active file Git diff 라인 마커(added/modified, deleted 제외 MVP) |
 | F20 | Done | 2026-02-24 | export pending-only 제한 완화(선택 export 시) + global comments export 카운트 반영 + View Comments target 클릭→코드 점프 |
+| F21 | Done | 2026-02-24 | code viewer 텍스트 검색(Ctrl/Cmd+F, substring case-insensitive, 라인 이동 + wrap-around) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -63,6 +64,7 @@
 - 대규모 워크스페이스 lazy indexing(remote 깊이제한 3레벨 + 디렉토리별 child cap 500) + on-demand 확장
 - polling watcher child cap 초과 디렉토리 자동 제외
 - active file 단건 Git diff 기반 라인 마커(added/modified) + 실패 safe degrade + image/preview unavailable 비표시
+- code viewer 텍스트 검색: `Ctrl/Cmd+F` 토글(이미지/preview unavailable 모드 무시), substring case-insensitive 매칭, 매치 라인 `is-search-match`/`is-search-focus` 하이라이트, 이전/다음 이동(버튼 + Enter/Shift+Enter) + wrap-around, `N / M` 카운트 + `No results` 표시, Escape/닫기로 하이라이트 해제, 파일 변경 시 검색 상태 자동 초기화
 
 ## C. 리스크/백로그
 

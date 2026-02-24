@@ -389,3 +389,11 @@
 - note: spec sync (F20 done — export pending-only 제한 완화 + global comments export 카운트 반영 + View Comments target 클릭→코드 점프; reflected in `main.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`; draft: `_sdd/drafts/feature_draft_f20_export_bugfix_and_comment_jump.md`)
 - copied files:
   - `_sdd/implementation/features/f20/SYNC_20260224_161334_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+## f21
+
+### Sync Record - 2026-02-24T18:15:00Z
+
+- note: spec sync (F21 done — code viewer 텍스트 검색(Ctrl/Cmd+F, substring case-insensitive, 라인 이동 + wrap-around); reflected in `main.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`; draft: `_sdd/drafts/feature_draft_f21_code_viewer_text_search.md`)
+- copied files:
+  - `_sdd/implementation/features/f21/SYNC_20260224_181500_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`

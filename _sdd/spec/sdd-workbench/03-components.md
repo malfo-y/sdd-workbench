@@ -48,6 +48,7 @@
   - line number 옆 Git marker(`added`/`modified`) 렌더
   - 이미지 프리뷰/preview unavailable 분기
   - comment count badge + hover popover 표시
+  - 텍스트 검색 바: Ctrl/Cmd+F 토글, substring case-insensitive 매칭, 매치 라인 하이라이트(`is-search-match`/`is-search-focus`), 이전/다음 이동 + wrap-around, 파일 변경 시 자동 리셋
 - `src/code-viewer/line-selection.ts`
   - 1-based selection 유틸
 - `src/code-viewer/language-map.ts`, `syntax-highlight.ts`
