@@ -431,17 +431,17 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     expect(childClassNames).toEqual([
       'header-comments-group',
-      'header-workspace-group',
     ])
     expect(screen.getByTestId('app-header-left')).toContainElement(
       screen.getByTestId('header-history-actions'),
     )
+    expect(screen.getByTestId('app-header-left')).toContainElement(
+      screen.getByTestId('content-tab-bar'),
+    )
     expect(screen.getByTestId('header-comments-group')).toHaveTextContent(
       'Code comments',
     )
-    expect(screen.getByTestId('header-workspace-group')).toHaveTextContent(
-      'Workspace',
-    )
+    expect(screen.getByTestId('sidebar-workspace-group')).toBeInTheDocument()
   })
 
   it('uses compact comment/workspace action buttons with accessible labels', () => {
@@ -466,25 +466,23 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     expect(screen.queryByRole('button', { name: 'Export Comments' })).not.toBeInTheDocument()
 
-    for (const button of [
-      addGlobalButton,
-      viewCommentsButton,
-      closeWorkspaceButton,
-      openWorkspaceButton,
-    ]) {
+    for (const button of [addGlobalButton, viewCommentsButton]) {
       expect(button).toHaveClass('header-action-button')
+      expect(button).toHaveAttribute('title')
+    }
+
+    for (const button of [openWorkspaceButton, closeWorkspaceButton]) {
+      expect(button).toHaveClass('workspace-open-in-button')
       expect(button).toHaveAttribute('title')
     }
 
     expect(addGlobalButton).toHaveTextContent('+ Global')
     expect(viewCommentsButton).toHaveTextContent('View')
-    expect(closeWorkspaceButton).toHaveTextContent('Close')
-    expect(openWorkspaceButton).toHaveTextContent('Open')
 
-    const workspaceButtons = Array.from(
-      screen.getByTestId('header-workspace-actions').querySelectorAll('button'),
-    ).map((button) => button.textContent?.trim())
-    expect(workspaceButtons).toEqual(['Open', 'Close'])
+    const sidebarButtons = Array.from(
+      screen.getByTestId('sidebar-workspace-actions').querySelectorAll('button'),
+    ).map((button) => button.getAttribute('aria-label'))
+    expect(sidebarButtons).toEqual(['Open Workspace', 'Close Workspace'])
   })
 
   it('opens active workspace in iTerm, VSCode, and Finder', async () => {

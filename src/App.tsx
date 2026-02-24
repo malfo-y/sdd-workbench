@@ -62,8 +62,7 @@ function collectWorkspaceFilePaths(
 }
 
 const MIN_LEFT_PANE_WIDTH = 220
-const MIN_CENTER_PANE_WIDTH = 360
-const MIN_RIGHT_PANE_WIDTH = 220
+const MIN_CONTENT_PANE_WIDTH = 360
 const RESIZER_WIDTH = 12
 const TRACKPAD_HISTORY_MIN_AXIS_DELTA = 18
 const TRACKPAD_HISTORY_TRIGGER_DELTA = 120
@@ -73,18 +72,16 @@ const COMMENT_BANNER_AUTODISMISS_MS = 5000
 
 type PaneSizes = {
   left: number
-  center: number
-  right: number
+  content: number
 }
 
-type ResizeHandle = 'left' | 'right'
-
 type ResizeSession = {
-  handle: ResizeHandle
   startX: number
   availableWidth: number
   startSizes: PaneSizes
 }
+
+type ContentTab = 'code' | 'spec'
 
 type CommentDraftState = {
   workspaceId: string
@@ -322,6 +319,36 @@ function OpenIcon() {
   )
 }
 
+function BackArrowIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M15 6L9 12L15 18"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function ForwardArrowIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M9 6L15 12L9 18"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
 function App() {
   const {
     workspaces,
@@ -376,12 +403,11 @@ function App() {
     ? abbreviateWorkspacePath(rootPath)
     : 'No workspace selected'
   const [paneSizes, setPaneSizes] = useState<PaneSizes>({
-    left: 15,
-    center: 40,
-    right: 45,
+    left: 20,
+    content: 80,
   })
-  const [activeResizeHandle, setActiveResizeHandle] =
-    useState<ResizeHandle | null>(null)
+  const [activeResizeHandle, setActiveResizeHandle] = useState(false)
+  const [activeTab, setActiveTab] = useState<ContentTab>('code')
   const workspaceLayoutRef = useRef<HTMLElement | null>(null)
   const resizeSessionRef = useRef<ResizeSession | null>(null)
   const workspaceFilePathSet = useMemo(
@@ -963,34 +989,31 @@ function App() {
     () =>
       ({
         '--pane-left': `${paneSizes.left}%`,
-        '--pane-center': `${paneSizes.center}%`,
-        '--pane-right': `${paneSizes.right}%`,
+        '--pane-content': `${paneSizes.content}%`,
       }) as CSSProperties,
     [paneSizes],
   )
 
-  const startResize = (handle: ResizeHandle, clientX: number) => {
+  const startResize = (clientX: number) => {
     const layoutElement = workspaceLayoutRef.current
     if (!layoutElement) {
       return
     }
 
     const layoutWidth = layoutElement.getBoundingClientRect().width
-    const availableWidth = layoutWidth - RESIZER_WIDTH * 2
-    const minimumWidthSum =
-      MIN_LEFT_PANE_WIDTH + MIN_CENTER_PANE_WIDTH + MIN_RIGHT_PANE_WIDTH
+    const availableWidth = layoutWidth - RESIZER_WIDTH
+    const minimumWidthSum = MIN_LEFT_PANE_WIDTH + MIN_CONTENT_PANE_WIDTH
 
     if (availableWidth <= minimumWidthSum) {
       return
     }
 
     resizeSessionRef.current = {
-      handle,
       startX: clientX,
       availableWidth,
       startSizes: paneSizes,
     }
-    setActiveResizeHandle(handle)
+    setActiveResizeHandle(true)
   }
 
   useEffect(() => {
@@ -1008,46 +1031,23 @@ function App() {
       const { availableWidth, startSizes } = resizeSession
 
       const startLeftWidth = (startSizes.left / 100) * availableWidth
-      const startRightWidth = (startSizes.right / 100) * availableWidth
-
-      if (resizeSession.handle === 'left') {
-        const maxLeftWidth =
-          availableWidth - MIN_CENTER_PANE_WIDTH - startRightWidth
-        const nextLeftWidth = clamp(
-          startLeftWidth + deltaX,
-          MIN_LEFT_PANE_WIDTH,
-          maxLeftWidth,
-        )
-        const nextCenterWidth =
-          availableWidth - startRightWidth - nextLeftWidth
-
-        setPaneSizes({
-          left: (nextLeftWidth / availableWidth) * 100,
-          center: (nextCenterWidth / availableWidth) * 100,
-          right: (startRightWidth / availableWidth) * 100,
-        })
-        return
-      }
-
-      const maxRightWidth =
-        availableWidth - startLeftWidth - MIN_CENTER_PANE_WIDTH
-      const nextRightWidth = clamp(
-        startRightWidth - deltaX,
-        MIN_RIGHT_PANE_WIDTH,
-        maxRightWidth,
+      const maxLeftWidth = availableWidth - MIN_CONTENT_PANE_WIDTH
+      const nextLeftWidth = clamp(
+        startLeftWidth + deltaX,
+        MIN_LEFT_PANE_WIDTH,
+        maxLeftWidth,
       )
-      const nextCenterWidth = availableWidth - startLeftWidth - nextRightWidth
+      const nextContentWidth = availableWidth - nextLeftWidth
 
       setPaneSizes({
-        left: (startLeftWidth / availableWidth) * 100,
-        center: (nextCenterWidth / availableWidth) * 100,
-        right: (nextRightWidth / availableWidth) * 100,
+        left: (nextLeftWidth / availableWidth) * 100,
+        content: (nextContentWidth / availableWidth) * 100,
       })
     }
 
     const stopResize = () => {
       resizeSessionRef.current = null
-      setActiveResizeHandle(null)
+      setActiveResizeHandle(false)
       document.body.style.removeProperty('cursor')
       document.body.style.removeProperty('user-select')
     }
@@ -1076,6 +1076,7 @@ function App() {
         return false
       }
 
+      setActiveTab('code')
       selectFile(relativePath)
       if (lineRange) {
         setSelectionRange({
@@ -1096,6 +1097,14 @@ function App() {
     [workspaceFilePathSet, selectFile, setSelectionRange],
   )
 
+  const handleSelectFileFromTree = useCallback(
+    (relativePath: string) => {
+      selectFile(relativePath)
+      setActiveTab(relativePath.endsWith('.md') ? 'spec' : 'code')
+    },
+    [selectFile],
+  )
+
   const goToActiveSpecSourceLine = useCallback(
     (lineNumber: number) => {
       if (!activeSpec) {
@@ -1103,6 +1112,7 @@ function App() {
         return
       }
 
+      setActiveTab('code')
       const opened = openSpecRelativePath(activeSpec, {
         startLine: lineNumber,
         endLine: lineNumber,
@@ -1239,6 +1249,13 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.metaKey || !event.shiftKey) return
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault()
+        setActiveTab(event.key === 'ArrowLeft' ? 'code' : 'spec')
+        return
+      }
+
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
 
       event.preventDefault()
@@ -1332,18 +1349,40 @@ function App() {
             data-testid="header-history-actions"
           >
             <button
+              aria-label="Back"
+              className="workspace-open-in-button"
               disabled={!canGoBack}
               onClick={goBackInHistory}
+              title="Back"
               type="button"
             >
-              Back
+              <BackArrowIcon />
             </button>
             <button
+              aria-label="Forward"
+              className="workspace-open-in-button"
               disabled={!canGoForward}
               onClick={goForwardInHistory}
+              title="Forward"
               type="button"
             >
-              Forward
+              <ForwardArrowIcon />
+            </button>
+          </div>
+          <div className="content-tab-bar" data-testid="content-tab-bar">
+            <button
+              className={`content-tab-button${activeTab === 'code' ? ' is-active' : ''}`}
+              onClick={() => setActiveTab('code')}
+              type="button"
+            >
+              Code
+            </button>
+            <button
+              className={`content-tab-button${activeTab === 'spec' ? ' is-active' : ''}`}
+              onClick={() => setActiveTab('spec')}
+              type="button"
+            >
+              Spec
             </button>
           </div>
         </div>
@@ -1389,48 +1428,6 @@ function App() {
               </button>
             </div>
           </div>
-          <div className="header-workspace-group" data-testid="header-workspace-group">
-            <span className="header-action-group-label">Workspace</span>
-            <div className="header-workspace-controls">
-              <WorkspaceSwitcher
-                activeWorkspaceId={activeWorkspaceId}
-                onSelectWorkspace={setActiveWorkspace}
-                workspaces={workspaces}
-              />
-              <div className="header-workspace-actions" data-testid="header-workspace-actions">
-                <button
-                  aria-label="Open Workspace"
-                  className="header-action-button"
-                  onClick={() => void openWorkspace()}
-                  title="Open Workspace"
-                  type="button"
-                >
-                  <span aria-hidden="true" className="header-action-icon">
-                    <OpenIcon />
-                  </span>
-                  <span className="header-action-label">Open</span>
-                </button>
-                <button
-                  aria-label="Close Workspace"
-                  className="header-action-button"
-                  disabled={!canCloseWorkspace}
-                  onClick={() => {
-                    if (!activeWorkspaceId) {
-                      return
-                    }
-                    closeWorkspace(activeWorkspaceId)
-                  }}
-                  title="Close Workspace"
-                  type="button"
-                >
-                  <span aria-hidden="true" className="header-action-icon">
-                    <CloseIcon />
-                  </span>
-                  <span className="header-action-label">Close</span>
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -1448,6 +1445,41 @@ function App() {
       >
         <div className="pane-slot">
           <section className="file-panel" data-testid="file-panel">
+            <div className="sidebar-workspace-group" data-testid="sidebar-workspace-group">
+              <div className="sidebar-workspace-controls">
+                <WorkspaceSwitcher
+                  activeWorkspaceId={activeWorkspaceId}
+                  onSelectWorkspace={setActiveWorkspace}
+                  workspaces={workspaces}
+                />
+                <div className="sidebar-workspace-actions" data-testid="sidebar-workspace-actions">
+                  <button
+                    aria-label="Open Workspace"
+                    className="workspace-open-in-button"
+                    onClick={() => void openWorkspace()}
+                    title="Open Workspace"
+                    type="button"
+                  >
+                    <OpenIcon />
+                  </button>
+                  <button
+                    aria-label="Close Workspace"
+                    className="workspace-open-in-button"
+                    disabled={!canCloseWorkspace}
+                    onClick={() => {
+                      if (!activeWorkspaceId) {
+                        return
+                      }
+                      closeWorkspace(activeWorkspaceId)
+                    }}
+                    title="Close Workspace"
+                    type="button"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              </div>
+            </div>
             <div className="workspace-summary">
               <p className="label">Current Workspace</p>
               <p
@@ -1543,68 +1575,60 @@ function App() {
               onExpandedDirectoriesChange={setExpandedDirectories}
               onRequestCopyRelativePath={handleCopyRelativePath}
               onRequestLoadDirectory={loadDirectoryChildren}
-              onSelectFile={selectFile}
+              onSelectFile={handleSelectFileFromTree}
               rootPath={rootPath}
             />
           </section>
         </div>
 
         <div
-          aria-label="Resize file browser and code preview panels"
+          aria-label="Resize sidebar and content panels"
           aria-orientation="vertical"
-          className={`pane-resizer ${activeResizeHandle === 'left' ? 'is-active' : ''}`}
+          className={`pane-resizer ${activeResizeHandle ? 'is-active' : ''}`}
           data-testid="pane-resizer-left"
-          onPointerDown={(event) => startResize('left', event.clientX)}
+          onPointerDown={(event) => startResize(event.clientX)}
           role="separator"
         />
 
         <div className="pane-slot">
-          <CodeViewerPanel
-            activeFile={activeFile}
-            activeFileContent={activeFileContent}
-            activeFileImagePreview={activeFileImagePreview}
-            commentLineEntries={activeFileCommentLineEntries}
-            commentLineCounts={activeFileCommentLineCounts}
-            gitLineMarkers={activeFileGitLineMarkerMap}
-            isReadingFile={isReadingFile}
-            jumpRequest={codeViewerJumpRequest}
-            onSelectRange={setSelectionRange}
-            onRequestCopyBoth={handleCopyBoth}
-            onRequestCopyRelativePath={handleCopyRelativePath}
-            onRequestCopySelectedContent={handleCopySelectedContent}
-            onRequestAddComment={handleRequestAddComment}
-            previewUnavailableReason={previewUnavailableReason}
-            readFileError={readFileError}
-            selectionRange={selectionRange}
-          />
-        </div>
-
-        <div
-          aria-label="Resize code preview and rendered spec panels"
-          aria-orientation="vertical"
-          className={`pane-resizer ${activeResizeHandle === 'right' ? 'is-active' : ''}`}
-          data-testid="pane-resizer-right"
-          onPointerDown={(event) => startResize('right', event.clientX)}
-          role="separator"
-        />
-
-        <div className="pane-slot">
-          <section className="workspace-card spec-panel" data-testid="spec-panel">
-            <SpecViewerPanel
-              activeSpecPath={activeSpec}
-              commentLineEntries={activeSpecCommentLineEntries}
-              commentLineCounts={activeSpecCommentLineCounts}
-              isLoading={isReadingSpec}
-              markdownContent={activeSpecContent}
-              onScrollPositionChange={handleSpecScrollPositionChange}
-              onRequestAddComment={handleRequestAddCommentFromSpec}
-              onGoToSourceLine={goToActiveSpecSourceLine}
-              onOpenRelativePath={openSpecRelativePath}
-              readError={activeSpecReadError}
-              restoredScrollTop={restoredSpecScrollTop}
-              workspaceRootPath={rootPath}
+          <div className={`content-pane-wrapper${activeTab !== 'code' ? ' is-hidden' : ''}`} data-testid="content-pane-code">
+            <CodeViewerPanel
+              activeFile={activeFile}
+              activeFileContent={activeFileContent}
+              activeFileImagePreview={activeFileImagePreview}
+              commentLineEntries={activeFileCommentLineEntries}
+              commentLineCounts={activeFileCommentLineCounts}
+              gitLineMarkers={activeFileGitLineMarkerMap}
+              isReadingFile={isReadingFile}
+              jumpRequest={codeViewerJumpRequest}
+              onSelectRange={setSelectionRange}
+              onRequestCopyBoth={handleCopyBoth}
+              onRequestCopyRelativePath={handleCopyRelativePath}
+              onRequestCopySelectedContent={handleCopySelectedContent}
+              onRequestAddComment={handleRequestAddComment}
+              previewUnavailableReason={previewUnavailableReason}
+              readFileError={readFileError}
+              selectionRange={selectionRange}
             />
-          </section>
+          </div>
+          <div className={`content-pane-wrapper${activeTab !== 'spec' ? ' is-hidden' : ''}`} data-testid="content-pane-spec">
+            <section className="workspace-card spec-panel" data-testid="spec-panel">
+              <SpecViewerPanel
+                activeSpecPath={activeSpec}
+                commentLineEntries={activeSpecCommentLineEntries}
+                commentLineCounts={activeSpecCommentLineCounts}
+                isLoading={isReadingSpec}
+                markdownContent={activeSpecContent}
+                onScrollPositionChange={handleSpecScrollPositionChange}
+                onRequestAddComment={handleRequestAddCommentFromSpec}
+                onGoToSourceLine={goToActiveSpecSourceLine}
+                onOpenRelativePath={openSpecRelativePath}
+                readError={activeSpecReadError}
+                restoredScrollTop={restoredSpecScrollTop}
+                workspaceRootPath={rootPath}
+              />
+            </section>
+          </div>
         </div>
       </section>
 
@@ -1644,6 +1668,7 @@ function App() {
           if (!workspaceFilePathSet.has(relativePath)) {
             return
           }
+          setActiveTab('code')
           selectFile(relativePath)
           setSelectionRange({ startLine, endLine })
           jumpRequestTokenRef.current += 1
