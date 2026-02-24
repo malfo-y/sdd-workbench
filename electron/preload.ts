@@ -48,6 +48,19 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type WorkspaceGitLineMarkerKind = 'added' | 'modified'
+
+type WorkspaceGitLineMarker = {
+  line: number
+  kind: WorkspaceGitLineMarkerKind
+}
+
+type WorkspaceGetGitLineMarkersResult = {
+  ok: boolean
+  markers: WorkspaceGitLineMarker[]
+  error?: string
+}
+
 type CodeCommentRecord = {
   id: string
   relativePath: string
@@ -160,6 +173,12 @@ const workspaceApi = {
       rootPath,
       relativePath,
     }) as Promise<WorkspaceReadFileResult>
+  },
+  getGitLineMarkers(rootPath: string, relativePath: string) {
+    return ipcRenderer.invoke('workspace:getGitLineMarkers', {
+      rootPath,
+      relativePath,
+    }) as Promise<WorkspaceGetGitLineMarkersResult>
   },
   readComments(rootPath: string) {
     return ipcRenderer.invoke('workspace:readComments', {

@@ -11,6 +11,13 @@ export type WorkspaceWatchMode = 'native' | 'polling'
 
 export type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
 
+export type WorkspaceGitLineMarkerKind = 'added' | 'modified'
+
+export type WorkspaceGitLineMarker = {
+  line: number
+  kind: WorkspaceGitLineMarkerKind
+}
+
 export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
@@ -22,6 +29,7 @@ export type WorkspaceSession = {
   activeSpec: string | null
   activeFileContent: string | null
   activeFileImagePreview: WorkspaceImagePreview | null
+  activeFileGitLineMarkers: WorkspaceGitLineMarker[]
   activeSpecContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
@@ -104,6 +112,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     activeSpec: null,
     activeFileContent: null,
     activeFileImagePreview: null,
+    activeFileGitLineMarkers: [],
     activeSpecContent: null,
     isIndexing: false,
     isReadingFile: false,

@@ -17,6 +17,7 @@ import { getHighlightLanguage } from './language-map'
 import { escapeHtml, highlightPreviewLines } from './syntax-highlight'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import type { CodeComment } from '../code-comments/comment-types'
+import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
 
 export type CodeViewerJumpRequest = {
   targetRelativePath: string
@@ -52,6 +53,7 @@ type CodeViewerPanelProps = {
   }) => void
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
+  gitLineMarkers?: ReadonlyMap<number, WorkspaceGitLineMarkerKind>
 }
 
 type ContextMenuState = {
@@ -140,6 +142,7 @@ export function CodeViewerPanel({
   onRequestAddComment,
   commentLineCounts,
   commentLineEntries = EMPTY_COMMENT_LINE_ENTRIES,
+  gitLineMarkers = EMPTY_GIT_LINE_MARKERS,
 }: CodeViewerPanelProps) {
   const [anchorLine, setAnchorLine] = useState<number | null>(null)
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
@@ -531,6 +534,7 @@ export function CodeViewerPanel({
               const isSelected = isLineSelected(lineNumber)
               const highlightedLine = highlightedLines[lineIndex] ?? ' '
               const commentCount = commentLineCounts.get(lineNumber) ?? 0
+              const gitLineMarkerKind = gitLineMarkers.get(lineNumber) ?? null
 
               return (
                 <li
@@ -558,6 +562,15 @@ export function CodeViewerPanel({
                     type="button"
                   >
                     <span className="code-line-number-wrap">
+                      {gitLineMarkerKind && (
+                        <span
+                          aria-label={`Git ${gitLineMarkerKind} marker`}
+                          className={`code-line-git-marker code-line-git-marker-${gitLineMarkerKind}`}
+                          data-kind={gitLineMarkerKind}
+                          data-testid={`code-line-git-marker-${lineNumber}`}
+                          title={`Git: ${gitLineMarkerKind}`}
+                        />
+                      )}
                       <span className="code-line-number">{lineNumber}</span>
                       {commentCount > 0 && (
                         <span
@@ -655,3 +668,5 @@ export function CodeViewerPanel({
 }
 
 const EMPTY_COMMENT_LINE_ENTRIES: ReadonlyMap<number, readonly CodeComment[]> = new Map()
+const EMPTY_GIT_LINE_MARKERS: ReadonlyMap<number, WorkspaceGitLineMarkerKind> =
+  new Map()

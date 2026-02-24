@@ -51,6 +51,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     vi.fn<
       (rootPath: string, relativePath: string) => Promise<WorkspaceReadFileResult>
     >()
+  const getGitLineMarkersMock =
+    vi.fn<
+      (
+        rootPath: string,
+        relativePath: string,
+      ) => Promise<WorkspaceGetGitLineMarkersResult>
+    >()
   const readCommentsMock =
     vi.fn<(rootPath: string) => Promise<WorkspaceReadCommentsResult>>()
   const writeCommentsMock =
@@ -115,6 +122,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     indexWorkspaceMock.mockReset()
     indexDirectoryMock.mockReset()
     readFileMock.mockReset()
+    getGitLineMarkersMock.mockReset()
     readCommentsMock.mockReset()
     writeCommentsMock.mockReset()
     readGlobalCommentsMock.mockReset()
@@ -141,6 +149,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     readCommentsMock.mockResolvedValue({
       ok: true,
       comments: [],
+    })
+    getGitLineMarkersMock.mockResolvedValue({
+      ok: true,
+      markers: [],
     })
     readGlobalCommentsMock.mockResolvedValue({
       ok: true,
@@ -186,6 +198,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       index: indexWorkspaceMock,
       indexDirectory: indexDirectoryMock,
       readFile: readFileMock,
+      getGitLineMarkers: getGitLineMarkersMock,
       readComments: readCommentsMock,
       writeComments: writeCommentsMock,
       readGlobalComments: readGlobalCommentsMock,
@@ -694,6 +707,125 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       '/Users/tester/projects/sdd-workbench',
       'src/auth.ts',
     )
+  })
+
+  it('renders git line markers for active file', async () => {
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'auth.ts',
+            relativePath: 'src/auth.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'line1\nline2\nline3',
+    })
+    getGitLineMarkersMock.mockResolvedValueOnce({
+      ok: true,
+      markers: [
+        { line: 1, kind: 'added' },
+        { line: 2, kind: 'modified' },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'auth.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'auth.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-line-git-marker-1')).toHaveAttribute(
+        'data-kind',
+        'added',
+      )
+    })
+    expect(screen.getByTestId('code-line-git-marker-2')).toHaveAttribute(
+      'data-kind',
+      'modified',
+    )
+    expect(getGitLineMarkersMock).toHaveBeenCalledWith(
+      '/Users/tester/projects/sdd-workbench',
+      'src/auth.ts',
+    )
+  })
+
+  it('degrades safely when git marker lookup fails', async () => {
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'main.ts',
+        relativePath: 'main.ts',
+        kind: 'file',
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'const value = 1',
+    })
+    getGitLineMarkersMock.mockResolvedValueOnce({
+      ok: false,
+      markers: [],
+      error: 'not a git repository',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'main.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'const value = 1',
+      )
+    })
+    expect(screen.queryByTestId('code-line-git-marker-1')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('shows a cap message when indexed nodes exceed initial render limit', async () => {

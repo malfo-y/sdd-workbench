@@ -333,6 +333,7 @@ function App() {
     activeSpec,
     activeFileContent,
     activeFileImagePreview,
+    activeFileGitLineMarkers,
     activeSpecContent,
     isIndexing,
     isReadingFile,
@@ -417,6 +418,13 @@ function App() {
   const activeFileCommentLineEntries = useMemo(
     () => getCommentLineEntries(commentLineEntryIndex, activeFile),
     [activeFile, commentLineEntryIndex],
+  )
+  const activeFileGitLineMarkerMap = useMemo(
+    () =>
+      new Map(
+        activeFileGitLineMarkers.map((marker) => [marker.line, marker.kind] as const),
+      ),
+    [activeFileGitLineMarkers],
   )
   const activeSpecCommentLineCounts = useMemo(
     () => getCommentLineCounts(commentLineIndex, activeSpec),
@@ -1532,6 +1540,7 @@ function App() {
             activeFileImagePreview={activeFileImagePreview}
             commentLineEntries={activeFileCommentLineEntries}
             commentLineCounts={activeFileCommentLineCounts}
+            gitLineMarkers={activeFileGitLineMarkerMap}
             isReadingFile={isReadingFile}
             jumpRequest={codeViewerJumpRequest}
             onSelectRange={setSelectionRange}

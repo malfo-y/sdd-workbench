@@ -266,6 +266,7 @@ describe('workspace-model', () => {
 
   it('initializes comments state fields for new sessions', () => {
     const session = createWorkspaceSession(ROOT_A)
+    expect(session.activeFileGitLineMarkers).toEqual([])
     expect(session.comments).toEqual([])
     expect(session.isReadingComments).toBe(false)
     expect(session.isWritingComments).toBe(false)

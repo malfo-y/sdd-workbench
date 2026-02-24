@@ -67,3 +67,75 @@
 
 ### Conclusion
 READY — PrismJS에서 Shiki로 성공적으로 마이그레이션 완료. 지원 언어 9개 → 40+개로 확장, TextMate 문법 기반 정확한 토큰화, 비동기 하이라이팅 + plaintext fallback으로 UX 유지.
+
+---
+
+## Feature: F19 — Git Diff Line Markers (MVP: Added/Modified)
+
+**Date**: 2026-02-24
+**Status**: Complete
+**Feature Draft**: `/_sdd/drafts/feature_draft_f19_git_diff_line_markers_added_modified_mvp.md`
+
+### Progress Summary
+- Total Tasks: 6
+- Completed: 6
+- Tests Added/Updated: 10
+- All Passing: Yes (250 total)
+
+### Parallel Execution Stats
+- Total Groups Dispatched: 3
+- Tasks Run in Parallel: 6 (grouped by layer)
+- Sequential Fallback: 없음
+- Sub-agent Failures: 0
+
+### Completed Tasks
+
+- [x] Task T1: `workspace:getGitLineMarkers` IPC 계약 추가
+- [x] Task T2: `git diff --unified=0` 파싱(`added`/`modified`)
+- [x] Task T3: workspace active file marker 상태/재조회 연결
+- [x] Task T4: code viewer 라인 마커 렌더/스타일 적용
+- [x] Task T5: diff parser + renderer 단위 테스트 보강
+- [x] Task T6: App 통합 회귀(전환/오류 degrade) 검증
+
+### Files Changed
+
+| File | Action | Description |
+|------|--------|-------------|
+| `electron/git-line-markers.ts` | C | unified diff hunk 파싱으로 `added`/`modified` marker 계산 유틸 추가 |
+| `electron/git-line-markers.test.ts` | C | parser 케이스(added/mixed/deleted-only/default count) 단위 테스트 추가 |
+| `electron/main.ts` | M | `workspace:getGitLineMarkers` IPC 핸들러 + git command 실행/오류 degrade 처리 |
+| `electron/preload.ts` | M | `window.workspace.getGitLineMarkers(...)` 브리지 추가 |
+| `electron/electron-env.d.ts` | M | git marker IPC 타입/브리지 타입 선언 추가 |
+| `src/workspace/workspace-model.ts` | M | session 상태에 `activeFileGitLineMarkers` 필드 추가 |
+| `src/workspace/workspace-model.test.ts` | M | session 초기 marker 상태 검증 추가 |
+| `src/workspace/workspace-context.tsx` | M | active file read/refresh/restore 경로에 marker 재조회 파이프라인 연결 |
+| `src/App.tsx` | M | active marker map 생성 후 `CodeViewerPanel`에 전달 |
+| `src/code-viewer/code-viewer-panel.tsx` | M | 라인 단위 git marker(`added`/`modified`) 렌더 |
+| `src/App.css` | M | git marker 색상/레이아웃 스타일 추가 |
+| `src/code-viewer/code-viewer-panel.test.tsx` | M | marker 렌더 및 image preview 비표시 테스트 추가 |
+| `src/App.test.tsx` | M | marker 조회 성공/실패 degrade 통합 테스트 추가 |
+
+### Test Summary
+- `npm test -- electron/git-line-markers.test.ts src/code-viewer/code-viewer-panel.test.tsx src/App.test.tsx`: pass
+- `npm test`: 250 passed, 0 failed
+- `npm run lint`: pass
+- `npm run build`: pass
+
+### Quality Assessment
+
+#### Acceptance Criteria Coverage
+- Active file Git marker 표시: 충족
+- `added`(green)/`modified`(blue) 구분: 충족
+- deleted-only hunk 미표시(MVP): 충족
+- image preview/preview unavailable 비표시: 충족
+- selection/drag/context menu/comment badge 비간섭: 회귀 테스트 통과
+- workspace/file 전환 시 갱신: 충족
+- git 실패/비저장소 경로 안전 degrade: 충족
+
+### Verification
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- Full quality gates passed (`test`, `lint`, `build`)
+
+### Conclusion
+READY — F19 MVP 범위(added/modified line marker)를 안정적으로 구현했고, 오류 경로에서 UI 회귀 없이 안전하게 비표시 degrade 되도록 고정했다.

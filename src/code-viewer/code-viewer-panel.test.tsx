@@ -134,6 +134,71 @@ describe('CodeViewerPanel highlighting', () => {
     expect(firstLine?.innerHTML).toBe('plain text line')
   })
 
+  it('renders git line markers with added and modified kinds', () => {
+    render(
+      <CodeViewerPanel
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        activeFileImagePreview={null}
+        commentLineCounts={new Map()}
+        gitLineMarkers={
+          new Map([
+            [1, 'added'],
+            [2, 'modified'],
+          ])
+        }
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    expect(screen.getByTestId('code-line-git-marker-1')).toHaveAttribute(
+      'data-kind',
+      'added',
+    )
+    expect(screen.getByTestId('code-line-git-marker-2')).toHaveAttribute(
+      'data-kind',
+      'modified',
+    )
+    expect(screen.queryByTestId('code-line-git-marker-3')).not.toBeInTheDocument()
+  })
+
+  it('does not render git line markers in image preview mode', () => {
+    render(
+      <CodeViewerPanel
+        activeFile="images/sample.png"
+        activeFileContent={null}
+        activeFileImagePreview={{
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+        }}
+        commentLineCounts={new Map()}
+        gitLineMarkers={new Map([[1, 'added']])}
+        isReadingFile={false}
+        jumpRequest={null}
+        onRequestCopyBoth={() => undefined}
+        onRequestAddComment={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopySelectedContent={() => undefined}
+        onSelectRange={() => undefined}
+        previewUnavailableReason={null}
+        readFileError={null}
+        selectionRange={null}
+      />,
+    )
+
+    expect(screen.getByTestId('code-viewer-image-preview')).toBeInTheDocument()
+    expect(screen.queryByTestId('code-line-git-marker-1')).not.toBeInTheDocument()
+  })
+
   it('copies active file path from header copy button', () => {
     const onRequestCopyRelativePath = vi.fn()
 

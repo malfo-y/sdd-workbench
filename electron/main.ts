@@ -9,6 +9,10 @@ import {
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
 } from './workspace-watch-mode'
+import {
+  parseGitDiffLineMarkers,
+  type WorkspaceGitLineMarker,
+} from './git-line-markers'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -79,6 +83,17 @@ type WorkspaceReadFileResult = {
   imagePreview?: WorkspaceImagePreview
   error?: string
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
+}
+
+type WorkspaceGetGitLineMarkersRequest = {
+  rootPath: string
+  relativePath: string
+}
+
+type WorkspaceGetGitLineMarkersResult = {
+  ok: boolean
+  markers: WorkspaceGitLineMarker[]
+  error?: string
 }
 
 type CodeCommentRecord = {
@@ -365,6 +380,26 @@ function endWorkspaceWriteOperation() {
     0,
     workspaceWriteOperationsInFlight - 1,
   )
+}
+
+function runGitCommand(rootPath: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'git',
+      ['-C', rootPath, ...args],
+      {
+        encoding: 'utf8',
+        maxBuffer: 2 * 1024 * 1024,
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve(stdout ?? '')
+      },
+    )
+  })
 }
 
 function waitForWorkspaceWritesToSettle(maxWaitMs: number): Promise<boolean> {
@@ -944,6 +979,85 @@ async function handleWorkspaceReadFile(
       ok: false,
       content: null,
       error: error instanceof Error ? error.message : 'Failed to read file',
+    }
+  }
+}
+
+async function handleWorkspaceGetGitLineMarkers(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceGetGitLineMarkersRequest,
+): Promise<WorkspaceGetGitLineMarkersResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    if (!rootPath || !relativePath) {
+      return {
+        ok: false,
+        markers: [],
+        error: 'rootPath and relativePath are required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        markers: [],
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return {
+        ok: false,
+        markers: [],
+        error: 'Cannot read files outside the workspace root.',
+      }
+    }
+
+    try {
+      const targetStats = await stat(resolvedTargetPath)
+      if (!targetStats.isFile()) {
+        return {
+          ok: true,
+          markers: [],
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {
+          ok: true,
+          markers: [],
+        }
+      }
+      throw error
+    }
+
+    await runGitCommand(resolvedRootPath, ['rev-parse', '--is-inside-work-tree'])
+    await runGitCommand(resolvedRootPath, ['rev-parse', '--verify', 'HEAD'])
+    const diffText = await runGitCommand(resolvedRootPath, [
+      'diff',
+      '--no-color',
+      '--unified=0',
+      'HEAD',
+      '--',
+      relativePath,
+    ])
+
+    return {
+      ok: true,
+      markers: parseGitDiffLineMarkers(diffText),
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      markers: [],
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to read git line markers.',
     }
   }
 }
@@ -2004,6 +2118,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:index')
   ipcMain.removeHandler('workspace:indexDirectory')
   ipcMain.removeHandler('workspace:readFile')
+  ipcMain.removeHandler('workspace:getGitLineMarkers')
   ipcMain.removeHandler('workspace:readComments')
   ipcMain.removeHandler('workspace:writeComments')
   ipcMain.removeHandler('workspace:readGlobalComments')
@@ -2018,6 +2133,7 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
   ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectory)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
+  ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkers)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
   ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
   ipcMain.handle('workspace:readGlobalComments', handleWorkspaceReadGlobalComments)

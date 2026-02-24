@@ -1012,6 +1012,23 @@
   gap: 6px;
 }
 
+.code-line-git-marker {
+  border-radius: 999px;
+  display: inline-flex;
+  height: 0.55rem;
+  width: 0.55rem;
+}
+
+.code-line-git-marker-added {
+  background: #3fa36f;
+  border: 1px solid #7ed9a4;
+}
+
+.code-line-git-marker-modified {
+  background: #3d7fca;
+  border: 1px solid #85b8f2;
+}
+
 .code-line-comment-badge {
   align-items: center;
   background: #2e4a36;

@@ -1192,3 +1192,66 @@
   - `View Comments` 상단에 global comments read-only 섹션을 추가하고 빈 값은 `No global comments.`로 고정했다.
   - 헤더는 `Code comments` / `Workspace` 라벨 그룹으로 재배치하고, workspace 그룹 내부를 `switcher -> Open -> Close` 순서로 고정했다.
   - Export 모달에 `Global comments: included/not included` 상태 라인을 추가했다.
+
+---
+
+## F19 Addendum (2026-02-24)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f19_git_diff_line_markers_added_modified_mvp.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `T1, T2` (completed)
+  - Phase 2: `T3, T4` (completed)
+  - Phase 3: `T5, T6` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| T1 | `workspace:getGitLineMarkers` IPC 추가 | P0 | - | completed | `App.test.tsx` pass |
+| T2 | `git diff --unified=0` 파싱으로 `added/modified` 계산 | P0 | T1 | completed | `electron/git-line-markers.test.ts` pass |
+| T3 | workspace active file marker 상태/재조회 연결 | P0 | T1,T2 | completed | `App.test.tsx`, `workspace-model.test.ts` pass |
+| T4 | CodeViewer 라인 마커 렌더/스타일 추가 | P0 | T3 | completed | `code-viewer-panel.test.tsx` pass |
+| T5 | 파서/렌더 단위 테스트 보강 | P0 | T2,T4 | completed | `electron/git-line-markers.test.ts`, `code-viewer-panel.test.tsx` pass |
+| T6 | 통합 회귀(전환/실패 degrade) 검증 | P1 | T3,T4,T5 | completed | `App.test.tsx`, `npm test` pass |
+
+### 2) Files Changed (F19)
+
+- `electron/git-line-markers.ts` (new)
+- `electron/git-line-markers.test.ts` (new)
+- `electron/main.ts`
+- `electron/preload.ts`
+- `electron/electron-env.d.ts`
+- `src/workspace/workspace-model.ts`
+- `src/workspace/workspace-model.test.ts`
+- `src/workspace/workspace-context.tsx`
+- `src/App.tsx`
+- `src/App.css`
+- `src/code-viewer/code-viewer-panel.tsx`
+- `src/code-viewer/code-viewer-panel.test.tsx`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Test and Quality Gate Status (F19)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm test -- electron/git-line-markers.test.ts src/code-viewer/code-viewer-panel.test.tsx src/App.test.tsx`: pass
+- `npm test`: pass (`250 passed`)
+- `npm run lint`: pass
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F19)
+
+- Group A: `T1 + T2` (IPC 계약 + diff parser)
+- Group B: `T3 + T4` (workspace 상태 + code viewer 렌더)
+- Group C: `T5 + T6` (단위/통합 회귀 + 품질 게이트)
+
+### 5) Blockers and Decisions (F19)
+
+- Blockers: 없음
+- Applied decisions:
+  - 비교 기준은 `HEAD` 대비 워킹트리(`staged + unstaged`)로 고정했다.
+  - deleted-only hunk는 MVP 범위 밖으로 분리해 렌더에서 제외했다.
+  - Git 실패/비저장소 경로는 오류 배너 없이 `markers=[]`로 안전 degrade한다.
+  - image preview/preview unavailable 상태에서는 라인 렌더 자체를 건너뛰어 Git 마커를 표시하지 않는다.

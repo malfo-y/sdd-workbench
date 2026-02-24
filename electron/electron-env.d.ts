@@ -61,6 +61,19 @@ interface WorkspaceReadFileResult {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type WorkspaceGitLineMarkerKind = 'added' | 'modified'
+
+interface WorkspaceGitLineMarker {
+  line: number
+  kind: WorkspaceGitLineMarkerKind
+}
+
+interface WorkspaceGetGitLineMarkersResult {
+  ok: boolean
+  markers: WorkspaceGitLineMarker[]
+  error?: string
+}
+
 interface CodeCommentRecord {
   id: string
   relativePath: string
@@ -176,6 +189,10 @@ interface Window {
       rootPath: string,
       relativePath: string,
     ) => Promise<WorkspaceReadFileResult>
+    getGitLineMarkers: (
+      rootPath: string,
+      relativePath: string,
+    ) => Promise<WorkspaceGetGitLineMarkersResult>
     readComments: (rootPath: string) => Promise<WorkspaceReadCommentsResult>
     writeComments: (
       rootPath: string,

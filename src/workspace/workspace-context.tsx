@@ -23,6 +23,7 @@ import {
   updateWorkspaceSession,
   type LineSelectionRange,
   type WorkspaceId,
+  type WorkspaceGitLineMarker,
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
   type WorkspaceState,
@@ -48,6 +49,7 @@ type WorkspaceContextValue = {
   activeSpec: string | null
   activeFileContent: string | null
   activeFileImagePreview: WorkspaceImagePreview | null
+  activeFileGitLineMarkers: WorkspaceGitLineMarker[]
   activeSpecContent: string | null
   isIndexing: boolean
   isReadingFile: boolean
@@ -229,6 +231,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [hasHydratedSnapshot, setHasHydratedSnapshot] = useState(false)
   const indexRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readFileRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
+  const readGitLineMarkersRequestIdByWorkspaceRef = useRef<
+    Record<WorkspaceId, number>
+  >({})
   const readSpecRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readCommentsRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>(
     {},
@@ -274,6 +279,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 activeSpec: null,
                 activeFileContent: null,
                 activeFileImagePreview: null,
+                activeFileGitLineMarkers: [],
                 activeSpecContent: null,
                 isReadingFile: false,
                 isReadingSpec: false,
@@ -351,6 +357,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               activeFileImagePreview: activeFileStillExists
                 ? currentSession.activeFileImagePreview
                 : null,
+              activeFileGitLineMarkers: activeFileStillExists
+                ? currentSession.activeFileGitLineMarkers
+                : [],
               activeSpecContent: activeSpecStillExists
                 ? currentSession.activeSpecContent
                 : null,
@@ -397,6 +406,59 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             : 'Failed to index workspace.',
         )
         return 'failed'
+      }
+    },
+    [],
+  )
+
+  const loadWorkspaceGitLineMarkers = useCallback(
+    async (workspaceId: WorkspaceId, rootPath: string, relativePath: string) => {
+      const requestId =
+        (readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId] = requestId
+
+      try {
+        const markerResult = await window.workspace.getGitLineMarkers(
+          rootPath,
+          relativePath,
+        )
+        if (
+          readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId] !== requestId
+        ) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+            if (currentSession.activeFile !== relativePath) {
+              return currentSession
+            }
+
+            return {
+              ...currentSession,
+              activeFileGitLineMarkers: markerResult.ok ? markerResult.markers : [],
+            }
+          }),
+        )
+      } catch {
+        if (
+          readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId] !== requestId
+        ) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+            if (currentSession.activeFile !== relativePath) {
+              return currentSession
+            }
+
+            return {
+              ...currentSession,
+              activeFileGitLineMarkers: [],
+            }
+          }),
+        )
       }
     },
     [],
@@ -878,6 +940,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const closeWorkspace = useCallback((workspaceId: WorkspaceId) => {
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+    delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
     delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
     delete readCommentsRequestIdByWorkspaceRef.current[workspaceId]
     delete writeCommentsRequestIdByWorkspaceRef.current[workspaceId]
@@ -1029,6 +1092,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               activeSpec: relativePath,
               activeFileContent: activeSpecContent,
               activeFileImagePreview: null,
+              activeFileGitLineMarkers: [],
               selectionRange:
                 restoredLineNumber === null
                   ? null
@@ -1044,6 +1108,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               isReadingSpec: false,
             }
           }),
+        )
+        void loadWorkspaceGitLineMarkers(
+          workspaceId,
+          workspaceSession.rootPath,
+          relativePath,
         )
         return
       }
@@ -1082,6 +1151,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               mode === 'select' ? null : currentSession.activeFileContent,
             activeFileImagePreview:
               mode === 'select' ? null : currentSession.activeFileImagePreview,
+            activeFileGitLineMarkers:
+              mode === 'select' ? [] : currentSession.activeFileGitLineMarkers,
             selectionRange:
               mode === 'select'
                 ? restoredLineNumber === null
@@ -1125,6 +1196,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 readFileError: readResult.error
                   ? `Failed to read file: ${readResult.error}`
                   : 'Failed to read file.',
+                activeFileGitLineMarkers: [],
                 isReadingFile: false,
                 activeSpecContent:
                   shouldUpdateSpec || shouldRefreshSpec
@@ -1151,6 +1223,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 ...currentSession,
                 previewUnavailableReason: readResult.previewUnavailableReason ?? null,
                 activeFileImagePreview: null,
+                activeFileGitLineMarkers: [],
                 isReadingFile: false,
                 activeSpecContent:
                   shouldUpdateSpec || shouldRefreshSpec
@@ -1178,6 +1251,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 ? null
                 : readResult.content ?? '',
               activeFileImagePreview: readResult.imagePreview ?? null,
+              activeFileGitLineMarkers: readResult.imagePreview
+                ? []
+                : currentSession.activeFileGitLineMarkers,
               selectionRange: readResult.imagePreview
                 ? null
                 : currentSession.selectionRange,
@@ -1198,6 +1274,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                   : currentSession.isReadingSpec,
             })),
           )
+          if (!readResult.imagePreview) {
+            void loadWorkspaceGitLineMarkers(
+              workspaceId,
+              workspaceSession.rootPath,
+              relativePath,
+            )
+          }
         } catch (error) {
           if (readFileRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
             return
@@ -1210,6 +1293,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 error instanceof Error
                   ? `Failed to read file: ${error.message}`
                   : 'Failed to read file.',
+              activeFileGitLineMarkers: [],
               isReadingFile: false,
               activeSpecContent:
                 shouldUpdateSpec || shouldRefreshSpec
@@ -1230,7 +1314,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         }
       })()
     },
-    [],
+    [loadWorkspaceGitLineMarkers],
   )
 
   const selectActiveWorkspaceFile = useCallback(
@@ -1499,6 +1583,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           }
           delete indexRequestIdByWorkspaceRef.current[workspaceId]
           delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+          delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
           delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
           delete readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
           delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
@@ -1697,6 +1782,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       activeSpec: activeWorkspace?.activeSpec ?? null,
       activeFileContent: activeWorkspace?.activeFileContent ?? null,
       activeFileImagePreview: activeWorkspace?.activeFileImagePreview ?? null,
+      activeFileGitLineMarkers: activeWorkspace?.activeFileGitLineMarkers ?? [],
       activeSpecContent: activeWorkspace?.activeSpecContent ?? null,
       isIndexing: activeWorkspace?.isIndexing ?? false,
       isReadingFile: activeWorkspace?.isReadingFile ?? false,
