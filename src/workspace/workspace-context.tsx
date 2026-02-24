@@ -19,6 +19,7 @@ import {
   pushWorkspaceFileHistory,
   setWorkspaceSelectionRange as setWorkspaceSelectionRangeInModel,
   setActiveWorkspace as setActiveWorkspaceInState,
+  switchActiveWorkspace as switchActiveWorkspaceInState,
   stepWorkspaceFileHistory,
   updateWorkspaceSession,
   type LineSelectionRange,
@@ -74,6 +75,7 @@ type WorkspaceContextValue = {
   bannerMessage: string | null
   openWorkspace: () => Promise<void>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
+  switchWorkspace: (workspaceId: WorkspaceId) => void
   closeWorkspace: (workspaceId: WorkspaceId) => void
   selectFile: (relativePath: string) => void
   canGoBack: boolean
@@ -934,6 +936,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const setActiveWorkspace = useCallback((workspaceId: WorkspaceId) => {
     setWorkspaceState((previous) =>
       setActiveWorkspaceInState(previous, workspaceId),
+    )
+  }, [])
+
+  const switchWorkspace = useCallback((workspaceId: WorkspaceId) => {
+    setWorkspaceState((previous) =>
+      switchActiveWorkspaceInState(previous, workspaceId),
     )
   }, [])
 
@@ -1807,6 +1815,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       bannerMessage,
       openWorkspace,
       setActiveWorkspace,
+      switchWorkspace,
       closeWorkspace,
       selectFile,
       canGoBack,
@@ -1830,6 +1839,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       bannerMessage,
       openWorkspace,
       setActiveWorkspace,
+      switchWorkspace,
       closeWorkspace,
       selectFile,
       canGoBack,

@@ -365,6 +365,40 @@ export function addOrFocusWorkspace(
   }
 }
 
+export function switchActiveWorkspace(
+  state: WorkspaceState,
+  workspaceId: WorkspaceId,
+): WorkspaceState {
+  const session = state.workspacesById[workspaceId]
+  if (!session) {
+    return state
+  }
+
+  if (state.activeWorkspaceId === workspaceId) {
+    return state
+  }
+
+  const nextSession =
+    session.selectionRange === null
+      ? session
+      : {
+          ...session,
+          selectionRange: null,
+        }
+
+  return {
+    activeWorkspaceId: workspaceId,
+    workspaceOrder: state.workspaceOrder,
+    workspacesById:
+      nextSession === session
+        ? state.workspacesById
+        : {
+            ...state.workspacesById,
+            [workspaceId]: nextSession,
+          },
+  }
+}
+
 export function setActiveWorkspace(
   state: WorkspaceState,
   workspaceId: WorkspaceId,

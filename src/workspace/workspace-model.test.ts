@@ -12,6 +12,7 @@ import {
   pushWorkspaceFileHistory,
   setWorkspaceSelectionRange,
   setActiveWorkspace,
+  switchActiveWorkspace,
   stepWorkspaceFileHistory,
   updateWorkspaceSession,
 } from './workspace-model'
@@ -297,6 +298,50 @@ describe('workspace-model', () => {
     expect(session.fileLastLineByPath).toEqual({
       'src/auth.ts': 6,
     })
+  })
+
+  it('switchActiveWorkspace preserves workspaceOrder', () => {
+    const workspaceAId = createWorkspaceId(ROOT_A)
+
+    let state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    state = addOrFocusWorkspace(state, ROOT_B).state
+
+    const orderBefore = [...state.workspaceOrder]
+    state = switchActiveWorkspace(state, workspaceAId)
+
+    expect(state.activeWorkspaceId).toBe(workspaceAId)
+    expect(state.workspaceOrder).toEqual(orderBefore)
+  })
+
+  it('switchActiveWorkspace returns same state for non-existent workspace', () => {
+    const state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    const result = switchActiveWorkspace(state, 'non-existent-id')
+
+    expect(result).toBe(state)
+  })
+
+  it('switchActiveWorkspace returns same state when switching to current workspace', () => {
+    const workspaceAId = createWorkspaceId(ROOT_A)
+    const state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    const result = switchActiveWorkspace(state, workspaceAId)
+
+    expect(result).toBe(state)
+  })
+
+  it('switchActiveWorkspace resets selectionRange on target workspace', () => {
+    const workspaceAId = createWorkspaceId(ROOT_A)
+
+    let state = addOrFocusWorkspace(createEmptyWorkspaceState(), ROOT_A).state
+    state = updateWorkspaceSession(state, workspaceAId, (session) => ({
+      ...session,
+      selectionRange: { startLine: 2, endLine: 5 },
+    }))
+    state = addOrFocusWorkspace(state, ROOT_B).state
+
+    state = switchActiveWorkspace(state, workspaceAId)
+
+    expect(state.activeWorkspaceId).toBe(workspaceAId)
+    expect(state.workspacesById[workspaceAId]?.selectionRange).toBeNull()
   })
 })
 

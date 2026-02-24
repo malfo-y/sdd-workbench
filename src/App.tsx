@@ -356,6 +356,7 @@ function App() {
     bannerMessage,
     openWorkspace,
     setActiveWorkspace,
+    switchWorkspace,
     closeWorkspace,
     selectFile,
     canGoBack,
@@ -1234,6 +1235,30 @@ function App() {
 
     return unsubscribe
   }, [navigateHistory])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.metaKey || !event.shiftKey) return
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+
+      event.preventDefault()
+
+      const currentIndex = workspaces.findIndex(
+        (ws) => ws.id === activeWorkspaceId,
+      )
+      if (currentIndex === -1 || workspaces.length < 2) return
+
+      const nextIndex =
+        event.key === 'ArrowUp'
+          ? (currentIndex - 1 + workspaces.length) % workspaces.length
+          : (currentIndex + 1) % workspaces.length
+
+      switchWorkspace(workspaces[nextIndex].id)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [workspaces, activeWorkspaceId, switchWorkspace])
 
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
