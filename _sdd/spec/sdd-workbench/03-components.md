@@ -9,6 +9,7 @@
   - header left(title + history) + header right(comments/workspace) 그룹으로 분리하고 compact 버튼(`icon + short label`) 적용
   - 코멘트 전용 배너 helper + auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
+  - `Cmd+Shift+Up/Down` 키보드 워크스페이스 순환 전환 리스너
 - `src/App.css`
   - 패널 레이아웃, marker/popover/modal 스타일
   - code line Git marker(`added`/`modified`) 색상 스타일
@@ -26,6 +27,7 @@
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
   - session 상태에 `activeFileGitLineMarkers` 포함
+  - `switchActiveWorkspace` 순수 함수(순서 유지 전환, MRU 재배열 없음)
   - `mergeDirectoryChildren` 순수 함수(트리 노드 교체)
 - `src/workspace/workspace-persistence.ts`
   - 세션 snapshot hydrate/persist(`watchModePreference` 영속화)

@@ -38,6 +38,7 @@
 - 코멘트 배너 5초 auto-dismiss(코멘트 액션 경로 한정)
 - header comments/workspace 액션 그룹 + title 옆 Back/Forward 배치
 - active file Git diff 라인 마커(added/modified) 표시
+- Cmd+Shift+Up/Down 워크스페이스 키보드 순환 전환
 
 ### 3.2 MVP 제외 범위
 
@@ -107,6 +108,9 @@
 | Global 포함 체크박스 + Delete Exported 하단 이동 | Implemented | F17 |
 | Shiki 기반 코드 하이라이팅(40+ 언어, 비동기) | Implemented | F18 |
 | active file Git diff 라인 마커(added/modified) | Implemented | F19 |
+| Export 선택 제한 완화 + comment-to-code jump | Implemented | F20 |
+| Code viewer 텍스트 검색 | Implemented | F21 |
+| 키보드 워크스페이스 전환(Cmd+Shift+Up/Down) | Implemented | F22 |
 
 ## 6. Open Questions
 

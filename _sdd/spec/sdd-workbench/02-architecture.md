@@ -117,3 +117,4 @@ Right: Rendered Spec (TOC + link/source actions)
 2. cross-workspace 자동 fallback 미지원
 3. 전환 시 공유 금지 상태(selection)는 리셋
 4. 세션 상태(active file/spec/expanded/history/comments/globalComments/watch preference)는 workspace별 유지
+5. 키보드 전환(`Cmd+Shift+Up/Down`)은 `switchActiveWorkspace`(순서 유지)를 사용하고, 드롭다운 전환은 `setActiveWorkspace`(MRU 재배열)를 사용한다.

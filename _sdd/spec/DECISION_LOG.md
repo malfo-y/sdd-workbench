@@ -853,3 +853,24 @@
 - Impact / follow-up:
   - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F19 완료 기준으로 동기화한다.
   - deleted-only 라인(red) marker, diff 상세 뷰/툴팁은 후속 backlog로 유지한다.
+
+## 2026-02-24 - F22 구현 완료 반영(Cmd+Shift+Up/Down 워크스페이스 키보드 전환)
+
+- Context:
+  - 기존 워크스페이스 전환은 드롭다운(`WorkspaceSwitcher`)만 지원했으며, 키보드 기반 빠른 전환이 불가능했음.
+  - 기존 `setActiveWorkspace`는 MRU 패턴(`workspaceOrder` 끝으로 이동)을 사용하므로, 키보드 순차 전환에 부적합함.
+- Decision:
+  - `switchActiveWorkspace` 순수 함수를 추가한다. `setActiveWorkspace`와 동일하되 `workspaceOrder`를 재배열하지 않는다.
+  - `Cmd+Shift+Up`(이전)/`Cmd+Shift+Down`(다음)으로 `workspaceOrder` 기준 순환 전환(wrap-around)을 지원한다.
+  - 드롭다운 전환은 기존 `setActiveWorkspace`(MRU) 동작을 유지한다.
+  - 워크스페이스 1개일 때는 무동작 처리한다.
+- Rationale:
+  - MRU 재배열 없이 순서를 유지해야 키보드 연속 전환에서 안정적 인덱싱이 보장된다.
+  - 드롭다운과 키보드의 전환 의미가 다르므로(MRU vs 순차) 별도 함수로 분리하는 것이 상태 전이 명확성을 높인다.
+  - `selectionRange` 리셋은 두 함수 모두 동일하게 유지한다.
+- Alternatives considered:
+  - `setActiveWorkspace`에 MRU 재배열 여부 플래그를 추가
+  - `workspaceOrder`를 항상 고정하고 MRU를 별도 필드로 관리
+- Impact / follow-up:
+  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `05-operational-guides.md`, `appendix.md`를 F22 완료 기준으로 동기화한다.
+  - 품질 게이트: `npm test`(`23 files, 285 passed`), `npm run lint`, `npx tsc --noEmit` 모두 통과.

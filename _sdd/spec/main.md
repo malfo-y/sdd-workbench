@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.33.0`
+- 문서 버전: `0.34.0`
 - 마지막 업데이트: `2026-02-24`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -21,6 +21,7 @@
   - F19 draft: `/_sdd/drafts/feature_draft_f19_git_diff_line_markers_added_modified_mvp.md`
   - F20 draft: `/_sdd/drafts/feature_draft_f20_export_bugfix_and_comment_jump.md`
   - F21 draft: `/_sdd/drafts/feature_draft_f21_code_viewer_text_search.md`
+  - F22: keyboard workspace switch (Cmd+Shift+Up/Down)
 - 리라이트:
   - 단일 대형 문서(`main.md`)를 인덱스 + 주제별 하위 문서로 분할
   - 결정 로그는 `/_sdd/spec/DECISION_LOG.md`를 source of truth로 유지
@@ -29,7 +30,7 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F21`
+- 구현 완료 범위: `F01~F22`
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 3패널(code/raw spec/rendered spec) 탐색
   2. spec link/selection 기반 code line jump
@@ -43,8 +44,9 @@
   10. 대규모 워크스페이스 지원: remote 깊이제한 + 디렉토리별 child cap + on-demand 확장 + 과대 디렉토리 polling 제외
   11. active file 기준 Git diff 라인 마커(added/modified)로 변경 위치를 즉시 식별
   12. code viewer 텍스트 검색(Ctrl/Cmd+F): substring 매칭 + 라인 하이라이트 + 이전/다음 이동 + wrap-around
+  13. 키보드 워크스페이스 전환(Cmd+Shift+Up/Down): 순서 유지 순환 전환 + wrap-around
 - 최신 품질 게이트(2026-02-24):
-  - `npm test` -> `23 files, 281 passed`
+  - `npm test` -> `23 files, 285 passed`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 
@@ -63,7 +65,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F21), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F22), 상세 수용 기준, 리스크/백로그
 
 ---
 

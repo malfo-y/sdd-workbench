@@ -40,7 +40,7 @@
 
 ### 4.1 자동 게이트 (2026-02-24 기준)
 
-- `npm test` -> `22 files, 250 passed`
+- `npm test` -> `23 files, 285 passed`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -76,6 +76,8 @@
 21. `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시 확인
 22. polling watcher가 child cap 초과 디렉토리를 제외하고 스캔하는지 확인
 23. 텍스트 파일에서 Git added(초록)/modified(파랑) 라인 마커가 표시되고, 이미지/preview unavailable에서는 비표시인지 확인
+24. 워크스페이스 2개 이상에서 `Cmd+Shift+Down`(다음)/`Cmd+Shift+Up`(이전) 전환 확인 + 순서 미변경 + wrap-around 확인
+25. 워크스페이스 1개일 때 `Cmd+Shift+Up/Down` 무동작 확인
 
 ## 5. 개발 환경
 
