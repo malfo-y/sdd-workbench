@@ -38,9 +38,9 @@
 
 ## 4. 테스트 운영
 
-### 4.1 자동 게이트 (2026-02-24 기준)
+### 4.1 자동 게이트 (2026-02-25 기준)
 
-- `npm test` -> `23 files, 285 passed`
+- `npm test` -> `26 files, 360 passed, 1 skipped`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -82,10 +82,18 @@
 27. spec 링크 점프/Go to Source/코멘트 target 클릭 시 Code 탭 자동 전환 확인
 28. 워크스페이스 관리(선택기/Open/Close)가 사이드바에 표시되고 헤더에 없는지 확인
 29. 리사이저 1개(사이드바 ↔ 콘텐츠)로 좌우 비율 조정 동작 확인
+30. CM6 에디터에서 텍스트 편집 후 `isDirty` 인디케이터(파일명 옆 `●`) 표시 확인
+31. `Cmd+S`로 저장 → dirty 해제 + watcher 이벤트 무시(self-change 방지) 확인
+32. dirty 상태에서 다른 파일 전환 시 confirm dialog 표시 확인
+33. dirty 파일의 외부 변경 감지 시 "File changed on disk. Reload?" 배너 표시 확인
+34. CM6 `Cmd+F` 내장 검색이 정상 동작하고 match 이동/wrap-around가 되는지 확인
+35. CM6 gutter에 Git added(초록)/modified(파랑) dot 마커가 표시되는지 확인
+36. CM6 gutter에 코멘트 badge가 표시되고 hover popover가 동작하는지 확인
+37. 우클릭 컨텍스트 메뉴에서 Copy Line Contents / Copy Contents and Path / Copy Relative Path / Add Comment 동작 확인
 
 ## 5. 개발 환경
 
-- Runtime: `react`, `react-dom`, `react-markdown`, `remark-gfm`, `rehype-sanitize`, `shiki`, `chokidar`
+- Runtime: `react`, `react-dom`, `react-markdown`, `remark-gfm`, `rehype-sanitize`, `shiki`, `chokidar`, `@codemirror/state`, `@codemirror/view`, `@codemirror/language`, `@codemirror/search`, `@codemirror/commands`
 - Build/Test: `electron`, `vite`, `typescript`, `eslint`, `vitest`, `@testing-library/*`
 
 실행 명령:

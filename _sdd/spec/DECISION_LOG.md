@@ -1,3 +1,16 @@
+## 2026-02-25 - F24 구현 완료 및 레거시 정리
+
+- Context:
+  - F24 Phase 1~4 구현 완료. CM6 기반 CodeEditorPanel이 레거시 CodeViewerPanel을 완전 대체.
+- Decision:
+  - 레거시 `code-viewer-panel.tsx`, `line-selection.ts` 및 테스트 파일 4개 삭제.
+  - F21 커스텀 검색 CSS(`.code-viewer-search-*`, `.is-search-*`) 및 line rendering CSS(`.code-line-*`) 제거.
+  - `syntax-highlight.ts`, `language-map.ts`는 spec-viewer의 `HighlightedCodeBlock`에서 사용하므로 유지.
+  - CopyActionPopover 레이블 변경: "Copy Selected Content"→"Copy Line Contents", "Copy Both"→"Copy Contents and Path".
+- Outcome:
+  - 360 tests passed, 1 skipped (26 files). tsc/lint/build 모두 pass.
+  - 스펙 v0.36.0 → v0.37.0 동기화.
+
 ## 2026-02-24 - F24 CodeMirror 6 기반 코드 에디터 도입
 
 - Context:
@@ -14,9 +27,9 @@
   - Monaco Editor: 번들 크기가 크고 Electron 외 환경에서의 유연성이 낮음.
   - 기존 CodeViewerPanel에 contentEditable 추가: undo/redo, selection, IME 등 에디터 기본 기능 구현 비용이 과도.
 - Impact / follow-up:
-  - `feat/text_editor` 브랜치에서 작업. Phase 1~4로 분할 구현.
-  - CM6 패키지 추가로 번들 크기 증가(언어 lazy import + tree shaking으로 완화).
-  - 기존 code-viewer 테스트 37개 시나리오를 code-editor로 포팅 필요.
+  - `feat/text_editor` 브랜치에서 작업. Phase 1~4로 분할 구현. ✅ 완료 (2026-02-25)
+  - CM6 패키지 추가로 번들 크기 증가(언어 lazy import + tree shaking으로 완화). ✅ 적용 완료
+  - 기존 code-viewer 테스트 37개 시나리오를 code-editor로 포팅 필요. ✅ 포팅 완료 (41 tests)
 
 ## 2026-02-20 - 기본 스펙 베이스라인 문서화 방식
 

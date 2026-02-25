@@ -84,7 +84,7 @@ type CodeComment = {
 | `workspace:readGlobalComments` | Renderer -> Main (`invoke`) | global comments 읽기 |
 | `workspace:writeGlobalComments` | Renderer -> Main (`invoke`) | global comments 쓰기 |
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
-| `workspace:writeFile` | Renderer -> Main (`invoke`) | 📋 파일 저장(atomic write, 경계 검사) (F24) |
+| `workspace:writeFile` | Renderer -> Main (`invoke`) | 파일 저장(atomic write, 경계 검사) (F24) |
 | `workspace:indexDirectory` | Renderer -> Main (`invoke`) | on-demand 단일 디렉토리 자식 로드 |
 
 `workspace:watchStart` 계약 요약:
@@ -107,7 +107,7 @@ type CodeComment = {
 - 비교 기준: `git diff --no-color --unified=0 HEAD -- <relativePath>`
 - 실패/비저장소/`HEAD` 부재/파일 없음은 `ok=false|true` + `markers=[]`로 safe degrade(throw 금지)
 
-📋 `workspace:writeFile` 계약 요약 (F24):
+`workspace:writeFile` 계약 요약 (F24):
 
 - request: `{ rootPath, relativePath, content: string }`
 - response: `{ ok: boolean, error?: string }`
@@ -118,7 +118,7 @@ type CodeComment = {
 
 ## 4. 코멘트/Export 정책 계약
 
-1. `Add Comment`는 CodeViewer/SpecViewer 모두에서 동일 저장 플로우를 사용한다.
+1. `Add Comment`는 CodeEditor/SpecViewer 모두에서 동일 저장 플로우를 사용한다.
 2. `View Comments`는 상단 global comments(read-only) + 하단 line comments 목록을 함께 보여준다. global comments가 존재하면 "Include in export" 체크박스(기본 체크)를 제공한다.
 3. `View Comments` 편집/삭제/Delete Exported는 동일 comments 저장 플로우를 재사용한다. `Delete Exported`는 모달 하단 좌측에 배치한다.
 4. global comments 빈 값은 `No global comments.` empty 상태 문구로 표시한다.
@@ -161,7 +161,9 @@ type CodeComment = {
 2. 변경 파일이 collapse된 디렉토리 하위에 있으면 nearest visible collapsed ancestor 디렉토리에 `●`를 표시한다.
 3. 디렉토리를 확장하면 마커는 더 하위 visible 노드로 이동한다.
 
-## 8. 코드 뷰어 텍스트 검색 규칙 (📋 F24에서 CM6 `@codemirror/search`로 대체 예정)
+## 8. 코드 뷰어 텍스트 검색 규칙 (F21 커스텀 검색 → F24에서 CM6 `@codemirror/search`로 대체 완료)
+
+> **참고**: F21에서 구현된 커스텀 검색 바(`.code-viewer-search-*`)는 F24에서 CM6 `@codemirror/search` 내장 검색으로 대체 완료. 아래 규칙은 레거시 참조용으로 보존.
 
 1. `Ctrl+F`(또는 `Cmd+F`) 단축키로 검색 바를 토글한다. 이미지 프리뷰/preview unavailable 모드에서는 단축키를 무시한다.
 2. 검색 매칭은 현재 파일의 원본 라인 텍스트를 대상으로 substring case-insensitive 방식(`line.toLowerCase().includes(query.toLowerCase())`)으로 수행한다.
@@ -171,7 +173,7 @@ type CodeComment = {
 6. `Escape` 또는 닫기 버튼으로 검색 바를 닫으면 모든 검색 하이라이트가 해제된다.
 7. activeFile이 변경되면 검색 상태(검색어, 포커스 인덱스, 열림 여부)를 전체 초기화한다.
 
-## 9. 📋 파일 편집/저장/Dirty 상태 규칙 (F24)
+## 9. 파일 편집/저장/Dirty 상태 규칙 (F24)
 
 1. CM6 에디터에서 `docChanged` 이벤트 발생 시 `isDirty=true`로 전환한다.
 2. `Cmd+S`로 수동 저장. auto-save는 지원하지 않는다.

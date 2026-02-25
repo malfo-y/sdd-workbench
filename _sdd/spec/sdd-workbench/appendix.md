@@ -39,7 +39,7 @@
 | F21 | Done | 2026-02-24 | code viewer 텍스트 검색(Ctrl/Cmd+F, substring case-insensitive, 라인 이동 + wrap-around) |
 | F22 | Done | 2026-02-24 | Cmd+Shift+Up/Down 워크스페이스 순환 전환(순서 유지 + wrap-around) |
 | F23 | Done | 2026-02-24 | 2패널 탭 레이아웃(3패널→2패널, Code/Spec 탭 전환, 워크스페이스 관리 사이드바 이동, 리사이저 1개, Cmd+Shift+Left/Right 탭 전환) |
-| F24 | 📋 계획됨 | - | CodeMirror 6 기반 코드 에디터(read-only→editable, CM6 검색, Cmd+S 저장, dirty 관리, unsaved guard, Git/Comment gutter extension, 레거시 code-viewer 정리) |
+| F24 | Done | 2026-02-25 | CodeMirror 6 기반 코드 에디터(read-only→editable, CM6 검색, Cmd+S 저장, dirty 관리, unsaved guard, Git/Comment gutter extension, 레거시 code-viewer 정리) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -70,7 +70,7 @@
 - code viewer 텍스트 검색: `Ctrl/Cmd+F` 토글(이미지/preview unavailable 모드 무시), substring case-insensitive 매칭, 매치 라인 `is-search-match`/`is-search-focus` 하이라이트, 이전/다음 이동(버튼 + Enter/Shift+Enter) + wrap-around, `N / M` 카운트 + `No results` 표시, Escape/닫기로 하이라이트 해제, 파일 변경 시 검색 상태 자동 초기화
 - 워크스페이스 키보드 전환: `Cmd+Shift+Up`(이전)/`Cmd+Shift+Down`(다음) 순서 유지 순환, 워크스페이스 1개일 때 무동작, 드롭다운 전환은 기존 MRU 동작 유지
 - 2패널 탭 레이아웃: 3패널(사이드바/코드/스펙)→2패널(사이드바 + 탭 콘텐츠), Code/Spec 탭 클릭 전환, 탭 전환 시 스크롤 위치 유지(`display: none` 비활성 탭 보존), `.md` 파일→Spec 탭/그 외→Code 탭 자동 전환, spec 점프/Go to Source/코멘트 점프→Code 탭 자동 전환, 워크스페이스 관리(선택기/Open/Close) 사이드바 상단 배치, 리사이저 1개(사이드바 ↔ 콘텐츠), `Cmd+Shift+Left/Right` 탭 키보드 전환, `PaneSizes = { left, content }` 단순화
-- 📋 (F24) CM6 코드 에디터: CM6 기반 코드 뷰어가 기존 CodeViewerPanel의 모든 기능 대체, 다크 테마(github-dark 유사) CM6 theme extension 구현, `@codemirror/search`가 기존 F21 커스텀 검색 대체, `workspace:writeFile` IPC(atomic write + 경계 검사), Cmd+S 수동 저장, dirty 인디케이터 + unsaved changes guard, dirty 파일 외부 변경 시 auto-reload 건너뛰기 + 배너, Git line marker/Comment badge gutter CM6 extension 동작, 우클릭 컨텍스트 메뉴(Copy/Add Comment) CM6 통합
+- (F24) CM6 코드 에디터: CM6 기반 코드 뷰어가 기존 CodeViewerPanel의 모든 기능 대체, 다크 테마(github-dark 유사) CM6 theme extension 구현, `@codemirror/search`가 기존 F21 커스텀 검색 대체, `workspace:writeFile` IPC(atomic write + 경계 검사), Cmd+S 수동 저장, dirty 인디케이터 + unsaved changes guard, dirty 파일 외부 변경 시 auto-reload 건너뛰기 + 배너, Git line marker/Comment badge gutter CM6 extension 동작, 우클릭 컨텍스트 메뉴(Copy/Add Comment) CM6 통합
 
 ## C. 리스크/백로그
 
@@ -89,10 +89,10 @@
 13. lazy-loaded 디렉토리는 browse-only이며 watcher 범위에 포함되지 않음
 14. on-demand 로드 후 구조 변경 re-index 시 lazy-loaded 디렉토리는 `not-loaded`로 리셋됨
 15. Git deleted-only 라인(빨강) 마커는 MVP 범위에서 미지원
-16. 📋 (F24) CM6 번들 크기 증가 리스크 — 언어 패키지 lazy import + tree shaking으로 완화
-17. 📋 (F24) CM6 jsdom 테스트 호환성 — extension 로직을 순수 함수로 분리해 단위 테스트 가능하게
-18. 📋 (F24) dirty 상태에서 watcher race condition — dirty 체크를 watcher handler 내 동기적 수행(ref)
-19. 📋 (F24) auto-save, auto-format, LSP, minimap, multi-cursor 커스텀은 F24 범위 밖
+16. (F24) CM6 번들 크기 증가 리스크 — 언어 패키지 lazy import + tree shaking으로 완화 (구현 시 적용 완료)
+17. (F24) CM6 jsdom 테스트 호환성 — extension 로직을 순수 함수로 분리해 단위 테스트 가능하게 (구현 시 적용 완료)
+18. (F24) dirty 상태에서 watcher race condition — dirty 체크를 watcher handler 내 동기적 수행(ref) (구현 시 적용 완료)
+19. (F24) auto-save, auto-format, LSP, minimap, multi-cursor 커스텀은 F24 범위 밖
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

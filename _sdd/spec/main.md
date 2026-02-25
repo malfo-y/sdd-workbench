@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.36.0`
-- 마지막 업데이트: `2026-02-24`
+- 문서 버전: `0.37.0`
+- 마지막 업데이트: `2026-02-25`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -32,8 +32,7 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F23`
-- 📋 계획됨: `F24` (CodeMirror 6 기반 코드 에디터)
+- 구현 완료 범위: `F01~F24`
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump
@@ -49,9 +48,9 @@
   12. code viewer 텍스트 검색(Ctrl/Cmd+F): substring 매칭 + 라인 하이라이트 + 이전/다음 이동 + wrap-around
   13. 키보드 워크스페이스 전환(Cmd+Shift+Up/Down): 순서 유지 순환 전환 + wrap-around
   14. 2패널 탭 레이아웃: Code/Spec 탭 전환 + 워크스페이스 관리 사이드바 통합 + 리사이저 1개 + 파일 타입별 자동 탭 전환 + Cmd+Shift+Left/Right 탭 키보드 전환
-  15. 📋 (F24) CodeMirror 6 기반 코드 에디터: read-only 뷰어 대체 → 편집 + Cmd+S 저장 + dirty 상태 관리 + CM6 gutter 확장(Git 마커, 코멘트 배지)
-- 최신 품질 게이트(2026-02-24):
-  - `npm test` -> `23 files, 285 passed`
+  15. (F24) CodeMirror 6 기반 코드 에디터: read-only 뷰어 대체 → 편집 + Cmd+S 저장 + dirty 상태 관리 + CM6 gutter 확장(Git 마커, 코멘트 배지)
+- 최신 품질 게이트(2026-02-25):
+  - `npm test` -> `26 files, 360 passed, 1 skipped`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 

@@ -5,7 +5,7 @@
 ### 1.1 App Shell
 
 - `src/App.tsx`
-  - 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 콘텐츠) 조립, header 액션, 모달 오케스트레이션, 📋 dirty indicator + unsaved changes guard (F24)
+  - 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 콘텐츠) 조립, header 액션, 모달 오케스트레이션, dirty indicator + unsaved changes guard (F24)
   - header left(title + history + Code/Spec 탭 바) + header right(comments) 그룹
   - 워크스페이스 관리(선택기/Open/Close)는 사이드바 상단에 배치
   - `activeTab` 상태(`'code' | 'spec'`)로 콘텐츠 영역 전환, `display: none`으로 비활성 탭 보존
@@ -21,8 +21,7 @@
   - `content-tab-bar`/`content-tab-button` 탭 전환 스타일(활성/비활성 시각 구분)
   - `content-pane-wrapper`(`.is-hidden` 토글) 탭 콘텐츠 가시성
   - `sidebar-workspace-group`/`sidebar-workspace-controls` 사이드바 워크스페이스 관리 스타일
-  - code line Git marker(`added`/`modified`) 색상 스타일
-  - code viewer 검색 바 스타일(`.code-viewer-search-*`)
+  - CM6 Git gutter/Comment badge 색상 스타일
 
 ### 1.2 Workspace State Layer
 
@@ -36,7 +35,7 @@
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
   - session 상태에 `activeFileGitLineMarkers` 포함
-  - 📋 `isDirty` 상태 + `saveFile(content)` → writeFile IPC → dirty 해제 (F24)
+  - `isDirty` 상태 + `saveFile(content)` → writeFile IPC → dirty 해제 (F24)
   - `switchActiveWorkspace` 순수 함수(순서 유지 전환, MRU 재배열 없음)
   - `mergeDirectoryChildren` 순수 함수(트리 노드 교체)
 - `src/workspace/workspace-persistence.ts`
@@ -53,10 +52,9 @@
   - `not-loaded` 디렉토리 확장 시 on-demand 로드 트리거 + "Loading..." placeholder
   - `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시
 
-### 1.4 Code Editor Layer (📋 F24: CodeMirror 6 기반, CodeViewerPanel 대체)
+### 1.4 Code Editor Layer (F24: CodeMirror 6 기반)
 
-- `src/code-editor/code-editor-panel.tsx` (📋 신규)
-  - CodeMirror 6 기반 코드 읽기/편집 통합 컴포넌트
+- `src/code-editor/code-editor-panel.tsx`  - CodeMirror 6 기반 코드 읽기/편집 통합 컴포넌트
   - React ref → `EditorView` 생성/소멸, Extensions 관리
   - `Compartment` 기반 `readOnly` 동적 전환
   - `@codemirror/search` 내장 검색(기존 F21 커스텀 검색 대체)
@@ -64,23 +62,13 @@
   - Image/binary/too-large fallback UI 유지
   - Jump-to-line via `EditorView.scrollIntoView`
   - 컨텍스트 메뉴(Copy/Add Comment) CM6 `domEventHandlers` 통합
-- `src/code-editor/cm6-dark-theme.ts` (📋 신규)
-  - github-dark 유사 다크 테마(`EditorView.theme` + `syntaxHighlighting(oneDarkHighlightStyle)`)
+- `src/code-editor/cm6-dark-theme.ts`  - github-dark 유사 다크 테마(`EditorView.theme` + `syntaxHighlighting(oneDarkHighlightStyle)`)
   - 배경 `#1a1a1a`, 텍스트 `#d3d3d3`, gutter `#7d7d7d`, 선택 `rgba(78,140,198,0.2)`
-- `src/code-editor/cm6-language-map.ts` (📋 신규)
-  - 파일 확장자 → CM6 `LanguageSupport` lazy mapping (13개 언어 + plaintext fallback)
-- `src/code-editor/cm6-selection-bridge.ts` (📋 신규)
-  - CM6 character-based selection → `LineSelectionRange` 변환
+- `src/code-editor/cm6-language-map.ts`  - 파일 확장자 → CM6 `LanguageSupport` lazy mapping (13개 언어 + plaintext fallback)
+- `src/code-editor/cm6-selection-bridge.ts`  - CM6 character-based selection → `LineSelectionRange` 변환
   - 빈 selection은 커서 라인 단일 range
-- `src/code-editor/cm6-git-gutter.ts` (📋 신규)
-  - CM6 `gutter()` API로 added(green)/modified(blue) dot, `StateEffect`로 주입
-- `src/code-editor/cm6-comment-gutter.ts` (📋 신규)
-  - `GutterMarker.toDOM()`에서 badge span + hover popover, 기존 `CommentHoverPopover` 재사용
-
-#### 레거시 Code Viewer (F24 Phase 4에서 삭제 예정)
-
-- `src/code-viewer/code-viewer-panel.tsx` (📋 삭제 예정)
-- `src/code-viewer/line-selection.ts` (📋 삭제 예정)
+- `src/code-editor/cm6-git-gutter.ts`  - CM6 `gutter()` API로 added(green)/modified(blue) dot, `StateEffect`로 주입
+- `src/code-editor/cm6-comment-gutter.ts`  - `GutterMarker.toDOM()`에서 badge span + hover popover, 기존 `CommentHoverPopover` 재사용
 
 #### Spec-Viewer 공용 유지 모듈
 
@@ -129,7 +117,7 @@
 
 - `electron/main.ts`
   - IPC handler, watch lifecycle(native/polling/fallback), export 파일 쓰기, system open
-  - 📋 `workspace:writeFile` handler: 경로 검증(`isPathInsideWorkspace`), 크기 검사(2MB), atomic write (F24)
+  - `workspace:writeFile` handler: 경로 검증(`isPathInsideWorkspace`), 크기 검사(2MB), atomic write (F24)
   - `workspace:getGitLineMarkers` 단건 diff 조회(`git diff --unified=0 HEAD -- <relativePath>`) + 실패 safe degrade
   - `detectRemoteMountPoint` (`mount` 명령 파싱 기반 네트워크 FS 감지)
   - `buildDirectoryChildren` + `handleWorkspaceIndexDirectory` (on-demand 디렉토리 IPC)
@@ -139,9 +127,9 @@
 - `electron/git-line-markers.ts`
   - unified diff hunk 파싱으로 라인 마커(`added`/`modified`) 계산
 - `electron/preload.ts`
-  - `window.workspace` 브리지(`getGitLineMarkers`, 📋 `writeFile` 포함)
+  - `window.workspace` 브리지(`getGitLineMarkers`, `writeFile` 포함)
 - `electron/electron-env.d.ts`
-  - renderer 타입 계약(📋 `writeFile` 포함)
+  - renderer 타입 계약(`writeFile` 포함)
 
 ## 2. 테스트 맵(핵심)
 
@@ -149,8 +137,7 @@
 - 상태모델: `src/workspace/workspace-model.test.ts`
 - 상태 영속화: `src/workspace/workspace-persistence.test.ts`
 - spec viewer: `src/spec-viewer/spec-viewer-panel.test.tsx`
-- code viewer: `src/code-viewer/code-viewer-panel.test.tsx` (📋 F24 완료 후 code-editor 테스트로 대체)
-- 📋 code editor: `src/code-editor/code-editor-panel.test.tsx`, `cm6-selection-bridge.test.ts`, `cm6-language-map.test.ts`, `cm6-git-gutter.test.ts`, `cm6-comment-gutter.test.ts` (F24)
+- code editor: `src/code-editor/code-editor-panel.test.tsx`, `cm6-selection-bridge.test.ts`, `cm6-language-map.test.ts`, `cm6-git-gutter.test.ts`, `cm6-comment-gutter.test.ts` (F24)
 - file tree lazy load: `src/file-tree/file-tree-panel.test.tsx`
 - electron resolver: `electron/workspace-watch-mode.test.ts`
 - electron git parser: `electron/git-line-markers.test.ts`

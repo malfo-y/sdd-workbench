@@ -417,3 +417,21 @@
   - `_sdd/implementation/features/f23/SYNC_20260224_123440_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
   - `_sdd/implementation/features/f23/SYNC_20260224_123440_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
   - `_sdd/implementation/features/f23/SYNC_20260224_123440_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+## f24
+
+### Sync Record - 2026-02-25T06:28:12Z
+
+- note: spec sync (F24 done — CM6 코드 에디터 Phase 1~4 완료: read-only→editable, Cmd+S 저장, dirty 상태, unsaved guard, Git/Comment gutter extension, 레거시 code-viewer 정리, CopyActionPopover 레이블 변경; reflected in `main.md`(v0.37.0), `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`, `DECISION_LOG.md`; draft: `_sdd/drafts/feature_draft_f24_code_editor_codemirror6.md`)
+- copied files:
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_PLAN_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_1.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_PLAN_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_2.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_PLAN_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_PLAN_PHASE_4.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_4.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_REPORT_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_REPORT_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+  - `_sdd/implementation/features/f24/SYNC_20260225_062812_IMPLEMENTATION_REPORT_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`

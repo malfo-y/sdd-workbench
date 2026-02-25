@@ -14,7 +14,7 @@
 6. 스펙-코드 왕복 시 rendered 문맥(스크롤 위치) 보존으로 탐색 비용 최소화
 7. 원격 마운트 워크스페이스에서도 watcher 신뢰성을 유지(`auto/native/polling`)
 8. 대규모/원격 워크스페이스에서 lazy indexing + on-demand 디렉토리 확장으로 빠른 초기 로드
-9. 📋 (F24) CodeMirror 6 기반 코드 에디터로 spec-code 왕복 편집 비용 절감(read-only 뷰어 대체 → 직접 편집 + 저장)
+9. CodeMirror 6 기반 코드 에디터로 spec-code 왕복 편집 비용 절감(read-only 뷰어 대체 → 직접 편집 + 저장)
 
 ## 3. 범위
 
@@ -41,7 +41,7 @@
 - active file Git diff 라인 마커(added/modified) 표시
 - Cmd+Shift+Up/Down 워크스페이스 키보드 순환 전환
 - 2패널 탭 레이아웃(Code/Spec 탭 전환) + 워크스페이스 관리 사이드바 통합 + Cmd+Shift+Left/Right 탭 전환
-- 📋 (F24) CodeMirror 6 기반 코드 에디터(read-only→editable), 다크 테마, CM6 검색, Cmd+S 저장 + dirty 상태 관리, unsaved changes guard, Git marker/Comment badge gutter extension
+- CodeMirror 6 기반 코드 에디터(read-only→editable), 다크 테마, CM6 검색, Cmd+S 저장 + dirty 상태 관리, unsaved changes guard, Git marker/Comment badge gutter extension
 
 ### 3.2 MVP 제외 범위
 
@@ -115,8 +115,8 @@
 | Code viewer 텍스트 검색 | Implemented | F21 |
 | 키보드 워크스페이스 전환(Cmd+Shift+Up/Down) | Implemented | F22 |
 | 2패널 탭 레이아웃 + 사이드바 워크스페이스 관리 | Implemented | F23 |
-| CM6 코드 에디터(편집/저장/dirty) + gutter 확장 | 📋 계획됨 | F24 |
+| CM6 코드 에디터(편집/저장/dirty) + gutter 확장 | Implemented | F24 |
 
 ## 6. Open Questions
 
-- 현재 없음 (`2026-02-24` 기준)
+- 현재 없음 (`2026-02-25` 기준)
