@@ -61,6 +61,11 @@ interface WorkspaceReadFileResult {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+interface WorkspaceWriteFileResult {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 
 interface WorkspaceGitLineMarker {
@@ -189,6 +194,11 @@ interface Window {
       rootPath: string,
       relativePath: string,
     ) => Promise<WorkspaceReadFileResult>
+    writeFile: (
+      rootPath: string,
+      relativePath: string,
+      content: string,
+    ) => Promise<WorkspaceWriteFileResult>
     getGitLineMarkers: (
       rootPath: string,
       relativePath: string,

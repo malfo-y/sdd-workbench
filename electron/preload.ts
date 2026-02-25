@@ -48,6 +48,11 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type WorkspaceWriteFileResult = {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 
 type WorkspaceGitLineMarker = {
@@ -173,6 +178,13 @@ const workspaceApi = {
       rootPath,
       relativePath,
     }) as Promise<WorkspaceReadFileResult>
+  },
+  writeFile(rootPath: string, relativePath: string, content: string) {
+    return ipcRenderer.invoke('workspace:writeFile', {
+      rootPath,
+      relativePath,
+      content,
+    }) as Promise<WorkspaceWriteFileResult>
   },
   getGitLineMarkers(rootPath: string, relativePath: string) {
     return ipcRenderer.invoke('workspace:getGitLineMarkers', {

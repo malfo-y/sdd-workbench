@@ -85,6 +85,17 @@ type WorkspaceReadFileResult = {
   previewUnavailableReason?: WorkspacePreviewUnavailableReason
 }
 
+type WorkspaceWriteFileRequest = {
+  rootPath: string
+  relativePath: string
+  content: string
+}
+
+type WorkspaceWriteFileResult = {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGetGitLineMarkersRequest = {
   rootPath: string
   relativePath: string
@@ -979,6 +990,56 @@ async function handleWorkspaceReadFile(
       ok: false,
       content: null,
       error: error instanceof Error ? error.message : 'Failed to read file',
+    }
+  }
+}
+
+const MAX_WRITE_FILE_BYTES = 2 * 1024 * 1024
+
+async function handleWorkspaceWriteFile(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWriteFileRequest,
+): Promise<WorkspaceWriteFileResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    const content = request?.content
+    if (!rootPath || !relativePath || typeof content !== 'string') {
+      return {
+        ok: false,
+        error: 'rootPath, relativePath, and content are required.',
+      }
+    }
+
+    if (Buffer.byteLength(content, 'utf8') > MAX_WRITE_FILE_BYTES) {
+      return {
+        ok: false,
+        error: 'File too large',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return {
+        ok: false,
+        error: 'Cannot write files outside the workspace root.',
+      }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      const targetDir = path.dirname(resolvedTargetPath)
+      await mkdir(targetDir, { recursive: true })
+      await writeFileAtomic(resolvedTargetPath, content)
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to write file.',
     }
   }
 }
@@ -2118,6 +2179,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:index')
   ipcMain.removeHandler('workspace:indexDirectory')
   ipcMain.removeHandler('workspace:readFile')
+  ipcMain.removeHandler('workspace:writeFile')
   ipcMain.removeHandler('workspace:getGitLineMarkers')
   ipcMain.removeHandler('workspace:readComments')
   ipcMain.removeHandler('workspace:writeComments')
@@ -2133,6 +2195,7 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:index', handleWorkspaceIndex)
   ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectory)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
+  ipcMain.handle('workspace:writeFile', handleWorkspaceWriteFile)
   ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkers)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
   ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
