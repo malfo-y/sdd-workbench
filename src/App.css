@@ -1134,32 +1134,35 @@
 
 /* CM6 Comment Gutter */
 .cm-comment-gutter {
-  width: 30px;
+  width: 22px;
   padding: 0 2px;
-  overflow: visible;
 }
 
 .cm-comment-gutter .cm-gutterElement {
-  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cm-comment-badge {
   align-items: center;
   background: #2e4a36;
   border: 1px solid #5f9b72;
-  border-radius: 999px;
+  border-radius: 50%;
+  box-sizing: border-box;
   color: #b3e1c1;
   cursor: pointer;
   display: inline-flex;
+  flex-shrink: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.68rem;
+  font-size: 0.58rem;
   font-weight: 700;
+  height: 16px;
   justify-content: center;
   line-height: 1;
-  min-width: 1.3rem;
-  padding: 0.14rem 0.32rem;
-  vertical-align: middle;
+  min-width: 16px;
+  width: 16px;
 }
 
 .code-line-comment-badge {
