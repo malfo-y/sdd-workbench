@@ -1,3 +1,23 @@
+## 2026-02-24 - F24 CodeMirror 6 기반 코드 에디터 도입
+
+- Context:
+  - 기존 CodeViewerPanel은 custom line rendering + Shiki 기반 read-only 뷰어로, 코드를 보면서 직접 수정할 수 없어 spec-code 왕복 편집 비용이 높았음.
+  - F23에서 3패널→2패널 전환이 완료되어, 코드 뷰어 영역을 에디터로 교체할 준비가 됨.
+- Decision:
+  - CodeViewerPanel을 CodeMirror 6 기반 CodeEditorPanel로 교체한다. 4개 Phase로 점진 마이그레이션(read-only 대체 → 편집/저장 → gutter 확장 → 레거시 정리).
+  - Shiki는 spec-viewer(`HighlightedCodeBlock`)에서 계속 사용하므로 삭제하지 않는다.
+  - `@codemirror/search`가 기존 F21 커스텀 검색을 대체한다.
+- Rationale:
+  - CM6는 virtual rendering, compartment 기반 동적 설정, 풍부한 extension 생태계를 제공하여 read-only 뷰어부터 풀 에디터까지 점진적 확장이 가능하다.
+  - 커스텀 line rendering보다 CM6의 mature한 텍스트 편집 인프라를 활용하는 것이 유지보수 비용이 낮다.
+- Alternatives considered:
+  - Monaco Editor: 번들 크기가 크고 Electron 외 환경에서의 유연성이 낮음.
+  - 기존 CodeViewerPanel에 contentEditable 추가: undo/redo, selection, IME 등 에디터 기본 기능 구현 비용이 과도.
+- Impact / follow-up:
+  - `feat/text_editor` 브랜치에서 작업. Phase 1~4로 분할 구현.
+  - CM6 패키지 추가로 번들 크기 증가(언어 lazy import + tree shaking으로 완화).
+  - 기존 code-viewer 테스트 37개 시나리오를 code-editor로 포팅 필요.
+
 ## 2026-02-20 - 기본 스펙 베이스라인 문서화 방식
 
 - Context:

@@ -11,11 +11,11 @@
 
 ```text
 Electron Main
-  - open dialog, index/read file, watch lifecycle(native/polling), system open, export I/O
+  - open dialog, index/read/write file, watch lifecycle(native/polling), system open, export I/O
 Preload
   - window.workspace API bridge (typed)
 Renderer (React)
-  - WorkspaceProvider + panels + context actions
+  - WorkspaceProvider + panels(CodeEditorPanel, SpecViewerPanel) + context actions
 ```
 
 ## 3. UI 레이아웃
@@ -24,7 +24,7 @@ Renderer (React)
 Header Left: Title + Back/Forward + [Code|Spec] Tab
 Header Right: Comments(Add Global/View)
 Left Sidebar: Workspace(Selector/Open/Close) + Current Path + Open In + FileTree
-Content: Code Preview OR Rendered Spec (tab-switched, display:none 방식 비활성 탭 보존)
+Content: Code Editor(CM6) OR Rendered Spec (tab-switched, display:none 방식 비활성 탭 보존)
 ```
 
 - 2패널 탭 레이아웃: 좌측 사이드바 + 우측 콘텐츠(Code/Spec 탭 전환)
@@ -41,6 +41,7 @@ Content: Code Preview OR Rendered Spec (tab-switched, display:none 방식 비활
 - `rootPath`, `fileTree`, `expandedDirectories`
 - `activeFile`, `activeFileContent`, `activeFileImagePreview`
 - `activeFileGitLineMarkers`
+- 📋 `isDirty` (F24: 편집 중 미저장 상태 추적)
 - `activeSpec`, `activeSpecContent`
 - `selectionRange`, `fileLastLineByPath`
 - `changedFiles`, `fileHistory`, `fileHistoryIndex`
@@ -69,7 +70,7 @@ Content: Code Preview OR Rendered Spec (tab-switched, display:none 방식 비활
 ### 5.2 파일 읽기/표시
 
 1. 파일 선택 -> `workspace:readFile`
-2. 텍스트면 CodeViewer line 렌더
+2. 텍스트면 CodeEditorPanel(CM6) 렌더
 3. 텍스트 파일이면 `workspace:getGitLineMarkers`로 active file 라인 마커(added/modified)를 조회
 4. 이미지면 `imagePreview` 렌더
 5. preview 불가면 reason 기반 placeholder 표시
@@ -102,6 +103,14 @@ Content: Code Preview OR Rendered Spec (tab-switched, display:none 방식 비활
 7. Export 모달에 global comments 포함 여부(`included`/`not included`)를 명시한다.
 8. Export 시 Global Comments 선행 prepend + pending-only line comments 처리, target 성공 시 해당 line comment snapshot에만 `exportedAt` 기록
 9. 코멘트 액션에서 생성된 배너는 5초 auto-dismiss를 적용하고, 비코멘트 배너는 수동 dismiss를 유지한다.
+
+### 5.8 파일 쓰기/저장 (📋 F24)
+
+1. CM6 에디터에서 편집 → `isDirty` 상태 전환
+2. `Cmd+S` → `workspace:writeFile` IPC(atomic write, 경로 경계 검사)
+3. 저장 성공 → `isDirty` 해제, watcher 이벤트 무시(self-change)
+4. dirty 파일 외부 변경 시 auto-reload 건너뛰기 + "File changed on disk. Reload?" 배너
+5. dirty 상태에서 파일 전환/워크스페이스 전환/창 닫기 → confirm dialog
 
 ### 5.6 원격 워크스페이스 watcher 모드(F15)
 

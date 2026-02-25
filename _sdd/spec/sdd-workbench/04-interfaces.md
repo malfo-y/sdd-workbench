@@ -84,6 +84,7 @@ type CodeComment = {
 | `workspace:readGlobalComments` | Renderer -> Main (`invoke`) | global comments 읽기 |
 | `workspace:writeGlobalComments` | Renderer -> Main (`invoke`) | global comments 쓰기 |
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
+| `workspace:writeFile` | Renderer -> Main (`invoke`) | 📋 파일 저장(atomic write, 경계 검사) (F24) |
 | `workspace:indexDirectory` | Renderer -> Main (`invoke`) | on-demand 단일 디렉토리 자식 로드 |
 
 `workspace:watchStart` 계약 요약:
@@ -105,6 +106,15 @@ type CodeComment = {
 - response: `{ ok, markers: Array<{ line: number; kind: 'added'|'modified' }>, error?: string }`
 - 비교 기준: `git diff --no-color --unified=0 HEAD -- <relativePath>`
 - 실패/비저장소/`HEAD` 부재/파일 없음은 `ok=false|true` + `markers=[]`로 safe degrade(throw 금지)
+
+📋 `workspace:writeFile` 계약 요약 (F24):
+
+- request: `{ rootPath, relativePath, content: string }`
+- response: `{ ok: boolean, error?: string }`
+- 경로 검증: `isPathInsideWorkspace(rootPath, relativePath)` — workspace 바깥 경로 거부
+- 크기 제한: content 2MB 초과 시 거부
+- atomic write: `writeFileAtomic` 사용(임시 파일 → rename)
+- 에러 시 `ok=false` + `error` 메시지(throw 금지)
 
 ## 4. 코멘트/Export 정책 계약
 
@@ -151,7 +161,7 @@ type CodeComment = {
 2. 변경 파일이 collapse된 디렉토리 하위에 있으면 nearest visible collapsed ancestor 디렉토리에 `●`를 표시한다.
 3. 디렉토리를 확장하면 마커는 더 하위 visible 노드로 이동한다.
 
-## 8. 코드 뷰어 텍스트 검색 규칙
+## 8. 코드 뷰어 텍스트 검색 규칙 (📋 F24에서 CM6 `@codemirror/search`로 대체 예정)
 
 1. `Ctrl+F`(또는 `Cmd+F`) 단축키로 검색 바를 토글한다. 이미지 프리뷰/preview unavailable 모드에서는 단축키를 무시한다.
 2. 검색 매칭은 현재 파일의 원본 라인 텍스트를 대상으로 substring case-insensitive 방식(`line.toLowerCase().includes(query.toLowerCase())`)으로 수행한다.
@@ -160,3 +170,13 @@ type CodeComment = {
 5. 검색 바에는 현재 매치 위치를 `N / M` 형식으로 표시하며, 매치 0건일 때 `No results`를 표시한다.
 6. `Escape` 또는 닫기 버튼으로 검색 바를 닫으면 모든 검색 하이라이트가 해제된다.
 7. activeFile이 변경되면 검색 상태(검색어, 포커스 인덱스, 열림 여부)를 전체 초기화한다.
+
+## 9. 📋 파일 편집/저장/Dirty 상태 규칙 (F24)
+
+1. CM6 에디터에서 `docChanged` 이벤트 발생 시 `isDirty=true`로 전환한다.
+2. `Cmd+S`로 수동 저장. auto-save는 지원하지 않는다.
+3. 저장 성공 시 `isDirty=false`로 해제한다.
+4. dirty 상태에서 파일 전환/워크스페이스 전환/창 닫기 시 confirm dialog를 표시한다.
+5. 창 닫기는 `beforeunload` 이벤트로 가드한다.
+6. dirty 파일의 외부 변경(watcher) 감지 시 auto-reload를 건너뛰고 "File changed on disk. Reload?" 배너를 표시한다.
+7. 배너에서 Reload 선택 시 외부 변경 내용을 반영하고 dirty 해제. Dismiss 시 현재 편집 내용 유지.
