@@ -17,6 +17,7 @@ import {
   listWorkspaces,
   mergeDirectoryChildren,
   pushWorkspaceFileHistory,
+  setDirty,
   setWorkspaceSelectionRange as setWorkspaceSelectionRangeInModel,
   setActiveWorkspace as setActiveWorkspaceInState,
   switchActiveWorkspace as switchActiveWorkspaceInState,
@@ -72,7 +73,10 @@ type WorkspaceContextValue = {
   watchModePreference: WorkspaceWatchModePreference
   watchMode: WorkspaceWatchMode | null
   isRemoteMounted: boolean
+  isDirty: boolean
+  externalChangeDetected: boolean
   bannerMessage: string | null
+  markFileDirty: () => void
   openWorkspace: () => Promise<void>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
   switchWorkspace: (workspaceId: WorkspaceId) => void
@@ -90,6 +94,7 @@ type WorkspaceContextValue = {
     workspaceId?: WorkspaceId,
   ) => Promise<boolean>
   showBanner: (message: string) => void
+  saveFile: (content: string) => Promise<boolean>
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
   loadDirectoryChildren: (relativePath: string) => Promise<void>
@@ -97,6 +102,8 @@ type WorkspaceContextValue = {
     preference: WorkspaceWatchModePreference,
   ) => Promise<void>
   clearBanner: () => void
+  reloadExternalChange: () => void
+  dismissExternalChange: () => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(
@@ -230,6 +237,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   workspaceStateRef.current = workspaceState
 
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
+  const [externalChangeDetected, setExternalChangeDetected] = useState(false)
   const [hasHydratedSnapshot, setHasHydratedSnapshot] = useState(false)
   const indexRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readFileRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
@@ -806,6 +814,49 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     await loadWorkspaceGlobalComments(activeWorkspaceId, workspaceSession.rootPath)
   }, [loadWorkspaceGlobalComments])
 
+  const saveFile = useCallback(async (content: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const { rootPath, activeFile } = workspaceSession
+    if (!activeFile) {
+      return false
+    }
+
+    try {
+      const writeResult = await window.workspace.writeFile(rootPath, activeFile, content)
+
+      if (!writeResult.ok) {
+        const errorMessage = writeResult.error
+          ? `Failed to save file: ${writeResult.error}`
+          : 'Failed to save file.'
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
+          setDirty(currentSession, false),
+        ),
+      )
+      return true
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to save file: ${error.message}`
+          : 'Failed to save file.'
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
   const startWorkspaceWatch = useCallback(
     async (
       workspaceId: WorkspaceId,
@@ -933,19 +984,45 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [loadWorkspaceIndex, startWorkspaceWatch])
 
+  const getActiveIsDirty = useCallback(() => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    const session = activeWorkspaceId
+      ? workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      : null
+    return session?.isDirty ?? false
+  }, [])
+
   const setActiveWorkspace = useCallback((workspaceId: WorkspaceId) => {
+    if (
+      getActiveIsDirty() &&
+      !window.confirm('Unsaved changes will be lost. Continue?')
+    ) {
+      return
+    }
     setWorkspaceState((previous) =>
       setActiveWorkspaceInState(previous, workspaceId),
     )
-  }, [])
+  }, [getActiveIsDirty])
 
   const switchWorkspace = useCallback((workspaceId: WorkspaceId) => {
+    if (
+      getActiveIsDirty() &&
+      !window.confirm('Unsaved changes will be lost. Continue?')
+    ) {
+      return
+    }
     setWorkspaceState((previous) =>
       switchActiveWorkspaceInState(previous, workspaceId),
     )
-  }, [])
+  }, [getActiveIsDirty])
 
   const closeWorkspace = useCallback((workspaceId: WorkspaceId) => {
+    if (
+      getActiveIsDirty() &&
+      !window.confirm('Unsaved changes will be lost. Continue?')
+    ) {
+      return
+    }
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
     delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
@@ -956,7 +1033,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
-  }, [stopWorkspaceWatch])
+  }, [getActiveIsDirty, stopWorkspaceWatch])
 
   const loadWorkspaceSpec = useCallback(
     (workspaceId: WorkspaceId, relativePath: string) => {
@@ -1114,6 +1191,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               activeSpecContent,
               activeSpecReadError: null,
               isReadingSpec: false,
+              isDirty: false,
             }
           }),
         )
@@ -1183,6 +1261,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               shouldUpdateSpec || shouldRefreshSpec
                 ? true
                 : currentSession.isReadingSpec,
+            isDirty: mode === 'select' ? false : currentSession.isDirty,
           }
         }),
       )
@@ -1325,6 +1404,48 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [loadWorkspaceGitLineMarkers],
   )
 
+  const reloadExternalChange = useCallback(() => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return
+    }
+
+    const { activeFile } = workspaceSession
+    if (!activeFile) {
+      return
+    }
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
+        setDirty(currentSession, false),
+      ),
+    )
+    setExternalChangeDetected(false)
+    loadWorkspaceFile(activeWorkspaceId, activeFile, 'refresh')
+  }, [loadWorkspaceFile])
+
+  const dismissExternalChange = useCallback(() => {
+    setExternalChangeDetected(false)
+  }, [])
+
+  const markFileDirty = useCallback(() => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
+        setDirty(currentSession, true),
+      ),
+    )
+  }, [])
+
   const selectActiveWorkspaceFile = useCallback(
     (relativePath: string, historyMode: 'push' | 'preserve') => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -1338,9 +1459,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
   const selectFile = useCallback(
     (relativePath: string) => {
+      if (
+        getActiveIsDirty() &&
+        !window.confirm('Unsaved changes will be lost. Continue?')
+      ) {
+        return
+      }
       selectActiveWorkspaceFile(relativePath, 'push')
     },
-    [selectActiveWorkspaceFile],
+    [getActiveIsDirty, selectActiveWorkspaceFile],
   )
 
   const goBackInHistory = useCallback(() => {
@@ -1696,6 +1823,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const activeFile = workspaceSession?.activeFile ?? null
       const shouldRefreshActiveFile =
         activeFile !== null && watchEvent.changedRelativePaths.includes(activeFile)
+      const isCurrentlyDirty = workspaceSession?.isDirty ?? false
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, watchEvent.workspaceId, (currentSession) => {
@@ -1716,7 +1844,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       )
 
       if (shouldRefreshActiveFile && activeFile !== null) {
-        loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')
+        if (isCurrentlyDirty) {
+          setExternalChangeDetected(true)
+        } else {
+          loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')
+        }
       }
 
       const activeSpec = workspaceSession?.activeSpec ?? null
@@ -1812,6 +1944,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       watchModePreference: activeWorkspace?.watchModePreference ?? 'auto',
       watchMode: activeWorkspace?.watchMode ?? null,
       isRemoteMounted: activeWorkspace?.isRemoteMounted ?? false,
+      isDirty: activeWorkspace?.isDirty ?? false,
+      externalChangeDetected,
       bannerMessage,
       openWorkspace,
       setActiveWorkspace,
@@ -1827,16 +1961,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       reloadGlobalComments,
       saveGlobalComments,
       showBanner,
+      saveFile,
       setSelectionRange,
       setExpandedDirectories,
       loadDirectoryChildren,
       setWatchModePreference,
       clearBanner,
+      reloadExternalChange,
+      dismissExternalChange,
+      markFileDirty,
     }),
     [
       workspaceState,
       activeWorkspace,
       bannerMessage,
+      externalChangeDetected,
       openWorkspace,
       setActiveWorkspace,
       switchWorkspace,
@@ -1851,11 +1990,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       reloadGlobalComments,
       saveGlobalComments,
       showBanner,
+      saveFile,
       setSelectionRange,
       setExpandedDirectories,
       loadDirectoryChildren,
       setWatchModePreference,
       clearBanner,
+      reloadExternalChange,
+      dismissExternalChange,
+      markFileDirty,
     ],
   )
 

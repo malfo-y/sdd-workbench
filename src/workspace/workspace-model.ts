@@ -51,6 +51,7 @@ export type WorkspaceSession = {
   watchMode: WorkspaceWatchMode | null
   isRemoteMounted: boolean
   loadingDirectories: string[]
+  isDirty: boolean
 }
 
 export type WorkspaceState = {
@@ -134,6 +135,17 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     watchMode: null,
     isRemoteMounted: false,
     loadingDirectories: [],
+    isDirty: false,
+  }
+}
+
+export function setDirty(
+  session: WorkspaceSession,
+  dirty: boolean,
+): WorkspaceSession {
+  return {
+    ...session,
+    isDirty: dirty,
   }
 }
 

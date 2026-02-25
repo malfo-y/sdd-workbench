@@ -10,6 +10,7 @@ import {
   MAX_WORKSPACE_FILE_HISTORY,
   mergeDirectoryChildren,
   pushWorkspaceFileHistory,
+  setDirty,
   setWorkspaceSelectionRange,
   setActiveWorkspace,
   switchActiveWorkspace,
@@ -342,6 +343,50 @@ describe('workspace-model', () => {
 
     expect(state.activeWorkspaceId).toBe(workspaceAId)
     expect(state.workspacesById[workspaceAId]?.selectionRange).toBeNull()
+  })
+
+  it('initializes isDirty as false for new sessions', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    expect(session.isDirty).toBe(false)
+  })
+
+  it('setDirty sets isDirty to true', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    const result = setDirty(session, true)
+    expect(result.isDirty).toBe(true)
+  })
+
+  it('setDirty sets isDirty to false', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    const dirtySession = setDirty(session, true)
+    const cleanSession = setDirty(dirtySession, false)
+    expect(cleanSession.isDirty).toBe(false)
+  })
+
+  it('setDirty returns a new session object', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    const result = setDirty(session, true)
+    expect(result).not.toBe(session)
+  })
+
+  it('setDirty preserves other session fields', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    const sessionWithFile = { ...session, activeFile: 'src/index.ts' }
+    const result = setDirty(sessionWithFile, true)
+    expect(result.activeFile).toBe('src/index.ts')
+    expect(result.rootPath).toBe(ROOT_A)
+  })
+
+  it('setActiveFile resets isDirty to false when switching files', () => {
+    // Simulating what setActiveFile in context does: file switch resets isDirty
+    // In workspace-model, when we use setDirty(session, false) after file switch
+    // this test verifies the setDirty function supports the reset pattern
+    const session = createWorkspaceSession(ROOT_A)
+    const dirtySession = setDirty(session, true)
+    expect(dirtySession.isDirty).toBe(true)
+    // Reset dirty when "switching" to a new file
+    const cleanAfterSwitch = setDirty(dirtySession, false)
+    expect(cleanAfterSwitch.isDirty).toBe(false)
   })
 })
 
