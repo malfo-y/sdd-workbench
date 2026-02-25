@@ -1077,7 +1077,7 @@ function App() {
         return false
       }
 
-      setActiveTab('code')
+      setActiveTab(relativePath.endsWith('.md') ? 'spec' : 'code')
       selectFile(relativePath)
       if (lineRange) {
         setSelectionRange({

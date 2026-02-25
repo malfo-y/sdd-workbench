@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EditorView, lineNumbers, drawSelection, keymap } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
-import { search } from '@codemirror/search'
+import { search, searchKeymap } from '@codemirror/search'
 import { defaultKeymap } from '@codemirror/commands'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
@@ -214,7 +214,7 @@ export function CodeEditorPanel({
           lineNumbers(),
           drawSelection(),
           search(),
-          keymap.of(defaultKeymap),
+          keymap.of([...searchKeymap, ...defaultKeymap]),
           EditorView.updateListener.of((update) => {
             if (update.selectionSet) {
               const range = selectionToLineRange(update.state)
@@ -258,7 +258,7 @@ export function CodeEditorPanel({
         lineNumbers(),
         drawSelection(),
         search(),
-        keymap.of(defaultKeymap),
+        keymap.of([...searchKeymap, ...defaultKeymap]),
         EditorView.updateListener.of((update) => {
           if (update.selectionSet) {
             const range = selectionToLineRange(update.state)
