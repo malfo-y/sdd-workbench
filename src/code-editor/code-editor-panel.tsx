@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { EditorView, lineNumbers, drawSelection, keymap } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { EditorState, Compartment } from '@codemirror/state'
 import { search, searchKeymap } from '@codemirror/search'
 import { defaultKeymap } from '@codemirror/commands'
 import type { LineSelectionRange } from '../workspace/workspace-model'
@@ -46,6 +46,12 @@ type CodeEditorPanelProps = {
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   gitLineMarkers?: ReadonlyMap<number, WorkspaceGitLineMarkerKind>
+  /** Whether the editor is editable (default: false / read-only) */
+  editable?: boolean
+  /** Called with the full document string when Cmd+S / Ctrl+S is pressed */
+  onSave?: (content: string) => void
+  /** Called with true when the document is first modified */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 type ContextMenuState = {
@@ -149,6 +155,57 @@ function CopyPathIcon() {
 }
 
 // ---------------------------------------------------------------------------
+// Extension builder (shared between initial create and setState rebuilds)
+// ---------------------------------------------------------------------------
+
+type ExtensionBuilderParams = {
+  readOnlyCompartment: Compartment
+  editable: boolean
+  onSaveRef: MutableRefObject<((content: string) => void) | undefined>
+  onSelectRangeRef: MutableRefObject<(range: LineSelectionRange | null) => void>
+  onDirtyChangeRef: MutableRefObject<((dirty: boolean) => void) | undefined>
+}
+
+function buildExtensions(
+  params: ExtensionBuilderParams,
+  langSupport?: Awaited<ReturnType<typeof getCM6Language>>,
+) {
+  const { readOnlyCompartment, editable, onSaveRef, onSelectRangeRef, onDirtyChangeRef } =
+    params
+  const exts = [
+    ...darkTheme,
+    readOnlyCompartment.of(EditorState.readOnly.of(!editable)),
+    lineNumbers(),
+    drawSelection(),
+    search(),
+    keymap.of([
+      {
+        key: 'Mod-s',
+        run: (v) => {
+          onSaveRef.current?.(v.state.doc.toString())
+          return true
+        },
+      },
+      ...searchKeymap,
+      ...defaultKeymap,
+    ]),
+    EditorView.updateListener.of((update) => {
+      if (update.selectionSet) {
+        const range = selectionToLineRange(update.state)
+        onSelectRangeRef.current?.(range)
+      }
+      if (update.docChanged) {
+        onDirtyChangeRef.current?.(true)
+      }
+    }),
+  ]
+  if (langSupport) {
+    exts.push(langSupport)
+  }
+  return exts
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -169,19 +226,33 @@ export function CodeEditorPanel({
   commentLineCounts: _commentLineCounts,
   commentLineEntries: _commentLineEntries,
   gitLineMarkers: _gitLineMarkers,
+  editable = false,
+  onSave,
+  onDirtyChange,
 }: CodeEditorPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const lastHandledJumpTokenRef = useRef<number | null>(null)
   const onSelectRangeRef = useRef(onSelectRange)
+  const onSaveRef = useRef(onSave)
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  const readOnlyCompartment = useRef(new Compartment())
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
     null,
   )
 
-  // Keep callback ref up to date
+  // Keep callback refs up to date
   useEffect(() => {
     onSelectRangeRef.current = onSelectRange
   }, [onSelectRange])
+
+  useEffect(() => {
+    onSaveRef.current = onSave
+  }, [onSave])
+
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange
+  }, [onDirtyChange])
 
   const imagePreview = isRenderableImagePreview(activeFileImagePreview)
     ? activeFileImagePreview
@@ -208,20 +279,13 @@ export function CodeEditorPanel({
     const view = new EditorView({
       state: EditorState.create({
         doc: '',
-        extensions: [
-          ...darkTheme,
-          EditorState.readOnly.of(true),
-          lineNumbers(),
-          drawSelection(),
-          search(),
-          keymap.of([...searchKeymap, ...defaultKeymap]),
-          EditorView.updateListener.of((update) => {
-            if (update.selectionSet) {
-              const range = selectionToLineRange(update.state)
-              onSelectRangeRef.current?.(range)
-            }
-          }),
-        ],
+        extensions: buildExtensions({
+          readOnlyCompartment: readOnlyCompartment.current,
+          editable,
+          onSaveRef,
+          onSelectRangeRef,
+          onDirtyChangeRef,
+        }),
       }),
       parent: containerRef.current,
     })
@@ -234,6 +298,19 @@ export function CodeEditorPanel({
     // Re-run when showEditor changes so we create the view after container mounts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showEditor])
+
+  // ---- Reconfigure readOnly compartment when editable prop changes --------
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) {
+      return
+    }
+    view.dispatch({
+      effects: readOnlyCompartment.current.reconfigure(
+        EditorState.readOnly.of(!editable),
+      ),
+    })
+  }, [editable])
 
   // ---- Update document when file content or file changes -----------------
   useEffect(() => {
@@ -252,24 +329,16 @@ export function CodeEditorPanel({
         return
       }
 
-      const extensions = [
-        ...darkTheme,
-        EditorState.readOnly.of(true),
-        lineNumbers(),
-        drawSelection(),
-        search(),
-        keymap.of([...searchKeymap, ...defaultKeymap]),
-        EditorView.updateListener.of((update) => {
-          if (update.selectionSet) {
-            const range = selectionToLineRange(update.state)
-            onSelectRangeRef.current?.(range)
-          }
-        }),
-      ]
-
-      if (langSupport) {
-        extensions.push(langSupport)
-      }
+      const extensions = buildExtensions(
+        {
+          readOnlyCompartment: readOnlyCompartment.current,
+          editable,
+          onSaveRef,
+          onSelectRangeRef,
+          onDirtyChangeRef,
+        },
+        langSupport ?? undefined,
+      )
 
       const newState = EditorState.create({
         doc: newContent,

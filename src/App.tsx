@@ -398,6 +398,12 @@ function App() {
     loadDirectoryChildren,
     setWatchModePreference,
     clearBanner,
+    externalChangeDetected,
+    reloadExternalChange,
+    dismissExternalChange,
+    isDirty,
+    saveFile,
+    markFileDirty,
   } = useWorkspace()
   const displayPath = rootPath
     ? abbreviateWorkspacePath(rootPath)
@@ -1213,6 +1219,20 @@ function App() {
     }
   }, [bannerMessage, clearBanner, commentBannerState])
 
+  useEffect(() => {
+    if (!isDirty) {
+      return
+    }
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('beforeunload', handler)
+    }
+  }, [isDirty])
+
   const navigateHistory = useCallback(
     (direction: 'back' | 'forward') => {
       historyNavigationRef.current = true
@@ -1438,7 +1458,17 @@ function App() {
         </div>
       </header>
 
-      {bannerMessage && (
+      {externalChangeDetected && (
+        <div className="text-banner" data-testid="external-change-banner" role="alert">
+          <span>File changed on disk. Reload?</span>
+          <div>
+            <button onClick={reloadExternalChange} type="button">Reload</button>
+            <button onClick={dismissExternalChange} type="button">Dismiss</button>
+          </div>
+        </div>
+      )}
+
+      {!externalChangeDetected && bannerMessage && (
         <div className="text-banner" role="alert">
           <span>{bannerMessage}</span>
           <button onClick={handleDismissBanner}>Dismiss</button>
@@ -1616,6 +1646,9 @@ function App() {
               previewUnavailableReason={previewUnavailableReason}
               readFileError={readFileError}
               selectionRange={selectionRange}
+              editable
+              onSave={saveFile}
+              onDirtyChange={(dirty) => { if (dirty) markFileDirty() }}
             />
           </div>
           <div className={`content-pane-wrapper${activeTab !== 'spec' ? ' is-hidden' : ''}`} data-testid="content-pane-spec">

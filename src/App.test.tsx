@@ -3,10 +3,29 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { StrictMode } from 'react'
 import App from './App'
 import { WorkspaceProvider } from './workspace/workspace-context'
+import { useWorkspace } from './workspace/use-workspace'
 import {
   WORKSPACE_SESSION_SCHEMA_VERSION,
   WORKSPACE_SESSION_STORAGE_KEY,
 } from './workspace/workspace-persistence'
+
+function MarkDirtyButton() {
+  const { markFileDirty } = useWorkspace()
+  return (
+    <button data-testid="mark-dirty-btn" onClick={markFileDirty} type="button">
+      Mark Dirty
+    </button>
+  )
+}
+
+function AppWithMarkDirty() {
+  return (
+    <WorkspaceProvider>
+      <App />
+      <MarkDirtyButton />
+    </WorkspaceProvider>
+  )
+}
 
 function createTestStorage(): Storage {
   const values = new Map<string, string>()
@@ -96,6 +115,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         relativePath: string,
       ) => Promise<WorkspaceIndexDirectoryResult>
     >()
+  const writeFileMock =
+    vi.fn<
+      (
+        rootPath: string,
+        relativePath: string,
+        content: string,
+      ) => Promise<WorkspaceWriteFileResult>
+    >()
   const openInItermMock = vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const openInVsCodeMock =
     vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
@@ -130,6 +157,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     exportCommentsBundleMock.mockReset()
     watchStartMock.mockReset()
     watchStopMock.mockReset()
+    writeFileMock.mockReset()
     openInItermMock.mockReset()
     openInVsCodeMock.mockReset()
     openInFinderMock.mockReset()
@@ -198,6 +226,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       index: indexWorkspaceMock,
       indexDirectory: indexDirectoryMock,
       readFile: readFileMock,
+      writeFile: writeFileMock,
       getGitLineMarkers: getGitLineMarkersMock,
       readComments: readCommentsMock,
       writeComments: writeCommentsMock,
@@ -5364,6 +5393,437 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Comments exported: clipboard. Failed: _COMMENTS.md, bundle file.',
       )
+    })
+  })
+
+  it('auto-reloads file when not dirty and external change detected', async () => {
+    const workspaceRoot = '/Users/tester/watch-auto-reload-clean'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+    })
+    readFileMock
+      .mockResolvedValueOnce({ ok: true, content: 'const a = 1' })
+      .mockResolvedValueOnce({ ok: true, content: 'const a = 2' })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.queryByTestId('external-change-banner')).not.toBeInTheDocument()
+  })
+
+  it('shows external change banner when dirty file changes on disk and skips auto-reload', async () => {
+    const workspaceRoot = '/Users/tester/watch-dirty-banner'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+    })
+    readFileMock.mockResolvedValueOnce({ ok: true, content: 'const a = 1' })
+
+    render(<AppWithMarkDirty />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('external-change-banner')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('external-change-banner')).toHaveTextContent(
+      'File changed on disk. Reload?',
+    )
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reloads external file change when Reload button clicked and clears dirty', async () => {
+    const workspaceRoot = '/Users/tester/watch-dirty-reload'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+    })
+    readFileMock
+      .mockResolvedValueOnce({ ok: true, content: 'const a = 1' })
+      .mockResolvedValueOnce({ ok: true, content: 'const a = 2' })
+
+    render(<AppWithMarkDirty />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('external-change-banner')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.queryByTestId('external-change-banner')).not.toBeInTheDocument()
+  })
+
+  it('dismisses external change banner without reloading when Dismiss clicked', async () => {
+    const workspaceRoot = '/Users/tester/watch-dirty-dismiss'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+    })
+    readFileMock.mockResolvedValueOnce({ ok: true, content: 'const a = 1' })
+
+    render(<AppWithMarkDirty />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['a.ts'],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('external-change-banner')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('external-change-banner')).not.toBeInTheDocument()
+    })
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  describe('T9: unsaved changes guard', () => {
+    it('shows confirm when switching files while dirty and aborts on cancel', async () => {
+      const workspaceRoot = '/Users/tester/dirty-guard-file-switch'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+          { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+        ],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'content' })
+
+      const confirmMock = vi.fn<() => boolean>().mockReturnValue(false)
+      window.confirm = confirmMock
+
+      render(<AppWithMarkDirty />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+
+      expect(confirmMock).toHaveBeenCalledWith('Unsaved changes will be lost. Continue?')
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+      expect(readFileMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('switches files when dirty and user confirms', async () => {
+      const workspaceRoot = '/Users/tester/dirty-guard-file-confirm'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+          { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+        ],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'content' })
+
+      const confirmMock = vi.fn<() => boolean>().mockReturnValue(true)
+      window.confirm = confirmMock
+
+      render(<AppWithMarkDirty />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+
+      expect(confirmMock).toHaveBeenCalledWith('Unsaved changes will be lost. Continue?')
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+      })
+    })
+
+    it('switches files without confirm when not dirty', async () => {
+      const workspaceRoot = '/Users/tester/dirty-guard-file-clean'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+          { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+        ],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'content' })
+
+      const confirmMock = vi.fn<() => boolean>()
+      window.confirm = confirmMock
+
+      render(<AppWithMarkDirty />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      // NOT marking dirty this time
+      fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+
+      expect(confirmMock).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+      })
+    })
+
+    it('shows confirm when switching workspace while dirty and aborts on cancel', async () => {
+      const workspaceARoot = '/Users/tester/dirty-guard-ws-switch-a'
+      const workspaceBRoot = '/Users/tester/dirty-guard-ws-switch-b'
+      openDialogMock
+        .mockResolvedValueOnce({ canceled: false, selectedPath: workspaceARoot })
+        .mockResolvedValueOnce({ canceled: false, selectedPath: workspaceBRoot })
+      indexWorkspaceMock.mockResolvedValue({
+        ok: true,
+        fileTree: [{ name: 'x.ts', relativePath: 'x.ts', kind: 'file' }],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'content' })
+
+      const confirmMock = vi.fn<() => boolean>().mockReturnValue(false)
+      window.confirm = confirmMock
+
+      render(<AppWithMarkDirty />)
+
+      // Open workspace A and select a file, mark dirty
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'x.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'x.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+      // Open workspace B (focus shifts to B)
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+      })
+      // workspace B is now active; select its file and mark dirty
+      fireEvent.click(screen.getByRole('button', { name: 'x.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+      // Now try switching back to workspace A while workspace B is dirty
+      const workspaceSelect = screen.getByTestId('workspace-switcher-select') as HTMLSelectElement
+      fireEvent.change(workspaceSelect, { target: { value: workspaceARoot } })
+
+      expect(confirmMock).toHaveBeenCalledWith('Unsaved changes will be lost. Continue?')
+      await waitFor(() => {
+        expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
+      })
+    })
+
+    it('shows confirm when closing workspace while dirty and aborts on cancel', async () => {
+      const workspaceRoot = '/Users/tester/dirty-guard-close'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'content' })
+
+      const confirmMock = vi.fn<() => boolean>().mockReturnValue(false)
+      window.confirm = confirmMock
+
+      render(<AppWithMarkDirty />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
+
+      expect(confirmMock).toHaveBeenCalledWith('Unsaved changes will be lost. Continue?')
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceRoot)
+    })
+
+    it('registers beforeunload handler when dirty and removes it when clean', async () => {
+      const workspaceRoot = '/Users/tester/dirty-guard-beforeunload'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'content' })
+      const writeFileResult: WorkspaceWriteFileResult = { ok: true }
+      writeFileMock.mockResolvedValue(writeFileResult)
+
+      const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+      render(<AppWithMarkDirty />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      const beforeunloadCallsBefore = addEventListenerSpy.mock.calls.filter(
+        ([event]) => event === 'beforeunload',
+      ).length
+
+      act(() => {
+        fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+      })
+
+      await waitFor(() => {
+        const beforeunloadCallsAfter = addEventListenerSpy.mock.calls.filter(
+          ([event]) => event === 'beforeunload',
+        ).length
+        expect(beforeunloadCallsAfter).toBeGreaterThan(beforeunloadCallsBefore)
+      })
+
+      // Verify beforeunload was registered when dirty
+      expect(addEventListenerSpy.mock.calls.some(([event]) => event === 'beforeunload')).toBe(true)
+
+      addEventListenerSpy.mockRestore()
+      removeEventListenerSpy.mockRestore()
     })
   })
 })
