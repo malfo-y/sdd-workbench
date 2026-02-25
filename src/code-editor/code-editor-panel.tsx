@@ -364,7 +364,6 @@ export function CodeEditorPanel({
 
   const showEditor =
     activeFile !== null &&
-    !isReadingFile &&
     !readFileError &&
     !previewUnavailableReason &&
     !imagePreview &&
@@ -599,7 +598,7 @@ export function CodeEditorPanel({
         </p>
       )}
 
-      {activeFile && isReadingFile && (
+      {activeFile && isReadingFile && activeFileContent === null && (
         <p className="code-viewer-loading" data-testid="code-viewer-loading">
           Loading file preview...
         </p>
