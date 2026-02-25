@@ -40,6 +40,9 @@
 | F22 | Done | 2026-02-24 | Cmd+Shift+Up/Down 워크스페이스 순환 전환(순서 유지 + wrap-around) |
 | F23 | Done | 2026-02-24 | 2패널 탭 레이아웃(3패널→2패널, Code/Spec 탭 전환, 워크스페이스 관리 사이드바 이동, 리사이저 1개, Cmd+Shift+Left/Right 탭 전환) |
 | F24 | Done | 2026-02-25 | CodeMirror 6 기반 코드 에디터(read-only→editable, CM6 검색, Cmd+S 저장, dirty 관리, unsaved guard, Git/Comment gutter extension, 레거시 code-viewer 정리) |
+| F25 | Done | 2026-02-25 | 파일 트리 CRUD(파일/디렉토리 생성·삭제, 우클릭 컨텍스트 메뉴, 인라인 이름 입력, confirm dialog, active file 삭제 상태 초기화, watcher 자동 트리 갱신) |
+| BUG-01 | Fixed | 2026-02-25 | Go to Source — 스펙 뷰에서 호출 시 Code 탭으로 전환되지 않던 버그 수정 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서 수정) |
+| BUG-02 | Fixed | 2026-02-25 | Copy Relative Path — 코드 에디터 우클릭 시 라인 번호가 복사되지 않던 버그 수정 (`contextMenuState.selectionRange` 전달 + `buildCopyActiveFilePathPayload` 확장) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -71,6 +74,9 @@
 - 워크스페이스 키보드 전환: `Cmd+Shift+Up`(이전)/`Cmd+Shift+Down`(다음) 순서 유지 순환, 워크스페이스 1개일 때 무동작, 드롭다운 전환은 기존 MRU 동작 유지
 - 2패널 탭 레이아웃: 3패널(사이드바/코드/스펙)→2패널(사이드바 + 탭 콘텐츠), Code/Spec 탭 클릭 전환, 탭 전환 시 스크롤 위치 유지(`display: none` 비활성 탭 보존), `.md` 파일→Spec 탭/그 외→Code 탭 자동 전환, spec 점프/Go to Source/코멘트 점프→Code 탭 자동 전환, 워크스페이스 관리(선택기/Open/Close) 사이드바 상단 배치, 리사이저 1개(사이드바 ↔ 콘텐츠), `Cmd+Shift+Left/Right` 탭 키보드 전환, `PaneSizes = { left, content }` 단순화
 - (F24) CM6 코드 에디터: CM6 기반 코드 뷰어가 기존 CodeViewerPanel의 모든 기능 대체, 다크 테마(github-dark 유사) CM6 theme extension 구현, `@codemirror/search`가 기존 F21 커스텀 검색 대체, `workspace:writeFile` IPC(atomic write + 경계 검사), Cmd+S 수동 저장, dirty 인디케이터 + unsaved changes guard, dirty 파일 외부 변경 시 auto-reload 건너뛰기 + 배너, Git line marker/Comment badge gutter CM6 extension 동작, 우클릭 컨텍스트 메뉴(Copy/Add Comment) CM6 통합
+- (F25) 파일 트리 CRUD: 파일/디렉토리 우클릭 → 생성(인라인 입력 Enter/Escape) + 삭제(confirm dialog), 빈 영역 우클릭 → root level 생성, active file 삭제 시 상태 초기화, dirty file 삭제 시 unsaved confirm 우선, watcher 자동 트리 갱신, orphaned comment 허용(MVP)
+- (BUG-01) Go to Source 탭 전환 수정: `goToActiveSpecSourceLine`에서 `setActiveTab('code')` 순서를 `openSpecRelativePath` 이후로 이동
+- (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
 
 ## C. 리스크/백로그
 

@@ -536,12 +536,12 @@ function App() {
   )
 
   const handleCopyRelativePath = useCallback(
-    (relativePath: string) => {
+    (relativePath: string, selectionRange?: LineSelectionRange) => {
       if (activeWorkspaceId === null) {
         return
       }
 
-      const payload = buildCopyActiveFilePathPayload(relativePath)
+      const payload = buildCopyActiveFilePathPayload(relativePath, selectionRange)
       void writeToClipboard(payload, 'Failed to copy relative path.')
     },
     [activeWorkspaceId, writeToClipboard],
@@ -1123,7 +1123,6 @@ function App() {
         return
       }
 
-      setActiveTab('code')
       const opened = openSpecRelativePath(activeSpec, {
         startLine: lineNumber,
         endLine: lineNumber,
@@ -1132,6 +1131,8 @@ function App() {
         showBanner(
           'Cannot go to source: the active spec is unavailable in this workspace.',
         )
+      } else {
+        setActiveTab('code')
       }
     },
     [activeSpec, openSpecRelativePath, showBanner],

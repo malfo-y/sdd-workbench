@@ -10,7 +10,8 @@
   - 워크스페이스 관리(선택기/Open/Close)는 사이드바 상단에 배치
   - `activeTab` 상태(`'code' | 'spec'`)로 콘텐츠 영역 전환, `display: none`으로 비활성 탭 보존
   - `.md` 파일 선택 시 Spec 탭 자동 전환, 그 외 파일은 Code 탭 자동 전환
-  - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환
+  - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서로 적용)
+  - 파일 트리 CRUD 콜백(`onRequestCreateFile/Directory`, `onRequestDeleteFile/Directory`) 연결 + confirm dialog + dirty file 삭제 처리 (F25)
   - 코멘트 전용 배너 helper + auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
   - `Cmd+Shift+Up/Down` 키보드 워크스페이스 순환 전환 리스너
@@ -32,6 +33,7 @@
   - workspace별 watch mode preference 변경/재시작 + fallback 배너 처리
   - comments/global-comments read-write 액션 제공
   - `loadDirectoryChildren` on-demand 디렉토리 확장 + `isFilePathPotentiallyPresent` lazy tree 보호
+  - (F25) `createFile`, `createDirectory`, `deleteFile`, `deleteDirectory` 액션: IPC 호출 + active file 삭제 시 `activeFile=null` / `activeFileContent=null` / `isDirty=false` 초기화
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
   - session 상태에 `activeFileGitLineMarkers` 포함
@@ -51,6 +53,9 @@
   - changed marker 표시(visible 파일 + collapse 버블링 상위 디렉토리)
   - `not-loaded` 디렉토리 확장 시 on-demand 로드 트리거 + "Loading..." placeholder
   - `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시
+  - (F25) 우클릭 컨텍스트 메뉴: 파일/디렉토리 노드 → "Copy Relative Path", "New File", "New Directory", "Delete" / 빈 영역 → "New File", "New Directory"
+  - (F25) 인라인 이름 입력 UI(`.tree-inline-input`): Enter 확정, Escape 취소, 빈 이름/슬래시/점점 유효성 검사
+  - (F25) Props: `onRequestCreateFile`, `onRequestCreateDirectory`, `onRequestDeleteFile`, `onRequestDeleteDirectory`
 
 ### 1.4 Code Editor Layer (F24: CodeMirror 6 기반)
 
@@ -122,14 +127,17 @@
   - `detectRemoteMountPoint` (`mount` 명령 파싱 기반 네트워크 FS 감지)
   - `buildDirectoryChildren` + `handleWorkspaceIndexDirectory` (on-demand 디렉토리 IPC)
   - polling watcher child cap 초과 디렉토리 자동 제외
+  - (F25) `workspace:createFile`, `workspace:createDirectory`, `workspace:deleteFile`, `workspace:deleteDirectory` 핸들러: 경로 검증 + 존재 확인 + `beginWorkspaceWriteOperation`/`endWorkspaceWriteOperation`
 - `electron/workspace-watch-mode.ts`
   - `/Volumes/*` 휴리스틱 + override 우선순위 기반 watch mode resolver
 - `electron/git-line-markers.ts`
   - unified diff hunk 파싱으로 라인 마커(`added`/`modified`) 계산
 - `electron/preload.ts`
   - `window.workspace` 브리지(`getGitLineMarkers`, `writeFile` 포함)
+  - (F25) `createFile`, `createDirectory`, `deleteFile`, `deleteDirectory` 브리지 추가
 - `electron/electron-env.d.ts`
   - renderer 타입 계약(`writeFile` 포함)
+  - (F25) CRUD 4개 result 타입 + `WorkspaceApi` 확장
 
 ## 2. 테스트 맵(핵심)
 

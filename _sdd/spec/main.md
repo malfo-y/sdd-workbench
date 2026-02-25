@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.37.0`
+- 문서 버전: `0.38.0`
 - 마지막 업데이트: `2026-02-25`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -24,6 +24,7 @@
   - F22: keyboard workspace switch (Cmd+Shift+Up/Down)
   - F23 draft: `/_sdd/drafts/feature_draft_f23_two_panel_tab_layout.md`
   - F24 draft: `/_sdd/drafts/feature_draft_f24_code_editor_codemirror6.md`
+  - F25 draft: `/_sdd/drafts/feature_draft_f25_file_tree_crud.md`
 - 리라이트:
   - 단일 대형 문서(`main.md`)를 인덱스 + 주제별 하위 문서로 분할
   - 결정 로그는 `/_sdd/spec/DECISION_LOG.md`를 source of truth로 유지
@@ -32,7 +33,7 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F24`
+- 구현 완료 범위: `F01~F25` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump
@@ -49,8 +50,9 @@
   13. 키보드 워크스페이스 전환(Cmd+Shift+Up/Down): 순서 유지 순환 전환 + wrap-around
   14. 2패널 탭 레이아웃: Code/Spec 탭 전환 + 워크스페이스 관리 사이드바 통합 + 리사이저 1개 + 파일 타입별 자동 탭 전환 + Cmd+Shift+Left/Right 탭 키보드 전환
   15. (F24) CodeMirror 6 기반 코드 에디터: read-only 뷰어 대체 → 편집 + Cmd+S 저장 + dirty 상태 관리 + CM6 gutter 확장(Git 마커, 코멘트 배지)
+  16. (F25) 파일 트리 CRUD: 파일/디렉토리 생성·삭제 + 우클릭 컨텍스트 메뉴 + 인라인 이름 입력 + watcher 기반 트리 자동 갱신
 - 최신 품질 게이트(2026-02-25):
-  - `npm test` -> `26 files, 360 passed, 1 skipped`
+  - `npm test` -> `26 files, 371 passed, 1 skipped`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 
@@ -69,7 +71,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F24), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F25), 상세 수용 기준, 리스크/백로그
 
 ---
 

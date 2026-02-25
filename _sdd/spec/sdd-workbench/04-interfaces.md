@@ -86,6 +86,10 @@ type CodeComment = {
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
 | `workspace:writeFile` | Renderer -> Main (`invoke`) | 파일 저장(atomic write, 경계 검사) (F24) |
 | `workspace:indexDirectory` | Renderer -> Main (`invoke`) | on-demand 단일 디렉토리 자식 로드 |
+| `workspace:createFile` | Renderer -> Main (`invoke`) | 빈 파일 생성(경계 검사 + 중복 확인) (F25) |
+| `workspace:createDirectory` | Renderer -> Main (`invoke`) | 디렉토리 생성(경계 검사 + 중복 확인) (F25) |
+| `workspace:deleteFile` | Renderer -> Main (`invoke`) | 파일 삭제(경계 검사 + 파일 확인) (F25) |
+| `workspace:deleteDirectory` | Renderer -> Main (`invoke`) | 디렉토리 재귀 삭제(경계 검사 + 디렉토리 확인) (F25) |
 
 `workspace:watchStart` 계약 요약:
 
@@ -106,6 +110,42 @@ type CodeComment = {
 - response: `{ ok, markers: Array<{ line: number; kind: 'added'|'modified' }>, error?: string }`
 - 비교 기준: `git diff --no-color --unified=0 HEAD -- <relativePath>`
 - 실패/비저장소/`HEAD` 부재/파일 없음은 `ok=false|true` + `markers=[]`로 safe degrade(throw 금지)
+
+`workspace:createFile` 계약 요약 (F25):
+
+- request: `{ rootPath, relativePath }`
+- response: `{ ok: boolean, error?: string }`
+- 경로 검증: `isPathInsideWorkspace` — workspace 바깥 경로 거부
+- 중복 검사: 동일 경로에 파일/디렉토리 이미 존재 시 `ok=false`
+- 동작: 부모 디렉토리 `mkdir -p` + 빈 파일(`writeFile(path, '')`) 생성
+- `beginWorkspaceWriteOperation()` / `endWorkspaceWriteOperation()` 적용
+
+`workspace:createDirectory` 계약 요약 (F25):
+
+- request: `{ rootPath, relativePath }`
+- response: `{ ok: boolean, error?: string }`
+- 경로 검증: `isPathInsideWorkspace`
+- 중복 검사: 동일 경로에 파일/디렉토리 이미 존재 시 `ok=false`
+- 동작: `mkdir(resolvedPath, { recursive: true })`
+- `beginWorkspaceWriteOperation()` / `endWorkspaceWriteOperation()` 적용
+
+`workspace:deleteFile` 계약 요약 (F25):
+
+- request: `{ rootPath, relativePath }`
+- response: `{ ok: boolean, error?: string }`
+- 경로 검증: `isPathInsideWorkspace`
+- 존재 확인: `stat` + `isFile()` — 디렉토리면 거부
+- 동작: `fs.unlink(resolvedPath)`
+- `beginWorkspaceWriteOperation()` / `endWorkspaceWriteOperation()` 적용
+
+`workspace:deleteDirectory` 계약 요약 (F25):
+
+- request: `{ rootPath, relativePath }`
+- response: `{ ok: boolean, error?: string }`
+- 경로 검증: `isPathInsideWorkspace`
+- 존재 확인: `stat` + `isDirectory()` — 파일이면 거부
+- 동작: `fs.rm(resolvedPath, { recursive: true, force: true })` — 영구 삭제(휴지통 없음, MVP)
+- `beginWorkspaceWriteOperation()` / `endWorkspaceWriteOperation()` 적용
 
 `workspace:writeFile` 계약 요약 (F24):
 
@@ -182,3 +222,38 @@ type CodeComment = {
 5. 창 닫기는 `beforeunload` 이벤트로 가드한다.
 6. dirty 파일의 외부 변경(watcher) 감지 시 auto-reload를 건너뛰고 "File changed on disk. Reload?" 배너를 표시한다.
 7. 배너에서 Reload 선택 시 외부 변경 내용을 반영하고 dirty 해제. Dismiss 시 현재 편집 내용 유지.
+
+## 10. 파일 트리 CRUD 규칙 (F25)
+
+### 컨텍스트 메뉴 구성
+
+| 클릭 대상 | 표시 액션 |
+|-----------|-----------|
+| 파일 노드 우클릭 | Copy Relative Path, New File (부모 디렉토리), New Directory (부모 디렉토리), Delete |
+| 디렉토리 노드 우클릭 | Copy Relative Path, New File (해당 디렉토리), New Directory (해당 디렉토리), Delete |
+| 빈 영역(트리 하단) 우클릭 | New File (workspace root), New Directory (workspace root) |
+
+### 생성 규칙
+
+1. "New File" / "New Directory" 선택 시 해당 위치 트리 하단에 인라인 입력(`.tree-inline-input`)이 표시된다.
+2. Enter → 유효성 검사 → IPC 호출. Escape → 취소.
+3. 이름 유효성: 빈 문자열, `/` 포함, `.` 또는 `..` 거부 (Renderer 단 즉시 검사).
+4. 파일 생성 성공 시 해당 파일을 자동으로 open(selectFile).
+5. 중복 이름 / IPC 에러 시 에러 배너 표시(5초 auto-dismiss).
+6. 생성/삭제 후 watcher가 `add`/`unlink`/`addDir`/`unlinkDir` 이벤트를 감지 → `structureChanged=true` → `loadWorkspaceIndex('refresh')` → 트리 자동 갱신.
+
+### 삭제 규칙
+
+1. 파일 삭제: `window.confirm("Delete file \"${fileName}\"?\n\nThis action cannot be undone.")` 확인 후 IPC 호출.
+2. 디렉토리 삭제: confirm 후 `fs.rm(..., { recursive: true, force: true })` — 영구 삭제(휴지통 없음, MVP).
+3. active file 삭제 시 `activeFile=null`, `activeFileContent=null`, `isDirty=false` 초기화.
+4. dirty active file 삭제 시 unsaved changes confirm dialog를 먼저 표시.
+5. active file이 삭제된 디렉토리 하위에 있으면 동일하게 상태 초기화.
+6. 삭제된 파일에 달린 코멘트는 `comments.json`에 orphaned 상태로 유지(MVP에서 정리 UI 미제공).
+
+### Copy Relative Path 동작 (BUG-02 수정 반영)
+
+1. 코드 에디터 우클릭 컨텍스트 메뉴에서 "Copy Relative Path" 선택 시 현재 커서/선택 라인 번호가 포함된 경로를 복사한다.
+   - 단일 라인(커서): `src/foo.ts:L42`
+   - 다중 라인 선택: `src/foo.ts:L10-L20`
+2. 파일 트리 우클릭 또는 코드 에디터 헤더 버튼에서의 "Copy Relative Path"는 라인 번호 없이 상대경로만 복사한다.

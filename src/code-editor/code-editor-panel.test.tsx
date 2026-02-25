@@ -671,7 +671,10 @@ describe('CodeEditorPanel', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
-    expect(props.onRequestCopyRelativePath).toHaveBeenCalledWith('src/example.ts')
+    expect(props.onRequestCopyRelativePath).toHaveBeenCalledWith(
+      'src/example.ts',
+      expect.objectContaining({ startLine: expect.any(Number), endLine: expect.any(Number) }),
+    )
   })
 
   // ---- D. Search extension loaded verification ----------------------------

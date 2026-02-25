@@ -1,3 +1,20 @@
+## 2026-02-25 - F25 구현 완료 + 버그 수정 2건
+
+- Context:
+  - F24 CM6 에디터로 코드 편집이 가능해진 후, 파일 브라우저에서 직접 파일/디렉토리를 생성·삭제하는 요구가 생겼음.
+  - Rename은 코멘트 relativePath 일괄 갱신 복잡도로 F25 범위 제외.
+  - BUG-01: `goToActiveSpecSourceLine`에서 `setActiveTab('code')` 이후 `openSpecRelativePath`가 `.md` 확장자 기준으로 `setActiveTab('spec')`을 덮어써서 탭 전환이 동작하지 않았음.
+  - BUG-02: 코드 에디터 우클릭 "Copy Relative Path"가 `contextMenuState.selectionRange`를 전달하지 않아 라인 번호가 누락됐음.
+- Decision:
+  - F25: IPC 4개(`createFile`, `createDirectory`, `deleteFile`, `deleteDirectory`) + WorkspaceContext 액션 + FileTreePanel 컨텍스트 메뉴/인라인 입력 UI 추가.
+  - 삭제는 `fs.rm({ recursive: true, force: true })` 영구 삭제(MVP). 휴지통 이동 미지원.
+  - active file 삭제 시 `activeFile=null` / `isDirty=false` 초기화로 dirty guard 충돌 방지.
+  - BUG-01: `setActiveTab('code')` 호출을 `openSpecRelativePath` 반환 후 `else` 블록으로 이동.
+  - BUG-02: `buildCopyActiveFilePathPayload`에 optional `selectionRange` 파라미터 추가, 컨텍스트 메뉴에서 `contextMenuState.selectionRange` 전달.
+- Outcome:
+  - 371 tests passed, 1 skipped (26 files). tsc/lint/build 모두 pass.
+  - 스펙 v0.37.0 → v0.38.0 동기화.
+
 ## 2026-02-25 - F24 구현 완료 및 레거시 정리
 
 - Context:

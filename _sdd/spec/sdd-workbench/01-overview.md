@@ -15,6 +15,7 @@
 7. 원격 마운트 워크스페이스에서도 watcher 신뢰성을 유지(`auto/native/polling`)
 8. 대규모/원격 워크스페이스에서 lazy indexing + on-demand 디렉토리 확장으로 빠른 초기 로드
 9. CodeMirror 6 기반 코드 에디터로 spec-code 왕복 편집 비용 절감(read-only 뷰어 대체 → 직접 편집 + 저장)
+10. 파일 트리에서 파일/디렉토리 직접 생성·삭제로 spec-code 편집 흐름을 워크스페이스 내에서 완결(F25)
 
 ## 3. 범위
 
@@ -42,6 +43,7 @@
 - Cmd+Shift+Up/Down 워크스페이스 키보드 순환 전환
 - 2패널 탭 레이아웃(Code/Spec 탭 전환) + 워크스페이스 관리 사이드바 통합 + Cmd+Shift+Left/Right 탭 전환
 - CodeMirror 6 기반 코드 에디터(read-only→editable), 다크 테마, CM6 검색, Cmd+S 저장 + dirty 상태 관리, unsaved changes guard, Git marker/Comment badge gutter extension
+- 파일 트리 CRUD: 파일/디렉토리 생성(우클릭 → 인라인 입력 → Enter 확정), 삭제(confirm dialog + active file 상태 초기화), watcher 기반 트리 자동 갱신, orphaned comment 허용(MVP)
 
 ### 3.2 MVP 제외 범위
 
@@ -116,6 +118,7 @@
 | 키보드 워크스페이스 전환(Cmd+Shift+Up/Down) | Implemented | F22 |
 | 2패널 탭 레이아웃 + 사이드바 워크스페이스 관리 | Implemented | F23 |
 | CM6 코드 에디터(편집/저장/dirty) + gutter 확장 | Implemented | F24 |
+| 파일 트리 CRUD(생성/삭제) + 인라인 입력 + watcher 자동 갱신 | Implemented | F25 |
 
 ## 6. Open Questions
 

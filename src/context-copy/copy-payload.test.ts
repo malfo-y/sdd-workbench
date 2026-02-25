@@ -10,6 +10,24 @@ describe('copy-payload', () => {
     expect(buildCopyActiveFilePathPayload('src/auth.ts')).toBe('src/auth.ts')
   })
 
+  it('includes single line number when selectionRange is a single line', () => {
+    expect(
+      buildCopyActiveFilePathPayload('src/auth.ts', { startLine: 42, endLine: 42 }),
+    ).toBe('src/auth.ts:L42')
+  })
+
+  it('includes line range when selectionRange spans multiple lines', () => {
+    expect(
+      buildCopyActiveFilePathPayload('src/auth.ts', { startLine: 10, endLine: 20 }),
+    ).toBe('src/auth.ts:L10-L20')
+  })
+
+  it('normalizes reversed selectionRange for path payload', () => {
+    expect(
+      buildCopyActiveFilePathPayload('src/auth.ts', { startLine: 20, endLine: 10 }),
+    ).toBe('src/auth.ts:L10-L20')
+  })
+
   it('builds selected lines payload with fixed header format', () => {
     const payload = buildCopySelectedLinesPayload({
       relativePath: 'src/auth.ts',

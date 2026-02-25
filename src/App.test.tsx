@@ -2941,7 +2941,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
     await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith('src/a.ts')
+      expect(clipboardWriteText).toHaveBeenCalledWith('src/a.ts:L1')
     })
 
     fireEvent.change(workspaceSelect, { target: { value: projectBRoot } })
@@ -2957,7 +2957,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
     await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledWith('src/b.ts')
+      expect(clipboardWriteText).toHaveBeenCalledWith('src/b.ts:L1')
     })
   })
 

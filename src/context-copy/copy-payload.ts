@@ -21,7 +21,20 @@ function normalizeLineNumber(lineNumber: number): number {
   return Math.max(1, Math.trunc(lineNumber))
 }
 
-export function buildCopyActiveFilePathPayload(relativePath: string): string {
+export function buildCopyActiveFilePathPayload(
+  relativePath: string,
+  selectionRange?: LineSelectionRange,
+): string {
+  if (selectionRange) {
+    const start = normalizeLineNumber(selectionRange.startLine)
+    const end = normalizeLineNumber(selectionRange.endLine)
+    const normalizedStart = Math.min(start, end)
+    const normalizedEnd = Math.max(start, end)
+    if (normalizedStart === normalizedEnd) {
+      return `${relativePath}:L${normalizedStart}`
+    }
+    return `${relativePath}:L${normalizedStart}-L${normalizedEnd}`
+  }
   return relativePath
 }
 

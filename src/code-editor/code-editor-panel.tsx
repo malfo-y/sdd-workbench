@@ -32,7 +32,7 @@ type CodeEditorPanelProps = {
   selectionRange: LineSelectionRange | null
   jumpRequest: CodeViewerJumpRequest | null
   onSelectRange: (range: LineSelectionRange | null) => void
-  onRequestCopyRelativePath: (relativePath: string) => void
+  onRequestCopyRelativePath: (relativePath: string, selectionRange?: LineSelectionRange) => void
   onRequestCopySelectedContent: (input: {
     relativePath: string
     content: string
@@ -686,7 +686,10 @@ export function CodeEditorPanel({
             {
               label: 'Copy Relative Path',
               onSelect: () => {
-                onRequestCopyRelativePath(contextMenuState.relativePath)
+                onRequestCopyRelativePath(
+                  contextMenuState.relativePath,
+                  contextMenuState.selectionRange,
+                )
               },
             },
           ]}

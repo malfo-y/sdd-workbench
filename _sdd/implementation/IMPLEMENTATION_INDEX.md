@@ -1,5 +1,18 @@
 # IMPLEMENTATION_INDEX
 
+## F25
+
+### Sync Record - 2026-02-25T16:26:47Z
+
+- note: F25 구현 완료 스펙 동기화 (v0.37.0 → v0.38.0) + BUG-01/BUG-02 버그 수정 반영
+- copied files:
+  - `_sdd/implementation/features/F25/SYNC_20260225_162647_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/F25/SYNC_20260225_162647_IMPLEMENTATION_PLAN_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_1.md`
+  - `_sdd/implementation/features/F25/SYNC_20260225_162647_IMPLEMENTATION_PLAN_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_2.md`
+  - `_sdd/implementation/features/F25/SYNC_20260225_162647_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/F25/SYNC_20260225_162647_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+  - `_sdd/implementation/features/F25/SYNC_20260225_162647_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+
 ## F01
 
 ### Sync Record - 2026-02-20T06:04:52Z
