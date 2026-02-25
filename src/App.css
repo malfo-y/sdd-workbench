@@ -1110,16 +1110,22 @@
 
 /* CM6 Git Gutter */
 .cm-git-gutter {
-  width: 10px;
+  width: 14px;
   padding: 0 2px;
 }
 
+.cm-git-gutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .cm-git-dot {
-  border-radius: 999px;
-  display: inline-block;
-  height: 0.55rem;
-  width: 0.55rem;
-  vertical-align: middle;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+  height: 8px;
+  width: 8px;
 }
 
 .cm-git-added {
