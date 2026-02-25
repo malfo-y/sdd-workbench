@@ -10,6 +10,11 @@ import { darkTheme } from './cm6-dark-theme'
 import { getCM6Language } from './cm6-language-map'
 import { selectionToLineRange } from './cm6-selection-bridge'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
+import { createGitMarkersExtension, setGitMarkers } from './cm6-git-gutter'
+import type { GitMarkerKind } from './cm6-git-gutter'
+import { createCommentGutterExtension, setCommentMarkers } from './cm6-comment-gutter'
+import type { CommentGutterEntry } from './cm6-comment-gutter'
+import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 
 export type CodeViewerJumpRequest = {
   targetRelativePath: string
@@ -60,6 +65,15 @@ type ContextMenuState = {
   relativePath: string
   selectionRange: LineSelectionRange
 }
+
+type CommentHoverState = {
+  x: number
+  y: number
+  lineNumber: number
+  comments: readonly CodeComment[]
+}
+
+const HOVER_POPOVER_CLOSE_DELAY_MS = 120
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,16 +178,30 @@ type ExtensionBuilderParams = {
   onSaveRef: MutableRefObject<((content: string) => void) | undefined>
   onSelectRangeRef: MutableRefObject<(range: LineSelectionRange | null) => void>
   onDirtyChangeRef: MutableRefObject<((dirty: boolean) => void) | undefined>
+  onCommentHoverRef: MutableRefObject<((lineNumber: number, rect: DOMRect) => void) | undefined>
+  onCommentLeaveRef: MutableRefObject<(() => void) | undefined>
 }
 
 function buildExtensions(
   params: ExtensionBuilderParams,
   langSupport?: Awaited<ReturnType<typeof getCM6Language>>,
 ) {
-  const { readOnlyCompartment, editable, onSaveRef, onSelectRangeRef, onDirtyChangeRef } =
-    params
+  const {
+    readOnlyCompartment,
+    editable,
+    onSaveRef,
+    onSelectRangeRef,
+    onDirtyChangeRef,
+    onCommentHoverRef,
+    onCommentLeaveRef,
+  } = params
   const exts = [
     ...darkTheme,
+    ...createGitMarkersExtension(),
+    ...createCommentGutterExtension(
+      (lineNum, rect) => onCommentHoverRef.current?.(lineNum, rect),
+      () => onCommentLeaveRef.current?.(),
+    ),
     readOnlyCompartment.of(EditorState.readOnly.of(!editable)),
     lineNumbers(),
     drawSelection(),
@@ -206,6 +234,21 @@ function buildExtensions(
 }
 
 // ---------------------------------------------------------------------------
+// Comment markers map builder
+// ---------------------------------------------------------------------------
+
+function buildCommentMarkersMap(
+  counts: ReadonlyMap<number, number> | undefined,
+  entries: ReadonlyMap<number, readonly CodeComment[]> | undefined,
+): Map<number, CommentGutterEntry> {
+  const result = new Map<number, CommentGutterEntry>()
+  counts?.forEach((count, line) => {
+    result.set(line, { count, entries: entries?.get(line) ?? [] })
+  })
+  return result
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -223,9 +266,9 @@ export function CodeEditorPanel({
   onRequestCopySelectedContent,
   onRequestCopyBoth,
   onRequestAddComment,
-  commentLineCounts: _commentLineCounts,
-  commentLineEntries: _commentLineEntries,
-  gitLineMarkers: _gitLineMarkers,
+  commentLineCounts,
+  commentLineEntries,
+  gitLineMarkers,
   editable = false,
   onSave,
   onDirtyChange,
@@ -241,6 +284,21 @@ export function CodeEditorPanel({
     null,
   )
 
+  // Gutter data refs (for dispatching after async setState)
+  const gitLineMarkersRef = useRef(gitLineMarkers)
+  const commentLineEntriesRef = useRef(commentLineEntries)
+  const commentLineCountsRef = useRef(commentLineCounts)
+
+  // Comment hover refs
+  const onCommentHoverRef = useRef<((lineNumber: number, rect: DOMRect) => void) | undefined>(
+    undefined,
+  )
+  const onCommentLeaveRef = useRef<(() => void) | undefined>(undefined)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Comment hover state
+  const [commentHoverState, setCommentHoverState] = useState<CommentHoverState | null>(null)
+
   // Keep callback refs up to date
   useEffect(() => {
     onSelectRangeRef.current = onSelectRange
@@ -253,6 +311,48 @@ export function CodeEditorPanel({
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange
   }, [onDirtyChange])
+
+  // Keep gutter data refs up to date
+  useEffect(() => {
+    gitLineMarkersRef.current = gitLineMarkers
+  }, [gitLineMarkers])
+
+  useEffect(() => {
+    commentLineEntriesRef.current = commentLineEntries
+  }, [commentLineEntries])
+
+  useEffect(() => {
+    commentLineCountsRef.current = commentLineCounts
+  }, [commentLineCounts])
+
+  // ---- Hover timer utilities -------------------------------------------
+  const clearHoverCloseTimer = useCallback(() => {
+    if (!hoverCloseTimerRef.current) return
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const closeCommentHover = useCallback(() => {
+    clearHoverCloseTimer()
+    setCommentHoverState(null)
+  }, [clearHoverCloseTimer])
+
+  const scheduleCommentHoverClose = useCallback(() => {
+    clearHoverCloseTimer()
+    hoverCloseTimerRef.current = setTimeout(() => {
+      setCommentHoverState(null)
+      hoverCloseTimerRef.current = null
+    }, HOVER_POPOVER_CLOSE_DELAY_MS)
+  }, [clearHoverCloseTimer])
+
+  // Bind comment hover refs each render so they always capture latest closures
+  onCommentHoverRef.current = (lineNumber: number, rect: DOMRect) => {
+    const entries = commentLineEntriesRef.current?.get(lineNumber) ?? []
+    if (entries.length === 0) return
+    clearHoverCloseTimer()
+    setCommentHoverState({ x: rect.right, y: rect.top, lineNumber, comments: entries })
+  }
+  onCommentLeaveRef.current = scheduleCommentHoverClose
 
   const imagePreview = isRenderableImagePreview(activeFileImagePreview)
     ? activeFileImagePreview
@@ -285,6 +385,8 @@ export function CodeEditorPanel({
           onSaveRef,
           onSelectRangeRef,
           onDirtyChangeRef,
+          onCommentHoverRef,
+          onCommentLeaveRef,
         }),
       }),
       parent: containerRef.current,
@@ -336,6 +438,8 @@ export function CodeEditorPanel({
           onSaveRef,
           onSelectRangeRef,
           onDirtyChangeRef,
+          onCommentHoverRef,
+          onCommentLeaveRef,
         },
         langSupport ?? undefined,
       )
@@ -345,6 +449,17 @@ export function CodeEditorPanel({
         extensions,
       })
       view.setState(newState)
+
+      // Dispatch gutter markers after setState so the new state includes the fields
+      const gitMap: Map<number, GitMarkerKind> = new Map()
+      gitLineMarkersRef.current?.forEach((kind, line) => gitMap.set(line, kind))
+      view.dispatch({ effects: setGitMarkers.of(gitMap) })
+
+      view.dispatch({
+        effects: setCommentMarkers.of(
+          buildCommentMarkersMap(commentLineCountsRef.current, commentLineEntriesRef.current),
+        ),
+      })
     }
 
     updateState()
@@ -407,9 +522,28 @@ export function CodeEditorPanel({
     }
   }, [activeFile, showEditor])
 
+  // ---- Sync git gutter markers when prop changes -------------------------
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    const gitMap: Map<number, GitMarkerKind> = new Map()
+    gitLineMarkers?.forEach((kind, line) => gitMap.set(line, kind))
+    view.dispatch({ effects: setGitMarkers.of(gitMap) })
+  }, [gitLineMarkers])
+
+  // ---- Sync comment gutter markers when props change ---------------------
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: setCommentMarkers.of(buildCommentMarkersMap(commentLineCounts, commentLineEntries)),
+    })
+  }, [commentLineCounts, commentLineEntries])
+
   // ---- Reset context menu on file change ---------------------------------
   useEffect(() => {
     setContextMenuState(null)
+    setCommentHoverState(null)
     lastHandledJumpTokenRef.current = null
   }, [activeFile, activeFileImagePreview, previewUnavailableReason])
 
@@ -563,6 +697,17 @@ export function CodeEditorPanel({
           title="Copy Action"
           x={contextMenuState.x}
           y={contextMenuState.y}
+        />
+      )}
+      {commentHoverState && !isImagePreviewMode && (
+        <CommentHoverPopover
+          comments={commentHoverState.comments}
+          lineNumber={commentHoverState.lineNumber}
+          onClose={closeCommentHover}
+          onMouseEnter={clearHoverCloseTimer}
+          onMouseLeave={scheduleCommentHoverClose}
+          x={commentHoverState.x}
+          y={commentHoverState.y}
         />
       )}
     </section>

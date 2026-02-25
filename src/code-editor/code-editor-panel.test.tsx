@@ -427,4 +427,68 @@ describe('CodeEditorPanel', () => {
     // After modification onDirtyChange(true) should be called
     expect(onDirtyChange).toHaveBeenCalledWith(true)
   })
+
+  // ---- T11+T12: gutter extension props ------------------------------------
+
+  it('renders without error when gitLineMarkers prop is provided', () => {
+    const gitLineMarkers = new Map<number, WorkspaceGitLineMarkerKind>([
+      [1, 'added'],
+      [3, 'modified'],
+    ])
+    expect(() =>
+      render(
+        <CodeEditorPanel
+          {...makeDefaultProps()}
+          activeFile="src/example.ts"
+          activeFileContent="line1\nline2\nline3"
+          gitLineMarkers={gitLineMarkers}
+        />,
+      ),
+    ).not.toThrow()
+  })
+
+  it('renders without error when commentLineCounts prop is provided', () => {
+    const commentLineCounts = new Map<number, number>([[2, 3]])
+    expect(() =>
+      render(
+        <CodeEditorPanel
+          {...makeDefaultProps()}
+          activeFile="src/example.ts"
+          activeFileContent="line1\nline2\nline3"
+          commentLineCounts={commentLineCounts}
+        />,
+      ),
+    ).not.toThrow()
+  })
+
+  it('renders without error when commentLineEntries prop is provided', () => {
+    const commentLineCounts = new Map<number, number>([[2, 1]])
+    const commentLineEntries = new Map([
+      [
+        2,
+        [
+          {
+            id: 'c1',
+            relativePath: 'src/example.ts',
+            startLine: 2,
+            endLine: 2,
+            body: 'test comment',
+            anchor: { snippet: 'line2', hash: 'abc123' },
+            createdAt: '2026-02-25T00:00:00.000Z',
+          },
+        ],
+      ],
+    ])
+    expect(() =>
+      render(
+        <CodeEditorPanel
+          {...makeDefaultProps()}
+          activeFile="src/example.ts"
+          activeFileContent="line1\nline2\nline3"
+          commentLineCounts={commentLineCounts}
+          commentLineEntries={commentLineEntries}
+        />,
+      ),
+    ).not.toThrow()
+  })
 })
