@@ -5,6 +5,7 @@ import { FileTreePanel } from './file-tree-panel'
 const defaultLazyProps = {
   loadingDirectories: [] as string[],
   onRequestLoadDirectory: () => undefined,
+  gitFileStatuses: {} as Record<string, 'added' | 'modified' | 'untracked'>,
 }
 
 describe('FileTreePanel context copy', () => {
@@ -336,6 +337,7 @@ describe('FileTreePanel lazy directory loading', () => {
         onRequestLoadDirectory={onRequestLoadDirectory}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
       />,
     )
 
@@ -366,6 +368,7 @@ describe('FileTreePanel lazy directory loading', () => {
         onRequestLoadDirectory={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
       />,
     )
 
@@ -401,6 +404,7 @@ describe('FileTreePanel lazy directory loading', () => {
         onRequestLoadDirectory={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
       />,
     )
 
@@ -436,6 +440,7 @@ describe('FileTreePanel lazy directory loading', () => {
         onRequestLoadDirectory={onRequestLoadDirectory}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
       />,
     )
 
@@ -454,6 +459,7 @@ describe('FileTreePanel CRUD context menu', () => {
     onRequestCreateDirectory: vi.fn(),
     onRequestDeleteFile: vi.fn(),
     onRequestDeleteDirectory: vi.fn(),
+    gitFileStatuses: {} as Record<string, 'added' | 'modified' | 'untracked'>,
   }
 
   it('shows New File here, New Directory here, and Delete on file node right-click', () => {
@@ -606,6 +612,7 @@ describe('FileTreePanel CRUD context menu', () => {
         onRequestLoadDirectory={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
         onRequestCreateFile={onRequestCreateFile}
         onRequestCreateDirectory={vi.fn()}
         onRequestDeleteFile={vi.fn()}
@@ -744,6 +751,7 @@ describe('FileTreePanel CRUD context menu', () => {
         onRequestLoadDirectory={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
         onRequestCreateFile={vi.fn()}
         onRequestCreateDirectory={vi.fn()}
         onRequestDeleteFile={onRequestDeleteFile}
@@ -783,6 +791,7 @@ describe('FileTreePanel CRUD context menu', () => {
         onRequestLoadDirectory={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
         onRequestCreateFile={vi.fn()}
         onRequestCreateDirectory={vi.fn()}
         onRequestDeleteFile={vi.fn()}
@@ -797,5 +806,227 @@ describe('FileTreePanel CRUD context menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(onRequestDeleteDirectory).toHaveBeenCalledWith('src')
+  })
+})
+
+describe('FileTreePanel git status badges', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('shows M badge for modified files', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'app.ts',
+                relativePath: 'src/app.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        gitFileStatuses={{ 'src/app.ts': 'modified' }}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        loadingDirectories={[]}
+        onRequestLoadDirectory={() => undefined}
+      />,
+    )
+
+    const badge = screen.getByTestId('tree-git-badge-src/app.ts')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveTextContent('M')
+    expect(badge).toHaveAttribute('title', 'Modified')
+  })
+
+  it('shows U badge for untracked files', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'new.ts',
+                relativePath: 'src/new.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        gitFileStatuses={{ 'src/new.ts': 'untracked' }}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        loadingDirectories={[]}
+        onRequestLoadDirectory={() => undefined}
+      />,
+    )
+
+    const badge = screen.getByTestId('tree-git-badge-src/new.ts')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveTextContent('U')
+    expect(badge).toHaveAttribute('title', 'Untracked')
+  })
+
+  it('shows U badge for added files', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'staged.ts',
+                relativePath: 'src/staged.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        gitFileStatuses={{ 'src/staged.ts': 'added' }}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        loadingDirectories={[]}
+        onRequestLoadDirectory={() => undefined}
+      />,
+    )
+
+    const badge = screen.getByTestId('tree-git-badge-src/staged.ts')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveTextContent('U')
+    expect(badge).toHaveAttribute('title', 'Added')
+  })
+
+  it('does not show badge when gitFileStatuses is empty', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'clean.ts',
+                relativePath: 'src/clean.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        gitFileStatuses={{}}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        loadingDirectories={[]}
+        onRequestLoadDirectory={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByTestId('tree-git-badge-src/clean.ts')).not.toBeInTheDocument()
+  })
+
+  it('bubbles git status badge to collapsed directory', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'deep.ts',
+                relativePath: 'src/deep.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        gitFileStatuses={{ 'src/deep.ts': 'modified' }}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        loadingDirectories={[]}
+        onRequestLoadDirectory={() => undefined}
+      />,
+    )
+
+    const dirBadge = screen.getByTestId('tree-git-badge-src')
+    expect(dirBadge).toBeInTheDocument()
+    expect(dirBadge).toHaveTextContent('M')
+  })
+
+  it('does not show directory badge when expanded', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'deep.ts',
+                relativePath: 'src/deep.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        gitFileStatuses={{ 'src/deep.ts': 'modified' }}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        loadingDirectories={[]}
+        onRequestLoadDirectory={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByTestId('tree-git-badge-src')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tree-git-badge-src/deep.ts')).toBeInTheDocument()
   })
 })

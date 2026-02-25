@@ -236,6 +236,11 @@ const workspaceApi = {
       relativePath,
     }) as Promise<WorkspaceGetGitLineMarkersResult>
   },
+  getGitFileStatuses(rootPath: string) {
+    return ipcRenderer.invoke('workspace:getGitFileStatuses', {
+      rootPath,
+    }) as Promise<WorkspaceGetGitFileStatusesResult>
+  },
   readComments(rootPath: string) {
     return ipcRenderer.invoke('workspace:readComments', {
       rootPath,

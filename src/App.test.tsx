@@ -77,6 +77,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         relativePath: string,
       ) => Promise<WorkspaceGetGitLineMarkersResult>
     >()
+  const getGitFileStatusesMock =
+    vi.fn<
+      (rootPath: string) => Promise<WorkspaceGetGitFileStatusesResult>
+    >()
   const readCommentsMock =
     vi.fn<(rootPath: string) => Promise<WorkspaceReadCommentsResult>>()
   const writeCommentsMock =
@@ -158,6 +162,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     indexDirectoryMock.mockReset()
     readFileMock.mockReset()
     getGitLineMarkersMock.mockReset()
+    getGitFileStatusesMock.mockReset()
     readCommentsMock.mockReset()
     writeCommentsMock.mockReset()
     readGlobalCommentsMock.mockReset()
@@ -193,6 +198,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     getGitLineMarkersMock.mockResolvedValue({
       ok: true,
       markers: [],
+    })
+    getGitFileStatusesMock.mockResolvedValue({
+      ok: true,
+      statuses: {},
     })
     readGlobalCommentsMock.mockResolvedValue({
       ok: true,
@@ -244,6 +253,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       readFile: readFileMock,
       writeFile: writeFileMock,
       getGitLineMarkers: getGitLineMarkersMock,
+      getGitFileStatuses: getGitFileStatusesMock,
       readComments: readCommentsMock,
       writeComments: writeCommentsMock,
       readGlobalComments: readGlobalCommentsMock,

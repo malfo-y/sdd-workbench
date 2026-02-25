@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
+import type { GitFileStatusKind } from '../workspace/workspace-model'
 
 const INITIAL_RENDER_NODE_LIMIT = 500
 
@@ -49,6 +50,7 @@ type FileTreePanelProps = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
+  gitFileStatuses: Record<string, GitFileStatusKind>
   activeFile: string | null
   expandedDirectories: string[]
   loadingDirectories: string[]
@@ -109,6 +111,53 @@ function buildChangedSubtreeSet(
   return changedSubtreeSet
 }
 
+function gitStatusPriority(kind: GitFileStatusKind): number {
+  switch (kind) {
+    case 'modified': return 2
+    case 'added': return 1
+    case 'untracked': return 1
+  }
+}
+
+function buildGitStatusSubtreeMap(
+  nodes: WorkspaceFileNode[],
+  gitFileStatuses: Record<string, GitFileStatusKind>,
+): Map<string, GitFileStatusKind> {
+  const subtreeMap = new Map<string, GitFileStatusKind>()
+
+  const visitNode = (node: WorkspaceFileNode): GitFileStatusKind | null => {
+    const nodeStatus = gitFileStatuses[node.relativePath] ?? null
+    if (node.kind === 'file') {
+      if (nodeStatus) {
+        subtreeMap.set(node.relativePath, nodeStatus)
+      }
+      return nodeStatus
+    }
+
+    let highestChildStatus: GitFileStatusKind | null = null
+    for (const childNode of node.children ?? []) {
+      const childStatus = visitNode(childNode)
+      if (childStatus) {
+        if (!highestChildStatus || gitStatusPriority(childStatus) > gitStatusPriority(highestChildStatus)) {
+          highestChildStatus = childStatus
+        }
+      }
+    }
+
+    const effectiveStatus = nodeStatus ?? highestChildStatus
+    if (effectiveStatus) {
+      subtreeMap.set(node.relativePath, effectiveStatus)
+    }
+    return effectiveStatus
+  }
+
+  for (const node of nodes) {
+    visitNode(node)
+  }
+
+  return subtreeMap
+}
+
 function findDirectoryNode(
   nodes: WorkspaceFileNode[],
   relativePath: string,
@@ -140,6 +189,7 @@ function renderFileTreeNodes(
   activeFile: string | null,
   changedFileSet: Set<string>,
   changedSubtreeSet: Set<string>,
+  gitStatusSubtreeMap: Map<string, GitFileStatusKind>,
   onSelectFile: (relativePath: string) => void,
   onNodeContextMenu: (
     event: MouseEvent<HTMLButtonElement>,
@@ -170,6 +220,8 @@ function renderFileTreeNodes(
       const isChanged = changedFileSet.has(node.relativePath)
       const shouldShowChangedIndicator =
         isChanged || (!isExpanded && hasChangedInSubtree)
+      const dirGitStatus = gitStatusSubtreeMap.get(node.relativePath) ?? null
+      const shouldShowGitBadge = dirGitStatus !== null && !isExpanded
       rendered.push(
         <li
           className="tree-node tree-node-directory"
@@ -187,6 +239,16 @@ function renderFileTreeNodes(
               {isExpanded ? '▾' : '▸'}
             </span>
             <span className="tree-node-label">{node.name}</span>
+            {shouldShowGitBadge && (
+              <span
+                aria-hidden
+                className={`tree-git-status-badge tree-git-status-badge--${dirGitStatus}`}
+                data-testid={`tree-git-badge-${node.relativePath}`}
+                title={dirGitStatus === 'modified' ? 'Modified' : dirGitStatus === 'untracked' ? 'Untracked' : 'Added'}
+              >
+                {dirGitStatus === 'modified' ? 'M' : 'U'}
+              </span>
+            )}
             {shouldShowChangedIndicator && (
               <span
                 aria-hidden
@@ -222,6 +284,7 @@ function renderFileTreeNodes(
                   activeFile,
                   changedFileSet,
                   changedSubtreeSet,
+                  gitStatusSubtreeMap,
                   onSelectFile,
                   onNodeContextMenu,
                   expandedDirectories,
@@ -250,6 +313,7 @@ function renderFileTreeNodes(
 
     const isActive = activeFile === node.relativePath
     const isChanged = changedFileSet.has(node.relativePath)
+    const fileGitStatus = gitStatusSubtreeMap.get(node.relativePath) ?? null
     rendered.push(
       <li
         className={`tree-node tree-node-file ${isActive ? 'is-active' : ''}`}
@@ -264,6 +328,16 @@ function renderFileTreeNodes(
         >
           <span aria-hidden className="tree-file-icon">{getFileIcon(node.name)}</span>
           <span className="tree-file-name">{node.name}</span>
+          {fileGitStatus && (
+            <span
+              aria-hidden
+              className={`tree-git-status-badge tree-git-status-badge--${fileGitStatus}`}
+              data-testid={`tree-git-badge-${node.relativePath}`}
+              title={fileGitStatus === 'modified' ? 'Modified' : fileGitStatus === 'untracked' ? 'Untracked' : 'Added'}
+            >
+              {fileGitStatus === 'modified' ? 'M' : 'U'}
+            </span>
+          )}
           {isChanged && (
             <span
               aria-hidden
@@ -293,6 +367,7 @@ export function FileTreePanel({
   rootPath,
   fileTree,
   changedFiles,
+  gitFileStatuses,
   activeFile,
   expandedDirectories,
   loadingDirectories,
@@ -328,6 +403,10 @@ export function FileTreePanel({
   const changedSubtreeSet = useMemo(
     () => buildChangedSubtreeSet(fileTree, changedFilesSet),
     [fileTree, changedFilesSet],
+  )
+  const gitStatusSubtreeMap = useMemo(
+    () => buildGitStatusSubtreeMap(fileTree, gitFileStatuses),
+    [fileTree, gitFileStatuses],
   )
 
   useEffect(() => {
@@ -516,6 +595,7 @@ export function FileTreePanel({
         activeFile,
         changedFilesSet,
         changedSubtreeSet,
+        gitStatusSubtreeMap,
         onSelectFile,
         handleNodeContextMenu,
         expandedDirectoriesSet,

@@ -13,6 +13,10 @@ import {
   parseGitDiffLineMarkers,
   type WorkspaceGitLineMarker,
 } from './git-line-markers'
+import {
+  parseGitStatusPorcelain,
+  type GitFileStatusMap,
+} from './git-file-statuses'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -144,6 +148,16 @@ type WorkspaceGetGitLineMarkersRequest = {
 type WorkspaceGetGitLineMarkersResult = {
   ok: boolean
   markers: WorkspaceGitLineMarker[]
+  error?: string
+}
+
+type WorkspaceGetGitFileStatusesRequest = {
+  rootPath: string
+}
+
+type WorkspaceGetGitFileStatusesResult = {
+  ok: boolean
+  statuses: GitFileStatusMap
   error?: string
 }
 
@@ -1339,6 +1353,52 @@ async function handleWorkspaceGetGitLineMarkers(
   }
 }
 
+async function handleWorkspaceGetGitFileStatuses(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceGetGitFileStatusesRequest,
+): Promise<WorkspaceGetGitFileStatusesResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        statuses: {},
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        statuses: {},
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    await runGitCommand(resolvedRootPath, ['rev-parse', '--is-inside-work-tree'])
+    const statusOutput = await runGitCommand(resolvedRootPath, [
+      'status',
+      '--porcelain',
+    ])
+
+    return {
+      ok: true,
+      statuses: parseGitStatusPorcelain(statusOutput),
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      statuses: {},
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to read git file statuses.',
+    }
+  }
+}
+
 async function handleWorkspaceReadComments(
   _event: IpcMainInvokeEvent,
   request: WorkspaceReadCommentsRequest,
@@ -2401,6 +2461,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:deleteFile')
   ipcMain.removeHandler('workspace:deleteDirectory')
   ipcMain.removeHandler('workspace:getGitLineMarkers')
+  ipcMain.removeHandler('workspace:getGitFileStatuses')
   ipcMain.removeHandler('workspace:readComments')
   ipcMain.removeHandler('workspace:writeComments')
   ipcMain.removeHandler('workspace:readGlobalComments')
@@ -2421,6 +2482,7 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:deleteFile', handleWorkspaceDeleteFile)
   ipcMain.handle('workspace:deleteDirectory', handleWorkspaceDeleteDirectory)
   ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkers)
+  ipcMain.handle('workspace:getGitFileStatuses', handleWorkspaceGetGitFileStatuses)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
   ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
   ipcMain.handle('workspace:readGlobalComments', handleWorkspaceReadGlobalComments)

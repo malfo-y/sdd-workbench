@@ -23,6 +23,7 @@ import {
   switchActiveWorkspace as switchActiveWorkspaceInState,
   stepWorkspaceFileHistory,
   updateWorkspaceSession,
+  type GitFileStatusKind,
   type LineSelectionRange,
   type WorkspaceId,
   type WorkspaceGitLineMarker,
@@ -47,6 +48,7 @@ type WorkspaceContextValue = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
+  gitFileStatuses: Record<string, GitFileStatusKind>
   activeFile: string | null
   activeSpec: string | null
   activeFileContent: string | null
@@ -248,6 +250,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const readGitLineMarkersRequestIdByWorkspaceRef = useRef<
     Record<WorkspaceId, number>
   >({})
+  const readGitFileStatusesRequestIdByWorkspaceRef = useRef<
+    Record<WorkspaceId, number>
+  >({})
   const readSpecRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>({})
   const readCommentsRequestIdByWorkspaceRef = useRef<Record<WorkspaceId, number>>(
     {},
@@ -294,6 +299,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 activeFileContent: null,
                 activeFileImagePreview: null,
                 activeFileGitLineMarkers: [],
+                gitFileStatuses: {},
                 activeSpecContent: null,
                 isReadingFile: false,
                 isReadingSpec: false,
@@ -472,6 +478,44 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               activeFileGitLineMarkers: [],
             }
           }),
+        )
+      }
+    },
+    [],
+  )
+
+  const loadWorkspaceGitFileStatuses = useCallback(
+    async (workspaceId: WorkspaceId, rootPath: string) => {
+      const requestId =
+        (readGitFileStatusesRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
+      readGitFileStatusesRequestIdByWorkspaceRef.current[workspaceId] = requestId
+
+      try {
+        const statusResult = await window.workspace.getGitFileStatuses(rootPath)
+        if (
+          readGitFileStatusesRequestIdByWorkspaceRef.current[workspaceId] !== requestId
+        ) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            gitFileStatuses: statusResult.ok ? statusResult.statuses : {},
+          })),
+        )
+      } catch {
+        if (
+          readGitFileStatusesRequestIdByWorkspaceRef.current[workspaceId] !== requestId
+        ) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            gitFileStatuses: {},
+          })),
         )
       }
     },
@@ -850,6 +894,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           setDirty(currentSession, false),
         ),
       )
+      void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
       return true
     } catch (error) {
       const errorMessage =
@@ -859,7 +904,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setBannerMessage(errorMessage)
       return false
     }
-  }, [])
+  }, [loadWorkspaceGitFileStatuses])
 
   const startWorkspaceWatch = useCallback(
     async (
@@ -978,7 +1023,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
 
       await startWorkspaceWatch(selectedWorkspaceId, selectedPath)
-      await loadWorkspaceIndex(selectedWorkspaceId, selectedPath)
+      const indexStatus = await loadWorkspaceIndex(selectedWorkspaceId, selectedPath)
+      if (indexStatus === 'success') {
+        void loadWorkspaceGitFileStatuses(selectedWorkspaceId, selectedPath)
+      }
     } catch (error) {
       setBannerMessage(
         error instanceof Error
@@ -986,7 +1034,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           : 'Failed to open workspace.',
       )
     }
-  }, [loadWorkspaceIndex, startWorkspaceWatch])
+  }, [loadWorkspaceIndex, loadWorkspaceGitFileStatuses, startWorkspaceWatch])
 
   const getActiveIsDirty = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -1892,6 +1940,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           delete indexRequestIdByWorkspaceRef.current[workspaceId]
           delete readFileRequestIdByWorkspaceRef.current[workspaceId]
           delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
+          delete readGitFileStatusesRequestIdByWorkspaceRef.current[workspaceId]
           delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
           delete readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
           delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
@@ -1899,6 +1948,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             closeWorkspaceInState(previous, workspaceId),
           )
           continue
+        }
+
+        if (indexStatus === 'success') {
+          void loadWorkspaceGitFileStatuses(workspaceId, workspaceSession.rootPath)
         }
 
         // A newer refresh may mark this request stale during restore.
@@ -1940,6 +1993,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [
     loadWorkspaceFile,
+    loadWorkspaceGitFileStatuses,
     loadWorkspaceIndex,
     loadWorkspaceSpec,
     showBanner,
@@ -2042,6 +2096,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           'refresh',
         )
       }
+
+      if (workspaceSession) {
+        void loadWorkspaceGitFileStatuses(
+          watchEvent.workspaceId,
+          workspaceSession.rootPath,
+        )
+      }
     })
 
     return () => {
@@ -2052,7 +2113,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         void window.workspace.watchStop(workspaceId)
       }
     }
-  }, [loadWorkspaceFile, loadWorkspaceIndex, loadWorkspaceSpec])
+  }, [loadWorkspaceFile, loadWorkspaceGitFileStatuses, loadWorkspaceIndex, loadWorkspaceSpec])
 
   useEffect(() => {
     const unsubscribe = window.workspace.onWatchFallback((fallbackEvent) => {
@@ -2091,6 +2152,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       rootPath: activeWorkspace?.rootPath ?? null,
       fileTree: activeWorkspace?.fileTree ?? [],
       changedFiles: activeWorkspace?.changedFiles ?? [],
+      gitFileStatuses: activeWorkspace?.gitFileStatuses ?? {},
       activeFile: activeWorkspace?.activeFile ?? null,
       activeSpec: activeWorkspace?.activeSpec ?? null,
       activeFileContent: activeWorkspace?.activeFileContent ?? null,

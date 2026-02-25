@@ -18,6 +18,8 @@ export type WorkspaceGitLineMarker = {
   kind: WorkspaceGitLineMarkerKind
 }
 
+export type GitFileStatusKind = 'added' | 'modified' | 'untracked'
+
 export type WorkspaceSession = {
   rootPath: string
   fileTree: WorkspaceFileNode[]
@@ -52,6 +54,7 @@ export type WorkspaceSession = {
   isRemoteMounted: boolean
   loadingDirectories: string[]
   isDirty: boolean
+  gitFileStatuses: Record<string, GitFileStatusKind>
 }
 
 export type WorkspaceState = {
@@ -136,6 +139,7 @@ export function createWorkspaceSession(rootPath: string): WorkspaceSession {
     isRemoteMounted: false,
     loadingDirectories: [],
     isDirty: false,
+    gitFileStatuses: {},
   }
 }
 

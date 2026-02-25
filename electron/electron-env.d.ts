@@ -99,6 +99,14 @@ interface WorkspaceGetGitLineMarkersResult {
   error?: string
 }
 
+type GitFileStatusKind = 'added' | 'modified' | 'untracked'
+
+interface WorkspaceGetGitFileStatusesResult {
+  ok: boolean
+  statuses: Record<string, GitFileStatusKind>
+  error?: string
+}
+
 interface CodeCommentRecord {
   id: string
   relativePath: string
@@ -239,6 +247,9 @@ interface Window {
       rootPath: string,
       relativePath: string,
     ) => Promise<WorkspaceGetGitLineMarkersResult>
+    getGitFileStatuses: (
+      rootPath: string,
+    ) => Promise<WorkspaceGetGitFileStatusesResult>
     readComments: (rootPath: string) => Promise<WorkspaceReadCommentsResult>
     writeComments: (
       rootPath: string,

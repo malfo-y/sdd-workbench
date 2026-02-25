@@ -356,6 +356,7 @@ function App() {
     rootPath,
     fileTree,
     changedFiles,
+    gitFileStatuses,
     activeFile,
     activeSpec,
     activeFileContent,
@@ -1669,6 +1670,7 @@ function App() {
               expandedDirectories={expandedDirectories}
               fileTree={fileTree}
               changedFiles={changedFiles}
+              gitFileStatuses={gitFileStatuses}
               loadingDirectories={loadingDirectories}
               isIndexing={isIndexing}
               onExpandedDirectoriesChange={setExpandedDirectories}

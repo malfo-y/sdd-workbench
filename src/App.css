@@ -891,6 +891,23 @@
   line-height: 1;
 }
 
+.tree-git-status-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.tree-git-status-badge--untracked,
+.tree-git-status-badge--added {
+  color: #73c991;
+}
+
+.tree-git-status-badge--modified {
+  color: #e2c08d;
+}
+
 .tree-node-file.is-active .tree-file-button {
   color: #9cd2ff;
   font-weight: 700;
