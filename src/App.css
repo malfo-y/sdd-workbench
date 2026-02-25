@@ -1134,8 +1134,13 @@
 
 /* CM6 Comment Gutter */
 .cm-comment-gutter {
-  width: 24px;
+  width: 30px;
   padding: 0 2px;
+  overflow: visible;
+}
+
+.cm-comment-gutter .cm-gutterElement {
+  overflow: visible;
 }
 
 .cm-comment-badge {

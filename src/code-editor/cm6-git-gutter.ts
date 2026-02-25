@@ -68,6 +68,8 @@ function gitGutter(): Extension {
       const kind = markers.get(lineNum)
       return kind ? new GitDotMarker(kind) : null
     },
+    lineMarkerChange: (update) =>
+      update.state.field(gitMarkersField) !== update.startState.field(gitMarkersField),
     initialSpacer: () => addedSpacer,
   })
 }

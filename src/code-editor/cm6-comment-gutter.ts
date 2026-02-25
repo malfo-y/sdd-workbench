@@ -92,6 +92,8 @@ function commentGutter(
       const entry = markers.get(lineNum)
       return entry ? new CommentBadgeMarker(lineNum, entry, onHover, onLeave) : null
     },
+    lineMarkerChange: (update) =>
+      update.state.field(commentMarkersField) !== update.startState.field(commentMarkersField),
   })
 }
 
