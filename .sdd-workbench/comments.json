@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md:10-10:eeae7cee:2026-02-25T04:32:07.700Z",
+    "relativePath": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md",
+    "startLine": 10,
+    "endLine": 10,
+    "body": "test comment",
+    "anchor": {
+      "snippet": "## 태스크 개요",
+      "hash": "eeae7cee",
+      "before": "---"
+    },
+    "createdAt": "2026-02-25T04:32:07.700Z"
+  },
+  {
+    "id": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md:55-55:276b6d75:2026-02-25T04:23:08.307Z",
+    "relativePath": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md",
+    "startLine": 55,
+    "endLine": 55,
+    "body": "sadf",
+    "anchor": {
+      "snippet": "- [C] `src/code-editor/cm6-git-gutter.ts` -- Git marker gutter extension",
+      "hash": "276b6d75",
+      "before": "**Target Files**:",
+      "after": "- [C] `src/code-editor/cm6-git-gutter.test.ts` -- marker 매핑 로직 테스트"
+    },
+    "createdAt": "2026-02-25T04:23:08.307Z"
+  }
+]
