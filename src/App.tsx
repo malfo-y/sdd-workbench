@@ -31,9 +31,9 @@ import {
   buildCopySelectedLinesPayload,
 } from './context-copy/copy-payload'
 import {
-  CodeViewerPanel,
+  CodeEditorPanel,
   type CodeViewerJumpRequest,
-} from './code-viewer/code-viewer-panel'
+} from './code-editor/code-editor-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
@@ -1599,7 +1599,7 @@ function App() {
 
         <div className="pane-slot">
           <div className={`content-pane-wrapper${activeTab !== 'code' ? ' is-hidden' : ''}`} data-testid="content-pane-code">
-            <CodeViewerPanel
+            <CodeEditorPanel
               activeFile={activeFile}
               activeFileContent={activeFileContent}
               activeFileImagePreview={activeFileImagePreview}

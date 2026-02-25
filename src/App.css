@@ -942,6 +942,15 @@
   width: 100%;
 }
 
+/* CM6 Editor container styles (F24) */
+.code-viewer-panel .cm-editor {
+  height: 100%;
+}
+
+.code-viewer-panel .cm-editor .cm-scroller {
+  overflow: auto;
+}
+
 .code-viewer-header {
   border-bottom: 1px solid #3f3f3f;
   margin-bottom: 10px;
