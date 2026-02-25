@@ -2706,7 +2706,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       clientX: 120,
       clientY: 160,
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Contents and Path' }))
 
     await waitFor(() => {
       // With CM6 default selection (L1-L1), copy both uses the first line
@@ -2716,7 +2716,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('shows banner when code-viewer Copy Both fails', async () => {
+  it('shows banner when code-viewer Copy Contents and Path fails', async () => {
     const clipboardWriteText = vi
       .fn()
       .mockRejectedValue(new Error('permission denied'))
@@ -2769,7 +2769,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       clientX: 80,
       clientY: 110,
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Contents and Path' }))
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
@@ -3005,7 +3005,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       clientX: 120,
       clientY: 160,
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Selected Content' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Line Contents' }))
 
     await waitFor(() => {
       // With CM6 default selection (L1-L1), copy selected content uses the first line
@@ -3021,7 +3021,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       clientY: 190,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Both' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Contents and Path' }))
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith('src/auth.ts:L1-L1\nalpha')
     })

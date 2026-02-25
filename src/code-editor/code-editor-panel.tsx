@@ -664,7 +664,7 @@ export function CodeEditorPanel({
               },
             },
             {
-              label: 'Copy Selected Content',
+              label: 'Copy Line Contents',
               onSelect: () => {
                 onRequestCopySelectedContent({
                   relativePath: contextMenuState.relativePath,
@@ -674,7 +674,7 @@ export function CodeEditorPanel({
               },
             },
             {
-              label: 'Copy Both',
+              label: 'Copy Contents and Path',
               onSelect: () => {
                 onRequestCopyBoth({
                   relativePath: contextMenuState.relativePath,

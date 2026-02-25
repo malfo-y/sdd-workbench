@@ -734,8 +734,8 @@
 
 .copy-action-popover-actions button {
   flex: 1;
-  font-size: 0.78rem;
-  padding: 0.45em 0.7em;
+  font-size: 0.70rem;
+  padding: 0.4em 0.5em;
 }
 
 .comment-hover-popover {
@@ -1048,65 +1048,6 @@
   max-width: 100%;
 }
 
-.code-line-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.code-line-row {
-  border-radius: 4px;
-}
-
-.code-line-row.is-selected {
-  background: rgba(78, 140, 198, 0.2);
-}
-
-.code-line-button {
-  align-items: flex-start;
-  background: transparent;
-  border: 0;
-  color: #d3d3d3;
-  cursor: pointer;
-  display: grid;
-  font: inherit;
-  grid-template-columns: 56px minmax(0, 1fr);
-  padding: 2px 0;
-  text-align: left;
-  width: 100%;
-}
-
-.code-line-number {
-  color: #7d7d7d;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.8rem;
-  padding-right: 12px;
-  user-select: none;
-}
-
-.code-line-number-wrap {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
-}
-
-.code-line-git-marker {
-  border-radius: 999px;
-  display: inline-flex;
-  height: 0.55rem;
-  width: 0.55rem;
-}
-
-.code-line-git-marker-added {
-  background: #3fa36f;
-  border: 1px solid #7ed9a4;
-}
-
-.code-line-git-marker-modified {
-  background: #3d7fca;
-  border: 1px solid #85b8f2;
-}
 
 /* CM6 Git Gutter */
 .cm-git-gutter {
@@ -1171,35 +1112,6 @@
   padding: 0 3px;
 }
 
-.code-line-comment-badge {
-  align-items: center;
-  background: #2e4a36;
-  border: 1px solid #5f9b72;
-  border-radius: 999px;
-  color: #b3e1c1;
-  display: inline-flex;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.68rem;
-  font-weight: 700;
-  justify-content: center;
-  line-height: 1;
-  min-width: 1.3rem;
-  padding: 0.14rem 0.32rem;
-}
-
-.code-line-content {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.85rem;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.code-line-content span {
-  /* Shiki generates inline color styles; this ensures unstyled tokens get the default color */
-  color: inherit;
-}
 
 .spec-viewer-content [data-has-comment-marker='true'] {
   padding-left: 1.8rem;
@@ -1273,72 +1185,6 @@
   overflow-wrap: anywhere;
 }
 
-/* F21: Code Viewer 텍스트 검색 */
-
-.code-viewer-search-bar {
-  align-items: center;
-  background: #1f1f1f;
-  border-bottom: 1px solid #3f3f3f;
-  display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
-  padding: 6px 8px;
-}
-
-.code-viewer-search-input {
-  background: #111;
-  border: 1px solid #4a4a4a;
-  border-radius: 6px;
-  color: #d3d3d3;
-  flex: 1;
-  font: inherit;
-  font-size: 0.85rem;
-  min-width: 0;
-  outline: none;
-  padding: 4px 8px;
-}
-
-.code-viewer-search-input:focus {
-  border-color: #7bb6e8;
-}
-
-.code-viewer-search-count {
-  color: #9e9e9e;
-  font-size: 0.8rem;
-  padding: 0 6px;
-  white-space: nowrap;
-}
-
-.code-viewer-search-nav-button,
-.code-viewer-search-close-button {
-  background: transparent;
-  border: 1px solid #4a4a4a;
-  border-radius: 4px;
-  color: #9e9e9e;
-  cursor: pointer;
-  font-size: 0.75rem;
-  line-height: 1;
-  padding: 3px 6px;
-}
-
-.code-viewer-search-nav-button:hover,
-.code-viewer-search-close-button:hover {
-  border-color: #7bb6e8;
-  color: #d3d3d3;
-}
-
-.code-line-row.is-search-match {
-  background: rgba(255, 200, 0, 0.12);
-}
-
-.code-line-row.is-search-focus {
-  background: rgba(255, 200, 0, 0.32);
-}
-
-/* already-selected + search-focus → selection color takes priority */
-.code-line-row.is-selected.is-search-focus {
-  background: rgba(78, 140, 198, 0.3);
-}
 
 .comment-modal-target-jump {
   background: transparent;
