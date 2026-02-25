@@ -128,6 +128,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
   const openInFinderMock =
     vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
+  const createFileMock =
+    vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
+  const createDirectoryMock =
+    vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
+  const deleteFileMock =
+    vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
+  const deleteDirectoryMock =
+    vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
@@ -161,6 +169,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     openInItermMock.mockReset()
     openInVsCodeMock.mockReset()
     openInFinderMock.mockReset()
+    createFileMock.mockReset()
+    createDirectoryMock.mockReset()
+    deleteFileMock.mockReset()
+    deleteDirectoryMock.mockReset()
     onWatchEventMock.mockReset()
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
@@ -198,6 +210,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     openInItermMock.mockResolvedValue({ ok: true })
     openInVsCodeMock.mockResolvedValue({ ok: true })
     openInFinderMock.mockResolvedValue({ ok: true })
+    createFileMock.mockResolvedValue({ ok: true })
+    createDirectoryMock.mockResolvedValue({ ok: true })
+    deleteFileMock.mockResolvedValue({ ok: true })
+    deleteDirectoryMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
@@ -241,6 +257,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       openInIterm: openInItermMock,
       openInVsCode: openInVsCodeMock,
       openInFinder: openInFinderMock,
+      createFile: createFileMock,
+      createDirectory: createDirectoryMock,
+      deleteFile: deleteFileMock,
+      deleteDirectory: deleteDirectoryMock,
     }
   })
 

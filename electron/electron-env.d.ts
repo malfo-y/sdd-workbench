@@ -66,6 +66,26 @@ interface WorkspaceWriteFileResult {
   error?: string
 }
 
+interface WorkspaceCreateFileResult {
+  ok: boolean
+  error?: string
+}
+
+interface WorkspaceCreateDirectoryResult {
+  ok: boolean
+  error?: string
+}
+
+interface WorkspaceDeleteFileResult {
+  ok: boolean
+  error?: string
+}
+
+interface WorkspaceDeleteDirectoryResult {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 
 interface WorkspaceGitLineMarker {
@@ -199,6 +219,22 @@ interface Window {
       relativePath: string,
       content: string,
     ) => Promise<WorkspaceWriteFileResult>
+    createFile: (
+      rootPath: string,
+      relativePath: string,
+    ) => Promise<WorkspaceCreateFileResult>
+    createDirectory: (
+      rootPath: string,
+      relativePath: string,
+    ) => Promise<WorkspaceCreateDirectoryResult>
+    deleteFile: (
+      rootPath: string,
+      relativePath: string,
+    ) => Promise<WorkspaceDeleteFileResult>
+    deleteDirectory: (
+      rootPath: string,
+      relativePath: string,
+    ) => Promise<WorkspaceDeleteDirectoryResult>
     getGitLineMarkers: (
       rootPath: string,
       relativePath: string,

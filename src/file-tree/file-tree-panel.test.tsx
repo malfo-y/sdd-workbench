@@ -443,3 +443,359 @@ describe('FileTreePanel lazy directory loading', () => {
     expect(onRequestLoadDirectory).not.toHaveBeenCalled()
   })
 })
+
+describe('FileTreePanel CRUD context menu', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  const defaultCrudProps = {
+    onRequestCreateFile: vi.fn(),
+    onRequestCreateDirectory: vi.fn(),
+    onRequestDeleteFile: vi.fn(),
+    onRequestDeleteDirectory: vi.fn(),
+  }
+
+  it('shows New File here, New Directory here, and Delete on file node right-click', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'index.ts',
+                relativePath: 'src/index.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultCrudProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'index.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+
+    expect(screen.getByRole('button', { name: 'Copy Relative Path' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New File here' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New Directory here' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  it('shows New File here, New Directory here, and Delete on directory node right-click', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultCrudProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'src' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+
+    expect(screen.getByRole('button', { name: 'Copy Relative Path' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New File here' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New Directory here' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  it('shows inline input when New File here is clicked from file context menu', async () => {
+    const onExpandedDirectoriesChange = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'index.ts',
+                relativePath: 'src/index.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultCrudProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'index.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New File here' }))
+
+    expect(screen.getByTestId('tree-inline-input')).toBeInTheDocument()
+  })
+
+  it('calls onRequestCreateFile when Enter is pressed in inline input', () => {
+    const onRequestCreateFile = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'index.ts',
+                relativePath: 'src/index.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        onRequestCreateFile={onRequestCreateFile}
+        onRequestCreateDirectory={vi.fn()}
+        onRequestDeleteFile={vi.fn()}
+        onRequestDeleteDirectory={vi.fn()}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'index.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'New File here' }))
+
+    const input = screen.getByTestId('tree-inline-input')
+    fireEvent.change(input, { target: { value: 'newfile.ts' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onRequestCreateFile).toHaveBeenCalledWith('src/newfile.ts')
+    expect(screen.queryByTestId('tree-inline-input')).not.toBeInTheDocument()
+  })
+
+  it('cancels inline input when Escape is pressed', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'index.ts',
+                relativePath: 'src/index.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultCrudProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'index.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'New File here' }))
+
+    expect(screen.getByTestId('tree-inline-input')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('tree-inline-input'), { key: 'Escape' })
+
+    expect(screen.queryByTestId('tree-inline-input')).not.toBeInTheDocument()
+  })
+
+  it('shows error message when Enter is pressed with empty name in inline input', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'index.ts',
+                relativePath: 'src/index.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultCrudProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'index.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'New File here' }))
+
+    const input = screen.getByTestId('tree-inline-input')
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Name cannot be empty.')
+    expect(screen.getByTestId('tree-inline-input')).toBeInTheDocument()
+  })
+
+  it('calls onRequestDeleteFile when Delete is clicked on a file node', () => {
+    const onRequestDeleteFile = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'index.ts',
+                relativePath: 'src/index.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        onRequestCreateFile={vi.fn()}
+        onRequestCreateDirectory={vi.fn()}
+        onRequestDeleteFile={onRequestDeleteFile}
+        onRequestDeleteDirectory={vi.fn()}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'index.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(onRequestDeleteFile).toHaveBeenCalledWith('src/index.ts')
+  })
+
+  it('calls onRequestDeleteDirectory when Delete is clicked on a directory node', () => {
+    const onRequestDeleteDirectory = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+          },
+        ]}
+        isIndexing={false}
+        loadingDirectories={[]}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        onRequestCreateFile={vi.fn()}
+        onRequestCreateDirectory={vi.fn()}
+        onRequestDeleteFile={vi.fn()}
+        onRequestDeleteDirectory={onRequestDeleteDirectory}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'src' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(onRequestDeleteDirectory).toHaveBeenCalledWith('src')
+  })
+})

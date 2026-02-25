@@ -53,6 +53,26 @@ type WorkspaceWriteFileResult = {
   error?: string
 }
 
+type WorkspaceCreateFileResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceCreateDirectoryResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceDeleteFileResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceDeleteDirectoryResult = {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 
 type WorkspaceGitLineMarker = {
@@ -185,6 +205,30 @@ const workspaceApi = {
       relativePath,
       content,
     }) as Promise<WorkspaceWriteFileResult>
+  },
+  createFile(rootPath: string, relativePath: string) {
+    return ipcRenderer.invoke('workspace:createFile', {
+      rootPath,
+      relativePath,
+    }) as Promise<WorkspaceCreateFileResult>
+  },
+  createDirectory(rootPath: string, relativePath: string) {
+    return ipcRenderer.invoke('workspace:createDirectory', {
+      rootPath,
+      relativePath,
+    }) as Promise<WorkspaceCreateDirectoryResult>
+  },
+  deleteFile(rootPath: string, relativePath: string) {
+    return ipcRenderer.invoke('workspace:deleteFile', {
+      rootPath,
+      relativePath,
+    }) as Promise<WorkspaceDeleteFileResult>
+  },
+  deleteDirectory(rootPath: string, relativePath: string) {
+    return ipcRenderer.invoke('workspace:deleteDirectory', {
+      rootPath,
+      relativePath,
+    }) as Promise<WorkspaceDeleteDirectoryResult>
   },
   getGitLineMarkers(rootPath: string, relativePath: string) {
     return ipcRenderer.invoke('workspace:getGitLineMarkers', {

@@ -1447,3 +1447,45 @@
     display: none;
   }
 }
+
+/* Tree inline input */
+.tree-inline-input-wrapper {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tree-inline-input-label {
+  font-size: 0.72rem;
+  color: #888;
+  word-break: break-all;
+}
+
+.tree-inline-input {
+  background: #1e2030;
+  border: 1px solid rgba(100, 160, 220, 0.5);
+  border-radius: 3px;
+  color: #d3d3d3;
+  font-size: 0.82rem;
+  padding: 3px 6px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tree-inline-input:focus {
+  border-color: rgba(100, 160, 220, 0.9);
+}
+
+.tree-inline-input.is-error {
+  border-color: #e06c75;
+}
+
+.tree-inline-input-error {
+  font-size: 0.70rem;
+  color: #e06c75;
+}

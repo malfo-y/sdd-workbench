@@ -104,6 +104,10 @@ type WorkspaceContextValue = {
   clearBanner: () => void
   reloadExternalChange: () => void
   dismissExternalChange: () => void
+  createFile: (relativePath: string) => Promise<boolean>
+  createDirectory: (relativePath: string) => Promise<boolean>
+  deleteFile: (relativePath: string) => Promise<boolean>
+  deleteDirectory: (relativePath: string) => Promise<boolean>
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(
@@ -1470,6 +1474,175 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [getActiveIsDirty, selectActiveWorkspaceFile],
   )
 
+  const createFile = useCallback(async (relativePath: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const { rootPath } = workspaceSession
+
+    try {
+      const createResult = await window.workspace.createFile(rootPath, relativePath)
+
+      if (!createResult.ok) {
+        const errorMessage = createResult.error
+          ? `Failed to create file: ${createResult.error}`
+          : 'Failed to create file.'
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      selectFile(relativePath)
+      return true
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to create file: ${error.message}`
+          : 'Failed to create file.'
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [selectFile])
+
+  const createDirectory = useCallback(async (relativePath: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const { rootPath } = workspaceSession
+
+    try {
+      const createResult = await window.workspace.createDirectory(rootPath, relativePath)
+
+      if (!createResult.ok) {
+        const errorMessage = createResult.error
+          ? `Failed to create directory: ${createResult.error}`
+          : 'Failed to create directory.'
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to create directory: ${error.message}`
+          : 'Failed to create directory.'
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
+  const deleteFile = useCallback(async (relativePath: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const { rootPath, activeFile } = workspaceSession
+
+    try {
+      const deleteResult = await window.workspace.deleteFile(rootPath, relativePath)
+
+      if (!deleteResult.ok) {
+        const errorMessage = deleteResult.error
+          ? `Failed to delete file: ${deleteResult.error}`
+          : 'Failed to delete file.'
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      if (activeFile === relativePath) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            activeFile: null,
+            activeFileContent: null,
+            activeFileImagePreview: null,
+            activeFileGitLineMarkers: [],
+            isDirty: false,
+            previewUnavailableReason: null,
+          }))
+        )
+      }
+
+      return true
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to delete file: ${error.message}`
+          : 'Failed to delete file.'
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
+  const deleteDirectory = useCallback(async (relativePath: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const { rootPath, activeFile } = workspaceSession
+
+    try {
+      const deleteResult = await window.workspace.deleteDirectory(rootPath, relativePath)
+
+      if (!deleteResult.ok) {
+        const errorMessage = deleteResult.error
+          ? `Failed to delete directory: ${deleteResult.error}`
+          : 'Failed to delete directory.'
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      if (activeFile !== null && activeFile.startsWith(relativePath + '/')) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            activeFile: null,
+            activeFileContent: null,
+            activeFileImagePreview: null,
+            activeFileGitLineMarkers: [],
+            isDirty: false,
+            previewUnavailableReason: null,
+          }))
+        )
+      }
+
+      return true
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to delete directory: ${error.message}`
+          : 'Failed to delete directory.'
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
   const goBackInHistory = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
@@ -1970,6 +2143,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       reloadExternalChange,
       dismissExternalChange,
       markFileDirty,
+      createFile,
+      createDirectory,
+      deleteFile,
+      deleteDirectory,
     }),
     [
       workspaceState,
@@ -1999,6 +2176,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       reloadExternalChange,
       dismissExternalChange,
       markFileDirty,
+      createFile,
+      createDirectory,
+      deleteFile,
+      deleteDirectory,
     ],
   )
 

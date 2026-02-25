@@ -40,6 +40,11 @@ function getFileIcon(fileName: string): string {
   return FILE_ICON_MAP[ext] ?? '📄'
 }
 
+function getParentPath(relativePath: string): string {
+  const lastSlash = relativePath.lastIndexOf('/')
+  return lastSlash < 0 ? '' : relativePath.slice(0, lastSlash)
+}
+
 type FileTreePanelProps = {
   rootPath: string | null
   fileTree: WorkspaceFileNode[]
@@ -52,12 +57,21 @@ type FileTreePanelProps = {
   onRequestCopyRelativePath: (relativePath: string) => void
   onExpandedDirectoriesChange: (expandedDirectories: string[]) => void
   onRequestLoadDirectory: (relativePath: string) => void
+  onRequestCreateFile?: (relativePath: string) => void
+  onRequestCreateDirectory?: (relativePath: string) => void
+  onRequestDeleteFile?: (relativePath: string) => void
+  onRequestDeleteDirectory?: (relativePath: string) => void
 }
 
 type RenderBudget = {
   remaining: number
   truncated: boolean
 }
+
+type InlineInputState = {
+  parentRelativePath: string
+  type: 'file' | 'directory'
+} | null
 
 function buildChangedSubtreeSet(
   nodes: WorkspaceFileNode[],
@@ -130,6 +144,7 @@ function renderFileTreeNodes(
   onNodeContextMenu: (
     event: MouseEvent<HTMLButtonElement>,
     relativePath: string,
+    nodeKind: 'file' | 'directory',
   ) => void,
   expandedDirectories: Set<string>,
   onToggleDirectory: (relativePath: string) => void,
@@ -164,7 +179,7 @@ function renderFileTreeNodes(
           <button
             aria-expanded={isExpanded}
             className="tree-directory-button"
-            onContextMenu={(event) => onNodeContextMenu(event, node.relativePath)}
+            onContextMenu={(event) => onNodeContextMenu(event, node.relativePath, 'directory')}
             onClick={() => onToggleDirectory(node.relativePath)}
             type="button"
           >
@@ -243,7 +258,7 @@ function renderFileTreeNodes(
       >
         <button
           className="tree-file-button"
-          onContextMenu={(event) => onNodeContextMenu(event, node.relativePath)}
+          onContextMenu={(event) => onNodeContextMenu(event, node.relativePath, 'file')}
           onClick={() => onSelectFile(node.relativePath)}
           type="button"
         >
@@ -267,6 +282,13 @@ function renderFileTreeNodes(
   return <ul className="tree-list">{rendered}</ul>
 }
 
+function validateInlineInputName(name: string): string | null {
+  if (!name.trim()) return 'Name cannot be empty.'
+  if (name.includes('/')) return 'Name cannot contain "/".'
+  if (name === '.' || name === '..') return 'Name cannot be "." or "..".'
+  return null
+}
+
 export function FileTreePanel({
   rootPath,
   fileTree,
@@ -279,12 +301,21 @@ export function FileTreePanel({
   onRequestCopyRelativePath,
   onExpandedDirectoriesChange,
   onRequestLoadDirectory,
+  onRequestCreateFile,
+  onRequestCreateDirectory,
+  onRequestDeleteFile,
+  onRequestDeleteDirectory,
 }: FileTreePanelProps) {
   const [contextMenuState, setContextMenuState] = useState<{
     x: number
     y: number
     relativePath: string
+    nodeKind: 'file' | 'directory'
   } | null>(null)
+  const [inlineInput, setInlineInput] = useState<InlineInputState>(null)
+  const [inlineInputValue, setInlineInputValue] = useState('')
+  const [inlineInputError, setInlineInputError] = useState<string | null>(null)
+
   const expandedDirectoriesSet = useMemo(
     () => new Set(expandedDirectories),
     [expandedDirectories],
@@ -307,6 +338,48 @@ export function FileTreePanel({
     setContextMenuState(null)
   }, [])
 
+  const startInlineInput = useCallback(
+    (parentRelativePath: string, type: 'file' | 'directory') => {
+      if (parentRelativePath && !expandedDirectoriesSet.has(parentRelativePath)) {
+        const nextExpanded = new Set(expandedDirectoriesSet)
+        nextExpanded.add(parentRelativePath)
+        onExpandedDirectoriesChange([...nextExpanded])
+      }
+      setInlineInput({ parentRelativePath, type })
+      setInlineInputValue('')
+      setInlineInputError(null)
+    },
+    [expandedDirectoriesSet, onExpandedDirectoriesChange],
+  )
+
+  const cancelInlineInput = useCallback(() => {
+    setInlineInput(null)
+    setInlineInputValue('')
+    setInlineInputError(null)
+  }, [])
+
+  const submitInlineInput = useCallback(() => {
+    if (!inlineInput) return
+    const name = inlineInputValue.trim()
+    const error = validateInlineInputName(name)
+    if (error) {
+      setInlineInputError(error)
+      return
+    }
+    const fullRelativePath = inlineInput.parentRelativePath
+      ? `${inlineInput.parentRelativePath}/${name}`
+      : name
+
+    if (inlineInput.type === 'file') {
+      onRequestCreateFile?.(fullRelativePath)
+    } else {
+      onRequestCreateDirectory?.(fullRelativePath)
+    }
+    setInlineInput(null)
+    setInlineInputValue('')
+    setInlineInputError(null)
+  }, [inlineInput, inlineInputValue, onRequestCreateFile, onRequestCreateDirectory])
+
   const toggleDirectory = (relativePath: string) => {
     const nextExpandedDirectories = new Set(expandedDirectoriesSet)
     const isExpanding = !nextExpandedDirectories.has(relativePath)
@@ -324,12 +397,29 @@ export function FileTreePanel({
   }
 
   const handleNodeContextMenu = useCallback(
-    (event: MouseEvent<HTMLButtonElement>, relativePath: string) => {
+    (event: MouseEvent<HTMLButtonElement>, relativePath: string, nodeKind: 'file' | 'directory') => {
       event.preventDefault()
       setContextMenuState({
         x: event.clientX,
         y: event.clientY,
         relativePath,
+        nodeKind,
+      })
+    },
+    [],
+  )
+
+  const handlePanelContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if ((event.target as HTMLElement).closest('button')) {
+        return
+      }
+      event.preventDefault()
+      setContextMenuState({
+        x: event.clientX,
+        y: event.clientY,
+        relativePath: '',
+        nodeKind: 'directory',
       })
     },
     [],
@@ -364,8 +454,61 @@ export function FileTreePanel({
     truncated: false,
   }
 
+  const contextMenuActions = contextMenuState
+    ? (() => {
+        const parentPath = contextMenuState.nodeKind === 'file'
+          ? getParentPath(contextMenuState.relativePath)
+          : contextMenuState.relativePath
+
+        const actions: Array<{ label: string; onSelect: () => void }> = []
+
+        if (contextMenuState.relativePath !== '') {
+          actions.push({
+            label: 'Copy Relative Path',
+            onSelect: () => {
+              onRequestCopyRelativePath(contextMenuState.relativePath)
+            },
+          })
+        }
+
+        actions.push({
+          label: 'New File here',
+          onSelect: () => {
+            startInlineInput(parentPath, 'file')
+          },
+        })
+
+        actions.push({
+          label: 'New Directory here',
+          onSelect: () => {
+            startInlineInput(parentPath, 'directory')
+          },
+        })
+
+        if (contextMenuState.relativePath !== '') {
+          actions.push({
+            label: 'Delete',
+            onSelect: () => {
+              closeContextMenu()
+              if (contextMenuState.nodeKind === 'file') {
+                onRequestDeleteFile?.(contextMenuState.relativePath)
+              } else {
+                onRequestDeleteDirectory?.(contextMenuState.relativePath)
+              }
+            },
+          })
+        }
+
+        return actions
+      })()
+    : []
+
   return (
-    <section className="file-tree-panel" data-testid="file-tree-panel">
+    <section
+      className="file-tree-panel"
+      data-testid="file-tree-panel"
+      onContextMenu={handlePanelContextMenu}
+    >
       {renderFileTreeNodes(
         fileTree,
         0,
@@ -384,18 +527,46 @@ export function FileTreePanel({
           Showing first {INITIAL_RENDER_NODE_LIMIT} nodes.
         </p>
       )}
+      {inlineInput !== null && (
+        <div className="tree-inline-input-wrapper">
+          <span className="tree-inline-input-label">
+            {inlineInput.type === 'file' ? '📄' : '📁'}{' '}
+            {inlineInput.parentRelativePath ? inlineInput.parentRelativePath + '/' : ''}
+          </span>
+          <input
+            autoFocus
+            className={`tree-inline-input${inlineInputError ? ' is-error' : ''}`}
+            data-testid="tree-inline-input"
+            onBlur={cancelInlineInput}
+            onChange={(e) => {
+              setInlineInputValue(e.target.value)
+              setInlineInputError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submitInlineInput()
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                cancelInlineInput()
+              }
+            }}
+            placeholder={inlineInput.type === 'file' ? 'filename.ext' : 'directory-name'}
+            type="text"
+            value={inlineInputValue}
+          />
+          {inlineInputError && (
+            <span className="tree-inline-input-error" role="alert">
+              {inlineInputError}
+            </span>
+          )}
+        </div>
+      )}
       {contextMenuState && (
         <CopyActionPopover
-          actions={[
-            {
-              label: 'Copy Relative Path',
-              onSelect: () => {
-                onRequestCopyRelativePath(contextMenuState.relativePath)
-              },
-            },
-          ]}
+          actions={contextMenuActions}
           ariaLabel="Copy actions"
-          description={contextMenuState.relativePath}
+          description={contextMenuState.relativePath || 'workspace root'}
           onClose={closeContextMenu}
           title="Copy Action"
           x={contextMenuState.x}

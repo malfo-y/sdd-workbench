@@ -404,6 +404,10 @@ function App() {
     isDirty,
     saveFile,
     markFileDirty,
+    createFile,
+    createDirectory,
+    deleteFile,
+    deleteDirectory,
   } = useWorkspace()
   const displayPath = rootPath
     ? abbreviateWorkspacePath(rootPath)
@@ -1366,6 +1370,63 @@ function App() {
     clearBanner()
   }, [clearBanner])
 
+  const handleRequestCreateFile = useCallback(
+    async (relativePath: string) => {
+      await createFile(relativePath)
+    },
+    [createFile],
+  )
+
+  const handleRequestCreateDirectory = useCallback(
+    async (relativePath: string) => {
+      await createDirectory(relativePath)
+    },
+    [createDirectory],
+  )
+
+  const handleRequestDeleteFile = useCallback(
+    async (relativePath: string) => {
+      const fileName = relativePath.split('/').pop() ?? relativePath
+
+      if (isDirty && activeFile === relativePath) {
+        const proceedWithDirty = window.confirm(
+          `"${fileName}" has unsaved changes. Delete anyway?`
+        )
+        if (!proceedWithDirty) return
+      }
+
+      const confirmed = window.confirm(
+        `Delete file "${fileName}"?\n\nThis action cannot be undone.`
+      )
+      if (!confirmed) return
+
+      await deleteFile(relativePath)
+    },
+    [deleteFile, isDirty, activeFile],
+  )
+
+  const handleRequestDeleteDirectory = useCallback(
+    async (relativePath: string) => {
+      const dirName = relativePath.split('/').pop() ?? relativePath
+
+      const activeFileIsInside = activeFile?.startsWith(relativePath + '/') ?? false
+      if (isDirty && activeFileIsInside) {
+        const proceedWithDirty = window.confirm(
+          `The currently open file has unsaved changes. Delete directory "${dirName}" anyway?`
+        )
+        if (!proceedWithDirty) return
+      }
+
+      const confirmed = window.confirm(
+        `Delete directory "${dirName}" and all its contents?\n\nThis action cannot be undone.`
+      )
+      if (!confirmed) return
+
+      await deleteDirectory(relativePath)
+    },
+    [deleteDirectory, isDirty, activeFile],
+  )
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -1614,6 +1675,10 @@ function App() {
               onRequestLoadDirectory={loadDirectoryChildren}
               onSelectFile={handleSelectFileFromTree}
               rootPath={rootPath}
+              onRequestCreateFile={handleRequestCreateFile}
+              onRequestCreateDirectory={handleRequestCreateDirectory}
+              onRequestDeleteFile={handleRequestDeleteFile}
+              onRequestDeleteDirectory={handleRequestDeleteDirectory}
             />
           </section>
         </div>

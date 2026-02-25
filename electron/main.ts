@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile, execFileSync } from 'node:child_process'
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import {
@@ -92,6 +92,46 @@ type WorkspaceWriteFileRequest = {
 }
 
 type WorkspaceWriteFileResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceCreateFileRequest = {
+  rootPath: string
+  relativePath: string
+}
+
+type WorkspaceCreateFileResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceCreateDirectoryRequest = {
+  rootPath: string
+  relativePath: string
+}
+
+type WorkspaceCreateDirectoryResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceDeleteFileRequest = {
+  rootPath: string
+  relativePath: string
+}
+
+type WorkspaceDeleteFileResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceDeleteDirectoryRequest = {
+  rootPath: string
+  relativePath: string
+}
+
+type WorkspaceDeleteDirectoryResult = {
   ok: boolean
   error?: string
 }
@@ -1040,6 +1080,182 @@ async function handleWorkspaceWriteFile(
     return {
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to write file.',
+    }
+  }
+}
+
+async function handleWorkspaceCreateFile(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceCreateFileRequest,
+): Promise<WorkspaceCreateFileResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    if (!rootPath || !relativePath) {
+      return { ok: false, error: 'rootPath and relativePath are required.' }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return { ok: false, error: 'Cannot create files outside the workspace root.' }
+    }
+
+    try {
+      await stat(resolvedTargetPath)
+      return { ok: false, error: 'File already exists.' }
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw statError
+      }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      const targetDir = path.dirname(resolvedTargetPath)
+      await mkdir(targetDir, { recursive: true })
+      await writeFile(resolvedTargetPath, '')
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to create file.',
+    }
+  }
+}
+
+async function handleWorkspaceCreateDirectory(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceCreateDirectoryRequest,
+): Promise<WorkspaceCreateDirectoryResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    if (!rootPath || !relativePath) {
+      return { ok: false, error: 'rootPath and relativePath are required.' }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return { ok: false, error: 'Cannot create directories outside the workspace root.' }
+    }
+
+    try {
+      await stat(resolvedTargetPath)
+      return { ok: false, error: 'Directory already exists.' }
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw statError
+      }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      await mkdir(resolvedTargetPath, { recursive: true })
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to create directory.',
+    }
+  }
+}
+
+async function handleWorkspaceDeleteFile(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceDeleteFileRequest,
+): Promise<WorkspaceDeleteFileResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    if (!rootPath || !relativePath) {
+      return { ok: false, error: 'rootPath and relativePath are required.' }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return { ok: false, error: 'Cannot delete files outside the workspace root.' }
+    }
+
+    let targetStats
+    try {
+      targetStats = await stat(resolvedTargetPath)
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { ok: false, error: 'File not found.' }
+      }
+      throw statError
+    }
+
+    if (!targetStats.isFile()) {
+      return { ok: false, error: 'Target path is not a file.' }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      await unlink(resolvedTargetPath)
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to delete file.',
+    }
+  }
+}
+
+async function handleWorkspaceDeleteDirectory(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceDeleteDirectoryRequest,
+): Promise<WorkspaceDeleteDirectoryResult> {
+  try {
+    const rootPath = request?.rootPath
+    const relativePath = request?.relativePath
+    if (!rootPath || !relativePath) {
+      return { ok: false, error: 'rootPath and relativePath are required.' }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+      return { ok: false, error: 'Cannot delete directories outside the workspace root.' }
+    }
+
+    let targetStats
+    try {
+      targetStats = await stat(resolvedTargetPath)
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { ok: false, error: 'Directory not found.' }
+      }
+      throw statError
+    }
+
+    if (!targetStats.isDirectory()) {
+      return { ok: false, error: 'Target path is not a directory.' }
+    }
+
+    beginWorkspaceWriteOperation()
+    try {
+      await rm(resolvedTargetPath, { recursive: true, force: true })
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to delete directory.',
     }
   }
 }
@@ -2180,6 +2396,10 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:indexDirectory')
   ipcMain.removeHandler('workspace:readFile')
   ipcMain.removeHandler('workspace:writeFile')
+  ipcMain.removeHandler('workspace:createFile')
+  ipcMain.removeHandler('workspace:createDirectory')
+  ipcMain.removeHandler('workspace:deleteFile')
+  ipcMain.removeHandler('workspace:deleteDirectory')
   ipcMain.removeHandler('workspace:getGitLineMarkers')
   ipcMain.removeHandler('workspace:readComments')
   ipcMain.removeHandler('workspace:writeComments')
@@ -2196,6 +2416,10 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectory)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
   ipcMain.handle('workspace:writeFile', handleWorkspaceWriteFile)
+  ipcMain.handle('workspace:createFile', handleWorkspaceCreateFile)
+  ipcMain.handle('workspace:createDirectory', handleWorkspaceCreateDirectory)
+  ipcMain.handle('workspace:deleteFile', handleWorkspaceDeleteFile)
+  ipcMain.handle('workspace:deleteDirectory', handleWorkspaceDeleteDirectory)
   ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkers)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
   ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
