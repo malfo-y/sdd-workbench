@@ -140,6 +140,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
   const deleteDirectoryMock =
     vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
+  const renameMock =
+    vi.fn<(rootPath: string, oldRelativePath: string, newRelativePath: string) => Promise<{ ok: boolean; error?: string }>>()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
@@ -178,6 +180,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     createDirectoryMock.mockReset()
     deleteFileMock.mockReset()
     deleteDirectoryMock.mockReset()
+    renameMock.mockReset()
     onWatchEventMock.mockReset()
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
@@ -223,6 +226,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     createDirectoryMock.mockResolvedValue({ ok: true })
     deleteFileMock.mockResolvedValue({ ok: true })
     deleteDirectoryMock.mockResolvedValue({ ok: true })
+    renameMock.mockResolvedValue({ ok: true })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
@@ -271,6 +275,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       createDirectory: createDirectoryMock,
       deleteFile: deleteFileMock,
       deleteDirectory: deleteDirectoryMock,
+      rename: renameMock,
     }
   })
 

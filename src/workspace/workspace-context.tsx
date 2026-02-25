@@ -110,6 +110,7 @@ type WorkspaceContextValue = {
   createDirectory: (relativePath: string) => Promise<boolean>
   deleteFile: (relativePath: string) => Promise<boolean>
   deleteDirectory: (relativePath: string) => Promise<boolean>
+  renameFileOrDirectory: (oldRelativePath: string, newRelativePath: string) => Promise<boolean>
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(
@@ -1691,6 +1692,86 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [])
 
+  const renameFileOrDirectory = useCallback(async (oldRelativePath: string, newRelativePath: string) => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return false
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return false
+    }
+
+    const { rootPath, activeFile, comments, isDirty } = workspaceSession
+
+    // Comment protection check
+    const hasComments = comments.some(
+      (c) =>
+        c.relativePath === oldRelativePath ||
+        c.relativePath.startsWith(oldRelativePath + '/'),
+    )
+    if (hasComments) {
+      setBannerMessage(
+        'Cannot rename: comments exist on this file or directory. Please remove comments first.',
+      )
+      return false
+    }
+
+    // Dirty state check
+    if (activeFile === oldRelativePath && isDirty) {
+      setBannerMessage(
+        'Cannot rename: unsaved changes exist. Please save the file first.',
+      )
+      return false
+    }
+
+    try {
+      const renameResult = await window.workspace.rename(
+        rootPath,
+        oldRelativePath,
+        newRelativePath,
+      )
+
+      if (!renameResult.ok) {
+        const errorMessage = renameResult.error
+          ? `Failed to rename: ${renameResult.error}`
+          : 'Failed to rename.'
+        setBannerMessage(errorMessage)
+        return false
+      }
+
+      // Update activeFile path if it was renamed
+      if (activeFile === oldRelativePath) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            activeFile: newRelativePath,
+          })),
+        )
+      } else if (activeFile !== null && activeFile.startsWith(oldRelativePath + '/')) {
+        // Directory rename: update active file path prefix
+        const updatedActiveFile =
+          newRelativePath + activeFile.slice(oldRelativePath.length)
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            activeFile: updatedActiveFile,
+          })),
+        )
+      }
+
+      return true
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? `Failed to rename: ${error.message}`
+          : 'Failed to rename.'
+      setBannerMessage(errorMessage)
+      return false
+    }
+  }, [])
+
   const goBackInHistory = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
@@ -2209,6 +2290,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       createDirectory,
       deleteFile,
       deleteDirectory,
+      renameFileOrDirectory,
     }),
     [
       workspaceState,
@@ -2242,6 +2324,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       createDirectory,
       deleteFile,
       deleteDirectory,
+      renameFileOrDirectory,
     ],
   )
 

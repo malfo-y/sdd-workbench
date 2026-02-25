@@ -63,6 +63,7 @@ type FileTreePanelProps = {
   onRequestCreateDirectory?: (relativePath: string) => void
   onRequestDeleteFile?: (relativePath: string) => void
   onRequestDeleteDirectory?: (relativePath: string) => void
+  onRequestRename?: (oldRelativePath: string, newRelativePath: string) => void
 }
 
 type RenderBudget = {
@@ -73,6 +74,11 @@ type RenderBudget = {
 type InlineInputState = {
   parentRelativePath: string
   type: 'file' | 'directory'
+} | {
+  parentRelativePath: string
+  type: 'rename'
+  originalRelativePath: string
+  originalName: string
 } | null
 
 function buildChangedSubtreeSet(
@@ -380,6 +386,7 @@ export function FileTreePanel({
   onRequestCreateDirectory,
   onRequestDeleteFile,
   onRequestDeleteDirectory,
+  onRequestRename,
 }: FileTreePanelProps) {
   const [contextMenuState, setContextMenuState] = useState<{
     x: number
@@ -449,7 +456,11 @@ export function FileTreePanel({
       ? `${inlineInput.parentRelativePath}/${name}`
       : name
 
-    if (inlineInput.type === 'file') {
+    if (inlineInput.type === 'rename') {
+      if (name !== inlineInput.originalName) {
+        onRequestRename?.(inlineInput.originalRelativePath, fullRelativePath)
+      }
+    } else if (inlineInput.type === 'file') {
       onRequestCreateFile?.(fullRelativePath)
     } else {
       onRequestCreateDirectory?.(fullRelativePath)
@@ -457,7 +468,7 @@ export function FileTreePanel({
     setInlineInput(null)
     setInlineInputValue('')
     setInlineInputError(null)
-  }, [inlineInput, inlineInputValue, onRequestCreateFile, onRequestCreateDirectory])
+  }, [inlineInput, inlineInputValue, onRequestCreateFile, onRequestCreateDirectory, onRequestRename])
 
   const toggleDirectory = (relativePath: string) => {
     const nextExpandedDirectories = new Set(expandedDirectoriesSet)
@@ -566,6 +577,25 @@ export function FileTreePanel({
 
         if (contextMenuState.relativePath !== '') {
           actions.push({
+            label: 'Rename',
+            onSelect: () => {
+              closeContextMenu()
+              const relPath = contextMenuState.relativePath
+              const lastSlash = relPath.lastIndexOf('/')
+              const parentPath = lastSlash >= 0 ? relPath.slice(0, lastSlash) : ''
+              const originalName = lastSlash >= 0 ? relPath.slice(lastSlash + 1) : relPath
+              setInlineInput({
+                parentRelativePath: parentPath,
+                type: 'rename',
+                originalRelativePath: relPath,
+                originalName,
+              })
+              setInlineInputValue(originalName)
+              setInlineInputError(null)
+            },
+          })
+
+          actions.push({
             label: 'Delete',
             onSelect: () => {
               closeContextMenu()
@@ -610,7 +640,7 @@ export function FileTreePanel({
       {inlineInput !== null && (
         <div className="tree-inline-input-wrapper">
           <span className="tree-inline-input-label">
-            {inlineInput.type === 'file' ? '📄' : '📁'}{' '}
+            {inlineInput.type === 'rename' ? '✏️' : inlineInput.type === 'file' ? '📄' : '📁'}{' '}
             {inlineInput.parentRelativePath ? inlineInput.parentRelativePath + '/' : ''}
           </span>
           <input
@@ -631,7 +661,7 @@ export function FileTreePanel({
                 cancelInlineInput()
               }
             }}
-            placeholder={inlineInput.type === 'file' ? 'filename.ext' : 'directory-name'}
+            placeholder={inlineInput.type === 'rename' ? 'new-name' : inlineInput.type === 'file' ? 'filename.ext' : 'directory-name'}
             type="text"
             value={inlineInputValue}
           />

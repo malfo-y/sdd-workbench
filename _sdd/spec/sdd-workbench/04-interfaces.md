@@ -22,6 +22,8 @@ interface WorkspaceFileNode {
   totalChildCount?: number
 }
 
+type GitFileStatusKind = 'added' | 'modified' | 'untracked'
+
 type ContentTab = 'code' | 'spec'
 type PaneSizes = { left: number; content: number }
 
@@ -90,6 +92,8 @@ type CodeComment = {
 | `workspace:createDirectory` | Renderer -> Main (`invoke`) | 디렉토리 생성(경계 검사 + 중복 확인) (F25) |
 | `workspace:deleteFile` | Renderer -> Main (`invoke`) | 파일 삭제(경계 검사 + 파일 확인) (F25) |
 | `workspace:deleteDirectory` | Renderer -> Main (`invoke`) | 디렉토리 재귀 삭제(경계 검사 + 디렉토리 확인) (F25) |
+| `workspace:rename` | Renderer -> Main (`invoke`) | 파일/디렉토리 이름 변경(경계 검사 + 충돌 확인) (F25b) |
+| `workspace:getGitFileStatuses` | Renderer -> Main (`invoke`) | 워크스페이스 전체 Git 파일 상태 조회 (F26) |
 
 `workspace:watchStart` 계약 요약:
 
@@ -155,6 +159,27 @@ type CodeComment = {
 - 크기 제한: content 2MB 초과 시 거부
 - atomic write: `writeFileAtomic` 사용(임시 파일 → rename)
 - 에러 시 `ok=false` + `error` 메시지(throw 금지)
+
+`workspace:rename` 계약 요약 (F25b):
+
+- request: `{ rootPath, oldRelativePath, newRelativePath }`
+- response: `{ ok: boolean, error?: string }`
+- 경로 검증: `isPathInsideWorkspace` — old/new 모두 workspace 바깥 경로 거부
+- 존재 확인: `stat(oldPath)` 필수 — 존재하지 않으면 `ok=false`
+- 충돌 확인: `stat(newPath)` 시 이미 존재하면 `ok=false`
+- 동작: 부모 디렉토리 `mkdir -p` + `fs.rename(oldPath, newPath)` (파일/디렉토리 공용)
+- `beginWorkspaceWriteOperation()` / `endWorkspaceWriteOperation()` 적용
+- Renderer 측 보호: 코멘트가 있는 대상(파일 또는 하위 파일)은 rename 차단, dirty 파일 rename 차단
+
+`workspace:getGitFileStatuses` 계약 요약 (F26):
+
+- request: `{ rootPath }`
+- response: `{ ok: boolean, statuses: Record<string, GitFileStatusKind>, error?: string }`
+- git 저장소 확인: `git rev-parse --is-inside-work-tree` 실패 시 `{ ok: false, statuses: {} }` (throw 금지)
+- 동작: `git status --porcelain` 실행 → `parseGitStatusPorcelain()` 파싱
+- 상태 매핑: `??` → `untracked`, `A`/`AM` → `added`, `M`/`MM`/` M` → `modified`, `R`/`C` → `added`(new path), `D` → skip, `T` → `modified`
+- 조회 시점: workspace open, hydration, watcher 이벤트 수신, 파일 저장 성공 후
+- stale 응답 방지: request ID 패턴 적용
 
 ## 4. 코멘트/Export 정책 계약
 
@@ -229,8 +254,8 @@ type CodeComment = {
 
 | 클릭 대상 | 표시 액션 |
 |-----------|-----------|
-| 파일 노드 우클릭 | Copy Relative Path, New File (부모 디렉토리), New Directory (부모 디렉토리), Delete |
-| 디렉토리 노드 우클릭 | Copy Relative Path, New File (해당 디렉토리), New Directory (해당 디렉토리), Delete |
+| 파일 노드 우클릭 | Copy Relative Path, New File (부모 디렉토리), New Directory (부모 디렉토리), Rename, Delete |
+| 디렉토리 노드 우클릭 | Copy Relative Path, New File (해당 디렉토리), New Directory (해당 디렉토리), Rename, Delete |
 | 빈 영역(트리 하단) 우클릭 | New File (workspace root), New Directory (workspace root) |
 
 ### 생성 규칙
@@ -251,9 +276,31 @@ type CodeComment = {
 5. active file이 삭제된 디렉토리 하위에 있으면 동일하게 상태 초기화.
 6. 삭제된 파일에 달린 코멘트는 `comments.json`에 orphaned 상태로 유지(MVP에서 정리 UI 미제공).
 
+### Rename 규칙 (F25b)
+
+1. "Rename" 선택 시 해당 노드 위치에 인라인 입력(`.tree-inline-input`)이 현재 이름 pre-fill 상태로 표시된다.
+2. Enter → 유효성 검사(빈 문자열/슬래시/점점 거부) → 이름 변경 시에만 IPC 호출. Escape → 취소.
+3. 같은 이름을 입력하면 rename 호출 없이 인라인 입력만 닫힌다.
+4. **코멘트 보호**: rename 대상 파일(또는 대상 디렉토리 하위 파일)에 코멘트가 존재하면 rename을 차단하고 에러 배너를 표시한다.
+5. **dirty 파일 보호**: active file이 dirty 상태이고 rename 대상과 경로가 일치하면 rename을 차단한다.
+6. rename 성공 후 active file 경로 갱신: 직접 rename → 새 경로로 대체, 디렉토리 rename → 하위 파일 prefix 치환(`newRelativePath + activeFile.slice(oldRelativePath.length)`).
+7. 빈 영역 우클릭 메뉴에는 "Rename"이 표시되지 않는다.
+
 ### Copy Relative Path 동작 (BUG-02 수정 반영)
 
 1. 코드 에디터 우클릭 컨텍스트 메뉴에서 "Copy Relative Path" 선택 시 현재 커서/선택 라인 번호가 포함된 경로를 복사한다.
    - 단일 라인(커서): `src/foo.ts:L42`
    - 다중 라인 선택: `src/foo.ts:L10-L20`
 2. 파일 트리 우클릭 또는 코드 에디터 헤더 버튼에서의 "Copy Relative Path"는 라인 번호 없이 상대경로만 복사한다.
+
+## 11. 파일 트리 Git 파일 상태 마커 규칙 (F26)
+
+1. `git status --porcelain` 기반으로 워크스페이스 전체의 파일 상태를 조회하여 파일 트리에 badge를 표시한다.
+2. 상태별 badge: **U**(Untracked/Added, 초록 `#73c991`) / **M**(Modified, 주황 `#e2c08d`).
+3. 파일 노드: 해당 파일의 git 상태에 따라 U 또는 M badge를 렌더한다.
+4. 디렉토리 노드: **접힘(collapsed) 상태일 때만** 하위 파일 중 가장 높은 우선순위 상태의 badge를 버블링 표시한다.
+5. 버블링 우선순위: `modified`(2) > `added`/`untracked`(1). 하위에 modified 파일이 하나라도 있으면 M badge.
+6. 디렉토리 확장 시 디렉토리 자체의 버블링 badge는 숨기고, 개별 파일/하위 디렉토리의 badge를 표시한다.
+7. git 저장소가 아닌 워크스페이스에서는 badge를 표시하지 않는다(`statuses={}` 반환).
+8. 기존 watcher 기반 `changedFiles` 마커(주황 `●`)와 독립적으로 공존한다.
+9. 조회 시점: workspace open/hydration, watcher 이벤트 수신, 파일 저장 성공 후.

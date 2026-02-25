@@ -409,6 +409,7 @@ function App() {
     createDirectory,
     deleteFile,
     deleteDirectory,
+    renameFileOrDirectory,
   } = useWorkspace()
   const displayPath = rootPath
     ? abbreviateWorkspacePath(rootPath)
@@ -1429,6 +1430,13 @@ function App() {
     [deleteDirectory, isDirty, activeFile],
   )
 
+  const handleRequestRename = useCallback(
+    async (oldRelativePath: string, newRelativePath: string) => {
+      await renameFileOrDirectory(oldRelativePath, newRelativePath)
+    },
+    [renameFileOrDirectory],
+  )
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -1682,6 +1690,7 @@ function App() {
               onRequestCreateDirectory={handleRequestCreateDirectory}
               onRequestDeleteFile={handleRequestDeleteFile}
               onRequestDeleteDirectory={handleRequestDeleteDirectory}
+              onRequestRename={handleRequestRename}
             />
           </section>
         </div>

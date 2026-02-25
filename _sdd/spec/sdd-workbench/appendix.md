@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F24)
+## A. 기능 이력 (F01~F26)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -42,6 +42,8 @@
 | F24 | Done | 2026-02-25 | CodeMirror 6 기반 코드 에디터(read-only→editable, CM6 검색, Cmd+S 저장, dirty 관리, unsaved guard, Git/Comment gutter extension, 레거시 code-viewer 정리) |
 | F25 | Done | 2026-02-25 | 파일 트리 CRUD(파일/디렉토리 생성·삭제, 우클릭 컨텍스트 메뉴, 인라인 이름 입력, confirm dialog, active file 삭제 상태 초기화, watcher 자동 트리 갱신) |
 | BUG-01 | Fixed | 2026-02-25 | Go to Source — 스펙 뷰에서 호출 시 Code 탭으로 전환되지 않던 버그 수정 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서 수정) |
+| F25b | Done | 2026-02-25 | 파일/디렉토리 Rename: 코멘트 보호 방식(코멘트 있는 대상 rename 차단), 인라인 입력 rename 모드(현재 이름 pre-fill), dirty 파일 rename 거부, active file 경로 갱신(직접 rename + 디렉토리 하위 prefix 치환) |
+| F26 | Done | 2026-02-25 | 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added, 초록)/M(Modified, 주황) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked), workspace open/watcher/save 시 재조회 |
 | BUG-02 | Fixed | 2026-02-25 | Copy Relative Path — 코드 에디터 우클릭 시 라인 번호가 복사되지 않던 버그 수정 (`contextMenuState.selectionRange` 전달 + `buildCopyActiveFilePathPayload` 확장) |
 
 ## B. 상세 수용 기준 (요약)
@@ -76,6 +78,8 @@
 - (F24) CM6 코드 에디터: CM6 기반 코드 뷰어가 기존 CodeViewerPanel의 모든 기능 대체, 다크 테마(github-dark 유사) CM6 theme extension 구현, `@codemirror/search`가 기존 F21 커스텀 검색 대체, `workspace:writeFile` IPC(atomic write + 경계 검사), Cmd+S 수동 저장, dirty 인디케이터 + unsaved changes guard, dirty 파일 외부 변경 시 auto-reload 건너뛰기 + 배너, Git line marker/Comment badge gutter CM6 extension 동작, 우클릭 컨텍스트 메뉴(Copy/Add Comment) CM6 통합
 - (F25) 파일 트리 CRUD: 파일/디렉토리 우클릭 → 생성(인라인 입력 Enter/Escape) + 삭제(confirm dialog), 빈 영역 우클릭 → root level 생성, active file 삭제 시 상태 초기화, dirty file 삭제 시 unsaved confirm 우선, watcher 자동 트리 갱신, orphaned comment 허용(MVP)
 - (BUG-01) Go to Source 탭 전환 수정: `goToActiveSpecSourceLine`에서 `setActiveTab('code')` 순서를 `openSpecRelativePath` 이후로 이동
+- (F25b) 파일/디렉토리 Rename: 우클릭 "Rename" → 인라인 입력(현재 이름 pre-fill) + Enter/Escape, 코멘트 보호(`comments.some` 기반 대상/하위 검사 → 차단 + 에러 배너), dirty 파일 rename 거부, active file 경로 갱신(직접 rename + 디렉토리 prefix 치환), 빈 영역 메뉴에 Rename 미표시
+- (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` → U(untracked/added, 초록 `#73c991`)/M(modified, 주황 `#e2c08d`) badge 렌더, 디렉토리 접힘 시 `buildGitStatusSubtreeMap` 버블링(modified > added/untracked), 디렉토리 확장 시 badge 숨김, git 비저장소 → badge 미표시, watcher/save 시점 재조회 + request ID stale 방지
 - (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
 
 ## C. 리스크/백로그
@@ -99,6 +103,10 @@
 17. (F24) CM6 jsdom 테스트 호환성 — extension 로직을 순수 함수로 분리해 단위 테스트 가능하게 (구현 시 적용 완료)
 18. (F24) dirty 상태에서 watcher race condition — dirty 체크를 watcher handler 내 동기적 수행(ref) (구현 시 적용 완료)
 19. (F24) auto-save, auto-format, LSP, minimap, multi-cursor 커스텀은 F24 범위 밖
+20. (F25b) rename 시 코멘트 보호는 전면 차단 방식이며, 코멘트 경로 마이그레이션(자동 rename) 기능은 미지원
+21. (F25b) rename 대상이 디렉토리일 때 하위 파일 중 하나라도 코멘트가 있으면 전체 차단 — 세분화된 보호(일부만 차단)는 미지원
+22. (F26) Git 파일 상태는 `git status --porcelain` 기반이므로 staged/unstaged 세분화 미지원(MVP)
+23. (F26) git 비저장소 워크스페이스에서는 badge 전체 미표시
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

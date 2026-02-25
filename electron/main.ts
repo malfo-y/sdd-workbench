@@ -140,6 +140,17 @@ type WorkspaceDeleteDirectoryResult = {
   error?: string
 }
 
+type WorkspaceRenameRequest = {
+  rootPath: string
+  oldRelativePath: string
+  newRelativePath: string
+}
+
+type WorkspaceRenameResult = {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGetGitLineMarkersRequest = {
   rootPath: string
   relativePath: string
@@ -1270,6 +1281,65 @@ async function handleWorkspaceDeleteDirectory(
     return {
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to delete directory.',
+    }
+  }
+}
+
+async function handleWorkspaceRename(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceRenameRequest,
+): Promise<WorkspaceRenameResult> {
+  try {
+    const rootPath = request?.rootPath
+    const oldRelativePath = request?.oldRelativePath
+    const newRelativePath = request?.newRelativePath
+    if (!rootPath || !oldRelativePath || !newRelativePath) {
+      return { ok: false, error: 'rootPath, oldRelativePath, and newRelativePath are required.' }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const resolvedOldPath = path.resolve(resolvedRootPath, oldRelativePath)
+    const resolvedNewPath = path.resolve(resolvedRootPath, newRelativePath)
+
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedOldPath)) {
+      return { ok: false, error: 'Cannot rename paths outside the workspace root.' }
+    }
+    if (!isPathInsideWorkspace(resolvedRootPath, resolvedNewPath)) {
+      return { ok: false, error: 'Cannot rename to a path outside the workspace root.' }
+    }
+
+    try {
+      await stat(resolvedOldPath)
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { ok: false, error: 'Source path not found.' }
+      }
+      throw statError
+    }
+
+    try {
+      await stat(resolvedNewPath)
+      return { ok: false, error: 'A file or directory already exists at the target path.' }
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw statError
+      }
+    }
+
+    const targetDir = path.dirname(resolvedNewPath)
+    await mkdir(targetDir, { recursive: true })
+
+    beginWorkspaceWriteOperation()
+    try {
+      await rename(resolvedOldPath, resolvedNewPath)
+      return { ok: true }
+    } finally {
+      endWorkspaceWriteOperation()
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to rename.',
     }
   }
 }
@@ -2460,6 +2530,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:createDirectory')
   ipcMain.removeHandler('workspace:deleteFile')
   ipcMain.removeHandler('workspace:deleteDirectory')
+  ipcMain.removeHandler('workspace:rename')
   ipcMain.removeHandler('workspace:getGitLineMarkers')
   ipcMain.removeHandler('workspace:getGitFileStatuses')
   ipcMain.removeHandler('workspace:readComments')
@@ -2481,6 +2552,7 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:createDirectory', handleWorkspaceCreateDirectory)
   ipcMain.handle('workspace:deleteFile', handleWorkspaceDeleteFile)
   ipcMain.handle('workspace:deleteDirectory', handleWorkspaceDeleteDirectory)
+  ipcMain.handle('workspace:rename', handleWorkspaceRename)
   ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkers)
   ipcMain.handle('workspace:getGitFileStatuses', handleWorkspaceGetGitFileStatuses)
   ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)

@@ -86,6 +86,11 @@ interface WorkspaceDeleteDirectoryResult {
   error?: string
 }
 
+interface WorkspaceRenameResult {
+  ok: boolean
+  error?: string
+}
+
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 
 interface WorkspaceGitLineMarker {
@@ -243,6 +248,11 @@ interface Window {
       rootPath: string,
       relativePath: string,
     ) => Promise<WorkspaceDeleteDirectoryResult>
+    rename: (
+      rootPath: string,
+      oldRelativePath: string,
+      newRelativePath: string,
+    ) => Promise<WorkspaceRenameResult>
     getGitLineMarkers: (
       rootPath: string,
       relativePath: string,

@@ -230,6 +230,13 @@ const workspaceApi = {
       relativePath,
     }) as Promise<WorkspaceDeleteDirectoryResult>
   },
+  rename(rootPath: string, oldRelativePath: string, newRelativePath: string) {
+    return ipcRenderer.invoke('workspace:rename', {
+      rootPath,
+      oldRelativePath,
+      newRelativePath,
+    }) as Promise<WorkspaceRenameResult>
+  },
   getGitLineMarkers(rootPath: string, relativePath: string) {
     return ipcRenderer.invoke('workspace:getGitLineMarkers', {
       rootPath,

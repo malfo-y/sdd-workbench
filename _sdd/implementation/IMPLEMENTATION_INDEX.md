@@ -1,5 +1,25 @@
 # IMPLEMENTATION_INDEX
 
+## F26
+
+### Sync Record - 2026-02-25T10:27:57Z
+
+- note: F26 (Git 파일 상태 마커) 구현 완료 스펙 동기화 (v0.38.0 → v0.39.0)
+- copied files:
+  - `_sdd/implementation/features/F26/SYNC_20260225_102757_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/F26/SYNC_20260225_102757_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/F26/SYNC_20260225_102757_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+## F25b
+
+### Sync Record - 2026-02-25T10:27:57Z
+
+- note: F25b (파일/디렉토리 Rename + 코멘트 보호) 구현 완료 스펙 동기화 (v0.38.0 → v0.39.0)
+- copied files:
+  - `_sdd/implementation/features/F25b/SYNC_20260225_102757_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/F25b/SYNC_20260225_102757_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/F25b/SYNC_20260225_102757_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+
 ## F25
 
 ### Sync Record - 2026-02-25T16:26:47Z
