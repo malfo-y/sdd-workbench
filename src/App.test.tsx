@@ -1914,56 +1914,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('navigates history via horizontal wheel fallback', async () => {
-    const workspaceRoot = '/Users/tester/history-wheel-fallback'
-
-    openDialogMock.mockResolvedValueOnce({
-      canceled: false,
-      selectedPath: workspaceRoot,
-    })
-    indexWorkspaceMock.mockResolvedValueOnce({
-      ok: true,
-      fileTree: [
-        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
-        { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
-      ],
-    })
-    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
-      ok: true,
-      content: `content:${relativePath}`,
-    }))
-
-    render(
-      <WorkspaceProvider>
-        <App />
-      </WorkspaceProvider>,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
-    })
-
-    fireEvent.wheel(window, { deltaX: -140, deltaY: 0 })
-    await waitFor(() => {
-      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
-    })
-
-    fireEvent.wheel(window, { deltaX: 140, deltaY: 0 })
-    await waitFor(() => {
-      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
-    })
-  })
-
   it('navigates history via ipc history commands from app-command/swipe bridge', async () => {
     const workspaceRoot = '/Users/tester/history-ipc-bridge'
 

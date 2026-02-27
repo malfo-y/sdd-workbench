@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.39.0`
-- 마지막 업데이트: `2026-02-25`
+- 문서 버전: `0.40.0`
+- 마지막 업데이트: `2026-02-27`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -27,6 +27,8 @@
   - F25 draft: `/_sdd/drafts/feature_draft_f25_file_tree_crud.md`
   - F25b draft: `/_sdd/drafts/feature_draft_f25b_file_tree_rename.md`
   - F26: git file-level status markers in file tree
+  - F24.1: code editor line wrap toggle button + default On
+  - F07.2: code editor scroll position restore on history navigation
 - 리라이트:
   - 단일 대형 문서(`main.md`)를 인덱스 + 주제별 하위 문서로 분할
   - 결정 로그는 `/_sdd/spec/DECISION_LOG.md`를 source of truth로 유지
@@ -35,7 +37,7 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F26` + `F25b` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 구현 완료 범위: `F01~F26` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump
@@ -55,10 +57,11 @@
   16. (F25) 파일 트리 CRUD: 파일/디렉토리 생성·삭제 + 우클릭 컨텍스트 메뉴 + 인라인 이름 입력 + watcher 기반 트리 자동 갱신
   17. (F25b) 파일/디렉토리 Rename: 코멘트 보호 방식(코멘트 있는 대상 rename 차단), 인라인 입력 rename 모드, active file 경로 갱신
   18. (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added, 초록)/M(Modified, 주황) 뱃지 + 디렉토리 접힘 시 하위 상태 버블링
-- 최신 품질 게이트(2026-02-25):
-  - `npm test` -> `27 files, 398 passed, 1 skipped`
-  - `npm run lint` -> pass
+  19. (F24.1) 코드 에디터 line wrap 토글 버튼: 헤더 "Wrap On/Off" 버튼, `wrapCompartment` 기반 동적 전환, 기본 On(가로 스크롤 방지)
+  20. (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 시 이전 픽셀 스크롤 위치를 복원(런타임, `codeScrollPositionsRef`)
+- 최신 품질 게이트(2026-02-27):
   - `npm run build` -> pass
+  - `npm run lint` -> pass
 
 ---
 
@@ -99,7 +102,7 @@
 
 ## 5. Open Questions
 
-- 현재 없음 (`2026-02-24` 기준)
+- 현재 없음 (`2026-02-27` 기준)
 
 ---
 

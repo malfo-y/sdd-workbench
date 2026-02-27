@@ -46,6 +46,8 @@
 - CodeMirror 6 기반 코드 에디터(read-only→editable), 다크 테마, CM6 검색, Cmd+S 저장 + dirty 상태 관리, unsaved changes guard, Git marker/Comment badge gutter extension
 - 파일 트리 CRUD: 파일/디렉토리 생성(우클릭 → 인라인 입력 → Enter 확정), 삭제(confirm dialog + active file 상태 초기화), Rename(코멘트 보호 방식), watcher 기반 트리 자동 갱신, orphaned comment 허용(MVP)
 - 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added)/M(Modified) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked)
+- 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
+- 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
 
 ### 3.2 MVP 제외 범위
 
@@ -122,7 +124,9 @@
 | CM6 코드 에디터(편집/저장/dirty) + gutter 확장 | Implemented | F24 |
 | 파일 트리 CRUD(생성/삭제/Rename) + 인라인 입력 + watcher 자동 갱신 | Implemented | F25/F25b |
 | 파일 트리 Git 파일 상태 마커(U/M badge + 디렉토리 버블링) | Implemented | F26 |
+| 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
+| 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
 
 ## 6. Open Questions
 
-- 현재 없음 (`2026-02-25` 기준)
+- 현재 없음 (`2026-02-27` 기준)

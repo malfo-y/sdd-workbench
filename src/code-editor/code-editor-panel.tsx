@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { EditorView, lineNumbers, drawSelection, keymap } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { search, searchKeymap } from '@codemirror/search'
-import { defaultKeymap } from '@codemirror/commands'
+import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
 import type { CodeComment } from '../code-comments/comment-types'
@@ -57,6 +57,10 @@ type CodeEditorPanelProps = {
   onSave?: (content: string) => void
   /** Called with true when the document is first modified */
   onDirtyChange?: (dirty: boolean) => void
+  /** Called with the scroll top pixel offset when the editor is scrolled */
+  onScrollChange?: (scrollTop: number) => void
+  /** Pixel scroll offset to restore when the file content is loaded */
+  restoredScrollTop?: number | null
 }
 
 type ContextMenuState = {
@@ -174,7 +178,9 @@ function CopyPathIcon() {
 
 type ExtensionBuilderParams = {
   readOnlyCompartment: Compartment
+  wrapCompartment: Compartment
   editable: boolean
+  isLineWrapEnabled: boolean
   onSaveRef: MutableRefObject<((content: string) => void) | undefined>
   onSelectRangeRef: MutableRefObject<(range: LineSelectionRange | null) => void>
   onDirtyChangeRef: MutableRefObject<((dirty: boolean) => void) | undefined>
@@ -188,7 +194,9 @@ function buildExtensions(
 ) {
   const {
     readOnlyCompartment,
+    wrapCompartment,
     editable,
+    isLineWrapEnabled,
     onSaveRef,
     onSelectRangeRef,
     onDirtyChangeRef,
@@ -202,7 +210,9 @@ function buildExtensions(
       (lineNum, rect) => onCommentHoverRef.current?.(lineNum, rect),
       () => onCommentLeaveRef.current?.(),
     ),
+    history(),
     readOnlyCompartment.of(EditorState.readOnly.of(!editable)),
+    wrapCompartment.of(isLineWrapEnabled ? EditorView.lineWrapping : []),
     lineNumbers(),
     drawSelection(),
     search(),
@@ -214,6 +224,7 @@ function buildExtensions(
           return true
         },
       },
+      ...historyKeymap,
       ...searchKeymap,
       ...defaultKeymap,
     ]),
@@ -272,6 +283,8 @@ export function CodeEditorPanel({
   editable = false,
   onSave,
   onDirtyChange,
+  onScrollChange,
+  restoredScrollTop = null,
 }: CodeEditorPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -279,7 +292,12 @@ export function CodeEditorPanel({
   const onSelectRangeRef = useRef(onSelectRange)
   const onSaveRef = useRef(onSave)
   const onDirtyChangeRef = useRef(onDirtyChange)
+  const onScrollChangeRef = useRef(onScrollChange)
+  const restoredScrollTopRef = useRef<number | null>(restoredScrollTop ?? null)
   const readOnlyCompartment = useRef(new Compartment())
+  const wrapCompartment = useRef(new Compartment())
+  const [isLineWrapEnabled, setIsLineWrapEnabled] = useState(true)
+  const isLineWrapEnabledRef = useRef(isLineWrapEnabled)
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
     null,
   )
@@ -311,6 +329,18 @@ export function CodeEditorPanel({
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange
   }, [onDirtyChange])
+
+  useEffect(() => {
+    onScrollChangeRef.current = onScrollChange
+  }, [onScrollChange])
+
+  useEffect(() => {
+    restoredScrollTopRef.current = restoredScrollTop ?? null
+  }, [restoredScrollTop])
+
+  useEffect(() => {
+    isLineWrapEnabledRef.current = isLineWrapEnabled
+  }, [isLineWrapEnabled])
 
   // Keep gutter data refs up to date
   useEffect(() => {
@@ -380,7 +410,9 @@ export function CodeEditorPanel({
         doc: '',
         extensions: buildExtensions({
           readOnlyCompartment: readOnlyCompartment.current,
+          wrapCompartment: wrapCompartment.current,
           editable,
+          isLineWrapEnabled,
           onSaveRef,
           onSelectRangeRef,
           onDirtyChangeRef,
@@ -392,7 +424,13 @@ export function CodeEditorPanel({
     })
     viewRef.current = view
 
+    const handleScroll = () => {
+      onScrollChangeRef.current?.(view.scrollDOM.scrollTop)
+    }
+    view.scrollDOM.addEventListener('scroll', handleScroll)
+
     return () => {
+      view.scrollDOM.removeEventListener('scroll', handleScroll)
       view.destroy()
       viewRef.current = null
     }
@@ -412,6 +450,19 @@ export function CodeEditorPanel({
       ),
     })
   }, [editable])
+
+  // ---- Reconfigure line wrap compartment when wrap toggle changes ---------
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) {
+      return
+    }
+    view.dispatch({
+      effects: wrapCompartment.current.reconfigure(
+        isLineWrapEnabled ? EditorView.lineWrapping : [],
+      ),
+    })
+  }, [isLineWrapEnabled])
 
   // ---- Update document when file content or file changes -----------------
   useEffect(() => {
@@ -433,7 +484,9 @@ export function CodeEditorPanel({
       const extensions = buildExtensions(
         {
           readOnlyCompartment: readOnlyCompartment.current,
+          wrapCompartment: wrapCompartment.current,
           editable,
+          isLineWrapEnabled: isLineWrapEnabledRef.current,
           onSaveRef,
           onSelectRangeRef,
           onDirtyChangeRef,
@@ -448,6 +501,17 @@ export function CodeEditorPanel({
         extensions,
       })
       view.setState(newState)
+
+      // Restore scroll position after content is set
+      const targetScrollTop = restoredScrollTopRef.current
+      if (typeof targetScrollTop === 'number' && Number.isFinite(targetScrollTop) && targetScrollTop > 0) {
+        const scrollTop = Math.trunc(targetScrollTop)
+        requestAnimationFrame(() => {
+          if (!cancelled) {
+            view.scrollDOM.scrollTop = scrollTop
+          }
+        })
+      }
 
       // Dispatch gutter markers after setState so the new state includes the fields
       const gitMap: Map<number, GitMarkerKind> = new Map()
@@ -466,7 +530,7 @@ export function CodeEditorPanel({
     return () => {
       cancelled = true
     }
-  }, [activeFileContent, activeFile])
+  }, [activeFileContent, activeFile, editable])
 
   // ---- Jump to line ------------------------------------------------------
   useEffect(() => {
@@ -555,22 +619,37 @@ export function CodeEditorPanel({
       <header className="code-viewer-header">
         <div className="code-viewer-title-row">
           <p className="label">Code Preview</p>
-          <button
-            aria-label="Copy active file path"
-            className="code-viewer-copy-path-button"
-            data-testid="code-viewer-copy-path-button"
-            disabled={!activeFile}
-            onClick={() => {
-              if (!activeFile) {
-                return
-              }
-              onRequestCopyRelativePath(activeFile)
-            }}
-            title="Copy active file path"
-            type="button"
-          >
-            <CopyPathIcon />
-          </button>
+          <div className="code-viewer-header-actions">
+            <button
+              aria-label="Toggle code wrap"
+              aria-pressed={isLineWrapEnabled}
+              className="code-viewer-wrap-toggle-button"
+              data-testid="code-viewer-wrap-toggle"
+              onClick={() => {
+                setIsLineWrapEnabled((previous) => !previous)
+              }}
+              title={isLineWrapEnabled ? 'Disable line wrap' : 'Enable line wrap'}
+              type="button"
+            >
+              Wrap {isLineWrapEnabled ? 'On' : 'Off'}
+            </button>
+            <button
+              aria-label="Copy active file path"
+              className="code-viewer-copy-path-button"
+              data-testid="code-viewer-copy-path-button"
+              disabled={!activeFile}
+              onClick={() => {
+                if (!activeFile) {
+                  return
+                }
+                onRequestCopyRelativePath(activeFile)
+              }}
+              title="Copy active file path"
+              type="button"
+            >
+              <CopyPathIcon />
+            </button>
+          </div>
         </div>
         <p
           className="path"

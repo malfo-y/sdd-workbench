@@ -45,6 +45,8 @@
 | F25b | Done | 2026-02-25 | 파일/디렉토리 Rename: 코멘트 보호 방식(코멘트 있는 대상 rename 차단), 인라인 입력 rename 모드(현재 이름 pre-fill), dirty 파일 rename 거부, active file 경로 갱신(직접 rename + 디렉토리 하위 prefix 치환) |
 | F26 | Done | 2026-02-25 | 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added, 초록)/M(Modified, 주황) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked), workspace open/watcher/save 시 재조회 |
 | BUG-02 | Fixed | 2026-02-25 | Copy Relative Path — 코드 에디터 우클릭 시 라인 번호가 복사되지 않던 버그 수정 (`contextMenuState.selectionRange` 전달 + `buildCopyActiveFilePathPayload` 확장) |
+| F24.1 | Done | 2026-02-27 | 코드 에디터 line wrap 토글 버튼(헤더 Wrap On/Off, `wrapCompartment` 기반 동적 전환, 기본 On) |
+| F07.2 | Done | 2026-02-27 | 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 시 픽셀 스크롤 복원(`codeScrollPositionsRef`, `onScrollChange`/`restoredScrollTop` prop, rAF 기반 적용) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -81,13 +83,15 @@
 - (F25b) 파일/디렉토리 Rename: 우클릭 "Rename" → 인라인 입력(현재 이름 pre-fill) + Enter/Escape, 코멘트 보호(`comments.some` 기반 대상/하위 검사 → 차단 + 에러 배너), dirty 파일 rename 거부, active file 경로 갱신(직접 rename + 디렉토리 prefix 치환), 빈 영역 메뉴에 Rename 미표시
 - (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` → U(untracked/added, 초록 `#73c991`)/M(modified, 주황 `#e2c08d`) badge 렌더, 디렉토리 접힘 시 `buildGitStatusSubtreeMap` 버블링(modified > added/untracked), 디렉토리 확장 시 badge 숨김, git 비저장소 → badge 미표시, watcher/save 시점 재조회 + request ID stale 방지
 - (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
+- (F24.1) 코드 에디터 line wrap 토글: 헤더에 "Wrap On/Off" 버튼, 기본 On, 클릭으로 동적 전환(`wrapCompartment.reconfigure`), `aria-pressed` 반영, 가로 스크롤 방지로 트랙패드 wheel 히스토리 내비게이션 안정화
+- (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 후 해당 파일의 마지막 픽셀 스크롤 위치를 복원; 저장: `view.scrollDOM` native scroll 이벤트 → `codeScrollPositionsRef[workspaceId::relativePath]`; 복원: 콘텐츠 재로드(`view.setState`) 직후 `requestAnimationFrame`으로 `scrollDOM.scrollTop` 적용; 첫 방문 시 복원 없음(scrollTop=0 유지)
 
 ## C. 리스크/백로그
 
 1. activeHeading/TOC active 추적은 미지원(스크롤 위치 복원과 별개)
 2. non-line hash heading jump 정밀화는 backlog
 3. watcher 튜닝(대규모 repo 이벤트 편차) 여지
-4. wheel fallback 임계값 튜닝 필요 가능성
+4. **[Known Issue] 트랙패드 스와이프 파일 히스토리 내비게이션 미지원** — wheel 이벤트 기반 구현 시 CodeMirror `.cm-scroller`의 가로 스크롤과 제스처 공간 충돌로 신뢰 가능한 UX 달성 불가. Electron `win.on('swipe', ...)` (3-finger)는 3-finger drag를 다른 용도로 쓰는 경우 사용 불가. 현재 대안: **line wrap 기본 On**(가로 스크롤 제거), 키보드 단축키 / 헤더 버튼 / 마우스 사이드버튼(button 3/4)으로 내비게이션. 근본 해결은 macOS rubber-band overscroll API 또는 별도 제스처 영역 필요(백로그).
 5. source line mapping은 line-level best-effort 한계 존재
 6. 코멘트 relocation(AST/semantic)은 미지원
 7. marker 상세 패널/코멘트 스레드 UI 미지원

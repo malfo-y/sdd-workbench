@@ -432,6 +432,7 @@ function App() {
   const previousActiveFileRef = useRef<string | null>(null)
   const historyNavigationRef = useRef(false)
   const specScrollPositionsRef = useRef<Record<string, number>>({})
+  const codeScrollPositionsRef = useRef<Record<string, number>>({})
   const [commentDraftState, setCommentDraftState] =
     useState<CommentDraftState | null>(null)
   const [globalCommentsModalState, setGlobalCommentsModalState] =
@@ -1160,6 +1161,26 @@ function App() {
         ] ?? null
       : null
 
+  const handleCodeScrollChange = useCallback(
+    (scrollTop: number) => {
+      if (!activeWorkspaceId || !activeFile) {
+        return
+      }
+
+      codeScrollPositionsRef.current[
+        buildSpecScrollStateKey(activeWorkspaceId, activeFile)
+      ] = scrollTop
+    },
+    [activeWorkspaceId, activeFile],
+  )
+
+  const restoredCodeScrollTop =
+    activeWorkspaceId && activeFile
+      ? codeScrollPositionsRef.current[
+          buildSpecScrollStateKey(activeWorkspaceId, activeFile)
+        ] ?? null
+      : null
+
   useEffect(() => {
     if (!activeFile) {
       previousActiveFileRef.current = null
@@ -1726,6 +1747,8 @@ function App() {
               editable
               onSave={saveFile}
               onDirtyChange={(dirty) => { if (dirty) markFileDirty() }}
+              onScrollChange={handleCodeScrollChange}
+              restoredScrollTop={restoredCodeScrollTop}
             />
           </div>
           <div className={`content-pane-wrapper${activeTab !== 'spec' ? ' is-hidden' : ''}`} data-testid="content-pane-spec">

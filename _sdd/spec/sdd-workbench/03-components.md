@@ -17,6 +17,8 @@
   - `Cmd+Shift+Up/Down` 키보드 워크스페이스 순환 전환 리스너
   - `Cmd+Shift+Left/Right` 키보드 탭 전환 리스너
   - 리사이즈 핸들 1개(사이드바 ↔ 콘텐츠), `PaneSizes = { left, content }`
+  - `codeScrollPositionsRef: Record<string, number>` — 파일별 코드 에디터 픽셀 스크롤 위치(키: `workspaceId::relativePath`) (F07.2)
+  - `handleCodeScrollChange(scrollTop)` + `restoredCodeScrollTop` — 히스토리 이동 시 스크롤 위치 저장/복원 orchestration (F07.2)
 - `src/App.css`
   - 2열 CSS Grid 레이아웃(`--pane-left` + `--pane-content`), 리사이저 1개
   - `content-tab-bar`/`content-tab-button` 탭 전환 스타일(활성/비활성 시각 구분)
@@ -66,11 +68,15 @@
 - `src/code-editor/code-editor-panel.tsx`  - CodeMirror 6 기반 코드 읽기/편집 통합 컴포넌트
   - React ref → `EditorView` 생성/소멸, Extensions 관리
   - `Compartment` 기반 `readOnly` 동적 전환
+  - `wrapCompartment` (`Compartment`) 기반 line wrap 동적 전환 (F24.1)
+  - 헤더 "Wrap On/Off" 토글 버튼(`data-testid="code-viewer-wrap-toggle"`, `aria-pressed`), 기본 On(가로 스크롤 방지 → 트랙패드 wheel 히스토리 내비게이션 안정화) (F24.1)
   - `@codemirror/search` 내장 검색(기존 F21 커스텀 검색 대체)
   - `Mod-s` keymap → `onSave(doc.toString())` + `updateListener`에서 `docChanged` → dirty
   - Image/binary/too-large fallback UI 유지
   - Jump-to-line via `EditorView.scrollIntoView`
   - 컨텍스트 메뉴(Copy/Add Comment) CM6 `domEventHandlers` 통합
+  - `onScrollChange?: (scrollTop: number) => void` prop — `view.scrollDOM` native scroll 이벤트 감지 후 상위 전달 (F07.2)
+  - `restoredScrollTop?: number | null` prop — 콘텐츠 로드(`view.setState`) 후 `requestAnimationFrame`으로 픽셀 스크롤 복원 (F07.2)
 - `src/code-editor/cm6-dark-theme.ts`  - github-dark 유사 다크 테마(`EditorView.theme` + `syntaxHighlighting(oneDarkHighlightStyle)`)
   - 배경 `#1a1a1a`, 텍스트 `#d3d3d3`, gutter `#7d7d7d`, 선택 `rgba(78,140,198,0.2)`
 - `src/code-editor/cm6-language-map.ts`  - 파일 확장자 → CM6 `LanguageSupport` lazy mapping (13개 언어 + plaintext fallback)

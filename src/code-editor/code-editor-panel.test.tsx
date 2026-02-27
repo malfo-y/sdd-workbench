@@ -243,6 +243,34 @@ describe('CodeEditorPanel', () => {
     ).toBeDisabled()
   })
 
+  it('toggles code wrap on and off from header button', async () => {
+    render(
+      <CodeEditorPanel
+        {...makeDefaultProps()}
+        activeFile="src/example.ts"
+        activeFileContent={'const alpha = 1\nconst beta = 2'}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    const wrapToggle = screen.getByTestId('code-viewer-wrap-toggle')
+    expect(wrapToggle).toHaveTextContent('Wrap Off')
+    expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(wrapToggle)
+    expect(wrapToggle).toHaveTextContent('Wrap On')
+    expect(wrapToggle).toHaveAttribute('aria-pressed', 'true')
+    expect(container.querySelector('.cm-lineWrapping')).not.toBeNull()
+
+    fireEvent.click(wrapToggle)
+    expect(wrapToggle).toHaveTextContent('Wrap Off')
+    expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
+  })
+
   // ---- CM6 container rendering -------------------------------------------
 
   it('renders CM6 editor container when text content is available', () => {
