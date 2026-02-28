@@ -178,6 +178,7 @@ type WorkspaceRemoteConnectionProfile = {
   user?: string
   port?: number
   agentPath?: string
+  identityFile?: string
   requestTimeoutMs?: number
   connectTimeoutMs?: number
 }

@@ -25,7 +25,7 @@ describe('remote-agent/security', () => {
 
   it('redacts sensitive values from remote error messages', () => {
     const message = redactRemoteErrorMessage(
-      'ssh stderr: Permission denied (publickey). password=my-secret /Users/tester/.ssh/id_rsa',
+      'ssh stderr: Permission denied (publickey). password=my-secret /Users/tester/.ssh/id_rsa ~/.ssh/id_ed25519',
     )
 
     expect(message).toContain('Permission denied')
@@ -33,5 +33,6 @@ describe('remote-agent/security', () => {
     expect(message).toContain('[REDACTED_PATH]')
     expect(message).not.toContain('my-secret')
     expect(message).not.toContain('/Users/tester/.ssh/id_rsa')
+    expect(message).not.toContain('~/.ssh/id_ed25519')
   })
 })

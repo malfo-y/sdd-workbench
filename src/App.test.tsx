@@ -628,6 +628,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
       target: { value: '/srv/project-a' },
     })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_ed25519' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
     await waitFor(() => {
@@ -635,6 +638,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         expect.objectContaining({
           host: 'example.com',
           remoteRoot: '/srv/project-a',
+          identityFile: '~/.ssh/id_ed25519',
         }),
       )
     })
@@ -782,6 +786,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
       target: { value: 'remote-workspace-retry' },
     })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_ed25519' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
     await waitFor(() => {
@@ -816,6 +823,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         workspaceId: 'remote-workspace-retry',
         host: 'retry.example.com',
         remoteRoot: '/srv/retry',
+        identityFile: '~/.ssh/id_ed25519',
       }),
     )
   })
@@ -920,7 +928,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       emitRemoteConnectionEvent({
         workspaceId: 'remote-workspace-redact',
         state: 'disconnected',
-        message: 'ssh stderr: password=hunter2 /Users/tester/.ssh/id_ed25519',
+        message: 'ssh stderr: password=hunter2 ~/.ssh/id_ed25519 /Users/tester/.ssh/id_ed25519',
         occurredAt: new Date().toISOString(),
       })
     })
@@ -932,6 +940,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByRole('alert')).not.toHaveTextContent('hunter2')
     expect(screen.getByRole('alert')).not.toHaveTextContent(
       '/Users/tester/.ssh/id_ed25519',
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      '~/.ssh/id_ed25519',
     )
   })
 

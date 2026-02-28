@@ -181,11 +181,27 @@ function shellEscape(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
-function buildSshArgs(profile: RemoteConnectionProfile, command: string): string[] {
+function appendIdentityArgs(
+  profile: RemoteConnectionProfile,
+  args: string[],
+): void {
+  const identityFile = profile.identityFile?.trim()
+  if (!identityFile) {
+    return
+  }
+  args.push('-i', identityFile)
+  args.push('-o', 'IdentitiesOnly=yes')
+}
+
+export function buildSshArgs(
+  profile: RemoteConnectionProfile,
+  command: string,
+): string[] {
   const args: string[] = []
   if (profile.port) {
     args.push('-p', String(profile.port))
   }
+  appendIdentityArgs(profile, args)
 
   const timeoutSeconds = Math.max(
     1,

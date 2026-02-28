@@ -2,7 +2,10 @@ import { PassThrough } from 'node:stream'
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { REMOTE_AGENT_PROTOCOL_VERSION, RemoteAgentError } from './protocol'
-import { createSshRemoteAgentTransport } from './transport-ssh'
+import {
+  buildSshProcessArgs,
+  createSshRemoteAgentTransport,
+} from './transport-ssh'
 import type { RemoteConnectionProfile } from './types'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import type { RemoteAgentBootstrapResult } from './bootstrap'
@@ -35,6 +38,46 @@ const bootstrapResult: RemoteAgentBootstrapResult = {
 }
 
 describe('remote-agent/transport-ssh', () => {
+  it('adds -i and IdentitiesOnly=yes when identityFile is provided', () => {
+    const args = buildSshProcessArgs(
+      {
+        ...profile,
+        user: 'tester',
+        port: 2222,
+        identityFile: '~/.ssh/id_ed25519',
+      },
+      bootstrapResult,
+    )
+
+    expect(args).toEqual([
+      '-p',
+      '2222',
+      '-i',
+      '~/.ssh/id_ed25519',
+      '-o',
+      'IdentitiesOnly=yes',
+      '-o',
+      'ConnectTimeout=10',
+      'tester@example.com',
+      'sh',
+      '-lc',
+      `/agent --stdio --protocol-version ${REMOTE_AGENT_PROTOCOL_VERSION} --workspace-root '/repo'`,
+    ])
+  })
+
+  it('keeps existing ssh args when identityFile is missing', () => {
+    const args = buildSshProcessArgs(profile, bootstrapResult)
+
+    expect(args).toEqual([
+      '-o',
+      'ConnectTimeout=10',
+      'example.com',
+      'sh',
+      '-lc',
+      `/agent --stdio --protocol-version ${REMOTE_AGENT_PROTOCOL_VERSION} --workspace-root '/repo'`,
+    ])
+  })
+
   it('matches responses by request id', async () => {
     const fakeProcess = new FakeChildProcess()
     const stdinChunks: string[] = []

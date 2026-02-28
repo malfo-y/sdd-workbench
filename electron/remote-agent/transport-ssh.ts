@@ -373,10 +373,33 @@ function spawnSshProcess(
   profile: RemoteConnectionProfile,
   bootstrap: RemoteAgentBootstrapResult,
 ): ChildProcessWithoutNullStreams {
+  const args = buildSshProcessArgs(profile, bootstrap)
+  return spawn('ssh', args, {
+    stdio: 'pipe',
+  })
+}
+
+function appendIdentityArgs(
+  profile: RemoteConnectionProfile,
+  args: string[],
+): void {
+  const identityFile = profile.identityFile?.trim()
+  if (!identityFile) {
+    return
+  }
+  args.push('-i', identityFile)
+  args.push('-o', 'IdentitiesOnly=yes')
+}
+
+export function buildSshProcessArgs(
+  profile: RemoteConnectionProfile,
+  bootstrap: RemoteAgentBootstrapResult,
+): string[] {
   const args: string[] = []
   if (profile.port) {
     args.push('-p', String(profile.port))
   }
+  appendIdentityArgs(profile, args)
 
   const timeoutSeconds = Math.max(
     1,
@@ -395,9 +418,7 @@ function spawnSshProcess(
   ].join(' ')
   args.push('sh', '-lc', remoteCommand)
 
-  return spawn('ssh', args, {
-    stdio: 'pipe',
-  })
+  return args
 }
 
 function shellEscape(value: string): string {

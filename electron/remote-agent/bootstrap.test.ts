@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { bootstrapRemoteAgent } from './bootstrap'
+import { bootstrapRemoteAgent, buildSshArgs } from './bootstrap'
 import { RemoteAgentError, REMOTE_AGENT_PROTOCOL_VERSION } from './protocol'
 import type { RemoteConnectionProfile } from './types'
 
@@ -10,6 +10,45 @@ const profile: RemoteConnectionProfile = {
 }
 
 describe('remote-agent/bootstrap', () => {
+  it('adds -i and IdentitiesOnly=yes when identityFile is provided', () => {
+    const args = buildSshArgs(
+      {
+        ...profile,
+        identityFile: '~/.ssh/id_ed25519',
+        port: 2222,
+      },
+      "'echo hello'",
+    )
+
+    expect(args).toEqual([
+      '-p',
+      '2222',
+      '-i',
+      '~/.ssh/id_ed25519',
+      '-o',
+      'IdentitiesOnly=yes',
+      '-o',
+      'ConnectTimeout=10',
+      'example.com',
+      'sh',
+      '-lc',
+      "'echo hello'",
+    ])
+  })
+
+  it('keeps existing ssh args when identityFile is missing', () => {
+    const args = buildSshArgs(profile, "'echo hello'")
+
+    expect(args).toEqual([
+      '-o',
+      'ConnectTimeout=10',
+      'example.com',
+      'sh',
+      '-lc',
+      "'echo hello'",
+    ])
+  })
+
   it('passes when agent already exists with compatible version', async () => {
     const installAgent = vi.fn(async () => undefined)
 

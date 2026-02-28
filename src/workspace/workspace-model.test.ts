@@ -305,6 +305,7 @@ describe('workspace-model', () => {
             host: 'example.com',
             user: 'tester',
             remoteRoot: '/repo',
+            identityFile: '~/.ssh/id_ed25519',
           },
         },
       },
@@ -324,6 +325,7 @@ describe('workspace-model', () => {
         host: 'example.com',
         user: 'tester',
         remoteRoot: '/repo',
+        identityFile: '~/.ssh/id_ed25519',
       },
     })
   })

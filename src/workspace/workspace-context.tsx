@@ -135,6 +135,7 @@ type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
 const WORKSPACE_INDEX_NODE_CAP = 10_000
 const REMOTE_SENSITIVE_KEY_VALUE_PATTERN =
   /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
+const REMOTE_HOME_SSH_PATH_PATTERN = /~\/\.ssh\/[^\s'":;,)]+/g
 const REMOTE_ABSOLUTE_PATH_PATTERN =
   /(?:[A-Za-z]:\\|\/)(?:[^\\/\s'":]+[\\/])*[^\\/\s'":]*/g
 
@@ -163,6 +164,7 @@ function getWorkspaceIndexTruncationMessage() {
 function sanitizeRemoteBannerMessage(rawMessage: string): string {
   return rawMessage
     .replace(REMOTE_SENSITIVE_KEY_VALUE_PATTERN, (_input, key) => `${key}=[REDACTED]`)
+    .replace(REMOTE_HOME_SSH_PATH_PATTERN, '[REDACTED_PATH]')
     .replace(REMOTE_ABSOLUTE_PATH_PATTERN, '[REDACTED_PATH]')
     .replace(/\s+/g, ' ')
     .trim()
@@ -1131,6 +1133,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         host,
         remoteRoot,
         ...(profile.user?.trim() ? { user: profile.user.trim() } : {}),
+        ...(profile.agentPath?.trim() ? { agentPath: profile.agentPath.trim() } : {}),
+        ...(profile.identityFile?.trim()
+          ? { identityFile: profile.identityFile.trim() }
+          : {}),
       }
 
       try {

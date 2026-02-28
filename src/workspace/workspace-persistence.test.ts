@@ -123,6 +123,7 @@ describe('workspace-persistence', () => {
           user: 'tester',
           remoteRoot: '/repo',
           port: 2222,
+          identityFile: '~/.ssh/id_ed25519',
         },
       },
     }).state
@@ -145,6 +146,7 @@ describe('workspace-persistence', () => {
         user: 'tester',
         remoteRoot: '/repo',
         port: 2222,
+        identityFile: '~/.ssh/id_ed25519',
       },
       remoteConnectionState: 'degraded',
       remoteErrorCode: 'TIMEOUT',

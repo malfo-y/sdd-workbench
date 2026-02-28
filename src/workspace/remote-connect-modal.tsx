@@ -28,6 +28,7 @@ export function RemoteConnectModal({
   const [portInput, setPortInput] = useState('')
   const [remoteRoot, setRemoteRoot] = useState('')
   const [agentPath, setAgentPath] = useState('')
+  const [identityFile, setIdentityFile] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function RemoteConnectModal({
     setPortInput('')
     setRemoteRoot('')
     setAgentPath('')
+    setIdentityFile('')
     setValidationError(null)
   }, [isOpen])
 
@@ -86,13 +88,14 @@ export function RemoteConnectModal({
             ...(user.trim() ? { user: user.trim() } : {}),
             ...(parsedPort !== null ? { port: parsedPort } : {}),
             ...(agentPath.trim() ? { agentPath: agentPath.trim() } : {}),
+            ...(identityFile.trim() ? { identityFile: identityFile.trim() } : {}),
           })
         }}
         role="dialog"
       >
         <h2>Connect Remote Workspace</h2>
         <p className="comment-modal-meta">
-          MVP connection profile. Credentials are not stored.
+          MVP connection profile. Secrets are not stored, but SSH key path may be saved for reconnect.
         </p>
         <label className="comment-modal-label" htmlFor="remote-connect-host">
           Host
@@ -178,6 +181,20 @@ export function RemoteConnectModal({
           placeholder="~/.sdd-workbench/remote-agent.sh"
           type="text"
           value={agentPath}
+        />
+        <label className="comment-modal-label" htmlFor="remote-connect-identity-file">
+          Identity File (optional)
+        </label>
+        <input
+          className="remote-connect-input"
+          data-testid="remote-connect-identity-file-input"
+          id="remote-connect-identity-file"
+          onChange={(event) => {
+            setIdentityFile(event.target.value)
+          }}
+          placeholder="~/.ssh/id_ed25519"
+          type="text"
+          value={identityFile}
         />
         {validationError && <p className="comment-modal-warning">{validationError}</p>}
         <div className="comment-modal-actions">

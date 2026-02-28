@@ -27,6 +27,7 @@ const REMOTE_WORKSPACE_METHOD_ALLOWLIST_SET = new Set<string>(
 
 const ABSOLUTE_PATH_PATTERN =
   /(?:[A-Za-z]:\\|\/)(?:[^\\/\s'":]+[\\/])*[^\\/\s'":]*/g
+const HOME_SSH_PATH_PATTERN = /~\/\.ssh\/[^\s'":;,)]+/g
 const KEY_VALUE_SECRET_PATTERN =
   /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
 const SSH_STDERR_PATTERN = /\bssh(?:\s+\w+)*\s+stderr\s*:\s*/gi
@@ -60,6 +61,7 @@ export function redactRemoteErrorMessage(
   let sanitized = message
     .replace(SSH_STDERR_PATTERN, '')
     .replace(KEY_VALUE_SECRET_PATTERN, (_input, key) => `${key}=[REDACTED]`)
+    .replace(HOME_SSH_PATH_PATTERN, '[REDACTED_PATH]')
     .replace(ABSOLUTE_PATH_PATTERN, '[REDACTED_PATH]')
     .replace(WHITESPACE_PATTERN, ' ')
     .trim()
