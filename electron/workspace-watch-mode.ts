@@ -16,24 +16,6 @@ export type ResolveWorkspaceWatchModeResult = {
   resolvedBy: WorkspaceWatchModeResolvedBy
 }
 
-const REMOTE_MOUNT_ROOT = '/Volumes'
-const REMOTE_MOUNT_PREFIX = `${REMOTE_MOUNT_ROOT}/`
-
-function normalizePathForWatchMode(pathValue: string): string {
-  const slashNormalizedPath = pathValue.replace(/\\/g, '/')
-  return slashNormalizedPath.length > 1
-    ? slashNormalizedPath.replace(/\/+$/, '')
-    : slashNormalizedPath
-}
-
-function isRemoteMountedWorkspace(rootPath: string): boolean {
-  const normalizedPath = normalizePathForWatchMode(rootPath)
-  return (
-    normalizedPath === REMOTE_MOUNT_ROOT ||
-    normalizedPath.startsWith(REMOTE_MOUNT_PREFIX)
-  )
-}
-
 function resolvePreference(
   watchModePreference: WorkspaceWatchModePreference | undefined,
 ): WorkspaceWatchModePreference {
@@ -51,8 +33,7 @@ export function resolveWorkspaceWatchMode(
   input: ResolveWorkspaceWatchModeInput,
 ): ResolveWorkspaceWatchModeResult {
   const preference = resolvePreference(input.watchModePreference)
-  const isRemoteMounted =
-    input.isRemoteMountedHint === true || isRemoteMountedWorkspace(input.rootPath)
+  const isRemoteMounted = input.isRemoteMountedHint === true
 
   if (preference === 'native' || preference === 'polling') {
     return {

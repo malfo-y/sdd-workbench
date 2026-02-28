@@ -27,6 +27,9 @@ import {
   type LineSelectionRange,
   type WorkspaceId,
   type WorkspaceGitLineMarker,
+  type WorkspaceKind,
+  type WorkspaceRemoteConnectionState,
+  type WorkspaceRemoteProfile,
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
   type WorkspaceState,
@@ -46,6 +49,10 @@ type WorkspaceContextValue = {
   workspaces: Array<{ id: WorkspaceId; rootPath: string }>
   activeWorkspaceId: WorkspaceId | null
   rootPath: string | null
+  workspaceKind: WorkspaceKind | null
+  remoteProfile: WorkspaceRemoteProfile | null
+  remoteConnectionState: WorkspaceRemoteConnectionState | null
+  remoteErrorCode: string | null
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
   gitFileStatuses: Record<string, GitFileStatusKind>
@@ -80,6 +87,9 @@ type WorkspaceContextValue = {
   bannerMessage: string | null
   markFileDirty: () => void
   openWorkspace: () => Promise<void>
+  connectRemoteWorkspace: (profile: WorkspaceRemoteProfile) => Promise<boolean>
+  disconnectRemoteWorkspace: (workspaceId?: WorkspaceId) => Promise<boolean>
+  retryRemoteWorkspaceConnection: (workspaceId?: WorkspaceId) => Promise<boolean>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
   switchWorkspace: (workspaceId: WorkspaceId) => void
   closeWorkspace: (workspaceId: WorkspaceId) => void
@@ -123,6 +133,10 @@ type WorkspaceProviderProps = {
 
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
 const WORKSPACE_INDEX_NODE_CAP = 10_000
+const REMOTE_SENSITIVE_KEY_VALUE_PATTERN =
+  /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
+const REMOTE_ABSOLUTE_PATH_PATTERN =
+  /(?:[A-Za-z]:\\|\/)(?:[^\\/\s'":]+[\\/])*[^\\/\s'":]*/g
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
@@ -144,6 +158,36 @@ function getSpecPreviewUnavailableMessage(
 
 function getWorkspaceIndexTruncationMessage() {
   return `Workspace index truncated at ${WORKSPACE_INDEX_NODE_CAP.toLocaleString()} nodes.`
+}
+
+function sanitizeRemoteBannerMessage(rawMessage: string): string {
+  return rawMessage
+    .replace(REMOTE_SENSITIVE_KEY_VALUE_PATTERN, (_input, key) => `${key}=[REDACTED]`)
+    .replace(REMOTE_ABSOLUTE_PATH_PATTERN, '[REDACTED_PATH]')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getRemoteConnectionErrorMessage(
+  errorCode?: string,
+  fallbackMessage?: string,
+): string {
+  if (errorCode === 'AUTH_FAILED') {
+    return 'Remote connection failed (AUTH_FAILED). Check SSH credentials and permissions.'
+  }
+  if (errorCode === 'TIMEOUT') {
+    return 'Remote connection timed out (TIMEOUT).'
+  }
+  if (errorCode === 'AGENT_PROTOCOL_MISMATCH') {
+    return 'Remote agent protocol mismatch (AGENT_PROTOCOL_MISMATCH).'
+  }
+  if (errorCode === 'PATH_DENIED') {
+    return 'Remote workspace path denied (PATH_DENIED).'
+  }
+  if (fallbackMessage && fallbackMessage.trim().length > 0) {
+    return sanitizeRemoteBannerMessage(fallbackMessage)
+  }
+  return 'Failed to connect remote workspace.'
 }
 
 function withoutChangedFileMarker(changedFiles: string[], relativePath: string) {
@@ -213,19 +257,34 @@ function createWorkspaceStateFromSnapshot(
     const addResult = addOrFocusWorkspace(
       nextState,
       persistedWorkspaceSession.rootPath,
+      {
+        workspaceId,
+        sessionOptions: {
+          workspaceKind: persistedWorkspaceSession.workspaceKind,
+          remoteWorkspaceId: persistedWorkspaceSession.remoteWorkspaceId,
+          remoteProfile: persistedWorkspaceSession.remoteProfile,
+          remoteConnectionState: persistedWorkspaceSession.remoteConnectionState,
+          remoteErrorCode: persistedWorkspaceSession.remoteErrorCode,
+        },
+      },
     )
-      nextState = updateWorkspaceSession(
-        addResult.state,
-        addResult.workspaceId,
-        (session) => ({
-          ...session,
-          activeFile: persistedWorkspaceSession.activeFile,
-          activeSpec: persistedWorkspaceSession.activeSpec,
-          expandedDirectories: persistedWorkspaceSession.expandedDirectories,
-          fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
-          watchModePreference: persistedWorkspaceSession.watchModePreference,
-        }),
-      )
+    nextState = updateWorkspaceSession(
+      addResult.state,
+      addResult.workspaceId,
+      (session) => ({
+        ...session,
+        activeFile: persistedWorkspaceSession.activeFile,
+        activeSpec: persistedWorkspaceSession.activeSpec,
+        expandedDirectories: persistedWorkspaceSession.expandedDirectories,
+        fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
+        watchModePreference: persistedWorkspaceSession.watchModePreference,
+        workspaceKind: persistedWorkspaceSession.workspaceKind,
+        remoteWorkspaceId: persistedWorkspaceSession.remoteWorkspaceId,
+        remoteProfile: persistedWorkspaceSession.remoteProfile,
+        remoteConnectionState: persistedWorkspaceSession.remoteConnectionState,
+        remoteErrorCode: persistedWorkspaceSession.remoteErrorCode,
+      }),
+    )
   }
 
   if (
@@ -1037,6 +1096,220 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
   }, [loadWorkspaceIndex, loadWorkspaceGitFileStatuses, startWorkspaceWatch])
 
+  const findWorkspaceIdByRemoteWorkspaceId = useCallback(
+    (remoteWorkspaceId: string): WorkspaceId | null => {
+      for (const [workspaceId, session] of Object.entries(
+        workspaceStateRef.current.workspacesById,
+      )) {
+        if (
+          session.workspaceKind === 'remote' &&
+          session.remoteWorkspaceId === remoteWorkspaceId
+        ) {
+          return workspaceId
+        }
+      }
+      return null
+    },
+    [],
+  )
+
+  const connectRemoteWorkspace = useCallback(
+    async (profile: WorkspaceRemoteProfile) => {
+      const workspaceId = profile.workspaceId?.trim()
+      const host = profile.host?.trim()
+      const remoteRoot = profile.remoteRoot?.trim()
+      if (!workspaceId || !host || !remoteRoot) {
+        setBannerMessage(
+          'Remote workspace profile is invalid: workspaceId, host, and remoteRoot are required.',
+        )
+        return false
+      }
+
+      const normalizedProfile: WorkspaceRemoteProfile = {
+        ...profile,
+        workspaceId,
+        host,
+        remoteRoot,
+        ...(profile.user?.trim() ? { user: profile.user.trim() } : {}),
+      }
+
+      try {
+        const connectResult = await window.workspace.connectRemote(normalizedProfile)
+        if (!connectResult.ok) {
+          const existingWorkspaceId = findWorkspaceIdByRemoteWorkspaceId(
+            connectResult.workspaceId,
+          )
+          if (existingWorkspaceId) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(
+                previous,
+                existingWorkspaceId,
+                (currentSession) => ({
+                  ...currentSession,
+                  workspaceKind: 'remote',
+                  remoteWorkspaceId: connectResult.workspaceId,
+                  remoteProfile: normalizedProfile,
+                  remoteConnectionState: 'disconnected',
+                  remoteErrorCode: connectResult.errorCode,
+                }),
+              ),
+            )
+          }
+          setBannerMessage(
+            getRemoteConnectionErrorMessage(
+              connectResult.errorCode,
+              connectResult.error,
+            ),
+          )
+          return false
+        }
+
+        const rendererWorkspaceId = connectResult.workspaceId
+        const rootPath = connectResult.rootPath
+
+        setWorkspaceState((previous) => {
+          const addResult = addOrFocusWorkspace(previous, rootPath, {
+            workspaceId: rendererWorkspaceId,
+            sessionOptions: {
+              workspaceKind: 'remote',
+              remoteWorkspaceId: connectResult.workspaceId,
+              remoteProfile: normalizedProfile,
+              remoteConnectionState: connectResult.remoteConnectionState,
+              remoteErrorCode: null,
+            },
+          })
+          return updateWorkspaceSession(
+            addResult.state,
+            addResult.workspaceId,
+            (currentSession) => ({
+              ...currentSession,
+              workspaceKind: 'remote',
+              remoteWorkspaceId: connectResult.workspaceId,
+              remoteProfile: normalizedProfile,
+              remoteConnectionState: connectResult.remoteConnectionState,
+              remoteErrorCode: null,
+            }),
+          )
+        })
+
+        const watchStarted = await startWorkspaceWatch(rendererWorkspaceId, rootPath)
+        const indexStatus = await loadWorkspaceIndex(rendererWorkspaceId, rootPath)
+        if (indexStatus === 'success') {
+          void loadWorkspaceGitFileStatuses(rendererWorkspaceId, rootPath)
+        }
+        setBannerMessage(null)
+        if (!watchStarted || indexStatus === 'failed') {
+          return false
+        }
+        return true
+      } catch (error) {
+        setBannerMessage(
+          getRemoteConnectionErrorMessage(
+            undefined,
+            error instanceof Error ? error.message : undefined,
+          ),
+        )
+        return false
+      }
+    },
+    [
+      findWorkspaceIdByRemoteWorkspaceId,
+      loadWorkspaceGitFileStatuses,
+      loadWorkspaceIndex,
+      startWorkspaceWatch,
+    ],
+  )
+
+  const disconnectRemoteWorkspace = useCallback(
+    async (workspaceId?: WorkspaceId) => {
+      const targetWorkspaceId =
+        workspaceId ?? workspaceStateRef.current.activeWorkspaceId
+      if (!targetWorkspaceId) {
+        return false
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[targetWorkspaceId]
+      if (
+        !workspaceSession ||
+        workspaceSession.workspaceKind !== 'remote' ||
+        !workspaceSession.remoteWorkspaceId
+      ) {
+        return true
+      }
+
+      try {
+        await stopWorkspaceWatch(targetWorkspaceId)
+        const disconnectResult = await window.workspace.disconnectRemote(
+          workspaceSession.remoteWorkspaceId,
+        )
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            remoteConnectionState: 'disconnected',
+            remoteErrorCode: disconnectResult.ok ? null : 'CONNECTION_CLOSED',
+          })),
+        )
+
+        if (!disconnectResult.ok) {
+          setBannerMessage(
+            disconnectResult.error
+              ? `Failed to disconnect remote workspace: ${disconnectResult.error}`
+              : 'Failed to disconnect remote workspace.',
+          )
+          return false
+        }
+        return true
+      } catch (error) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            remoteConnectionState: 'disconnected',
+            remoteErrorCode: 'CONNECTION_CLOSED',
+          })),
+        )
+        setBannerMessage(
+          error instanceof Error
+            ? `Failed to disconnect remote workspace: ${error.message}`
+            : 'Failed to disconnect remote workspace.',
+        )
+        return false
+      }
+    },
+    [stopWorkspaceWatch],
+  )
+
+  const retryRemoteWorkspaceConnection = useCallback(
+    async (workspaceId?: WorkspaceId) => {
+      const targetWorkspaceId =
+        workspaceId ?? workspaceStateRef.current.activeWorkspaceId
+      if (!targetWorkspaceId) {
+        setBannerMessage('Cannot retry remote connection: no active workspace selected.')
+        return false
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[targetWorkspaceId]
+      if (!workspaceSession || workspaceSession.workspaceKind !== 'remote') {
+        setBannerMessage('Cannot retry remote connection: active workspace is not remote.')
+        return false
+      }
+
+      if (workspaceSession.remoteConnectionState === 'connecting') {
+        setBannerMessage('Remote connection is already in progress.')
+        return false
+      }
+
+      if (!workspaceSession.remoteProfile) {
+        setBannerMessage('Cannot retry remote connection: remote profile is unavailable.')
+        return false
+      }
+
+      return connectRemoteWorkspace(workspaceSession.remoteProfile)
+    },
+    [connectRemoteWorkspace],
+  )
+
   const getActiveIsDirty = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     const session = activeWorkspaceId
@@ -1076,6 +1349,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     ) {
       return
     }
+    void disconnectRemoteWorkspace(workspaceId)
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
     delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
@@ -1086,7 +1360,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
-  }, [getActiveIsDirty, stopWorkspaceWatch])
+  }, [disconnectRemoteWorkspace, getActiveIsDirty, stopWorkspaceWatch])
 
   const loadWorkspaceSpec = useCallback(
     (workspaceId: WorkspaceId, relativePath: string) => {
@@ -2003,6 +2277,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           continue
         }
 
+        if (workspaceSession.workspaceKind === 'remote') {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              remoteConnectionState: 'disconnected',
+              remoteErrorCode: null,
+            })),
+          )
+          continue
+        }
+
         const watchStarted = await startWorkspaceWatch(
           workspaceId,
           workspaceSession.rootPath,
@@ -2082,13 +2367,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     stopWorkspaceWatch,
   ])
 
-  const activeWorkspaceRootPath = workspaceState.activeWorkspaceId
-    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId]?.rootPath ?? null
+  const activeWorkspace = workspaceState.activeWorkspaceId
+    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
     : null
+  const activeWorkspaceRootPath = activeWorkspace?.rootPath ?? null
 
   useEffect(() => {
     const activeWorkspaceId = workspaceState.activeWorkspaceId
     if (!activeWorkspaceId || !activeWorkspaceRootPath) {
+      return
+    }
+    if (
+      activeWorkspace?.workspaceKind === 'remote' &&
+      activeWorkspace.remoteConnectionState !== 'connected' &&
+      activeWorkspace.remoteConnectionState !== 'degraded'
+    ) {
       return
     }
 
@@ -2096,6 +2389,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     void loadWorkspaceGlobalComments(activeWorkspaceId, activeWorkspaceRootPath)
   }, [
     activeWorkspaceRootPath,
+    activeWorkspace?.remoteConnectionState,
+    activeWorkspace?.workspaceKind,
     loadWorkspaceComments,
     loadWorkspaceGlobalComments,
     workspaceState.activeWorkspaceId,
@@ -2215,9 +2510,50 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     return unsubscribe
   }, [])
 
-  const activeWorkspace = workspaceState.activeWorkspaceId
-    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
-    : null
+  useEffect(() => {
+    const unsubscribe = window.workspace.onRemoteConnectionEvent((remoteEvent) => {
+      if (!remoteEvent.workspaceId) {
+        return
+      }
+
+      const workspaceId =
+        workspaceStateRef.current.workspacesById[remoteEvent.workspaceId]
+          ? remoteEvent.workspaceId
+          : findWorkspaceIdByRemoteWorkspaceId(remoteEvent.workspaceId)
+      if (!workspaceId) {
+        return
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          workspaceKind: 'remote',
+          remoteWorkspaceId: remoteEvent.workspaceId,
+          remoteConnectionState: remoteEvent.state,
+          remoteErrorCode:
+            remoteEvent.state === 'connected'
+              ? null
+              : remoteEvent.errorCode ?? currentSession.remoteErrorCode,
+        })),
+      )
+
+      if (
+        remoteEvent.state === 'degraded' ||
+        (remoteEvent.state === 'disconnected' &&
+          (remoteEvent.errorCode || remoteEvent.message))
+      ) {
+        setBannerMessage(
+          getRemoteConnectionErrorMessage(
+            remoteEvent.errorCode,
+            remoteEvent.message,
+          ),
+        )
+      }
+    })
+
+    return unsubscribe
+  }, [findWorkspaceIdByRemoteWorkspaceId])
+
   const canGoBack = activeWorkspace
     ? canStepWorkspaceFileHistory(activeWorkspace, 'back')
     : false
@@ -2231,6 +2567,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       workspaces: listWorkspaces(workspaceState),
       activeWorkspaceId: workspaceState.activeWorkspaceId,
       rootPath: activeWorkspace?.rootPath ?? null,
+      workspaceKind: activeWorkspace?.workspaceKind ?? null,
+      remoteProfile: activeWorkspace?.remoteProfile ?? null,
+      remoteConnectionState: activeWorkspace?.remoteConnectionState ?? null,
+      remoteErrorCode: activeWorkspace?.remoteErrorCode ?? null,
       fileTree: activeWorkspace?.fileTree ?? [],
       changedFiles: activeWorkspace?.changedFiles ?? [],
       gitFileStatuses: activeWorkspace?.gitFileStatuses ?? {},
@@ -2264,6 +2604,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       externalChangeDetected,
       bannerMessage,
       openWorkspace,
+      connectRemoteWorkspace,
+      disconnectRemoteWorkspace,
+      retryRemoteWorkspaceConnection,
       setActiveWorkspace,
       switchWorkspace,
       closeWorkspace,
@@ -2297,6 +2640,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       activeWorkspace,
       bannerMessage,
       externalChangeDetected,
+      connectRemoteWorkspace,
+      disconnectRemoteWorkspace,
+      retryRemoteWorkspaceConnection,
       openWorkspace,
       setActiveWorkspace,
       switchWorkspace,

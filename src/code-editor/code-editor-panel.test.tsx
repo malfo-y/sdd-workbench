@@ -258,6 +258,10 @@ describe('CodeEditorPanel', () => {
     })
 
     const wrapToggle = screen.getByTestId('code-viewer-wrap-toggle')
+    expect(wrapToggle).toHaveTextContent('Wrap On')
+    expect(wrapToggle).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(wrapToggle)
     expect(wrapToggle).toHaveTextContent('Wrap Off')
     expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
 
@@ -265,10 +269,6 @@ describe('CodeEditorPanel', () => {
     expect(wrapToggle).toHaveTextContent('Wrap On')
     expect(wrapToggle).toHaveAttribute('aria-pressed', 'true')
     expect(container.querySelector('.cm-lineWrapping')).not.toBeNull()
-
-    fireEvent.click(wrapToggle)
-    expect(wrapToggle).toHaveTextContent('Wrap Off')
-    expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
   })
 
   // ---- CM6 container rendering -------------------------------------------

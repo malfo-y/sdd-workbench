@@ -7,6 +7,24 @@ type SelectionState = { startLine: number; endLine: number } | null
 
 type WorkspaceWatchMode = 'native' | 'polling'
 type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
+type WorkspaceKind = 'local' | 'remote'
+type RemoteConnectionState =
+  | 'idle'
+  | 'connecting'
+  | 'connected'
+  | 'degraded'
+  | 'disconnected'
+type RemoteErrorCode =
+  | 'AUTH_FAILED'
+  | 'TIMEOUT'
+  | 'AGENT_PROTOCOL_MISMATCH'
+  | 'PATH_DENIED'
+type RemoteWorkspaceProfile = {
+  host: string
+  user: string
+  port?: number
+  remoteRootPath: string
+}
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 type WorkspaceGitLineMarker = {
   line: number
@@ -51,6 +69,7 @@ type CodeComment = {
 3. global comments source of truth는 `workspaceRoot/.sdd-workbench/global-comments.md`
 4. `_COMMENTS.md`는 export 산출물(재생성)이며 source of truth가 아님
 5. watcher 선호값(`watchModePreference`)은 workspace 세션 snapshot에 영속화된다.
+6. (F27, planned) remote workspace는 `workspaceKind='remote'`와 `remoteProfile`을 갖고, 연결 상태는 `remoteConnectionState`로 관리한다.
 
 ## 2. 링크/경로 해석 규칙
 
@@ -94,6 +113,9 @@ type CodeComment = {
 | `workspace:deleteDirectory` | Renderer -> Main (`invoke`) | 디렉토리 재귀 삭제(경계 검사 + 디렉토리 확인) (F25) |
 | `workspace:rename` | Renderer -> Main (`invoke`) | 파일/디렉토리 이름 변경(경계 검사 + 충돌 확인) (F25b) |
 | `workspace:getGitFileStatuses` | Renderer -> Main (`invoke`) | 워크스페이스 전체 Git 파일 상태 조회 (F26) |
+| `workspace:connectRemote` | Renderer -> Main (`invoke`) | 원격 연결 프로필로 remote agent 세션 연결 + remote workspace 생성 (F27, planned) |
+| `workspace:disconnectRemote` | Renderer -> Main (`invoke`) | remote workspace 세션 종료/정리 (F27, planned) |
+| `workspace:remoteConnectionEvent` | Main -> Renderer (`send`) | 원격 연결 상태/오류 코드 이벤트 전달 (F27, planned) |
 
 `workspace:watchStart` 계약 요약:
 
@@ -101,12 +123,40 @@ type CodeComment = {
 - response: `{ ok, watchMode?: 'native'|'polling', isRemoteMounted?: boolean, fallbackApplied?: boolean, error?: string }`
 - 해석 규칙: `override(native|polling) > auto 휴리스틱(mount 명령 네트워크 FS 감지 => polling)`
 - fallback 규칙: `native` 시작 실패 시 `polling`으로 강등 성공 후 `fallbackApplied=true`
+- F15(SSHFS 기반) watcher 경로는 deprecated이며 F27 안정화 이후 제거 대상이다.
 
 `workspace:indexDirectory` 계약 요약:
 
 - request: `{ rootPath, relativePath }`
 - response: `{ ok, children?: WorkspaceFileNode[], childrenStatus?: 'complete'|'partial', totalChildCount?: number, error?: string }`
 - 디렉토리별 child cap(`500`) 적용, 초과 시 `partial` + `totalChildCount` 반환
+
+`workspace:connectRemote` 계약 요약 (F27, planned):
+
+- request: `{ profile: { host: string, user: string, port?: number, remoteRootPath: string } }`
+- response: `{ ok: boolean, workspaceId?: string, rootPath?: string, remoteConnectionState?: 'connected'|'degraded', errorCode?: RemoteErrorCode, error?: string }`
+- 성공 시 Renderer는 반환된 workspace 식별자를 기준으로 기존 `workspace:index/read/write/watch` 계약을 그대로 사용한다.
+- 실패 시 `errorCode`를 우선 해석하고, UI는 배너 + 재시도 액션을 제공한다.
+- bootstrap 자동화 범위(MVP): agent 존재 확인 -> 없으면 설치 -> 버전 검증
+- 자동 업그레이드/롤백/복수 배포 채널 관리는 MVP 범위에서 제외한다.
+
+`workspace:disconnectRemote` 계약 요약 (F27, planned):
+
+- request: `{ workspaceId: string }`
+- response: `{ ok: boolean, errorCode?: RemoteErrorCode, error?: string }`
+- 동작: 원격 세션 종료 + watcher 정리 + workspace 상태를 `disconnected`로 전환
+
+`workspace:remoteConnectionEvent` 계약 요약 (F27, planned):
+
+- payload: `{ workspaceId: string, state: RemoteConnectionState, errorCode?: RemoteErrorCode, message?: string }`
+- 용도: 연결 수립/강등/끊김을 실시간 반영하여 배너/상태 뱃지 업데이트
+
+원격 오류 코드 규칙 (F27, planned):
+
+- `AUTH_FAILED`: 인증 실패(키/계정/권한)
+- `TIMEOUT`: 연결 또는 RPC 응답 시간 초과
+- `AGENT_PROTOCOL_MISMATCH`: agent와 클라이언트 프로토콜 버전 불일치
+- `PATH_DENIED`: remote root 경계 밖 접근 시도 또는 권한 거부
 
 `workspace:getGitLineMarkers` 계약 요약:
 

@@ -17,6 +17,7 @@
 9. CodeMirror 6 기반 코드 에디터로 spec-code 왕복 편집 비용 절감(read-only 뷰어 대체 → 직접 편집 + 저장)
 10. 파일 트리에서 파일/디렉토리 직접 생성·삭제·이름변경으로 spec-code 편집 흐름을 워크스페이스 내에서 완결(F25/F25b)
 11. 파일 트리에서 git 파일 상태(Untracked/Added/Modified)를 뱃지로 즉시 식별(F26)
+12. SSHFS 의존을 줄이기 위해 Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입(F27, 📋 Planned)
 
 ## 3. 범위
 
@@ -48,12 +49,15 @@
 - 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added)/M(Modified) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked)
 - 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
 - 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
+- 📋 Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Remote Root 입력, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27)
 
 ### 3.2 MVP 제외 범위
 
 - IDE급 고급 편집 기능(리팩터링/LSP/멀티탭/auto-save/auto-format/minimap)
 - 내장 터미널
 - Git diff/commit 전용 UI
+- 원격 포트포워딩 UI/원격 확장 실행/원격 LSP 관리
+- 원격 agent 고급 자동화(자동 업그레이드/롤백/복수 배포 채널 관리)
 - 코멘트 협업 동기화/원격 저장
 - 코멘트 스레드/답글 UI
 
@@ -70,11 +74,11 @@
 1. 코드/트리에서 우클릭으로 상대경로/선택 내용을 복사하고
 2. 필요 시 Open In(iTerm/VSCode)로 외부 작업으로 전환한다.
 
-### 4.3 원격 워크스페이스 감시 흐름(F15)
+### 4.3 원격 워크스페이스 감시 흐름(F15, Deprecated)
 
-1. 원격 마운트 경로를 열면 auto 모드에서 polling watcher로 시작한다.
-2. 필요 시 Watch Mode(`Auto/Native/Polling`)를 변경해 모드를 강제한다.
-3. native 시작 실패 시 polling fallback과 배너 안내로 감시 가용성을 유지한다.
+1. F15(SSHFS 기반) 경로는 레거시 동작으로 유지되지만, 신규 확장 대상에서 제외한다.
+2. 원격 워크스페이스 전략은 F27(remote-protocol) 단일 경로로 전환한다.
+3. F27 안정화 후 F15 경로는 제거(폐기)한다.
 
 ### 4.5 대규모 워크스페이스 탐색 흐름(F16)
 
@@ -91,6 +95,13 @@
 4. 코드/문서 marker와 hover preview로 코멘트 분포/본문 요약을 확인
 5. `View Comments`에서 "Include in export" 체크박스로 Global Comments 포함 여부를 선택
 6. `Export Comments`에서 Global Comments 선행 + pending-only line comment bundle을 내보내고 `exportedAt`를 기록
+
+### 4.6 원격 에이전트 워크스페이스 연결 흐름(F27, 📋 Planned)
+
+1. 사용자가 `Connect Remote Workspace`에서 host/user/remote root path를 입력한다.
+2. Main 프로세스는 SSH로 원격 agent 세션을 부팅하고 프로토콜 버전을 handshake한다.
+3. 연결 성공 시 renderer는 remote workspace 세션을 생성하고 기존 `workspace:index/read/write/watch` 플로우를 동일하게 사용한다.
+4. 연결 장애/타임아웃 시 상태를 `degraded` 또는 `disconnected`로 표기하고 재시도 경로를 제공한다.
 
 ## 5. 현재 기능 커버리지 요약
 
@@ -126,7 +137,12 @@
 | 파일 트리 Git 파일 상태 마커(U/M badge + 디렉토리 버블링) | Implemented | F26 |
 | 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
 | 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
+| Remote Agent Protocol 기반 원격 워크스페이스 실행 | Planned | F27 |
 
 ## 6. Open Questions
 
-- 현재 없음 (`2026-02-27` 기준)
+1. 원격 연결 입력 UX를 모달로 시작할지, 사이드바/별도 패널로 시작할지 확정 필요
+
+결정사항:
+1. 원격 agent 자동화는 MVP 수준으로 제한한다(없으면 설치 + 버전 검증).
+2. F15(SSHFS 기반) 원격 연결은 폐기하고 F27(remote-protocol) 단일 경로로 전환한다.

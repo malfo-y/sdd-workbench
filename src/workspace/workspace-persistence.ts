@@ -1,11 +1,22 @@
-import type { WorkspaceState, WorkspaceWatchModePreference } from './workspace-model'
+import type {
+  WorkspaceKind,
+  WorkspaceRemoteConnectionState,
+  WorkspaceRemoteProfile,
+  WorkspaceState,
+  WorkspaceWatchModePreference,
+} from './workspace-model'
 
 export const WORKSPACE_SESSION_STORAGE_KEY = 'sdd-workbench:workspace-session:v1'
-export const WORKSPACE_SESSION_SCHEMA_VERSION = 1
+export const WORKSPACE_SESSION_SCHEMA_VERSION = 2
 export const MAX_PERSISTED_FILE_LAST_LINE_ENTRIES = 200
 
 export type PersistedWorkspaceSession = {
   rootPath: string
+  workspaceKind: WorkspaceKind
+  remoteWorkspaceId: string | null
+  remoteProfile: WorkspaceRemoteProfile | null
+  remoteConnectionState: WorkspaceRemoteConnectionState | null
+  remoteErrorCode: string | null
   activeFile: string | null
   activeSpec: string | null
   expandedDirectories: string[]
@@ -85,6 +96,74 @@ function normalizeWatchModePreference(
   return 'auto'
 }
 
+function normalizeWorkspaceKind(value: unknown): WorkspaceKind {
+  if (value === 'remote') {
+    return 'remote'
+  }
+  return 'local'
+}
+
+function normalizeRemoteConnectionState(
+  value: unknown,
+): WorkspaceRemoteConnectionState | null {
+  if (
+    value === 'connecting' ||
+    value === 'connected' ||
+    value === 'degraded' ||
+    value === 'disconnected'
+  ) {
+    return value
+  }
+  return null
+}
+
+function normalizeOptionalPositiveInteger(value: unknown): number | undefined {
+  if (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    Number.isFinite(value) &&
+    value > 0
+  ) {
+    return value
+  }
+  return undefined
+}
+
+function normalizeRemoteProfile(value: unknown): WorkspaceRemoteProfile | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const workspaceId = isNonEmptyString(value.workspaceId)
+    ? value.workspaceId
+    : null
+  const host = isNonEmptyString(value.host) ? value.host : null
+  const remoteRoot = isNonEmptyString(value.remoteRoot) ? value.remoteRoot : null
+  if (!workspaceId || !host || !remoteRoot) {
+    return null
+  }
+
+  const user = isNonEmptyString(value.user) ? value.user : undefined
+  const agentPath = isNonEmptyString(value.agentPath) ? value.agentPath : undefined
+
+  return {
+    workspaceId,
+    host,
+    remoteRoot,
+    ...(user ? { user } : {}),
+    ...(normalizeOptionalPositiveInteger(value.port)
+      ? { port: normalizeOptionalPositiveInteger(value.port) }
+      : {}),
+    ...(agentPath ? { agentPath } : {}),
+    ...(normalizeOptionalPositiveInteger(value.requestTimeoutMs)
+      ? { requestTimeoutMs: normalizeOptionalPositiveInteger(value.requestTimeoutMs) }
+      : {}),
+    ...(normalizeOptionalPositiveInteger(value.connectTimeoutMs)
+      ? { connectTimeoutMs: normalizeOptionalPositiveInteger(value.connectTimeoutMs) }
+      : {}),
+  }
+}
+
 function normalizeWorkspaceSession(
   value: unknown,
 ): PersistedWorkspaceSession | null {
@@ -97,8 +176,27 @@ function normalizeWorkspaceSession(
     return null
   }
 
+  const workspaceKind = normalizeWorkspaceKind(value.workspaceKind)
+  const remoteProfile = normalizeRemoteProfile(value.remoteProfile)
+  const remoteWorkspaceId = isNonEmptyString(value.remoteWorkspaceId)
+    ? value.remoteWorkspaceId
+    : remoteProfile?.workspaceId ?? null
+  const remoteConnectionState =
+    workspaceKind === 'remote'
+      ? normalizeRemoteConnectionState(value.remoteConnectionState) ?? 'disconnected'
+      : null
+  const remoteErrorCode =
+    workspaceKind === 'remote' && isNonEmptyString(value.remoteErrorCode)
+      ? value.remoteErrorCode
+      : null
+
   return {
     rootPath,
+    workspaceKind,
+    remoteWorkspaceId: workspaceKind === 'remote' ? remoteWorkspaceId : null,
+    remoteProfile: workspaceKind === 'remote' ? remoteProfile : null,
+    remoteConnectionState,
+    remoteErrorCode,
     activeFile: isNonEmptyString(activeFile) ? activeFile : null,
     activeSpec: isNonEmptyString(value.activeSpec) ? value.activeSpec : null,
     expandedDirectories: normalizeUniqueStringArray(expandedDirectories),
@@ -169,6 +267,11 @@ export function createWorkspaceSessionSnapshot(
 
     workspacesById[workspaceId] = {
       rootPath: workspaceSession.rootPath,
+      workspaceKind: workspaceSession.workspaceKind,
+      remoteWorkspaceId: workspaceSession.remoteWorkspaceId,
+      remoteProfile: workspaceSession.remoteProfile,
+      remoteConnectionState: workspaceSession.remoteConnectionState,
+      remoteErrorCode: workspaceSession.remoteErrorCode,
       activeFile: workspaceSession.activeFile,
       activeSpec: workspaceSession.activeSpec,
       expandedDirectories: Array.from(
@@ -209,7 +312,10 @@ export function loadWorkspaceSessionSnapshot(
       return null
     }
 
-    if (parsed.schemaVersion !== WORKSPACE_SESSION_SCHEMA_VERSION) {
+    if (
+      parsed.schemaVersion !== 1 &&
+      parsed.schemaVersion !== WORKSPACE_SESSION_SCHEMA_VERSION
+    ) {
       return null
     }
 

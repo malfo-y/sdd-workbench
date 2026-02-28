@@ -14,6 +14,10 @@
 - 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`) 적용으로 과대 디렉토리 cap 처리
 - `not-loaded` 디렉토리 on-demand 확장은 `workspace:indexDirectory` IPC 단건 호출
 - Git line marker 조회는 active file 단건(`workspace:getGitLineMarkers`)으로 제한하고 전체 트리 diff 스캔은 금지
+- (F27, planned) remote agent 연결 타임아웃 기본값: `REMOTE_AGENT_CONNECT_TIMEOUT_MS=8000`
+- (F27, planned) remote RPC 요청 타임아웃 기본값: `REMOTE_AGENT_REQUEST_TIMEOUT_MS=15000`
+- (F27, planned) remote 연결 자동 재시도 기본값: `REMOTE_AGENT_RECONNECT_ATTEMPTS=3`
+- (F27, planned) remote agent bootstrap 자동화는 MVP 범위(존재 확인/없으면 설치/버전 검증)로 제한
 
 ## 2. 보안 기준
 
@@ -22,6 +26,9 @@
 - markdown 렌더는 sanitize allowlist 강제
 - 로컬 리소스는 workspace 내부 상대경로만 허용
 - `data:` URI는 `data:image/*`만 제한 허용
+- (F27, planned) remote agent 메서드는 허용된 RPC 목록만 실행(화이트리스트)
+- (F27, planned) remote 파일 작업은 `remoteRootPath` 경계 검증을 통과한 상대경로만 허용
+- (F27, planned) 인증/연결 실패 원인은 표준 오류 코드로만 노출하고 민감정보(키 경로/비밀번호)는 로그/배너에 출력하지 않음
 
 ## 3. 신뢰성 기준
 
@@ -35,6 +42,10 @@
 - same-spec source jump는 rendered spec 패널 콘텐츠/스크롤 문맥을 유지해야 한다.
 - 세션 복원은 부분 실패 continue 정책
 - 종료 경로는 write settle(max 5s) 후 watcher 종료(timeout 1.5s)
+- (F27, planned) remote 연결 상태는 `connecting -> connected -> degraded/disconnected` 상태 머신으로 관리한다.
+- (F27, planned) 재시도 한도 초과 시 자동 재시도를 중단하고 명시적 사용자 재시도 액션으로 전환한다.
+- (F27, planned) remote 프로토콜 버전 불일치 시 기능 강등 없이 즉시 연결 실패 처리(`AGENT_PROTOCOL_MISMATCH`)
+- (F27, planned) F15(SSHFS 기반) 경로는 레거시로 유지하되 F27 안정화 후 제거한다.
 
 ## 4. 테스트 운영
 
@@ -90,6 +101,11 @@
 35. CM6 gutter에 Git added(초록)/modified(파랑) dot 마커가 표시되는지 확인
 36. CM6 gutter에 코멘트 badge가 표시되고 hover popover가 동작하는지 확인
 37. 우클릭 컨텍스트 메뉴에서 Copy Line Contents / Copy Contents and Path / Copy Relative Path / Add Comment 동작 확인
+38. (F27, planned) `Connect Remote Workspace`로 host/user/remoteRoot 입력 후 remote workspace가 열리는지 확인
+39. (F27, planned) remote 연결 직후 `workspace:index/read/write/create/delete/rename`이 기존 로컬 계약과 동일하게 동작하는지 확인
+40. (F27, planned) remote watch 이벤트가 `changedRelativePaths`, `hasStructureChanges` 형식으로 반영되는지 확인
+41. (F27, planned) remote 연결 단절 시 상태가 `degraded` 또는 `disconnected`로 반영되고 재시도 UI가 표시되는지 확인
+42. (F27, planned) remote root 경계 밖 접근 시 `PATH_DENIED` 오류로 거부되는지 확인
 
 ## 5. 개발 환경
 

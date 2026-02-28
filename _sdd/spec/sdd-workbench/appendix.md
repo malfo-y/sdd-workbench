@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F26)
+## A. 기능 이력 (F01~F27)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -47,6 +47,7 @@
 | BUG-02 | Fixed | 2026-02-25 | Copy Relative Path — 코드 에디터 우클릭 시 라인 번호가 복사되지 않던 버그 수정 (`contextMenuState.selectionRange` 전달 + `buildCopyActiveFilePathPayload` 확장) |
 | F24.1 | Done | 2026-02-27 | 코드 에디터 line wrap 토글 버튼(헤더 Wrap On/Off, `wrapCompartment` 기반 동적 전환, 기본 On) |
 | F07.2 | Done | 2026-02-27 | 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 시 픽셀 스크롤 복원(`codeScrollPositionsRef`, `onScrollChange`/`restoredScrollTop` prop, rAF 기반 적용) |
+| F27 | Planned | - | Remote Agent Protocol 기반 원격 워크스페이스 MVP(SSH agent session + backend 추상화 + 원격 watch/git 브리지 + 연결 상태 표준화) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -85,6 +86,7 @@
 - (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
 - (F24.1) 코드 에디터 line wrap 토글: 헤더에 "Wrap On/Off" 버튼, 기본 On, 클릭으로 동적 전환(`wrapCompartment.reconfigure`), `aria-pressed` 반영, 가로 스크롤 방지로 트랙패드 wheel 히스토리 내비게이션 안정화
 - (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 후 해당 파일의 마지막 픽셀 스크롤 위치를 복원; 저장: `view.scrollDOM` native scroll 이벤트 → `codeScrollPositionsRef[workspaceId::relativePath]`; 복원: 콘텐츠 재로드(`view.setState`) 직후 `requestAnimationFrame`으로 `scrollDOM.scrollTop` 적용; 첫 방문 시 복원 없음(scrollTop=0 유지)
+- (F27, planned) Remote Agent Protocol 원격 워크스페이스: `workspace:*` 계약 유지 상태로 remote backend를 도입하고, 원격 연결(`connectRemote`) + 파일 I/O/CRUD/watch/git 메타데이터를 SSH agent RPC로 처리한다. agent 자동화는 MVP 수준(존재 확인/없으면 설치/버전 검증)으로 제한한다.
 
 ## C. 리스크/백로그
 
@@ -111,6 +113,9 @@
 21. (F25b) rename 대상이 디렉토리일 때 하위 파일 중 하나라도 코멘트가 있으면 전체 차단 — 세분화된 보호(일부만 차단)는 미지원
 22. (F26) Git 파일 상태는 `git status --porcelain` 기반이므로 staged/unstaged 세분화 미지원(MVP)
 23. (F26) git 비저장소 워크스페이스에서는 badge 전체 미표시
+24. (F27, planned) 원격 agent 자동화는 MVP 범위로 고정: 존재 확인/없으면 설치/버전 검증만 지원(자동 업그레이드/롤백 미지원)
+25. (F27, planned) 원격 연결 입력 UX(모달 vs 패널) 및 식별자 규칙(`workspaceId`)은 구현 전 확정 필요
+26. (F27, planned) F15(SSHFS 기반) 경로 폐기 전환 시 기존 사용자 워크플로우 마이그레이션 안내/회귀 테스트 필요
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

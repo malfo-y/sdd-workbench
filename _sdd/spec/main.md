@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.40.0`
-- 마지막 업데이트: `2026-02-27`
+- 문서 버전: `0.41.0`
+- 마지막 업데이트: `2026-02-28`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -27,6 +27,7 @@
   - F25 draft: `/_sdd/drafts/feature_draft_f25_file_tree_crud.md`
   - F25b draft: `/_sdd/drafts/feature_draft_f25b_file_tree_rename.md`
   - F26: git file-level status markers in file tree
+  - F27 draft: `/_sdd/drafts/feature_draft_f27_remote_agent_protocol_mvp.md`
   - F24.1: code editor line wrap toggle button + default On
   - F07.2: code editor scroll position restore on history navigation
 - 리라이트:
@@ -38,6 +39,7 @@
 ## 1. 현재 상태 요약
 
 - 구현 완료 범위: `F01~F26` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 계획 범위: `F27` Remote Agent Protocol 기반 원격 워크스페이스 MVP (📋 Planned)
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump
@@ -102,7 +104,14 @@
 
 ## 5. Open Questions
 
-- 현재 없음 (`2026-02-27` 기준)
+1. 원격 연결 프로필 입력 UX를 모달로 시작할지, 별도 패널로 시작할지 확정 필요
+   (모달=일회성 빠른 연결 중심, 패널=프로필 저장/재접속/관리 중심)
+
+결정사항:
+1. 기존 SSHFS 기반 원격 연결(F15)은 폐기하고 F27 remote-protocol 단일 경로로 전환한다.
+2. 원격 agent 자동화는 MVP 수준으로 제한한다.
+   범위: 연결 시 agent 존재 확인 -> 없으면 설치 -> 프로토콜 버전 검증
+   제외: 자동 업그레이드/롤백, 복수 배포 채널 관리, 고급 장애복구 오케스트레이션
 
 ---
 

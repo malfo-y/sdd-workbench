@@ -268,6 +268,11 @@ describe('workspace-model', () => {
 
   it('initializes comments state fields for new sessions', () => {
     const session = createWorkspaceSession(ROOT_A)
+    expect(session.workspaceKind).toBe('local')
+    expect(session.remoteWorkspaceId).toBeNull()
+    expect(session.remoteProfile).toBeNull()
+    expect(session.remoteConnectionState).toBeNull()
+    expect(session.remoteErrorCode).toBeNull()
     expect(session.activeFileGitLineMarkers).toEqual([])
     expect(session.comments).toEqual([])
     expect(session.isReadingComments).toBe(false)
@@ -281,6 +286,46 @@ describe('workspace-model', () => {
     expect(session.watchMode).toBeNull()
     expect(session.isRemoteMounted).toBe(false)
     expect(session.loadingDirectories).toEqual([])
+  })
+
+  it('creates remote workspace session with explicit id and metadata', () => {
+    const remoteWorkspaceId = 'remote-session-a'
+    const remoteRootPath = 'remote://remote-session-a'
+    const result = addOrFocusWorkspace(
+      createEmptyWorkspaceState(),
+      remoteRootPath,
+      {
+        workspaceId: remoteWorkspaceId,
+        sessionOptions: {
+          workspaceKind: 'remote',
+          remoteWorkspaceId: remoteWorkspaceId,
+          remoteConnectionState: 'connected',
+          remoteProfile: {
+            workspaceId: remoteWorkspaceId,
+            host: 'example.com',
+            user: 'tester',
+            remoteRoot: '/repo',
+          },
+        },
+      },
+    )
+
+    expect(result.workspaceId).toBe(remoteWorkspaceId)
+    expect(result.state.activeWorkspaceId).toBe(remoteWorkspaceId)
+    expect(result.state.workspaceOrder).toEqual([remoteWorkspaceId])
+    expect(result.state.workspacesById[remoteWorkspaceId]).toMatchObject({
+      rootPath: remoteRootPath,
+      workspaceKind: 'remote',
+      remoteWorkspaceId,
+      remoteConnectionState: 'connected',
+      remoteErrorCode: null,
+      remoteProfile: {
+        workspaceId: remoteWorkspaceId,
+        host: 'example.com',
+        user: 'tester',
+        remoteRoot: '/repo',
+      },
+    })
   })
 
   it('preserves fileLastLineByPath when selection is cleared', () => {

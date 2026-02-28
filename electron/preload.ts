@@ -171,6 +171,48 @@ type WorkspaceHistoryNavigationEvent = {
   source: WorkspaceHistoryNavigationSource
 }
 
+type WorkspaceRemoteConnectionProfile = {
+  workspaceId: string
+  host: string
+  remoteRoot: string
+  user?: string
+  port?: number
+  agentPath?: string
+  requestTimeoutMs?: number
+  connectTimeoutMs?: number
+}
+
+type WorkspaceRemoteConnectionEvent = {
+  workspaceId: string
+  sessionId?: string
+  state: 'connecting' | 'connected' | 'degraded' | 'disconnected'
+  errorCode?: string
+  message?: string
+  occurredAt: string
+}
+
+type WorkspaceConnectRemoteResult =
+  | {
+      ok: true
+      workspaceId: string
+      sessionId: string
+      rootPath: string
+      remoteConnectionState: 'connected' | 'degraded'
+      state: 'connected' | 'degraded'
+    }
+  | {
+      ok: false
+      workspaceId: string
+      errorCode: string
+      error: string
+    }
+
+type WorkspaceDisconnectRemoteResult = {
+  ok: boolean
+  workspaceId: string
+  error?: string
+}
+
 type SystemOpenInResult = {
   ok: boolean
   error?: string
@@ -292,6 +334,16 @@ const workspaceApi = {
       workspaceId,
     }) as Promise<WorkspaceWatchControlResult>
   },
+  connectRemote(profile: WorkspaceRemoteConnectionProfile) {
+    return ipcRenderer.invoke('workspace:connectRemote', {
+      profile,
+    }) as Promise<WorkspaceConnectRemoteResult>
+  },
+  disconnectRemote(workspaceId: string) {
+    return ipcRenderer.invoke('workspace:disconnectRemote', {
+      workspaceId,
+    }) as Promise<WorkspaceDisconnectRemoteResult>
+  },
   onWatchEvent(listener: (event: WorkspaceWatchEvent) => void) {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -314,6 +366,20 @@ const workspaceApi = {
     ipcRenderer.on('workspace:watchFallback', handler)
     return () => {
       ipcRenderer.off('workspace:watchFallback', handler)
+    }
+  },
+  onRemoteConnectionEvent(
+    listener: (event: WorkspaceRemoteConnectionEvent) => void,
+  ) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: WorkspaceRemoteConnectionEvent,
+    ) => {
+      listener(payload)
+    }
+    ipcRenderer.on('workspace:remoteConnectionEvent', handler)
+    return () => {
+      ipcRenderer.off('workspace:remoteConnectionEvent', handler)
     }
   },
   onHistoryNavigate(

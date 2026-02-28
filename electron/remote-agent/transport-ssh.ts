@@ -1,0 +1,405 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import {
+  REMOTE_AGENT_PROTOCOL_VERSION,
+  RemoteAgentError,
+  ensureSupportedProtocolVersion,
+  isRemoteAgentEvent,
+  isRemoteAgentResponse,
+  toRemoteAgentError,
+  type RemoteAgentEvent,
+  type RemoteAgentResponse,
+} from './protocol'
+import {
+  JsonLineDecoder,
+  encodeJsonLineMessage,
+  type JsonLineFramingError,
+} from './framing'
+import {
+  bootstrapRemoteAgent,
+  type RemoteAgentBootstrapResult,
+  type RemoteAgentBootstrapper,
+} from './bootstrap'
+import type { RemoteConnectionProfile } from './types'
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
+const STOP_GRACE_TIMEOUT_MS = 500
+
+type PendingRequest = {
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
+  timeoutHandle: ReturnType<typeof setTimeout>
+}
+
+export type RemoteAgentEventListener = (event: RemoteAgentEvent) => void
+
+export interface RemoteAgentTransport {
+  start: () => Promise<void>
+  request: <TResult = unknown>(
+    method: string,
+    params?: unknown,
+    timeoutMs?: number,
+  ) => Promise<TResult>
+  onEvent: (listener: RemoteAgentEventListener) => () => void
+  stop: () => Promise<void>
+}
+
+export type SpawnSshProcess = (
+  profile: RemoteConnectionProfile,
+  bootstrap: RemoteAgentBootstrapResult,
+) => ChildProcessWithoutNullStreams
+
+type SshRemoteAgentTransportOptions = {
+  spawnProcess?: SpawnSshProcess
+  bootstrapper?: RemoteAgentBootstrapper
+  requestTimeoutMs?: number
+}
+
+export function createSshRemoteAgentTransport(
+  profile: RemoteConnectionProfile,
+  options: SshRemoteAgentTransportOptions = {},
+): RemoteAgentTransport {
+  return new SshRemoteAgentTransport(profile, options)
+}
+
+class SshRemoteAgentTransport implements RemoteAgentTransport {
+  private readonly profile: RemoteConnectionProfile
+  private readonly spawnProcess: SpawnSshProcess
+  private readonly bootstrapper: RemoteAgentBootstrapper
+  private readonly requestTimeoutMs: number
+
+  private process: ChildProcessWithoutNullStreams | null = null
+  private readonly decoder = new JsonLineDecoder<unknown>()
+  private readonly pendingRequests = new Map<string, PendingRequest>()
+  private readonly eventListeners = new Set<RemoteAgentEventListener>()
+
+  private startPromise: Promise<void> | null = null
+  private stopPromise: Promise<void> | null = null
+  private requestSequence = 0
+  private hasStarted = false
+  private isStopping = false
+
+  private readonly onStdoutData = (chunk: Buffer | string) => {
+    try {
+      const messages = this.decoder.push(chunk)
+      for (const message of messages) {
+        this.handleIncomingMessage(message)
+      }
+    } catch (error) {
+      const normalizedError = toRemoteAgentError(error, 'INVALID_RESPONSE')
+      this.failAllPending(normalizedError)
+      void this.stop()
+    }
+  }
+
+  private readonly onStderrData = (chunk: Buffer | string) => {
+    const message = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+    if (!message.trim()) {
+      return
+    }
+
+    this.emitEvent({
+      type: 'event',
+      event: 'transport.stderr',
+      payload: {
+        message,
+      },
+      protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+    })
+  }
+
+  private readonly onProcessError = (error: Error) => {
+    const normalized = toRemoteAgentError(error, 'CONNECTION_CLOSED')
+    this.failAllPending(normalized)
+  }
+
+  private readonly onProcessExit = (
+    code: number | null,
+    signal: NodeJS.Signals | null,
+  ) => {
+    this.process = null
+    this.hasStarted = false
+
+    if (!this.isStopping) {
+      const reason = new RemoteAgentError(
+        'CONNECTION_CLOSED',
+        `Remote SSH process exited unexpectedly (code=${String(code)}, signal=${String(signal)}).`,
+      )
+      this.failAllPending(reason)
+      this.emitEvent({
+        type: 'event',
+        event: 'session.disconnected',
+        payload: {
+          reason: reason.message,
+        },
+        protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+      })
+    }
+  }
+
+  constructor(
+    profile: RemoteConnectionProfile,
+    options: SshRemoteAgentTransportOptions,
+  ) {
+    this.profile = profile
+    this.spawnProcess = options.spawnProcess ?? spawnSshProcess
+    this.bootstrapper = options.bootstrapper ?? bootstrapRemoteAgent
+    this.requestTimeoutMs =
+      options.requestTimeoutMs ??
+      profile.requestTimeoutMs ??
+      DEFAULT_REQUEST_TIMEOUT_MS
+  }
+
+  async start(): Promise<void> {
+    if (this.hasStarted) {
+      return
+    }
+    if (this.startPromise) {
+      return this.startPromise
+    }
+
+    this.startPromise = (async () => {
+      const bootstrap = await this.bootstrapper(this.profile)
+      ensureSupportedProtocolVersion(bootstrap.protocolVersion)
+
+      const process = this.spawnProcess(this.profile, bootstrap)
+      this.process = process
+      this.isStopping = false
+
+      process.stdout.on('data', this.onStdoutData)
+      process.stderr.on('data', this.onStderrData)
+      process.on('error', this.onProcessError)
+      process.on('exit', this.onProcessExit)
+
+      this.hasStarted = true
+    })().finally(() => {
+      this.startPromise = null
+    })
+
+    return this.startPromise
+  }
+
+  async request<TResult = unknown>(
+    method: string,
+    params?: unknown,
+    timeoutMs = this.requestTimeoutMs,
+  ): Promise<TResult> {
+    if (!this.process || !this.hasStarted) {
+      throw new RemoteAgentError(
+        'CONNECTION_CLOSED',
+        'Remote agent session is not connected.',
+      )
+    }
+
+    const requestId = this.nextRequestId()
+    const frame = encodeJsonLineMessage({
+      type: 'request',
+      id: requestId,
+      method,
+      params,
+      protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+    })
+
+    return new Promise<TResult>((resolve, reject) => {
+      const timeoutHandle = setTimeout(() => {
+        this.pendingRequests.delete(requestId)
+        reject(
+          new RemoteAgentError(
+            'TIMEOUT',
+            `Remote agent request timed out (${method}, ${timeoutMs}ms).`,
+          ),
+        )
+      }, timeoutMs)
+
+      this.pendingRequests.set(requestId, {
+        resolve: (value) => {
+          resolve(value as TResult)
+        },
+        reject,
+        timeoutHandle,
+      })
+
+      try {
+        this.process?.stdin.write(frame)
+      } catch (error) {
+        clearTimeout(timeoutHandle)
+        this.pendingRequests.delete(requestId)
+        reject(toRemoteAgentError(error, 'CONNECTION_CLOSED'))
+      }
+    })
+  }
+
+  onEvent(listener: RemoteAgentEventListener): () => void {
+    this.eventListeners.add(listener)
+    return () => {
+      this.eventListeners.delete(listener)
+    }
+  }
+
+  async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise
+    }
+
+    this.stopPromise = (async () => {
+      const process = this.process
+      if (!process) {
+        this.hasStarted = false
+        return
+      }
+
+      this.isStopping = true
+      process.stdout.removeListener('data', this.onStdoutData)
+      process.stderr.removeListener('data', this.onStderrData)
+      process.removeListener('error', this.onProcessError)
+      process.removeListener('exit', this.onProcessExit)
+
+      await new Promise<void>((resolve) => {
+        let didResolve = false
+        const finalize = () => {
+          if (didResolve) {
+            return
+          }
+          didResolve = true
+          resolve()
+        }
+
+        const timer = setTimeout(() => {
+          process.removeListener('exit', onExit)
+          finalize()
+        }, STOP_GRACE_TIMEOUT_MS)
+
+        const onExit = () => {
+          clearTimeout(timer)
+          finalize()
+        }
+
+        process.once('exit', onExit)
+
+        try {
+          process.stdin.end()
+          process.kill('SIGTERM')
+        } catch {
+          clearTimeout(timer)
+          process.removeListener('exit', onExit)
+          finalize()
+        }
+      })
+
+      this.process = null
+      this.hasStarted = false
+      this.failAllPending(
+        new RemoteAgentError(
+          'CONNECTION_CLOSED',
+          'Remote agent session has been disconnected.',
+        ),
+      )
+    })().finally(() => {
+      this.stopPromise = null
+      this.isStopping = false
+    })
+
+    return this.stopPromise
+  }
+
+  private nextRequestId(): string {
+    this.requestSequence += 1
+    return `req-${this.requestSequence}`
+  }
+
+  private handleIncomingMessage(message: unknown): void {
+    if (isRemoteAgentResponse(message)) {
+      this.handleResponseMessage(message)
+      return
+    }
+
+    if (isRemoteAgentEvent(message)) {
+      try {
+        ensureSupportedProtocolVersion(message.protocolVersion)
+      } catch (error) {
+        this.failAllPending(toRemoteAgentError(error, 'AGENT_PROTOCOL_MISMATCH'))
+        return
+      }
+      this.emitEvent(message)
+    }
+  }
+
+  private handleResponseMessage(message: RemoteAgentResponse): void {
+    const pending = this.pendingRequests.get(message.id)
+    if (!pending) {
+      return
+    }
+
+    clearTimeout(pending.timeoutHandle)
+    this.pendingRequests.delete(message.id)
+
+    try {
+      ensureSupportedProtocolVersion(message.protocolVersion)
+    } catch (error) {
+      pending.reject(toRemoteAgentError(error, 'AGENT_PROTOCOL_MISMATCH'))
+      return
+    }
+
+    if (message.ok) {
+      pending.resolve(message.result)
+      return
+    }
+
+    pending.reject(
+      new RemoteAgentError(message.error.code, message.error.message),
+    )
+  }
+
+  private emitEvent(event: RemoteAgentEvent): void {
+    for (const listener of this.eventListeners) {
+      listener(event)
+    }
+  }
+
+  private failAllPending(error: Error | JsonLineFramingError | RemoteAgentError): void {
+    const normalizedError =
+      error instanceof RemoteAgentError
+        ? error
+        : toRemoteAgentError(error, 'CONNECTION_CLOSED')
+
+    for (const [requestId, pending] of this.pendingRequests.entries()) {
+      clearTimeout(pending.timeoutHandle)
+      pending.reject(normalizedError)
+      this.pendingRequests.delete(requestId)
+    }
+  }
+}
+
+function spawnSshProcess(
+  profile: RemoteConnectionProfile,
+  bootstrap: RemoteAgentBootstrapResult,
+): ChildProcessWithoutNullStreams {
+  const args: string[] = []
+  if (profile.port) {
+    args.push('-p', String(profile.port))
+  }
+
+  const timeoutSeconds = Math.max(
+    1,
+    Math.floor((profile.connectTimeoutMs ?? 10_000) / 1000),
+  )
+  args.push('-o', `ConnectTimeout=${timeoutSeconds}`)
+  args.push(profile.user ? `${profile.user}@${profile.host}` : profile.host)
+
+  const remoteCommand = [
+    bootstrap.agentPath,
+    '--stdio',
+    '--protocol-version',
+    REMOTE_AGENT_PROTOCOL_VERSION,
+    '--workspace-root',
+    shellEscape(profile.remoteRoot),
+  ].join(' ')
+  args.push('sh', '-lc', remoteCommand)
+
+  return spawn('ssh', args, {
+    stdio: 'pipe',
+  })
+}
+
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`
+}

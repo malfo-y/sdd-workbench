@@ -142,6 +142,20 @@
   - (F26) `workspace:getGitFileStatuses` 핸들러: git 저장소 확인 → `git status --porcelain` → `parseGitStatusPorcelain()` 파싱
 - `electron/workspace-watch-mode.ts`
   - `/Volumes/*` 휴리스틱 + override 우선순위 기반 watch mode resolver
+- `electron/workspace-backend/types.ts` (F27, planned)
+  - local/remote 공통 `WorkspaceBackend` 인터페이스 정의
+- `electron/workspace-backend/local-workspace-backend.ts` (F27, planned)
+  - 기존 로컬 파일/디렉토리/코멘트/watch/git 동작 이관
+- `electron/workspace-backend/remote-workspace-backend.ts` (F27, planned)
+  - remote agent RPC를 통한 index/read/write/CRUD/watch/git 경로 구현
+- `electron/remote-agent/protocol.ts` (F27, planned)
+  - 원격 요청/응답/이벤트 타입 + 프로토콜 버전/오류 코드 계약
+- `electron/remote-agent/transport-ssh.ts` (F27, planned)
+  - SSH 실행/agent bootstrap/세션 생명주기 + timeout/reconnect 관리
+- `electron/remote-agent/watch-bridge.ts` (F27, planned)
+  - 원격 watcher 이벤트를 기존 `workspace:watchEvent` payload로 변환
+- `electron/remote-agent/security.ts` (F27, planned)
+  - remote root 경계 검증 + 허용 메서드 화이트리스트
 - `electron/git-line-markers.ts`
   - unified diff hunk 파싱으로 라인 마커(`added`/`modified`) 계산
 - `electron/git-file-statuses.ts` (F26)
@@ -157,6 +171,7 @@
   - (F25) CRUD 4개 result 타입 + `WorkspaceApi` 확장
   - (F25b) `WorkspaceRenameResult` + `rename` 메서드 시그니처
   - (F26) `GitFileStatusKind` + `WorkspaceGetGitFileStatusesResult` + `getGitFileStatuses` 메서드 시그니처
+  - (F27, planned) remote connection profile/state/error 코드 타입 + connect/disconnect IPC 시그니처
 
 ## 2. 테스트 맵(핵심)
 
@@ -169,6 +184,8 @@
 - electron resolver: `electron/workspace-watch-mode.test.ts`
 - electron git parser: `electron/git-line-markers.test.ts`
 - electron git file statuses parser: `electron/git-file-statuses.test.ts` (F26)
+- electron remote protocol/transport/security: `electron/remote-agent/*.test.ts` (F27, planned)
+- electron backend abstraction: `electron/workspace-backend/*.test.ts` (F27, planned)
 - syntax highlight: `src/code-viewer/syntax-highlight.test.ts`
 - comment 도메인: `comment-anchor/comment-persistence/comment-line-index/comment-export/comment-list-modal` 테스트
 

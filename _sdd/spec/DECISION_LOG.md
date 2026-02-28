@@ -1,3 +1,36 @@
+## 2026-02-28 - F27 자동화 수준 고정(MVP) + SSHFS 경로 폐기 결정
+
+- Context:
+  - F27 계획 반영 이후 원격 agent 배포 자동화 범위와 F15(SSHFS 기반) 존치 여부를 추가로 확정할 필요가 생김.
+- Decision:
+  - 원격 agent 자동화는 MVP 범위로 고정한다.
+  - MVP 자동화 범위는 `존재 확인 -> 없으면 설치 -> 버전 검증`으로 제한한다.
+  - 자동 업그레이드/롤백/복수 배포 채널 관리/고급 장애복구 오케스트레이션은 MVP 범위에서 제외한다.
+  - F15(SSHFS 기반) 원격 연결 경로는 폐기 대상으로 확정하고, F27(remote-protocol) 단일 경로로 전환한다.
+- Rationale:
+  - 자동화 완성도를 과도하게 올리면 일정이 급격히 커지므로, 초기 구현은 설치/검증 자동화로 제한하는 것이 현실적이다.
+  - 원격 경로를 단일화해야 운영/디버깅/테스트 기준을 단순화할 수 있다.
+- Impact / follow-up:
+  - `main.md`와 split spec의 Open Questions/리스크 문구에서 해당 항목을 결정사항으로 전환한다.
+  - F27 구현 단계에서 F15 경로 제거 시점과 마이그레이션 체크리스트를 별도 작업으로 관리한다.
+
+## 2026-02-28 - F27 Remote Agent Protocol 원격 워크스페이스 MVP 계획 반영
+
+- Context:
+  - 현재 원격 워크스페이스 지원은 SSHFS 마운트 품질에 의존하며, 연결/감시 안정성 편차가 큰 상태임.
+  - 사용자 요청에 따라 구현 전에 F27 에픽 단위 계획(요구사항 + 범위 + 태스크)을 스펙 본문에 먼저 고정할 필요가 생김.
+- Decision:
+  - F27을 `Planned` 상태로 스펙에 추가하고, Remote Agent Protocol 기반 원격 워크스페이스 경로를 공식 범위로 정의한다.
+  - 기존 `workspace:*` Renderer 계약은 유지하고, Electron Main에 `WorkspaceBackend(local/remote)` 추상화를 도입하는 전략을 채택한다.
+  - 원격 연결 상태/오류 코드(`AUTH_FAILED`, `TIMEOUT`, `AGENT_PROTOCOL_MISMATCH`, `PATH_DENIED`)를 표준화하고 운영/테스트 기준에 반영한다.
+  - 범위는 MVP로 제한하며, 내장 터미널/포트포워딩/원격 확장 실행/원격 LSP 관리는 제외한다.
+- Rationale:
+  - 구현을 시작하기 전에 범위와 비범위를 명확히 고정해야 기능 팽창을 막고, 태스크를 개별 단위로 분할해 순차 실행하기 쉽다.
+  - IPC 계약 유지 전략은 기존 Renderer 회귀를 최소화하고, 원격 경로를 점진적으로 도입하는 데 유리하다.
+- Impact / follow-up:
+  - `main.md` 및 split spec(`01~05`, `appendix`)에 F27 planned 섹션/계약/Open Questions를 반영한다.
+  - 다음 구현 순서는 R1(프로토콜 계약) -> R3(backend 추상화) -> 나머지 태스크 순으로 세분화 계획을 작성한다.
+
 ## 2026-02-25 - F25 구현 완료 + 버그 수정 2건
 
 - Context:
