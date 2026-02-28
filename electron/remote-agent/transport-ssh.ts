@@ -23,6 +23,8 @@ import type { RemoteConnectionProfile } from './types'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const STOP_GRACE_TIMEOUT_MS = 500
+const STARTUP_HEALTHCHECK_TIMEOUT_MS = 3_000
+const STUB_RUNTIME_ERROR_MARKER = 'remote agent runtime is not bundled'
 
 type PendingRequest = {
   resolve: (value: unknown) => void
@@ -71,6 +73,7 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
   private readonly decoder = new JsonLineDecoder<unknown>()
   private readonly pendingRequests = new Map<string, PendingRequest>()
   private readonly eventListeners = new Set<RemoteAgentEventListener>()
+  private stderrTail = ''
 
   private startPromise: Promise<void> | null = null
   private stopPromise: Promise<void> | null = null
@@ -96,6 +99,7 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
     if (!message.trim()) {
       return
     }
+    this.stderrTail = `${this.stderrTail}${message}`.slice(-1024)
 
     this.emitEvent({
       type: 'event',
@@ -171,6 +175,26 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
       process.on('exit', this.onProcessExit)
 
       this.hasStarted = true
+      this.stderrTail = ''
+
+      try {
+        const healthcheckResult = await this.request<{ ok?: boolean }>(
+          'agent.healthcheck',
+          undefined,
+          Math.min(this.requestTimeoutMs, STARTUP_HEALTHCHECK_TIMEOUT_MS),
+        )
+
+        if (!healthcheckResult || healthcheckResult.ok !== true) {
+          throw new RemoteAgentError(
+            'BOOTSTRAP_FAILED',
+            'Remote agent health check response is invalid.',
+          )
+        }
+      } catch (error) {
+        const normalized = this.toStartupError(error)
+        await this.stop()
+        throw normalized
+      }
     })().finally(() => {
       this.startPromise = null
     })
@@ -366,6 +390,26 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
       pending.reject(normalizedError)
       this.pendingRequests.delete(requestId)
     }
+  }
+
+  private toStartupError(error: unknown): RemoteAgentError {
+    const normalized =
+      error instanceof RemoteAgentError
+        ? error
+        : toRemoteAgentError(error, 'BOOTSTRAP_FAILED')
+
+    const stderrMessage = this.stderrTail.toLowerCase()
+    if (
+      normalized.code === 'CONNECTION_CLOSED' &&
+      stderrMessage.includes(STUB_RUNTIME_ERROR_MARKER)
+    ) {
+      return new RemoteAgentError(
+        'BOOTSTRAP_FAILED',
+        'Remote agent runtime is not bundled or failed to start.',
+      )
+    }
+
+    return normalized
   }
 }
 

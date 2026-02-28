@@ -186,6 +186,9 @@ function getRemoteConnectionErrorMessage(
   if (errorCode === 'PATH_DENIED') {
     return 'Remote workspace path denied (PATH_DENIED).'
   }
+  if (errorCode === 'BOOTSTRAP_FAILED') {
+    return 'Remote agent bootstrap failed (BOOTSTRAP_FAILED). Check agent path/runtime prerequisites.'
+  }
   if (fallbackMessage && fallbackMessage.trim().length > 0) {
     return sanitizeRemoteBannerMessage(fallbackMessage)
   }

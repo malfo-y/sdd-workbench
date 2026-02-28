@@ -35,6 +35,7 @@ const FATAL_ERROR_CODES = new Set<RemoteAgentErrorCode>([
   'AUTH_FAILED',
   'AGENT_PROTOCOL_MISMATCH',
   'PATH_DENIED',
+  'BOOTSTRAP_FAILED',
 ])
 
 type WaitFor = (durationMs: number) => Promise<void>

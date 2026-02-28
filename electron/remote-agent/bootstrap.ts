@@ -1,17 +1,19 @@
 import { execFile, type ExecFileException } from 'node:child_process'
 import path from 'node:path'
 import {
-  REMOTE_AGENT_PROTOCOL_VERSION,
   RemoteAgentError,
   ensureSupportedProtocolVersion,
   isRemoteAgentError,
   toRemoteAgentError,
 } from './protocol'
+import { REMOTE_AGENT_RUNTIME_PAYLOAD } from './runtime/generated-payload'
 import type { RemoteConnectionProfile } from './types'
 
 const DEFAULT_REMOTE_AGENT_PATH = '$HOME/.sdd-workbench/bin/sdd-remote-agent'
 const SSH_MAX_BUFFER_BYTES = 1024 * 1024
 const PROBE_MISSING_MARKER = '__SDD_REMOTE_AGENT_MISSING__'
+const PROBE_READY_MARKER = '__SDD_REMOTE_AGENT_READY__'
+const PROBE_STUB_MARKER = '__SDD_REMOTE_AGENT_STUB__'
 
 export type RemoteAgentProbeResult = {
   exists: boolean
@@ -83,6 +85,11 @@ export function createDefaultBootstrapDeps(): RemoteAgentBootstrapDeps {
       const probeScript = [
         `if [ -x ${agentPath} ]; then`,
         `  ${agentPath} --protocol-version`,
+        `  if ${agentPath} --healthcheck >/dev/null 2>&1; then`,
+        `    echo ${PROBE_READY_MARKER}`,
+        '  else',
+        `    echo ${PROBE_STUB_MARKER}`,
+        '  fi',
         'else',
         `  echo ${PROBE_MISSING_MARKER}`,
         'fi',
@@ -111,10 +118,18 @@ export function createDefaultBootstrapDeps(): RemoteAgentBootstrapDeps {
       }
 
       const version = extractProtocolVersion(combinedOutput)
-      if (!version) {
+      if (combinedOutput.includes(PROBE_STUB_MARKER)) {
+        return {
+          exists: false,
+          version,
+          agentPath,
+        }
+      }
+
+      if (!combinedOutput.includes(PROBE_READY_MARKER) || !version) {
         throw new RemoteAgentError(
           'BOOTSTRAP_FAILED',
-          'Remote agent protocol version is missing from probe output.',
+          'Remote agent probe did not return a runnable runtime.',
         )
       }
 
@@ -129,15 +144,11 @@ export function createDefaultBootstrapDeps(): RemoteAgentBootstrapDeps {
       const installScript = [
         `mkdir -p ${path.posix.dirname(agentPath)}`,
         `cat > ${agentPath} <<'__SDD_REMOTE_AGENT__'`,
-        '#!/usr/bin/env bash',
-        'if [ "$1" = "--protocol-version" ]; then',
-        `  echo "${REMOTE_AGENT_PROTOCOL_VERSION}"`,
-        '  exit 0',
-        'fi',
-        'echo "Remote agent runtime is not bundled in this MVP build." >&2',
-        'exit 1',
+        REMOTE_AGENT_RUNTIME_PAYLOAD,
         '__SDD_REMOTE_AGENT__',
         `chmod +x ${agentPath}`,
+        `${agentPath} --healthcheck >/dev/null 2>&1`,
+        `${agentPath} --protocol-version`,
       ].join('\n')
 
       const result = await runSshCommand(profile, installScript)

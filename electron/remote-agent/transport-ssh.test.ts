@@ -37,6 +37,44 @@ const bootstrapResult: RemoteAgentBootstrapResult = {
   installed: false,
 }
 
+function wireHealthcheckResponder(
+  fakeProcess: FakeChildProcess,
+  seenRequests: Array<{ id: string; method: string }> = [],
+) {
+  let pending = ''
+  fakeProcess.stdin.on('data', (chunk) => {
+    pending += chunk.toString('utf8')
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (!line.trim()) {
+        continue
+      }
+
+      const request = JSON.parse(line) as { id: string; method: string }
+      seenRequests.push({
+        id: request.id,
+        method: request.method,
+      })
+
+      if (request.method !== 'agent.healthcheck') {
+        continue
+      }
+
+      fakeProcess.stdout.write(
+        `${JSON.stringify({
+          type: 'response',
+          id: request.id,
+          ok: true,
+          result: { ok: true },
+          protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+        })}\n`,
+      )
+    }
+  })
+}
+
 describe('remote-agent/transport-ssh', () => {
   it('adds -i and IdentitiesOnly=yes when identityFile is provided', () => {
     const args = buildSshProcessArgs(
@@ -80,10 +118,8 @@ describe('remote-agent/transport-ssh', () => {
 
   it('matches responses by request id', async () => {
     const fakeProcess = new FakeChildProcess()
-    const stdinChunks: string[] = []
-    fakeProcess.stdin.on('data', (chunk) => {
-      stdinChunks.push(chunk.toString('utf8'))
-    })
+    const seenRequests: Array<{ id: string; method: string }> = []
+    wireHealthcheckResponder(fakeProcess, seenRequests)
 
     const transport = createSshRemoteAgentTransport(profile, {
       spawnProcess: () => fakeProcess.asChildProcess(),
@@ -97,13 +133,15 @@ describe('remote-agent/transport-ssh', () => {
       payload: 1,
     })
 
-    const outbound = stdinChunks.join('')
-    const outboundMessage = JSON.parse(outbound.trim()) as { id: string }
+    const pingRequest = seenRequests.find((request) => request.method === 'ping')
+    if (!pingRequest) {
+      throw new Error('Expected ping request to be written after start.')
+    }
 
     fakeProcess.stdout.write(
       `${JSON.stringify({
         type: 'response',
-        id: outboundMessage.id,
+        id: pingRequest.id,
         ok: true,
         result: { pong: true },
         protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
@@ -118,6 +156,7 @@ describe('remote-agent/transport-ssh', () => {
     vi.useFakeTimers()
 
     const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
     const transport = createSshRemoteAgentTransport(profile, {
       spawnProcess: () => fakeProcess.asChildProcess(),
       bootstrapper: async () => bootstrapResult,
@@ -136,8 +175,27 @@ describe('remote-agent/transport-ssh', () => {
     await transport.stop()
   })
 
+  it('maps stub runtime startup failure to BOOTSTRAP_FAILED', async () => {
+    const fakeProcess = new FakeChildProcess()
+    fakeProcess.stdin.on('data', () => {
+      fakeProcess.stderr.write('Remote agent runtime is not bundled in this MVP build.\n')
+      fakeProcess.emit('exit', 1, null)
+    })
+
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+
+    await expect(transport.start()).rejects.toMatchObject({
+      code: 'BOOTSTRAP_FAILED',
+    })
+  })
+
   it('rejects pending requests when ssh process exits', async () => {
     const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
     const transport = createSshRemoteAgentTransport(profile, {
       spawnProcess: () => fakeProcess.asChildProcess(),
       bootstrapper: async () => bootstrapResult,

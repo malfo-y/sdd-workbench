@@ -178,7 +178,7 @@ export function RemoteConnectModal({
           onChange={(event) => {
             setAgentPath(event.target.value)
           }}
-          placeholder="~/.sdd-workbench/remote-agent.sh"
+          placeholder="~/.sdd-workbench/bin/sdd-remote-agent"
           type="text"
           value={agentPath}
         />
