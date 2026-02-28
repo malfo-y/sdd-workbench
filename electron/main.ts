@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -9,6 +9,7 @@ import {
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
 } from './workspace-watch-mode'
+import { detectRemoteMountPoint } from './remote-mount-detection'
 import {
   parseGitDiffLineMarkers,
   type WorkspaceGitLineMarker,
@@ -371,10 +372,6 @@ const fileNameCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 })
-const NETWORK_FS_TYPES = new Set([
-  'sshfs', 'nfs', 'smbfs', 'cifs', 'afpfs', 'webdavfs',
-  'macfuse', 'osxfuse', 'fuse', 'fusefs',
-])
 
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
 const workspacesInFallbackTransition = new Set<string>()
@@ -578,53 +575,6 @@ function buildImagePreview(
   return {
     mimeType,
     dataUrl,
-  }
-}
-
-function detectRemoteMountPoint(rootPath: string): boolean {
-  if (process.platform !== 'darwin' && process.platform !== 'linux') {
-    return false
-  }
-  try {
-    const mountOutput = execFileSync('mount', { encoding: 'utf8', timeout: 3000 })
-    const resolvedRoot = path.resolve(rootPath)
-
-    let bestMountPoint = ''
-    let bestIsRemote = false
-
-    for (const line of mountOutput.split('\n')) {
-      // macOS format: "device on /mount/point (fstype, options)"
-      const match = line.match(/^(.+?) on (.+?) \(([^,)]+)/)
-      if (!match) {
-        continue
-      }
-
-      const device = match[1]
-      const mountPoint = match[2]
-      const fsType = match[3].trim().toLowerCase()
-
-      if (
-        resolvedRoot !== mountPoint &&
-        !resolvedRoot.startsWith(mountPoint + '/')
-      ) {
-        continue
-      }
-
-      // Pick the longest (most specific) mount point that matches
-      if (mountPoint.length <= bestMountPoint.length) {
-        continue
-      }
-
-      bestMountPoint = mountPoint
-      bestIsRemote =
-        NETWORK_FS_TYPES.has(fsType) ||
-        device.includes('@') ||
-        device.includes('://')
-    }
-
-    return bestIsRemote
-  } catch {
-    return false
   }
 }
 
