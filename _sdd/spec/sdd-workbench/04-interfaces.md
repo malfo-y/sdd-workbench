@@ -9,7 +9,6 @@ type WorkspaceWatchMode = 'native' | 'polling'
 type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
 type WorkspaceKind = 'local' | 'remote'
 type RemoteConnectionState =
-  | 'idle'
   | 'connecting'
   | 'connected'
   | 'degraded'
@@ -19,11 +18,20 @@ type RemoteErrorCode =
   | 'TIMEOUT'
   | 'AGENT_PROTOCOL_MISMATCH'
   | 'PATH_DENIED'
+  | 'CONNECTION_CLOSED'
+  | 'INVALID_RESPONSE'
+  | 'BOOTSTRAP_FAILED'
+  | 'UNKNOWN'
 type RemoteWorkspaceProfile = {
+  workspaceId: string
   host: string
-  user: string
+  remoteRoot: string
+  user?: string
   port?: number
-  remoteRootPath: string
+  agentPath?: string
+  identityFile?: string
+  requestTimeoutMs?: number
+  connectTimeoutMs?: number
 }
 type WorkspaceGitLineMarkerKind = 'added' | 'modified'
 type WorkspaceGitLineMarker = {
@@ -34,7 +42,7 @@ type WorkspaceGitLineMarker = {
 interface WorkspaceFileNode {
   name: string
   relativePath: string
-  type: 'file' | 'directory'
+  kind: 'file' | 'directory'
   children?: WorkspaceFileNode[]
   childrenStatus?: 'complete' | 'not-loaded' | 'partial'
   totalChildCount?: number
@@ -69,7 +77,7 @@ type CodeComment = {
 3. global comments source of truth는 `workspaceRoot/.sdd-workbench/global-comments.md`
 4. `_COMMENTS.md`는 export 산출물(재생성)이며 source of truth가 아님
 5. watcher 선호값(`watchModePreference`)은 workspace 세션 snapshot에 영속화된다.
-6. (F27, planned) remote workspace는 `workspaceKind='remote'`와 `remoteProfile`을 갖고, 연결 상태는 `remoteConnectionState`로 관리한다.
+6. (F27) remote workspace는 `workspaceKind='remote'`와 `remoteProfile`을 갖고, 연결 상태는 `remoteConnectionState`로 관리한다.
 
 ## 2. 링크/경로 해석 규칙
 
@@ -113,50 +121,54 @@ type CodeComment = {
 | `workspace:deleteDirectory` | Renderer -> Main (`invoke`) | 디렉토리 재귀 삭제(경계 검사 + 디렉토리 확인) (F25) |
 | `workspace:rename` | Renderer -> Main (`invoke`) | 파일/디렉토리 이름 변경(경계 검사 + 충돌 확인) (F25b) |
 | `workspace:getGitFileStatuses` | Renderer -> Main (`invoke`) | 워크스페이스 전체 Git 파일 상태 조회 (F26) |
-| `workspace:connectRemote` | Renderer -> Main (`invoke`) | 원격 연결 프로필로 remote agent 세션 연결 + remote workspace 생성 (F27, planned) |
-| `workspace:disconnectRemote` | Renderer -> Main (`invoke`) | remote workspace 세션 종료/정리 (F27, planned) |
-| `workspace:remoteConnectionEvent` | Main -> Renderer (`send`) | 원격 연결 상태/오류 코드 이벤트 전달 (F27, planned) |
+| `workspace:connectRemote` | Renderer -> Main (`invoke`) | 원격 연결 프로필로 remote agent 세션 연결 + remote workspace 생성 (F27) |
+| `workspace:disconnectRemote` | Renderer -> Main (`invoke`) | remote workspace 세션 종료/정리 (F27) |
+| `workspace:remoteConnectionEvent` | Main -> Renderer (`send`) | 원격 연결 상태/오류 코드 이벤트 전달 (F27) |
 
 `workspace:watchStart` 계약 요약:
 
 - request: `{ workspaceId, rootPath, watchModePreference?: 'auto'|'native'|'polling' }`
 - response: `{ ok, watchMode?: 'native'|'polling', isRemoteMounted?: boolean, fallbackApplied?: boolean, error?: string }`
-- 해석 규칙: `override(native|polling) > auto 휴리스틱(mount 명령 네트워크 FS 감지 => polling)`
+- 해석 규칙: `override(native|polling) > auto 휴리스틱(isRemoteMountedHint=true => polling, false => native)`
 - fallback 규칙: `native` 시작 실패 시 `polling`으로 강등 성공 후 `fallbackApplied=true`
-- F15(SSHFS 기반) watcher 경로는 deprecated이며 F27 안정화 이후 제거 대상이다.
+- F15(SSHFS 기반) 연결 경로는 폐기되었고 F27(remote-protocol)만 사용한다.
 
 `workspace:indexDirectory` 계약 요약:
 
-- request: `{ rootPath, relativePath }`
-- response: `{ ok, children?: WorkspaceFileNode[], childrenStatus?: 'complete'|'partial', totalChildCount?: number, error?: string }`
+- request: `{ rootPath, relativePath, offset?: number, limit?: number }`
+- response: `{ ok, children: WorkspaceFileNode[], childrenStatus: 'complete'|'partial', totalChildCount: number, error?: string }`
 - 디렉토리별 child cap(`500`) 적용, 초과 시 `partial` + `totalChildCount` 반환
 
-`workspace:connectRemote` 계약 요약 (F27, planned):
+`workspace:connectRemote` 계약 요약 (F27):
 
-- request: `{ profile: { host: string, user: string, port?: number, remoteRootPath: string } }`
-- response: `{ ok: boolean, workspaceId?: string, rootPath?: string, remoteConnectionState?: 'connected'|'degraded', errorCode?: RemoteErrorCode, error?: string }`
+- request: `{ profile: { workspaceId: string, host: string, remoteRoot: string, user?: string, port?: number, agentPath?: string, identityFile?: string, requestTimeoutMs?: number, connectTimeoutMs?: number } }`
+- response: `{ ok: boolean, workspaceId?: string, sessionId?: string, rootPath?: string, remoteConnectionState?: 'connected'|'degraded', state?: 'connected'|'degraded', errorCode?: RemoteErrorCode, error?: string }`
 - 성공 시 Renderer는 반환된 workspace 식별자를 기준으로 기존 `workspace:index/read/write/watch` 계약을 그대로 사용한다.
 - 실패 시 `errorCode`를 우선 해석하고, UI는 배너 + 재시도 액션을 제공한다.
-- bootstrap 자동화 범위(MVP): agent 존재 확인 -> 없으면 설치 -> 버전 검증
+- bootstrap 자동화 범위(MVP): runtime 설치/갱신 -> 실행 가능 여부(`--healthcheck`) + 버전 검증
 - 자동 업그레이드/롤백/복수 배포 채널 관리는 MVP 범위에서 제외한다.
 
-`workspace:disconnectRemote` 계약 요약 (F27, planned):
+`workspace:disconnectRemote` 계약 요약 (F27):
 
 - request: `{ workspaceId: string }`
-- response: `{ ok: boolean, errorCode?: RemoteErrorCode, error?: string }`
+- response: `{ ok: boolean, workspaceId: string, error?: string }`
 - 동작: 원격 세션 종료 + watcher 정리 + workspace 상태를 `disconnected`로 전환
 
-`workspace:remoteConnectionEvent` 계약 요약 (F27, planned):
+`workspace:remoteConnectionEvent` 계약 요약 (F27):
 
-- payload: `{ workspaceId: string, state: RemoteConnectionState, errorCode?: RemoteErrorCode, message?: string }`
+- payload: `{ workspaceId: string, sessionId?: string, state: RemoteConnectionState, errorCode?: RemoteErrorCode, message?: string, occurredAt: string }`
 - 용도: 연결 수립/강등/끊김을 실시간 반영하여 배너/상태 뱃지 업데이트
 
-원격 오류 코드 규칙 (F27, planned):
+원격 오류 코드 규칙 (F27):
 
 - `AUTH_FAILED`: 인증 실패(키/계정/권한)
 - `TIMEOUT`: 연결 또는 RPC 응답 시간 초과
 - `AGENT_PROTOCOL_MISMATCH`: agent와 클라이언트 프로토콜 버전 불일치
 - `PATH_DENIED`: remote root 경계 밖 접근 시도 또는 권한 거부
+- `BOOTSTRAP_FAILED`: 원격 agent 시작/healthcheck/프로브 실패
+- `CONNECTION_CLOSED`: SSH 세션 비정상 종료/중단
+- `INVALID_RESPONSE`: JSON line framing/응답 형식 오류
+- `UNKNOWN`: 분류되지 않은 예외
 
 `workspace:getGitLineMarkers` 계약 요약:
 
@@ -263,9 +275,9 @@ type CodeComment = {
 ## 6. 대규모 워크스페이스 lazy indexing 규칙
 
 1. 인덱싱 시 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`)을 적용한다.
-2. 원격 마운트(`detectRemoteMountPoint` 기반)에서는 추가로 깊이 제한(`WORKSPACE_INDEX_SHALLOW_DEPTH=3`)을 적용한다.
+2. 전체 인덱싱은 노드 cap(`MAX_WORKSPACE_INDEX_NODES=100000`)을 적용한다.
 3. child cap 초과 디렉토리는 첫 500개 항목만 포함하고 `childrenStatus='partial'` + `totalChildCount`를 설정한다.
-4. 깊이 제한 도달 디렉토리는 `children=[]`, `childrenStatus='not-loaded'`로 설정한다.
+4. recursion이 지연된 디렉토리(예: symlink 디렉토리)는 `children=[]`, `childrenStatus='not-loaded'`로 설정한다.
 5. `not-loaded` 디렉토리 확장 시 `workspace:indexDirectory`로 on-demand 로드한다.
 6. polling watcher는 child cap 초과 디렉토리를 자동 제외하여 과대 디렉토리 반복 스캔을 방지한다.
 7. `isFilePathPotentiallyPresent` 헬퍼로 un-indexed 서브트리 내 active file이 re-index 시 클리어되지 않도록 보호한다.

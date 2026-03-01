@@ -1,3 +1,21 @@
+## 2026-03-01 - F27 구현 완료 반영 + 원격 연결 운영 정책 확정
+
+- Context:
+  - F27 Phase 1~6 구현과 후속 안정화 패치가 완료되어 스펙의 `planned` 표기가 실제 코드와 어긋나기 시작함.
+  - 사용자 피드백 기반으로 원격 연결 입력 UX, SSH 키(`-i`) 처리, bootstrap 동작 정책을 문서에 명시할 필요가 생김.
+- Decision:
+  - F27(Remote Agent Protocol 기반 원격 워크스페이스)을 `Implemented/Done`으로 전환한다.
+  - F15(SSHFS 기반) 연결 경로는 폐기 완료 상태로 반영하고, active 경로는 F27 단일 경로로 고정한다.
+  - 원격 연결 입력 UX는 모달로 유지하고, 마지막 입력(host/user/port/remoteRoot/workspaceId/agentPath/identityFile)을 로컬 저장소에 저장한다.
+  - `identityFile` 입력 시 SSH 실행 인자는 `-i <identityFile> -o IdentitiesOnly=yes`를 적용한다.
+  - MVP bootstrap 자동화는 유지하되, 현재 구현 정책(연결 시 remote runtime 배포 덮어쓰기 + healthcheck/버전 검증)을 스펙에 명시한다.
+- Rationale:
+  - 코드 기준 운영 정책을 명문화해야 디버깅/회귀 테스트/사용자 가이드가 일관되게 유지된다.
+  - F15/F27 이중 경로 문구를 제거하면 원격 장애 대응 및 테스트 기준이 단순해진다.
+- Impact / follow-up:
+  - `main.md` 및 split spec(`01~05`, `appendix`)에서 F27 `planned` 표기를 제거하고 계약/상수/운영 기준을 구현값으로 동기화한다.
+  - 아카이브/인덱스(`_sdd/implementation/features/F27`, `IMPLEMENTATION_INDEX.md`)에 이번 sync 기록을 추가한다.
+
 ## 2026-02-28 - F27 자동화 수준 고정(MVP) + SSHFS 경로 폐기 결정
 
 - Context:

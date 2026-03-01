@@ -12,12 +12,12 @@
 4. 외부 파일 변경(watcher)을 UI에서 안정적으로 반영
 5. 코멘트 수집/관리/내보내기/hover preview/피드백 루프(F11~F12.5)로 LLM 협업 효율화
 6. 스펙-코드 왕복 시 rendered 문맥(스크롤 위치) 보존으로 탐색 비용 최소화
-7. 원격 마운트 워크스페이스에서도 watcher 신뢰성을 유지(`auto/native/polling`)
+7. 로컬/원격 워크스페이스 모두에서 watcher 신뢰성을 유지(`auto/native/polling`)
 8. 대규모/원격 워크스페이스에서 lazy indexing + on-demand 디렉토리 확장으로 빠른 초기 로드
 9. CodeMirror 6 기반 코드 에디터로 spec-code 왕복 편집 비용 절감(read-only 뷰어 대체 → 직접 편집 + 저장)
 10. 파일 트리에서 파일/디렉토리 직접 생성·삭제·이름변경으로 spec-code 편집 흐름을 워크스페이스 내에서 완결(F25/F25b)
 11. 파일 트리에서 git 파일 상태(Untracked/Added/Modified)를 뱃지로 즉시 식별(F26)
-12. SSHFS 의존을 줄이기 위해 Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입(F27, 📋 Planned)
+12. Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입해 원격 작업을 SSH agent 세션으로 처리(F27, Implemented)
 
 ## 3. 범위
 
@@ -30,8 +30,8 @@
 - same-spec source jump 시 rendered spec scroll 유지(런타임)
 - 우클릭 기반 컨텍스트 복사
 - watcher 기반 changed indicator + collapse 버블링 가시화
-- 원격 마운트 auto polling + watch mode 수동 override(`Auto/Native/Polling`)
-- 대규모 디렉토리 lazy indexing(remote 깊이제한 3레벨 + 디렉토리별 child cap 500) + on-demand 확장
+- watch mode 수동 override(`Auto/Native/Polling`) + native 실패 시 polling fallback
+- 대규모 디렉토리 lazy indexing(node cap 100,000 + 디렉토리별 child cap 500) + on-demand 확장
 - 파일 히스토리 Back/Forward + 입력 바인딩(mouse/swipe/wheel)
 - 앱 재시작 시 세션 복원(workspaces/active file/active spec/line resume)
 - inline comment + export bundle + incremental export
@@ -49,7 +49,7 @@
 - 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added)/M(Modified) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked)
 - 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
 - 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
-- 📋 Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Remote Root 입력, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27)
+- Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Remote Root 입력 + identityFile 선택 + bootstrap/runtime 설치/검증, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27)
 
 ### 3.2 MVP 제외 범위
 
@@ -74,16 +74,16 @@
 1. 코드/트리에서 우클릭으로 상대경로/선택 내용을 복사하고
 2. 필요 시 Open In(iTerm/VSCode)로 외부 작업으로 전환한다.
 
-### 4.3 원격 워크스페이스 감시 흐름(F15, Deprecated)
+### 4.3 원격 연결 경로 전환(F15 -> F27)
 
-1. F15(SSHFS 기반) 경로는 레거시 동작으로 유지되지만, 신규 확장 대상에서 제외한다.
-2. 원격 워크스페이스 전략은 F27(remote-protocol) 단일 경로로 전환한다.
-3. F27 안정화 후 F15 경로는 제거(폐기)한다.
+1. F15(SSHFS 기반) 원격 연결 경로는 폐기되었고, 신규 원격 연결은 F27(remote-protocol)만 사용한다.
+2. 원격 연결은 `Connect Remote Workspace` 모달에서 입력하며, 마지막 입력값은 로컬 저장소에 유지된다.
+3. 인증키 경로를 입력한 경우 `ssh -i <identityFile> -o IdentitiesOnly=yes`로 연결한다.
 
 ### 4.5 대규모 워크스페이스 탐색 흐름(F16)
 
 1. 초기 인덱싱 시 디렉토리별 child cap(500)을 적용하여 과대 디렉토리를 `partial`로 표시한다.
-2. 원격 마운트에서는 추가로 깊이 제한(3레벨)을 적용해 초기 로드 속도를 확보한다.
+2. 초기 인덱싱은 노드 cap(100,000)과 child cap(500)으로 제한해 초기 로드 속도를 확보한다.
 3. `not-loaded` 디렉토리를 확장하면 on-demand로 해당 디렉토리의 자식을 로드한다.
 4. polling watcher는 child cap 초과 디렉토리를 자동 제외하여 과대 디렉토리의 반복 스캔을 방지한다.
 
@@ -96,12 +96,12 @@
 5. `View Comments`에서 "Include in export" 체크박스로 Global Comments 포함 여부를 선택
 6. `Export Comments`에서 Global Comments 선행 + pending-only line comment bundle을 내보내고 `exportedAt`를 기록
 
-### 4.6 원격 에이전트 워크스페이스 연결 흐름(F27, 📋 Planned)
+### 4.6 원격 에이전트 워크스페이스 연결 흐름(F27, Implemented)
 
-1. 사용자가 `Connect Remote Workspace`에서 host/user/remote root path를 입력한다.
-2. Main 프로세스는 SSH로 원격 agent 세션을 부팅하고 프로토콜 버전을 handshake한다.
-3. 연결 성공 시 renderer는 remote workspace 세션을 생성하고 기존 `workspace:index/read/write/watch` 플로우를 동일하게 사용한다.
-4. 연결 장애/타임아웃 시 상태를 `degraded` 또는 `disconnected`로 표기하고 재시도 경로를 제공한다.
+1. 사용자가 `Connect Remote Workspace`에서 host/user/port/remote root/agent path/identity file을 입력한다.
+2. Main 프로세스는 SSH로 원격 agent runtime을 배포(덮어쓰기)하고 `--protocol-version` + `--healthcheck`를 검증한 뒤 stdio 세션을 시작한다.
+3. 연결 성공 시 renderer는 remote workspace 세션을 생성하고 기존 `workspace:index/read/write/create/delete/rename/watch/git/comments` 플로우를 동일하게 사용한다.
+4. 연결 장애/타임아웃 시 상태를 `degraded` 또는 `disconnected`로 표기하고 자동 재시도(기본 3회) 후 수동 재시도 경로를 제공한다.
 
 ## 5. 현재 기능 커버리지 요약
 
@@ -123,7 +123,7 @@
 | Global Comments + export prepend | Implemented | F12.3 |
 | 헤더 액션 그룹 compact 재배치 | Implemented | F12.4 |
 | 코멘트 피드백 auto-dismiss + global 가시성 + 헤더 좌측 history 배치 | Implemented | F12.5 |
-| 원격 워크스페이스 watch mode 정책 | Implemented | F15 |
+| 원격 워크스페이스 watch mode 정책(SSHFS) | Retired | F15 |
 | Lazy indexing + on-demand 디렉토리 확장 | Implemented | F16 |
 | Global 포함 체크박스 + Delete Exported 하단 이동 | Implemented | F17 |
 | Shiki 기반 코드 하이라이팅(40+ 언어, 비동기) | Implemented | F18 |
@@ -137,12 +137,14 @@
 | 파일 트리 Git 파일 상태 마커(U/M badge + 디렉토리 버블링) | Implemented | F26 |
 | 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
 | 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
-| Remote Agent Protocol 기반 원격 워크스페이스 실행 | Planned | F27 |
+| Remote Agent Protocol 기반 원격 워크스페이스 실행 | Implemented | F27 |
 
 ## 6. Open Questions
 
-1. 원격 연결 입력 UX를 모달로 시작할지, 사이드바/별도 패널로 시작할지 확정 필요
+현재 기준 Open Question 없음.
 
 결정사항:
-1. 원격 agent 자동화는 MVP 수준으로 제한한다(없으면 설치 + 버전 검증).
+1. 원격 agent 자동화는 MVP 수준으로 제한한다(runtime 배포 + 실행 가능 여부 + 버전 검증).
 2. F15(SSHFS 기반) 원격 연결은 폐기하고 F27(remote-protocol) 단일 경로로 전환한다.
+3. 원격 연결 입력 UX는 모달로 고정하고 마지막 입력값을 저장해 재사용한다.
+4. SSH 개인키 경로(`identityFile`)를 허용하고 연결 시 `IdentitiesOnly=yes`를 함께 적용한다.

@@ -1,5 +1,22 @@
 # IMPLEMENTATION_INDEX
 
+## F27
+
+### Sync Record - 2026-03-01T02:20:33Z
+
+- note: F27 구현 완료 스펙 동기화 (planned -> implemented) + phase 5/6 안정화(identityFile, bootstrap/runtime, remote watch/index 정책) 반영
+- copied files:
+  - `_sdd/implementation/features/F27/SYNC_20260301_112033_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/02-architecture.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/05-operational-guides.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
 ## F26
 
 ### Sync Record - 2026-02-25T10:27:57Z

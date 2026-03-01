@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.41.0`
-- 마지막 업데이트: `2026-02-28`
+- 문서 버전: `0.42.0`
+- 마지막 업데이트: `2026-03-01`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -38,8 +38,8 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F26` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
-- 계획 범위: `F27` Remote Agent Protocol 기반 원격 워크스페이스 MVP (📋 Planned)
+- 구현 완료 범위: `F01~F27` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 신규 동기화 범위: `F27` Remote Agent Protocol 기반 원격 워크스페이스 MVP 완료
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump
@@ -49,8 +49,8 @@
   6. global comments(워크스페이스 단위) + export 선행 prepend + export 대상 선택(pending/exported 모두 가능) + global 포함 체크박스 + global comments export 카운트 반영
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
   8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + comment 피드백 auto-dismiss + header action 그룹 명확화
-  9. SSHFS 마운트 원격 워크스페이스 자동 polling + 수동 watch mode override
-  10. 대규모 워크스페이스 지원: remote 깊이제한 + 디렉토리별 child cap + on-demand 확장 + 과대 디렉토리 polling 제외
+  9. Remote Agent Protocol 기반 원격 워크스페이스 연결: 모달 입력 + SSH bootstrap + 원격 파일/감시/git RPC + 상태/오류 표준화
+  10. 대규모 워크스페이스 지원: 인덱싱 cap 100,000 + 디렉토리별 child cap 500 + on-demand 확장 + 과대 디렉토리 polling 제외
   11. active file 기준 Git diff 라인 마커(added/modified)로 변경 위치를 즉시 식별
   12. code viewer 텍스트 검색(Ctrl/Cmd+F): substring 매칭 + 라인 하이라이트 + 이전/다음 이동 + wrap-around
   13. 키보드 워크스페이스 전환(Cmd+Shift+Up/Down): 순서 유지 순환 전환 + wrap-around
@@ -80,7 +80,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F25), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F27), 상세 수용 기준, 리스크/백로그
 
 ---
 
@@ -104,14 +104,15 @@
 
 ## 5. Open Questions
 
-1. 원격 연결 프로필 입력 UX를 모달로 시작할지, 별도 패널로 시작할지 확정 필요
-   (모달=일회성 빠른 연결 중심, 패널=프로필 저장/재접속/관리 중심)
+현재 기준 Open Question 없음.
 
 결정사항:
 1. 기존 SSHFS 기반 원격 연결(F15)은 폐기하고 F27 remote-protocol 단일 경로로 전환한다.
 2. 원격 agent 자동화는 MVP 수준으로 제한한다.
-   범위: 연결 시 agent 존재 확인 -> 없으면 설치 -> 프로토콜 버전 검증
+   범위: 연결 시 runtime 배포(덮어쓰기) -> 실행 가능 여부(`--healthcheck`) -> 프로토콜 버전 검증
    제외: 자동 업그레이드/롤백, 복수 배포 채널 관리, 고급 장애복구 오케스트레이션
+3. 원격 연결 입력 UX는 모달로 시작하고, 마지막 입력값(host/user/port/remoteRoot/workspaceId/agentPath/identityFile)은 로컬 저장소에 저장해 재접속 시 재사용한다.
+4. SSH 개인키 경로(`identityFile`)를 프로필에 저장할 수 있으며, 연결 시 `ssh -i <identityFile> -o IdentitiesOnly=yes`로 실행한다.
 
 ---
 
