@@ -605,6 +605,7 @@ export function mergeDirectoryChildren(
   children: WorkspaceFileNode[],
   childrenStatus: 'complete' | 'partial',
   totalChildCount: number,
+  options?: { appendChildren?: boolean },
 ): WorkspaceFileNode[] {
   return tree.map((node): WorkspaceFileNode => {
     if (node.kind !== 'directory') {
@@ -612,9 +613,21 @@ export function mergeDirectoryChildren(
     }
 
     if (node.relativePath === directoryRelativePath) {
+      const nextChildren = options?.appendChildren
+        ? [
+            ...(node.children ?? []),
+            ...children.filter(
+              (childNode) =>
+                !(node.children ?? []).some(
+                  (existingChildNode) =>
+                    existingChildNode.relativePath === childNode.relativePath,
+                ),
+            ),
+          ]
+        : children
       return {
         ...node,
-        children,
+        children: nextChildren,
         childrenStatus,
         totalChildCount,
       }
@@ -632,6 +645,7 @@ export function mergeDirectoryChildren(
           children,
           childrenStatus,
           totalChildCount,
+          options,
         ),
       }
     }

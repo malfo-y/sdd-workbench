@@ -8,6 +8,73 @@ type RemoteConnectModalProps = {
   onSubmit: (profile: WorkspaceRemoteProfile) => Promise<void> | void
 }
 
+type RemoteConnectDraft = {
+  workspaceIdInput: string
+  host: string
+  user: string
+  portInput: string
+  remoteRoot: string
+  agentPath: string
+  identityFile: string
+}
+
+const REMOTE_CONNECT_DRAFT_STORAGE_KEY = 'sdd-workbench.remote-connect-draft.v1'
+
+const EMPTY_REMOTE_CONNECT_DRAFT: RemoteConnectDraft = {
+  workspaceIdInput: '',
+  host: '',
+  user: '',
+  portInput: '',
+  remoteRoot: '',
+  agentPath: '',
+  identityFile: '',
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function toDraftStringField(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function loadRemoteConnectDraft(): RemoteConnectDraft {
+  try {
+    const raw = window.localStorage.getItem(REMOTE_CONNECT_DRAFT_STORAGE_KEY)
+    if (!raw) {
+      return EMPTY_REMOTE_CONNECT_DRAFT
+    }
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!isRecord(parsed)) {
+      return EMPTY_REMOTE_CONNECT_DRAFT
+    }
+
+    return {
+      workspaceIdInput: toDraftStringField(parsed.workspaceIdInput),
+      host: toDraftStringField(parsed.host),
+      user: toDraftStringField(parsed.user),
+      portInput: toDraftStringField(parsed.portInput),
+      remoteRoot: toDraftStringField(parsed.remoteRoot),
+      agentPath: toDraftStringField(parsed.agentPath),
+      identityFile: toDraftStringField(parsed.identityFile),
+    }
+  } catch {
+    return EMPTY_REMOTE_CONNECT_DRAFT
+  }
+}
+
+function saveRemoteConnectDraft(draft: RemoteConnectDraft): void {
+  try {
+    window.localStorage.setItem(
+      REMOTE_CONNECT_DRAFT_STORAGE_KEY,
+      JSON.stringify(draft),
+    )
+  } catch {
+    // Ignore localStorage persistence failures.
+  }
+}
+
 function buildDefaultWorkspaceId(host: string, remoteRoot: string): string {
   const base = `${host}-${remoteRoot}`
     .toLowerCase()
@@ -22,28 +89,19 @@ export function RemoteConnectModal({
   onClose,
   onSubmit,
 }: RemoteConnectModalProps) {
-  const [workspaceIdInput, setWorkspaceIdInput] = useState('')
-  const [host, setHost] = useState('')
-  const [user, setUser] = useState('')
-  const [portInput, setPortInput] = useState('')
-  const [remoteRoot, setRemoteRoot] = useState('')
-  const [agentPath, setAgentPath] = useState('')
-  const [identityFile, setIdentityFile] = useState('')
+  const [draft, setDraft] = useState<RemoteConnectDraft>(loadRemoteConnectDraft)
   const [validationError, setValidationError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) {
       return
     }
-    setWorkspaceIdInput('')
-    setHost('')
-    setUser('')
-    setPortInput('')
-    setRemoteRoot('')
-    setAgentPath('')
-    setIdentityFile('')
     setValidationError(null)
   }, [isOpen])
+
+  useEffect(() => {
+    saveRemoteConnectDraft(draft)
+  }, [draft])
 
   if (!isOpen) {
     return null
@@ -60,14 +118,14 @@ export function RemoteConnectModal({
             return
           }
 
-          const normalizedHost = host.trim()
-          const normalizedRemoteRoot = remoteRoot.trim()
+          const normalizedHost = draft.host.trim()
+          const normalizedRemoteRoot = draft.remoteRoot.trim()
           if (!normalizedHost || !normalizedRemoteRoot) {
             setValidationError('Host and remote root are required.')
             return
           }
 
-          const normalizedPort = portInput.trim()
+          const normalizedPort = draft.portInput.trim()
           const parsedPort = normalizedPort.length > 0 ? Number(normalizedPort) : null
           if (
             parsedPort !== null &&
@@ -79,16 +137,16 @@ export function RemoteConnectModal({
 
           setValidationError(null)
           const effectiveWorkspaceId =
-            workspaceIdInput.trim() ||
+            draft.workspaceIdInput.trim() ||
             buildDefaultWorkspaceId(normalizedHost, normalizedRemoteRoot)
           void onSubmit({
             workspaceId: effectiveWorkspaceId,
             host: normalizedHost,
             remoteRoot: normalizedRemoteRoot,
-            ...(user.trim() ? { user: user.trim() } : {}),
+            ...(draft.user.trim() ? { user: draft.user.trim() } : {}),
             ...(parsedPort !== null ? { port: parsedPort } : {}),
-            ...(agentPath.trim() ? { agentPath: agentPath.trim() } : {}),
-            ...(identityFile.trim() ? { identityFile: identityFile.trim() } : {}),
+            ...(draft.agentPath.trim() ? { agentPath: draft.agentPath.trim() } : {}),
+            ...(draft.identityFile.trim() ? { identityFile: draft.identityFile.trim() } : {}),
           })
         }}
         role="dialog"
@@ -106,11 +164,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-host-input"
           id="remote-connect-host"
           onChange={(event) => {
-            setHost(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              host: event.target.value,
+            }))
           }}
           placeholder="example.com"
           type="text"
-          value={host}
+          value={draft.host}
         />
         <label className="comment-modal-label" htmlFor="remote-connect-user">
           User (optional)
@@ -120,11 +181,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-user-input"
           id="remote-connect-user"
           onChange={(event) => {
-            setUser(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              user: event.target.value,
+            }))
           }}
           placeholder="ubuntu"
           type="text"
-          value={user}
+          value={draft.user}
         />
         <label className="comment-modal-label" htmlFor="remote-connect-port">
           Port (optional)
@@ -134,11 +198,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-port-input"
           id="remote-connect-port"
           onChange={(event) => {
-            setPortInput(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              portInput: event.target.value,
+            }))
           }}
           placeholder="22"
           type="number"
-          value={portInput}
+          value={draft.portInput}
         />
         <label className="comment-modal-label" htmlFor="remote-connect-root">
           Remote Root
@@ -148,11 +215,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-root-input"
           id="remote-connect-root"
           onChange={(event) => {
-            setRemoteRoot(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              remoteRoot: event.target.value,
+            }))
           }}
           placeholder="/home/user/project"
           type="text"
-          value={remoteRoot}
+          value={draft.remoteRoot}
         />
         <label className="comment-modal-label" htmlFor="remote-connect-workspace-id">
           Workspace ID (optional)
@@ -162,11 +232,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-workspace-id-input"
           id="remote-connect-workspace-id"
           onChange={(event) => {
-            setWorkspaceIdInput(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              workspaceIdInput: event.target.value,
+            }))
           }}
           placeholder="generated if empty"
           type="text"
-          value={workspaceIdInput}
+          value={draft.workspaceIdInput}
         />
         <label className="comment-modal-label" htmlFor="remote-connect-agent-path">
           Agent Path (optional)
@@ -176,11 +249,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-agent-path-input"
           id="remote-connect-agent-path"
           onChange={(event) => {
-            setAgentPath(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              agentPath: event.target.value,
+            }))
           }}
           placeholder="~/.sdd-workbench/bin/sdd-remote-agent"
           type="text"
-          value={agentPath}
+          value={draft.agentPath}
         />
         <label className="comment-modal-label" htmlFor="remote-connect-identity-file">
           Identity File (optional)
@@ -190,11 +266,14 @@ export function RemoteConnectModal({
           data-testid="remote-connect-identity-file-input"
           id="remote-connect-identity-file"
           onChange={(event) => {
-            setIdentityFile(event.target.value)
+            setDraft((previous) => ({
+              ...previous,
+              identityFile: event.target.value,
+            }))
           }}
           placeholder="~/.ssh/id_ed25519"
           type="text"
-          value={identityFile}
+          value={draft.identityFile}
         />
         {validationError && <p className="comment-modal-warning">{validationError}</p>}
         <div className="comment-modal-actions">

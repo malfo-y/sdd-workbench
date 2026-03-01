@@ -251,8 +251,48 @@
   padding: 12px;
 }
 
+.workspace-summary-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workspace-summary-header .label {
+  margin: 0;
+}
+
+.workspace-summary-toggle {
+  background: transparent;
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  color: #b9b9b9;
+  cursor: pointer;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  padding: 3px 8px;
+}
+
+.workspace-summary-toggle:hover {
+  border-color: #7bb6e8;
+  color: #d5e9fa;
+}
+
+.workspace-summary-toggle:focus-visible {
+  outline: 2px solid #7bb6e8;
+  outline-offset: 1px;
+}
+
 .workspace-summary-path {
-  font-size: 0.9rem;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  margin-top: 8px;
+}
+
+.workspace-summary-collapsed .workspace-summary-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-watch-status {

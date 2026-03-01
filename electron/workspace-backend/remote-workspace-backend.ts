@@ -98,9 +98,13 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
 
   indexDirectory(request: WorkspaceIndexDirectoryRequest): Promise<unknown> {
     this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
+    if (request.relativePath.trim().length > 0) {
+      this.assertRelativePathInWorkspace(request.relativePath)
+    }
     return this.requestWorkspaceMethod('workspace.indexDirectory', {
       relativePath: request.relativePath,
+      offset: request.offset,
+      limit: request.limit,
     })
   }
 
@@ -218,14 +222,36 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
   }
 
   async watchStop(_request: WorkspaceWatchStopRequest): Promise<unknown> {
-    await this.watchBridge.stop()
+    try {
+      await this.watchBridge.stop()
+    } catch (error) {
+      const normalized = toRemoteAgentError(error)
+      if (normalized.code !== 'CONNECTION_CLOSED') {
+        throw new RemoteAgentError(
+          normalized.code,
+          redactRemoteErrorMessage(normalized.message),
+          normalized.cause,
+        )
+      }
+    }
     return {
       ok: true,
     }
   }
 
   async dispose(): Promise<void> {
-    await this.watchBridge.stop()
+    try {
+      await this.watchBridge.stop()
+    } catch (error) {
+      const normalized = toRemoteAgentError(error)
+      if (normalized.code !== 'CONNECTION_CLOSED') {
+        throw new RemoteAgentError(
+          normalized.code,
+          redactRemoteErrorMessage(normalized.message),
+          normalized.cause,
+        )
+      }
+    }
   }
 
   private assertRootPath(rootPath: string): void {

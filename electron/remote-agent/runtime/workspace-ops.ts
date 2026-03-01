@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
+import type { Dirent } from 'node:fs'
 import {
   mkdir,
   readFile,
@@ -34,7 +35,8 @@ const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
 ])
 
 const WORKSPACE_INDEX_DIRECTORY_CHILD_CAP = 500
-const MAX_WORKSPACE_INDEX_NODES = 10_000
+const MAX_WORKSPACE_INDEX_NODES = 100_000
+const WORKSPACE_INDEX_ROOT_CHILD_CAP = MAX_WORKSPACE_INDEX_NODES
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
 const MAX_WRITE_FILE_BYTES = 2 * 1024 * 1024
 
@@ -59,6 +61,13 @@ type BuildWorkspaceTreeResult = {
   nodes: RuntimeWorkspaceFileNode[]
   childrenStatus: 'complete' | 'partial'
   totalChildCount: number
+}
+
+type IndexedWorkspaceEntry = {
+  name: string
+  absolutePath: string
+  kind: 'file' | 'directory'
+  isSymbolicLink: boolean
 }
 
 export type WorkspaceOpsContext = {
@@ -89,11 +98,81 @@ function sortWorkspaceTree(nodes: RuntimeWorkspaceFileNode[]): RuntimeWorkspaceF
   })
 }
 
+async function resolveWorkspaceEntryKind(
+  absolutePath: string,
+  entry: Dirent,
+): Promise<Omit<IndexedWorkspaceEntry, 'name' | 'absolutePath'> | null> {
+  if (entry.isFile()) {
+    return {
+      kind: 'file',
+      isSymbolicLink: false,
+    }
+  }
+
+  if (entry.isDirectory()) {
+    return {
+      kind: 'directory',
+      isSymbolicLink: false,
+    }
+  }
+
+  if (!entry.isSymbolicLink()) {
+    return null
+  }
+
+  try {
+    const targetStats = await stat(absolutePath)
+    if (targetStats.isDirectory()) {
+      return {
+        kind: 'directory',
+        isSymbolicLink: true,
+      }
+    }
+    if (targetStats.isFile()) {
+      return {
+        kind: 'file',
+        isSymbolicLink: true,
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+async function collectIndexedWorkspaceEntries(
+  directoryPath: string,
+): Promise<IndexedWorkspaceEntry[]> {
+  const entries = await readdir(directoryPath, { withFileTypes: true })
+  const indexedEntries: IndexedWorkspaceEntry[] = []
+
+  for (const entry of entries) {
+    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
+      continue
+    }
+
+    const absolutePath = path.join(directoryPath, entry.name)
+    const entryKind = await resolveWorkspaceEntryKind(absolutePath, entry)
+    if (!entryKind) {
+      continue
+    }
+
+    indexedEntries.push({
+      name: entry.name,
+      absolutePath,
+      ...entryKind,
+    })
+  }
+
+  return indexedEntries
+}
+
 async function buildWorkspaceTree(
   rootPath: string,
   currentDirectory: string,
   indexBudget: { remainingNodes: number; truncated: boolean },
-  options?: { maxDepth?: number; currentDepth?: number },
+  options?: { maxDepth?: number; currentDepth?: number; rootChildCap?: number },
 ): Promise<BuildWorkspaceTreeResult> {
   if (indexBudget.remainingNodes <= 0) {
     indexBudget.truncated = true
@@ -102,22 +181,17 @@ async function buildWorkspaceTree(
 
   const maxDepth = options?.maxDepth
   const currentDepth = options?.currentDepth ?? 0
+  const directoryChildCap =
+    currentDepth === 0
+      ? (options?.rootChildCap ?? WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+      : WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
 
-  const entries = await readdir(currentDirectory, { withFileTypes: true })
-  const eligibleEntries = entries.filter((entry) => {
-    if (entry.isSymbolicLink()) {
-      return false
-    }
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      return false
-    }
-    return entry.isFile() || entry.isDirectory()
-  })
+  const eligibleEntries = await collectIndexedWorkspaceEntries(currentDirectory)
 
   const totalChildCount = eligibleEntries.length
-  const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
+  const isCapped = totalChildCount > directoryChildCap
   const cappedEntries = isCapped
-    ? eligibleEntries.slice(0, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+    ? eligibleEntries.slice(0, directoryChildCap)
     : eligibleEntries
 
   const atDepthLimit = maxDepth !== undefined && currentDepth >= maxDepth
@@ -131,16 +205,18 @@ async function buildWorkspaceTree(
       break
     }
 
-    const absolutePath = path.join(currentDirectory, entry.name)
-    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+    const relativePath = normalizeToWorkspaceRelativePath(
+      entry.absolutePath,
+      rootPath,
+    )
     if (!relativePath || relativePath.startsWith('..')) {
       continue
     }
 
-    if (entry.isDirectory()) {
+    if (entry.kind === 'directory') {
       indexBudget.remainingNodes -= 1
 
-      if (skipRecurse) {
+      if (skipRecurse || entry.isSymbolicLink) {
         nodes.push({
           name: entry.name,
           relativePath,
@@ -153,9 +229,9 @@ async function buildWorkspaceTree(
 
       const childResult = await buildWorkspaceTree(
         rootPath,
-        absolutePath,
+        entry.absolutePath,
         indexBudget,
-        { maxDepth, currentDepth: currentDepth + 1 },
+        { maxDepth, currentDepth: currentDepth + 1, rootChildCap: options?.rootChildCap },
       )
       nodes.push({
         name: entry.name,
@@ -172,12 +248,14 @@ async function buildWorkspaceTree(
       continue
     }
 
-    indexBudget.remainingNodes -= 1
-    nodes.push({
-      name: entry.name,
-      relativePath,
-      kind: 'file',
-    })
+    if (entry.kind === 'file') {
+      indexBudget.remainingNodes -= 1
+      nodes.push({
+        name: entry.name,
+        relativePath,
+        kind: 'file',
+      })
+    }
   }
 
   return {
@@ -190,37 +268,25 @@ async function buildWorkspaceTree(
 async function buildDirectoryChildren(
   rootPath: string,
   directoryPath: string,
+  options?: { offset?: number; limit?: number },
 ): Promise<{
   children: RuntimeWorkspaceFileNode[]
   childrenStatus: 'complete' | 'partial'
   totalChildCount: number
 }> {
-  const entries = await readdir(directoryPath, { withFileTypes: true })
-  const eligibleEntries = entries.filter((entry) => {
-    if (entry.isSymbolicLink()) {
-      return false
-    }
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      return false
-    }
-    return entry.isFile() || entry.isDirectory()
-  })
-
-  const totalChildCount = eligibleEntries.length
-  const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
-  const cappedEntries = isCapped
-    ? eligibleEntries.slice(0, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
-    : eligibleEntries
+  const eligibleEntries = await collectIndexedWorkspaceEntries(directoryPath)
 
   const nodes: RuntimeWorkspaceFileNode[] = []
-  for (const entry of cappedEntries) {
-    const absolutePath = path.join(directoryPath, entry.name)
-    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+  for (const entry of eligibleEntries) {
+    const relativePath = normalizeToWorkspaceRelativePath(
+      entry.absolutePath,
+      rootPath,
+    )
     if (!relativePath || relativePath.startsWith('..')) {
       continue
     }
 
-    if (entry.isDirectory()) {
+    if (entry.kind === 'directory') {
       nodes.push({
         name: entry.name,
         relativePath,
@@ -238,9 +304,25 @@ async function buildDirectoryChildren(
     })
   }
 
+  const sortedNodes = sortWorkspaceTree(nodes)
+  const totalChildCount = sortedNodes.length
+  const rawOffset = options?.offset
+  const parsedOffset =
+    typeof rawOffset === 'number' && Number.isFinite(rawOffset)
+      ? Math.max(0, Math.floor(rawOffset))
+      : 0
+  const rawLimit = options?.limit
+  const parsedLimit =
+    typeof rawLimit === 'number' && Number.isFinite(rawLimit)
+      ? Math.max(1, Math.floor(rawLimit))
+      : WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
+  const effectiveLimit = Math.min(parsedLimit, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+  const pagedChildren = sortedNodes.slice(parsedOffset, parsedOffset + effectiveLimit)
+  const hasMore = parsedOffset + pagedChildren.length < totalChildCount
+
   return {
-    children: sortWorkspaceTree(nodes),
-    childrenStatus: isCapped ? 'partial' : 'complete',
+    children: pagedChildren,
+    childrenStatus: hasMore ? 'partial' : 'complete',
     totalChildCount,
   }
 }
@@ -419,18 +501,19 @@ export async function workspaceIndex(
     resolvedRootPath,
     resolvedRootPath,
     indexBudget,
+    { maxDepth: 0, rootChildCap: WORKSPACE_INDEX_ROOT_CHILD_CAP },
   )
 
   return {
     ok: true,
     fileTree: treeResult.nodes,
-    truncated: indexBudget.truncated,
+    truncated: indexBudget.truncated || treeResult.childrenStatus === 'partial',
   }
 }
 
 export async function workspaceIndexDirectory(
   context: WorkspaceOpsContext,
-  params: { relativePath?: unknown },
+  params: { relativePath?: unknown; offset?: unknown; limit?: unknown },
 ): Promise<{
   ok: true
   children: RuntimeWorkspaceFileNode[]
@@ -449,7 +532,18 @@ export async function workspaceIndexDirectory(
     throw new RemoteAgentError('UNKNOWN', 'Target path is not a directory.')
   }
 
-  const result = await buildDirectoryChildren(context.rootPath, resolvedDirectoryPath)
+  const offset =
+    typeof params.offset === 'number' && Number.isFinite(params.offset)
+      ? Math.max(0, Math.floor(params.offset))
+      : undefined
+  const limit =
+    typeof params.limit === 'number' && Number.isFinite(params.limit)
+      ? Math.max(1, Math.floor(params.limit))
+      : undefined
+  const result = await buildDirectoryChildren(context.rootPath, resolvedDirectoryPath, {
+    offset,
+    limit,
+  })
   return {
     ok: true,
     children: result.children,

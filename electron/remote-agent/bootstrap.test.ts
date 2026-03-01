@@ -1,5 +1,12 @@
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { bootstrapRemoteAgent, buildSshArgs } from './bootstrap'
+import {
+  bootstrapRemoteAgent,
+  buildSshArgs,
+  isSshNodeRuntimeMissing,
+  normalizeLocalIdentityFilePath,
+} from './bootstrap'
 import { RemoteAgentError, REMOTE_AGENT_PROTOCOL_VERSION } from './protocol'
 import type { RemoteConnectionProfile } from './types'
 
@@ -10,6 +17,30 @@ const profile: RemoteConnectionProfile = {
 }
 
 describe('remote-agent/bootstrap', () => {
+  it('detects ssh stderr patterns for missing node runtime', () => {
+    expect(isSshNodeRuntimeMissing('sh: 1: node: not found')).toBe(true)
+    expect(
+      isSshNodeRuntimeMissing(
+        '/usr/bin/env: ‘node’: No such file or directory',
+      ),
+    ).toBe(true)
+    expect(
+      isSshNodeRuntimeMissing('/usr/bin/env: node: No such file or directory'),
+    ).toBe(true)
+    expect(isSshNodeRuntimeMissing('permission denied')).toBe(false)
+  })
+
+  it('normalizes local identity file path shorthand', () => {
+    expect(normalizeLocalIdentityFilePath('~')).toBe(os.homedir())
+    expect(normalizeLocalIdentityFilePath('~/.ssh/id_rsa')).toBe(
+      path.join(os.homedir(), '.ssh/id_rsa'),
+    )
+    expect(normalizeLocalIdentityFilePath('$HOME/.ssh/id_ed25519')).toBe(
+      path.join(os.homedir(), '.ssh/id_ed25519'),
+    )
+    expect(normalizeLocalIdentityFilePath('/tmp/id_rsa')).toBe('/tmp/id_rsa')
+  })
+
   it('adds -i and IdentitiesOnly=yes when identityFile is provided', () => {
     const args = buildSshArgs(
       {
@@ -24,7 +55,7 @@ describe('remote-agent/bootstrap', () => {
       '-p',
       '2222',
       '-i',
-      '~/.ssh/id_ed25519',
+      path.join(os.homedir(), '.ssh/id_ed25519'),
       '-o',
       'IdentitiesOnly=yes',
       '-o',
@@ -49,27 +80,37 @@ describe('remote-agent/bootstrap', () => {
     ])
   })
 
-  it('passes when agent already exists with compatible version', async () => {
-    const installAgent = vi.fn(async () => undefined)
-
-    const result = await bootstrapRemoteAgent(profile, {
-      probeAgent: async () => ({
+  it('reinstalls even when agent already exists with compatible version', async () => {
+    const probeAgent = vi
+      .fn<
+        () => Promise<{
+          exists: boolean
+          version?: string
+          agentPath: string
+        }>
+      >()
+      .mockResolvedValue({
         exists: true,
         version: REMOTE_AGENT_PROTOCOL_VERSION,
         agentPath: '/agent',
-      }),
+      })
+    const installAgent = vi.fn(async () => undefined)
+
+    const result = await bootstrapRemoteAgent(profile, {
+      probeAgent,
       installAgent,
     })
 
     expect(result).toEqual({
       agentPath: '/agent',
       protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
-      installed: false,
+      installed: true,
     })
-    expect(installAgent).not.toHaveBeenCalled()
+    expect(installAgent).toHaveBeenCalledTimes(1)
+    expect(probeAgent).toHaveBeenCalledTimes(1)
   })
 
-  it('installs once when agent is missing, then validates version', async () => {
+  it('installs and validates version after overwrite', async () => {
     const installAgent = vi.fn(async () => undefined)
     const probeAgent = vi
       .fn<
@@ -79,10 +120,6 @@ describe('remote-agent/bootstrap', () => {
           agentPath: string
         }>
       >()
-      .mockResolvedValueOnce({
-        exists: false,
-        agentPath: '/agent',
-      })
       .mockResolvedValueOnce({
         exists: true,
         version: REMOTE_AGENT_PROTOCOL_VERSION,
@@ -95,7 +132,7 @@ describe('remote-agent/bootstrap', () => {
     })
 
     expect(result.installed).toBe(true)
-    expect(probeAgent).toHaveBeenCalledTimes(2)
+    expect(probeAgent).toHaveBeenCalledTimes(1)
     expect(installAgent).toHaveBeenCalledTimes(1)
   })
 

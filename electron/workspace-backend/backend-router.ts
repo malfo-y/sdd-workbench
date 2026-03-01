@@ -6,6 +6,10 @@ type RemoteWorkspaceRegistration = {
   backend: WorkspaceBackend
 }
 
+const REMOTE_ROOT_PATH_PREFIX = 'remote://'
+const REMOTE_BACKEND_NOT_REGISTERED_ERROR_MESSAGE =
+  'Remote workspace backend is not registered. Reconnect the remote workspace.'
+
 export class WorkspaceBackendRouter {
   private readonly localBackend: WorkspaceBackend
   private readonly remoteBackendByRootPath = new Map<string, WorkspaceBackend>()
@@ -16,10 +20,16 @@ export class WorkspaceBackendRouter {
   }
 
   resolveByRootPath(rootPath: string): WorkspaceBackend {
-    const remoteBackend = this.remoteBackendByRootPath.get(rootPath)
+    const normalizedRootPath = rootPath.trim()
+    const remoteBackend = this.remoteBackendByRootPath.get(normalizedRootPath)
     if (remoteBackend) {
       return remoteBackend
     }
+
+    if (normalizedRootPath.startsWith(REMOTE_ROOT_PATH_PREFIX)) {
+      throw new Error(REMOTE_BACKEND_NOT_REGISTERED_ERROR_MESSAGE)
+    }
+
     return this.localBackend
   }
 
@@ -34,7 +44,12 @@ export class WorkspaceBackendRouter {
     if (previousRootPath && previousRootPath !== rootPath) {
       const previousBackend = this.remoteBackendByRootPath.get(previousRootPath)
       if (previousBackend?.dispose) {
-        void previousBackend.dispose()
+        void previousBackend.dispose().catch((error) => {
+          console.warn(
+            `Failed to dispose previous remote backend (${workspaceId}).`,
+            error,
+          )
+        })
       }
       this.remoteBackendByRootPath.delete(previousRootPath)
     }
@@ -58,7 +73,14 @@ export class WorkspaceBackendRouter {
     this.remoteBackendByRootPath.delete(rootPath)
 
     if (backend?.dispose) {
-      await backend.dispose()
+      try {
+        await backend.dispose()
+      } catch (error) {
+        console.warn(
+          `Failed to dispose remote backend (${workspaceId}).`,
+          error,
+        )
+      }
     }
 
     return true

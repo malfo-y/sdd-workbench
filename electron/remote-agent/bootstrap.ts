@@ -1,4 +1,5 @@
 import { execFile, type ExecFileException } from 'node:child_process'
+import os from 'node:os'
 import path from 'node:path'
 import {
   RemoteAgentError,
@@ -14,6 +15,8 @@ const SSH_MAX_BUFFER_BYTES = 1024 * 1024
 const PROBE_MISSING_MARKER = '__SDD_REMOTE_AGENT_MISSING__'
 const PROBE_READY_MARKER = '__SDD_REMOTE_AGENT_READY__'
 const PROBE_STUB_MARKER = '__SDD_REMOTE_AGENT_STUB__'
+export const NODE_RUNTIME_MISSING_MESSAGE =
+  'Remote Node.js runtime is missing on the target host. Install Node.js and ensure "node" is available in non-interactive SSH shell PATH.'
 
 export type RemoteAgentProbeResult = {
   exists: boolean
@@ -47,14 +50,11 @@ export async function bootstrapRemoteAgent(
   deps: RemoteAgentBootstrapDeps = createDefaultBootstrapDeps(),
 ): Promise<RemoteAgentBootstrapResult> {
   try {
-    let probe = await deps.probeAgent(profile)
-    let installed = false
-
-    if (!probe.exists) {
-      await deps.installAgent(profile)
-      installed = true
-      probe = await deps.probeAgent(profile)
-    }
+    // Always overwrite in MVP so remote runtime behavior stays in sync
+    // with the desktop build and avoids stale-agent drift.
+    await deps.installAgent(profile)
+    const installed = true
+    const probe = await deps.probeAgent(profile)
 
     if (!probe.exists || !probe.version) {
       throw new RemoteAgentError(
@@ -200,7 +200,7 @@ function appendIdentityArgs(
   if (!identityFile) {
     return
   }
-  args.push('-i', identityFile)
+  args.push('-i', normalizeLocalIdentityFilePath(identityFile))
   args.push('-o', 'IdentitiesOnly=yes')
 }
 
@@ -273,10 +273,59 @@ function isSshAuthFailure(stderr: string): boolean {
   return stderr.toLowerCase().includes('permission denied')
 }
 
+export function isSshNodeRuntimeMissing(stderr: string): boolean {
+  const normalized = stderr.toLowerCase()
+  if (!normalized.trim()) {
+    return false
+  }
+
+  if (normalized.includes('node: not found')) {
+    return true
+  }
+
+  if (normalized.includes('node: command not found')) {
+    return true
+  }
+
+  if (
+    normalized.includes('/usr/bin/env') &&
+    normalized.includes('node') &&
+    normalized.includes('no such file or directory')
+  ) {
+    return true
+  }
+
+  return false
+}
+
+export function normalizeLocalIdentityFilePath(identityFile: string): string {
+  const trimmed = identityFile.trim()
+  if (!trimmed) {
+    return trimmed
+  }
+
+  if (trimmed === '~') {
+    return os.homedir()
+  }
+
+  if (trimmed.startsWith('~/')) {
+    return path.join(os.homedir(), trimmed.slice(2))
+  }
+
+  if (trimmed.startsWith('$HOME/')) {
+    return path.join(os.homedir(), trimmed.slice('$HOME/'.length))
+  }
+
+  return trimmed
+}
+
 function normalizeSshErrorMessage(stderr: string, fallback: string): string {
   const trimmed = stderr.trim()
   if (!trimmed) {
     return fallback
+  }
+  if (isSshNodeRuntimeMissing(trimmed)) {
+    return NODE_RUNTIME_MISSING_MESSAGE
   }
   return trimmed
 }

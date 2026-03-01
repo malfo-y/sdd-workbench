@@ -1,3 +1,5 @@
+import os from 'node:os'
+import path from 'node:path'
 import { PassThrough } from 'node:stream'
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
@@ -91,7 +93,7 @@ describe('remote-agent/transport-ssh', () => {
       '-p',
       '2222',
       '-i',
-      '~/.ssh/id_ed25519',
+      path.join(os.homedir(), '.ssh/id_ed25519'),
       '-o',
       'IdentitiesOnly=yes',
       '-o',
@@ -99,8 +101,14 @@ describe('remote-agent/transport-ssh', () => {
       'tester@example.com',
       'sh',
       '-lc',
-      `/agent --stdio --protocol-version ${REMOTE_AGENT_PROTOCOL_VERSION} --workspace-root '/repo'`,
+      expect.any(String),
     ])
+    expect(args.at(-1)).toContain('/agent --stdio --protocol-version')
+    expect(args.at(-1)).toContain(` ${REMOTE_AGENT_PROTOCOL_VERSION} `)
+    expect(args.at(-1)).toContain('--workspace-root')
+    expect(args.at(-1)).toContain('/repo')
+    expect(args.at(-1)?.startsWith("'")).toBe(true)
+    expect(args.at(-1)?.endsWith("'")).toBe(true)
   })
 
   it('keeps existing ssh args when identityFile is missing', () => {
@@ -112,8 +120,14 @@ describe('remote-agent/transport-ssh', () => {
       'example.com',
       'sh',
       '-lc',
-      `/agent --stdio --protocol-version ${REMOTE_AGENT_PROTOCOL_VERSION} --workspace-root '/repo'`,
+      expect.any(String),
     ])
+    expect(args.at(-1)).toContain('/agent --stdio --protocol-version')
+    expect(args.at(-1)).toContain(` ${REMOTE_AGENT_PROTOCOL_VERSION} `)
+    expect(args.at(-1)).toContain('--workspace-root')
+    expect(args.at(-1)).toContain('/repo')
+    expect(args.at(-1)?.startsWith("'")).toBe(true)
+    expect(args.at(-1)?.endsWith("'")).toBe(true)
   })
 
   it('matches responses by request id', async () => {
@@ -190,6 +204,44 @@ describe('remote-agent/transport-ssh', () => {
 
     await expect(transport.start()).rejects.toMatchObject({
       code: 'BOOTSTRAP_FAILED',
+    })
+  })
+
+  it('maps node-missing startup failure to BOOTSTRAP_FAILED', async () => {
+    const fakeProcess = new FakeChildProcess()
+    fakeProcess.stdin.on('data', () => {
+      fakeProcess.stderr.write('/usr/bin/env: node: No such file or directory\n')
+      fakeProcess.emit('exit', 127, null)
+    })
+
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+
+    await expect(transport.start()).rejects.toMatchObject({
+      code: 'BOOTSTRAP_FAILED',
+      message: expect.stringContaining('Node.js runtime is missing'),
+    })
+  })
+
+  it('maps generic startup stderr to BOOTSTRAP_FAILED with details', async () => {
+    const fakeProcess = new FakeChildProcess()
+    fakeProcess.stdin.on('data', () => {
+      fakeProcess.stderr.write('SyntaxError: Unexpected token\n')
+      fakeProcess.emit('exit', 1, null)
+    })
+
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+
+    await expect(transport.start()).rejects.toMatchObject({
+      code: 'BOOTSTRAP_FAILED',
+      message: expect.stringContaining('SyntaxError'),
     })
   })
 

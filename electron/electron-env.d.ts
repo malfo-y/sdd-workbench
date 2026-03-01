@@ -191,6 +191,8 @@ interface WorkspaceWatchFallbackEvent {
 interface WorkspaceIndexDirectoryRequest {
   rootPath: string
   relativePath: string
+  offset?: number
+  limit?: number
 }
 
 interface WorkspaceIndexDirectoryResult {
@@ -265,6 +267,7 @@ interface Window {
     indexDirectory: (
       rootPath: string,
       relativePath: string,
+      options?: { offset?: number; limit?: number },
     ) => Promise<WorkspaceIndexDirectoryResult>
     readFile: (
       rootPath: string,

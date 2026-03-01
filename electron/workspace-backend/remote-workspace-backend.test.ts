@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { RemoteAgentError } from '../remote-agent/protocol'
 import { createRemoteWorkspaceBackend } from './remote-workspace-backend'
 
 describe('workspace-backend/remote-workspace-backend', () => {
@@ -110,5 +111,34 @@ describe('workspace-backend/remote-workspace-backend', () => {
       expect(message).not.toContain('hunter2')
       expect(message).not.toContain('/Users/tester/.ssh/id_ed25519')
     }
+  })
+
+  it('treats watch stop as best-effort when remote session is already disconnected', async () => {
+    const requestRemote = vi.fn(async (_workspaceId: string, method: string) => {
+      if (method === 'workspace.watchStop') {
+        throw new RemoteAgentError(
+          'CONNECTION_CLOSED',
+          'Remote agent session has been disconnected.',
+        )
+      }
+      return { ok: true }
+    })
+
+    const backend = createRemoteWorkspaceBackend({
+      workspaceId: 'workspace-a',
+      rootPath: 'remote://workspace-a',
+      requestRemote,
+      subscribeAgentEvents: () => () => undefined,
+      sendWatchEvent: () => undefined,
+      sendWatchFallback: () => undefined,
+    })
+
+    await expect(
+      backend.watchStop({ workspaceId: 'workspace-a' }),
+    ).resolves.toEqual({ ok: true })
+    if (!backend.dispose) {
+      throw new Error('Expected remote backend to implement dispose().')
+    }
+    await expect(backend.dispose()).resolves.toBeUndefined()
   })
 })

@@ -15,7 +15,10 @@ import {
   type JsonLineFramingError,
 } from './framing'
 import {
+  NODE_RUNTIME_MISSING_MESSAGE,
   bootstrapRemoteAgent,
+  normalizeLocalIdentityFilePath,
+  isSshNodeRuntimeMissing,
   type RemoteAgentBootstrapResult,
   type RemoteAgentBootstrapper,
 } from './bootstrap'
@@ -25,6 +28,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const STOP_GRACE_TIMEOUT_MS = 500
 const STARTUP_HEALTHCHECK_TIMEOUT_MS = 3_000
 const STUB_RUNTIME_ERROR_MARKER = 'remote agent runtime is not bundled'
+const STARTUP_STDERR_MESSAGE_LIMIT = 240
 
 type PendingRequest = {
   resolve: (value: unknown) => void
@@ -398,10 +402,22 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
         ? error
         : toRemoteAgentError(error, 'BOOTSTRAP_FAILED')
 
-    const stderrMessage = this.stderrTail.toLowerCase()
+    const stderrMessage = this.stderrTail
+    const startupStderrSummary = summarizeStartupStderr(stderrMessage)
     if (
       normalized.code === 'CONNECTION_CLOSED' &&
-      stderrMessage.includes(STUB_RUNTIME_ERROR_MARKER)
+      isSshNodeRuntimeMissing(stderrMessage)
+    ) {
+      return new RemoteAgentError(
+        'BOOTSTRAP_FAILED',
+        NODE_RUNTIME_MISSING_MESSAGE,
+      )
+    }
+
+    const stderrMessageLower = stderrMessage.toLowerCase()
+    if (
+      normalized.code === 'CONNECTION_CLOSED' &&
+      stderrMessageLower.includes(STUB_RUNTIME_ERROR_MARKER)
     ) {
       return new RemoteAgentError(
         'BOOTSTRAP_FAILED',
@@ -409,8 +425,28 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
       )
     }
 
+    if (normalized.code === 'CONNECTION_CLOSED' && startupStderrSummary) {
+      return new RemoteAgentError(
+        'BOOTSTRAP_FAILED',
+        `Remote agent failed to start: ${startupStderrSummary}`,
+      )
+    }
+
     return normalized
   }
+}
+
+function summarizeStartupStderr(stderr: string): string | null {
+  const normalized = stderr.replace(/\s+/g, ' ').trim()
+  if (!normalized) {
+    return null
+  }
+
+  if (normalized.length <= STARTUP_STDERR_MESSAGE_LIMIT) {
+    return normalized
+  }
+
+  return `${normalized.slice(0, STARTUP_STDERR_MESSAGE_LIMIT).trimEnd()}...`
 }
 
 function spawnSshProcess(
@@ -431,7 +467,7 @@ function appendIdentityArgs(
   if (!identityFile) {
     return
   }
-  args.push('-i', identityFile)
+  args.push('-i', normalizeLocalIdentityFilePath(identityFile))
   args.push('-o', 'IdentitiesOnly=yes')
 }
 
@@ -460,7 +496,7 @@ export function buildSshProcessArgs(
     '--workspace-root',
     shellEscape(profile.remoteRoot),
   ].join(' ')
-  args.push('sh', '-lc', remoteCommand)
+  args.push('sh', '-lc', shellEscape(remoteCommand))
 
   return args
 }

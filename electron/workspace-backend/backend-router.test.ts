@@ -66,6 +66,38 @@ describe('workspace-backend/backend-router', () => {
 
     expect(removed).toBe(true)
     expect(dispose).toHaveBeenCalledTimes(1)
-    expect(router.resolveByRootPath('remote://workspace-a').kind).toBe('local')
+    expect(() => router.resolveByRootPath('remote://workspace-a')).toThrow(
+      /Remote workspace backend is not registered/,
+    )
+  })
+
+  it('does not reject when dispose fails during clearRemoteWorkspaces', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const dispose = vi.fn(async () => {
+      throw new Error('already disconnected')
+    })
+    const localBackend = createBackend('local')
+    const remoteBackend = createBackend('remote', dispose)
+    const router = new WorkspaceBackendRouter(localBackend)
+
+    router.registerRemoteWorkspace({
+      workspaceId: 'workspace-a',
+      rootPath: 'remote://workspace-a',
+      backend: remoteBackend,
+    })
+
+    await expect(router.clearRemoteWorkspaces()).resolves.toBeUndefined()
+    expect(dispose).toHaveBeenCalledTimes(1)
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    warnSpy.mockRestore()
+  })
+
+  it('throws when resolving an unregistered remote root path', () => {
+    const localBackend = createBackend('local')
+    const router = new WorkspaceBackendRouter(localBackend)
+
+    expect(() => router.resolveByRootPath('remote://workspace-z')).toThrow(
+      /Remote workspace backend is not registered/,
+    )
   })
 })

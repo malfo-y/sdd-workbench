@@ -8,6 +8,8 @@ export type WorkspaceIndexRequest = {
 export type WorkspaceIndexDirectoryRequest = {
   rootPath: string
   relativePath: string
+  offset?: number
+  limit?: number
 }
 
 export type WorkspaceReadFileRequest = {

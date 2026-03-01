@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
+import { appendFile, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import {
@@ -259,6 +260,8 @@ type WorkspaceExportCommentsBundleResult = {
 type WorkspaceIndexDirectoryRequest = {
   rootPath: string
   relativePath: string
+  offset?: number
+  limit?: number
 }
 
 type WorkspaceIndexDirectoryResult = {
@@ -370,12 +373,14 @@ const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
 const WORKSPACE_INDEX_DIRECTORY_CHILD_CAP = 500
 
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
-const MAX_WORKSPACE_INDEX_NODES = 10_000
+const MAX_WORKSPACE_INDEX_NODES = 100_000
 const MAX_WORKSPACE_POLL_FILES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
 const WORKSPACE_WATCH_POLL_INTERVAL_MS = 1500
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
+const REMOTE_AGENT_LOG_DIRECTORY_NAME = 'logs'
+const REMOTE_AGENT_LOG_FILE_NAME = 'remote-agent.log'
 const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
 const BLOCKED_IMAGE_EXTENSIONS = new Set(['.svg'])
 const SDD_WORKBENCH_DIRECTORY = '.sdd-workbench'
@@ -399,6 +404,7 @@ const fileNameCollator = new Intl.Collator(undefined, {
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
 const workspacesInFallbackTransition = new Set<string>()
 let stopAllWorkspaceWatchersPromise: Promise<void> | null = null
+let remoteAgentLogWriteQueue: Promise<void> = Promise.resolve()
 const remoteReliabilityPolicy = loadRemoteReliabilityPolicy()
 const remoteConnectionService = new RemoteConnectionService({
   emitEvent: sendWorkspaceRemoteConnectionEvent,
@@ -464,6 +470,12 @@ function toBundleTimestamp(date = new Date()) {
   const seconds = String(date.getSeconds()).padStart(2, '0')
 
   return `${year}${month}${day}_${hours}${minutes}${seconds}`
+}
+
+function runBackgroundTask(task: Promise<unknown>, label: string): void {
+  void task.catch((error) => {
+    console.warn(`${label} failed.`, error)
+  })
 }
 
 async function writeFileAtomic(targetPath: string, content: string) {
@@ -646,6 +658,83 @@ type BuildWorkspaceTreeResult = {
   totalChildCount: number
 }
 
+type IndexedWorkspaceEntry = {
+  name: string
+  absolutePath: string
+  kind: 'file' | 'directory'
+  isSymbolicLink: boolean
+}
+
+async function resolveWorkspaceEntryKind(
+  absolutePath: string,
+  entry: Dirent,
+): Promise<Omit<IndexedWorkspaceEntry, 'name' | 'absolutePath'> | null> {
+  if (entry.isFile()) {
+    return {
+      kind: 'file',
+      isSymbolicLink: false,
+    }
+  }
+
+  if (entry.isDirectory()) {
+    return {
+      kind: 'directory',
+      isSymbolicLink: false,
+    }
+  }
+
+  if (!entry.isSymbolicLink()) {
+    return null
+  }
+
+  try {
+    const targetStats = await stat(absolutePath)
+    if (targetStats.isDirectory()) {
+      return {
+        kind: 'directory',
+        isSymbolicLink: true,
+      }
+    }
+    if (targetStats.isFile()) {
+      return {
+        kind: 'file',
+        isSymbolicLink: true,
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+async function collectIndexedWorkspaceEntries(
+  directoryPath: string,
+): Promise<IndexedWorkspaceEntry[]> {
+  const entries = await readdir(directoryPath, { withFileTypes: true })
+  const indexedEntries: IndexedWorkspaceEntry[] = []
+
+  for (const entry of entries) {
+    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
+      continue
+    }
+
+    const absolutePath = path.join(directoryPath, entry.name)
+    const entryKind = await resolveWorkspaceEntryKind(absolutePath, entry)
+    if (!entryKind) {
+      continue
+    }
+
+    indexedEntries.push({
+      name: entry.name,
+      absolutePath,
+      ...entryKind,
+    })
+  }
+
+  return indexedEntries
+}
+
 async function buildWorkspaceTree(
   rootPath: string,
   currentDirectory: string,
@@ -660,17 +749,7 @@ async function buildWorkspaceTree(
   const maxDepth = options?.maxDepth
   const currentDepth = options?.currentDepth ?? 0
 
-  const entries = await readdir(currentDirectory, { withFileTypes: true })
-
-  const eligibleEntries = entries.filter((entry) => {
-    if (entry.isSymbolicLink()) {
-      return false
-    }
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      return false
-    }
-    return entry.isFile() || entry.isDirectory()
-  })
+  const eligibleEntries = await collectIndexedWorkspaceEntries(currentDirectory)
 
   const totalChildCount = eligibleEntries.length
   const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
@@ -688,17 +767,19 @@ async function buildWorkspaceTree(
       break
     }
 
-    const absolutePath = path.join(currentDirectory, entry.name)
-    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+    const relativePath = normalizeToWorkspaceRelativePath(
+      entry.absolutePath,
+      rootPath,
+    )
 
     if (!relativePath || relativePath.startsWith('..')) {
       continue
     }
 
-    if (entry.isDirectory()) {
+    if (entry.kind === 'directory') {
       indexBudget.remainingNodes -= 1
 
-      if (skipRecurse) {
+      if (skipRecurse || entry.isSymbolicLink) {
         nodes.push({
           name: entry.name,
           relativePath,
@@ -711,7 +792,7 @@ async function buildWorkspaceTree(
 
       const childResult = await buildWorkspaceTree(
         rootPath,
-        absolutePath,
+        entry.absolutePath,
         indexBudget,
         { maxDepth, currentDepth: currentDepth + 1 },
       )
@@ -730,7 +811,7 @@ async function buildWorkspaceTree(
       continue
     }
 
-    if (entry.isFile()) {
+    if (entry.kind === 'file') {
       indexBudget.remainingNodes -= 1
       nodes.push({
         name: entry.name,
@@ -750,37 +831,25 @@ async function buildWorkspaceTree(
 async function buildDirectoryChildren(
   rootPath: string,
   directoryPath: string,
+  options?: { offset?: number; limit?: number },
 ): Promise<{
   children: WorkspaceFileNode[]
   childrenStatus: 'complete' | 'partial'
   totalChildCount: number
 }> {
-  const entries = await readdir(directoryPath, { withFileTypes: true })
-  const eligibleEntries = entries.filter((entry) => {
-    if (entry.isSymbolicLink()) {
-      return false
-    }
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      return false
-    }
-    return entry.isFile() || entry.isDirectory()
-  })
-
-  const totalChildCount = eligibleEntries.length
-  const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
-  const cappedEntries = isCapped
-    ? eligibleEntries.slice(0, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
-    : eligibleEntries
+  const eligibleEntries = await collectIndexedWorkspaceEntries(directoryPath)
 
   const nodes: WorkspaceFileNode[] = []
-  for (const entry of cappedEntries) {
-    const absolutePath = path.join(directoryPath, entry.name)
-    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+  for (const entry of eligibleEntries) {
+    const relativePath = normalizeToWorkspaceRelativePath(
+      entry.absolutePath,
+      rootPath,
+    )
     if (!relativePath || relativePath.startsWith('..')) {
       continue
     }
 
-    if (entry.isDirectory()) {
+    if (entry.kind === 'directory') {
       nodes.push({
         name: entry.name,
         relativePath,
@@ -798,9 +867,25 @@ async function buildDirectoryChildren(
     })
   }
 
+  const sortedNodes = sortWorkspaceTree(nodes)
+  const totalChildCount = sortedNodes.length
+  const rawOffset = options?.offset
+  const parsedOffset =
+    typeof rawOffset === 'number' && Number.isFinite(rawOffset)
+      ? Math.max(0, Math.floor(rawOffset))
+      : 0
+  const rawLimit = options?.limit
+  const parsedLimit =
+    typeof rawLimit === 'number' && Number.isFinite(rawLimit)
+      ? Math.max(1, Math.floor(rawLimit))
+      : WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
+  const effectiveLimit = Math.min(parsedLimit, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+  const pagedChildren = sortedNodes.slice(parsedOffset, parsedOffset + effectiveLimit)
+  const hasMore = parsedOffset + pagedChildren.length < totalChildCount
+
   return {
-    children: sortWorkspaceTree(nodes),
-    childrenStatus: isCapped ? 'partial' : 'complete',
+    children: pagedChildren,
+    childrenStatus: hasMore ? 'partial' : 'complete',
     totalChildCount,
   }
 }
@@ -845,7 +930,10 @@ async function handleWorkspaceIndexDirectory(
       }
     }
 
-    const result = await buildDirectoryChildren(resolvedRootPath, resolvedTargetPath)
+    const result = await buildDirectoryChildren(resolvedRootPath, resolvedTargetPath, {
+      offset: request.offset,
+      limit: request.limit,
+    })
     return {
       ok: true,
       children: result.children,
@@ -1920,6 +2008,16 @@ function sendWorkspaceWatchFallbackEvent(payload: WorkspaceWatchFallbackEvent) {
 }
 
 function sendWorkspaceRemoteConnectionEvent(payload: RemoteConnectionEvent) {
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'remoteConnectionEvent',
+    workspaceId: payload.workspaceId,
+    sessionId: payload.sessionId ?? null,
+    state: payload.state,
+    errorCode: payload.errorCode ?? null,
+    message: sanitizeRemoteLogMessage(payload.message),
+    occurredAt: payload.occurredAt,
+  })
   if (!win || win.isDestroyed()) {
     return
   }
@@ -2868,10 +2966,41 @@ async function handleWorkspaceConnectRemote(
     }
   }
 
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'connectRemote.request',
+    workspaceId: profile.workspaceId ?? null,
+    host: profile.host ?? null,
+    user: profile.user ?? null,
+    port: profile.port ?? null,
+    remoteRoot: profile.remoteRoot ?? null,
+    agentPath: profile.agentPath ?? null,
+    hasIdentityFile:
+      typeof profile.identityFile === 'string' && profile.identityFile.trim().length > 0,
+  })
+
   const connectResult = await remoteConnectionService.connect(profile)
   if (!connectResult.ok) {
+    queueRemoteAgentLog({
+      at: new Date().toISOString(),
+      source: 'connectRemote.result',
+      ok: false,
+      workspaceId: connectResult.workspaceId,
+      errorCode: connectResult.errorCode,
+      error: sanitizeRemoteLogMessage(connectResult.error),
+    })
     return connectResult
   }
+
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'connectRemote.result',
+    ok: true,
+    workspaceId: connectResult.workspaceId,
+    sessionId: connectResult.sessionId,
+    rootPath: connectResult.rootPath,
+    remoteConnectionState: connectResult.remoteConnectionState,
+  })
 
   const remoteBackend = createRemoteWorkspaceBackend({
     workspaceId: connectResult.workspaceId,
@@ -2891,6 +3020,30 @@ async function handleWorkspaceConnectRemote(
   })
 
   return connectResult
+}
+
+function sanitizeRemoteLogMessage(message: string | undefined): string | null {
+  if (!message || message.trim().length === 0) {
+    return null
+  }
+
+  const sanitized = redactRemoteErrorMessage(message, '')
+  return sanitized.length > 0 ? sanitized : null
+}
+
+function queueRemoteAgentLog(payload: Record<string, unknown>): void {
+  remoteAgentLogWriteQueue = remoteAgentLogWriteQueue
+    .then(async () => {
+      const userDataDirectoryPath = app.getPath('userData')
+      const logDirectoryPath = path.join(
+        userDataDirectoryPath,
+        REMOTE_AGENT_LOG_DIRECTORY_NAME,
+      )
+      const logFilePath = path.join(logDirectoryPath, REMOTE_AGENT_LOG_FILE_NAME)
+      await mkdir(logDirectoryPath, { recursive: true })
+      await appendFile(logFilePath, `${JSON.stringify(payload)}\n`, 'utf8')
+    })
+    .catch(() => undefined)
 }
 
 async function handleWorkspaceDisconnectRemote(
@@ -3041,9 +3194,12 @@ function createWindow() {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  void stopAllWorkspaceWatchers()
-  void workspaceBackendRouter.clearRemoteWorkspaces()
-  void remoteConnectionService.shutdown()
+  runBackgroundTask(stopAllWorkspaceWatchers(), 'stopAllWorkspaceWatchers')
+  runBackgroundTask(
+    workspaceBackendRouter.clearRemoteWorkspaces(),
+    'clearRemoteWorkspaces',
+  )
+  runBackgroundTask(remoteConnectionService.shutdown(), 'remoteConnectionService.shutdown')
   if (process.platform !== 'darwin') {
     app.quit()
     win = null
@@ -3079,7 +3235,10 @@ app.on('before-quit', (event) => {
     ])
 
     app.exit(0)
-  })()
+  })().catch((error) => {
+    console.warn('before-quit cleanup failed.', error)
+    app.exit(0)
+  })
 })
 
 app.on('activate', () => {

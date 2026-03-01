@@ -531,4 +531,37 @@ describe('mergeDirectoryChildren', () => {
     expect(result[0].totalChildCount).toBe(600)
     expect(result[0].children).toHaveLength(2)
   })
+
+  it('appends children when appendChildren option is enabled', () => {
+    const tree: WorkspaceFileNode[] = [
+      {
+        name: 'lib',
+        relativePath: 'lib',
+        kind: 'directory',
+        children: [
+          { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+        ],
+        childrenStatus: 'partial',
+        totalChildCount: 3,
+      },
+    ]
+
+    const newChildren: WorkspaceFileNode[] = [
+      { name: 'b.ts', relativePath: 'lib/b.ts', kind: 'file' },
+      { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+    ]
+
+    const result = mergeDirectoryChildren(
+      tree,
+      'lib',
+      newChildren,
+      'partial',
+      3,
+      { appendChildren: true },
+    )
+    expect(result[0].children).toEqual([
+      { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+      { name: 'b.ts', relativePath: 'lib/b.ts', kind: 'file' },
+    ])
+  })
 })

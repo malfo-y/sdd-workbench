@@ -469,6 +469,8 @@ function App() {
   const [isViewCommentsModalOpen, setIsViewCommentsModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isRemoteConnectModalOpen, setIsRemoteConnectModalOpen] = useState(false)
+  const [isWorkspaceSummaryExpanded, setIsWorkspaceSummaryExpanded] =
+    useState(false)
   const [isConnectingRemoteWorkspace, setIsConnectingRemoteWorkspace] =
     useState(false)
   const [isRetryingRemoteWorkspace, setIsRetryingRemoteWorkspace] = useState(false)
@@ -1694,8 +1696,21 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="workspace-summary">
-              <p className="label">Current Workspace</p>
+            <div
+              className={`workspace-summary ${isWorkspaceSummaryExpanded ? '' : 'workspace-summary-collapsed'}`}
+            >
+              <div className="workspace-summary-header">
+                <p className="label">Current Workspace</p>
+                <button
+                  className="workspace-summary-toggle"
+                  onClick={() => {
+                    setIsWorkspaceSummaryExpanded((previous) => !previous)
+                  }}
+                  type="button"
+                >
+                  {isWorkspaceSummaryExpanded ? 'Collapse' : 'Expand'}
+                </button>
+              </div>
               <p
                 className="path workspace-summary-path"
                 data-testid="workspace-path"
@@ -1728,75 +1743,79 @@ function App() {
                   </span>
                 )}
               </div>
-              {isActiveRemoteWorkspace && remoteProfile && (
-                <p className="workspace-remote-target" data-testid="workspace-remote-target">
-                  {remoteProfile.user ? `${remoteProfile.user}@` : ''}
-                  {remoteProfile.host}:{remoteProfile.remoteRoot}
-                </p>
-              )}
-              {isActiveRemoteWorkspace && remoteErrorCode && (
-                <p
-                  className="workspace-remote-error-code"
-                  data-testid="workspace-remote-error-code"
-                >
-                  Last error: {remoteErrorCode}
-                </p>
-              )}
-              {isActiveRemoteWorkspace && remoteRecoveryHint && (
-                <p
-                  className="workspace-remote-retry-hint"
-                  data-testid="workspace-remote-retry-hint"
-                >
-                  {remoteRecoveryHint}
-                </p>
-              )}
-              <div className="workspace-watch-preference">
-                <label
-                  className="workspace-watch-preference-label"
-                  htmlFor="workspace-watch-preference-select"
-                >
-                  Watch Mode
-                </label>
-                <select
-                  className="workspace-watch-preference-select"
-                  data-testid="workspace-watch-mode-preference"
-                  disabled={!rootPath}
-                  id="workspace-watch-preference-select"
-                  onChange={handleWatchModePreferenceChange}
-                  value={watchModePreference}
-                >
-                  <option value="auto">Auto</option>
-                  <option value="native">Native</option>
-                  <option value="polling">Polling</option>
-                </select>
-              </div>
-              {shouldShowRetryRemoteButton && (
-                <button
-                  className="workspace-remote-retry-button"
-                  data-testid="workspace-remote-retry-button"
-                  disabled={isRetryingRemoteWorkspace || isConnectingRemoteWorkspace}
-                  onClick={() => {
-                    void handleRetryRemoteWorkspaceConnection()
-                  }}
-                  type="button"
-                >
-                  {isRetryingRemoteWorkspace
-                    ? 'Retrying...'
-                    : isFatalRemoteFailure
-                      ? 'Reconnect'
-                      : 'Retry Connect'}
-                </button>
-              )}
-              {isActiveRemoteWorkspace && remoteConnectionLabel !== 'disconnected' && (
-                <button
-                  className="workspace-remote-disconnect-button"
-                  onClick={() => {
-                    void handleDisconnectRemoteWorkspace()
-                  }}
-                  type="button"
-                >
-                  Disconnect Remote
-                </button>
+              {isWorkspaceSummaryExpanded && (
+                <>
+                  {isActiveRemoteWorkspace && remoteProfile && (
+                    <p className="workspace-remote-target" data-testid="workspace-remote-target">
+                      {remoteProfile.user ? `${remoteProfile.user}@` : ''}
+                      {remoteProfile.host}:{remoteProfile.remoteRoot}
+                    </p>
+                  )}
+                  {isActiveRemoteWorkspace && remoteErrorCode && (
+                    <p
+                      className="workspace-remote-error-code"
+                      data-testid="workspace-remote-error-code"
+                    >
+                      Last error: {remoteErrorCode}
+                    </p>
+                  )}
+                  {isActiveRemoteWorkspace && remoteRecoveryHint && (
+                    <p
+                      className="workspace-remote-retry-hint"
+                      data-testid="workspace-remote-retry-hint"
+                    >
+                      {remoteRecoveryHint}
+                    </p>
+                  )}
+                  <div className="workspace-watch-preference">
+                    <label
+                      className="workspace-watch-preference-label"
+                      htmlFor="workspace-watch-preference-select"
+                    >
+                      Watch Mode
+                    </label>
+                    <select
+                      className="workspace-watch-preference-select"
+                      data-testid="workspace-watch-mode-preference"
+                      disabled={!rootPath}
+                      id="workspace-watch-preference-select"
+                      onChange={handleWatchModePreferenceChange}
+                      value={watchModePreference}
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="native">Native</option>
+                      <option value="polling">Polling</option>
+                    </select>
+                  </div>
+                  {shouldShowRetryRemoteButton && (
+                    <button
+                      className="workspace-remote-retry-button"
+                      data-testid="workspace-remote-retry-button"
+                      disabled={isRetryingRemoteWorkspace || isConnectingRemoteWorkspace}
+                      onClick={() => {
+                        void handleRetryRemoteWorkspaceConnection()
+                      }}
+                      type="button"
+                    >
+                      {isRetryingRemoteWorkspace
+                        ? 'Retrying...'
+                        : isFatalRemoteFailure
+                          ? 'Reconnect'
+                          : 'Retry Connect'}
+                    </button>
+                  )}
+                  {isActiveRemoteWorkspace && remoteConnectionLabel !== 'disconnected' && (
+                    <button
+                      className="workspace-remote-disconnect-button"
+                      onClick={() => {
+                        void handleDisconnectRemoteWorkspace()
+                      }}
+                      type="button"
+                    >
+                      Disconnect Remote
+                    </button>
+                  )}
+                </>
               )}
             </div>
             <div className="workspace-open-in">

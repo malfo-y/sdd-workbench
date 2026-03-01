@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 
-export const DEFAULT_MAX_FRAME_BYTES = 1024 * 1024
+export const DEFAULT_MAX_FRAME_BYTES = 32 * 1024 * 1024
 
 export type JsonLineFramingErrorCode = 'FRAME_TOO_LARGE' | 'FRAME_INVALID_JSON'
 

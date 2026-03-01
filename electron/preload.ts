@@ -23,6 +23,11 @@ type WorkspaceIndexDirectoryResult = {
   error?: string
 }
 
+type WorkspaceIndexDirectoryOptions = {
+  offset?: number
+  limit?: number
+}
+
 type WorkspaceIndexResult = {
   ok: boolean
   fileTree: WorkspaceFileNode[]
@@ -230,10 +235,16 @@ const workspaceApi = {
       rootPath,
     }) as Promise<WorkspaceIndexResult>
   },
-  indexDirectory(rootPath: string, relativePath: string) {
+  indexDirectory(
+    rootPath: string,
+    relativePath: string,
+    options?: WorkspaceIndexDirectoryOptions,
+  ) {
     return ipcRenderer.invoke('workspace:indexDirectory', {
       rootPath,
       relativePath,
+      offset: options?.offset,
+      limit: options?.limit,
     }) as Promise<WorkspaceIndexDirectoryResult>
   },
   readFile(rootPath: string, relativePath: string) {

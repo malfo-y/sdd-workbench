@@ -60,4 +60,13 @@ describe('remote-agent/framing', () => {
       encodeJsonLineMessage({ payload: '123456789' }, 8)
     }).toThrowError(JsonLineFramingError)
   })
+
+  it('accepts frames larger than 1MiB with default limit', () => {
+    const decoder = new JsonLineDecoder<{ payload: string }>()
+    const payload = 'x'.repeat(1024 * 1024 + 32)
+    const frame = encodeJsonLineMessage({ payload })
+
+    const result = decoder.push(frame)
+    expect(result).toEqual([{ payload }])
+  })
 })

@@ -109,7 +109,10 @@ type WorkspaceContextValue = {
   saveFile: (content: string) => Promise<boolean>
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
-  loadDirectoryChildren: (relativePath: string) => Promise<void>
+  loadDirectoryChildren: (
+    relativePath: string,
+    options?: { append?: boolean },
+  ) => Promise<void>
   setWatchModePreference: (
     preference: WorkspaceWatchModePreference,
   ) => Promise<void>
@@ -132,7 +135,8 @@ type WorkspaceProviderProps = {
 }
 
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
-const WORKSPACE_INDEX_NODE_CAP = 10_000
+const WORKSPACE_INDEX_NODE_CAP = 100_000
+const DIRECTORY_PAGE_SIZE = 500
 const REMOTE_SENSITIVE_KEY_VALUE_PATTERN =
   /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
 const REMOTE_HOME_SSH_PATH_PATTERN = /~\/\.ssh\/[^\s'":;,)]+/g
@@ -187,6 +191,9 @@ function getRemoteConnectionErrorMessage(
     return 'Remote workspace path denied (PATH_DENIED).'
   }
   if (errorCode === 'BOOTSTRAP_FAILED') {
+    if (fallbackMessage && fallbackMessage.trim().length > 0) {
+      return `Remote agent bootstrap failed (BOOTSTRAP_FAILED). ${sanitizeRemoteBannerMessage(fallbackMessage)}`
+    }
     return 'Remote agent bootstrap failed (BOOTSTRAP_FAILED). Check agent path/runtime prerequisites.'
   }
   if (fallbackMessage && fallbackMessage.trim().length > 0) {
@@ -246,6 +253,33 @@ function isFilePathPotentiallyPresent(
   }
 
   return false
+}
+
+function findDirectoryNodeInTree(
+  tree: WorkspaceFileNode[],
+  directoryRelativePath: string,
+): WorkspaceFileNode | null {
+  for (const node of tree) {
+    if (node.kind !== 'directory') {
+      continue
+    }
+
+    if (node.relativePath === directoryRelativePath) {
+      return node
+    }
+
+    if (
+      node.children &&
+      directoryRelativePath.startsWith(node.relativePath + '/')
+    ) {
+      const found = findDirectoryNodeInTree(node.children, directoryRelativePath)
+      if (found) {
+        return found
+      }
+    }
+  }
+
+  return null
 }
 
 function createWorkspaceStateFromSnapshot(
@@ -470,9 +504,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             }
           }),
         )
-        setBannerMessage(
-          indexResult.truncated ? getWorkspaceIndexTruncationMessage() : null,
-        )
+        if (indexResult.truncated) {
+          setBannerMessage(getWorkspaceIndexTruncationMessage())
+        }
         return 'success'
       } catch (error) {
         if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
@@ -1027,7 +1061,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           })),
         )
         if (watchStartResult.fallbackApplied) {
-          setBannerMessage(
+          setBannerMessage((currentMessage) =>
+            currentMessage ??
             'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
           )
         }
@@ -1083,7 +1118,6 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       })
 
       if (isExistingWorkspace) {
-        setBannerMessage(null)
         return
       }
 
@@ -1206,7 +1240,6 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         if (indexStatus === 'success') {
           void loadWorkspaceGitFileStatuses(rendererWorkspaceId, rootPath)
         }
-        setBannerMessage(null)
         if (!watchStarted || indexStatus === 'failed') {
           return false
         }
@@ -2148,7 +2181,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   )
 
   const loadDirectoryChildren = useCallback(
-    async (relativePath: string) => {
+    async (relativePath: string, options?: { append?: boolean }) => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
       if (!activeWorkspaceId) {
         return
@@ -2164,6 +2197,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
+      const appendChildren = options?.append === true
+      const directoryNode = findDirectoryNodeInTree(
+        workspaceSession.fileTree,
+        relativePath,
+      )
+      const offset = appendChildren ? (directoryNode?.children?.length ?? 0) : 0
+
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
           ...currentSession,
@@ -2178,6 +2218,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         const result = await window.workspace.indexDirectory(
           workspaceSession.rootPath,
           relativePath,
+          {
+            offset,
+            limit: DIRECTORY_PAGE_SIZE,
+          },
         )
 
         if (workspaceStateRef.current.activeWorkspaceId !== activeWorkspaceId) {
@@ -2202,6 +2246,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               result.children,
               result.childrenStatus,
               result.totalChildCount,
+              { appendChildren },
             ),
             loadingDirectories: currentSession.loadingDirectories.filter(
               (dir) => dir !== relativePath,
@@ -2512,7 +2557,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           isRemoteMounted: true,
         })),
       )
-      setBannerMessage(
+      setBannerMessage((currentMessage) =>
+        currentMessage ??
         'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
       )
     })
