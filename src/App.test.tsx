@@ -62,6 +62,18 @@ function clearWorkspaceSessionStorage() {
   window.localStorage.removeItem(WORKSPACE_SESSION_STORAGE_KEY)
 }
 
+async function expandWorkspaceSummaryIfCollapsed() {
+  const expandButton = screen.queryByRole('button', { name: 'Expand' })
+  if (!expandButton) {
+    return
+  }
+
+  fireEvent.click(expandButton)
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
+  })
+}
+
 describe('F01/F02/F03/F04 workspace flow', () => {
   const openDialogMock = vi.fn<() => Promise<WorkspaceOpenDialogResult>>()
   const indexWorkspaceMock =
@@ -127,6 +139,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       (
         rootPath: string,
         relativePath: string,
+        options?: { offset?: number; limit?: number },
       ) => Promise<WorkspaceIndexDirectoryResult>
     >()
   const writeFileMock =
@@ -471,6 +484,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('workspace-remote-badge')).toHaveTextContent(
       'REMOTE',
     )
+    await expandWorkspaceSummaryIfCollapsed()
     expect(screen.getByTestId('workspace-watch-mode-preference')).toHaveValue(
       'auto',
     )
@@ -652,6 +666,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       'title',
       'remote://remote-workspace-a',
     )
+    await expandWorkspaceSummaryIfCollapsed()
     expect(screen.getByTestId('workspace-remote-target')).toHaveTextContent(
       'example.com:/srv/project-a',
     )
@@ -686,6 +701,36 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(
       screen.getByRole('dialog', { name: 'Connect Remote Workspace' }),
     ).toBeInTheDocument()
+  })
+
+  it('shows bootstrap failure detail when remote connect fails with BOOTSTRAP_FAILED', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: false,
+      workspaceId: 'remote-workspace-bootstrap-failed',
+      errorCode: 'BOOTSTRAP_FAILED',
+      error:
+        'Remote Node.js runtime is missing on the target host. Install Node.js and ensure \"node\" is available in non-interactive SSH shell PATH.',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'bootstrap.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/bootstrap' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('BOOTSTRAP_FAILED')
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('Node.js runtime is missing')
   })
 
   it('updates remote connection state from events and disconnects on close', async () => {
@@ -807,6 +852,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       })
     })
 
+    await expandWorkspaceSummaryIfCollapsed()
     await waitFor(() => {
       expect(screen.getByTestId('workspace-remote-retry-button')).toHaveTextContent(
         'Retry Connect',
@@ -876,6 +922,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       })
     })
 
+    await expandWorkspaceSummaryIfCollapsed()
     await waitFor(() => {
       expect(screen.getByTestId('workspace-remote-retry-button')).toHaveTextContent(
         'Reconnect',
@@ -1081,7 +1128,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Workspace index truncated at 10,000 nodes.',
+        'Workspace index truncated at 100,000 nodes.',
       )
     })
   })
@@ -1289,7 +1336,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   })
 
   it('shows a cap message when indexed nodes exceed initial render limit', async () => {
-    const hugeTree: WorkspaceFileNode[] = Array.from({ length: 520 }, (_, index) => ({
+    const hugeTree: WorkspaceFileNode[] = Array.from({ length: 10_020 }, (_, index) => ({
       name: `dir-${index}`,
       relativePath: `dir-${index}`,
       kind: 'directory',
@@ -1315,7 +1362,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('file-tree-cap-message')).toHaveTextContent(
-        'Showing first 500 nodes.',
+        'Showing first 10,000 nodes.',
       )
     })
   })
@@ -1665,6 +1712,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         'polling',
       )
     })
+    await expandWorkspaceSummaryIfCollapsed()
     await waitFor(() => {
       expect(screen.getByTestId('workspace-watch-mode-preference')).toHaveValue(
         'polling',

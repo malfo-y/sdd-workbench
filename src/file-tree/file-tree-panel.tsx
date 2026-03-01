@@ -9,7 +9,7 @@ import {
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import type { GitFileStatusKind } from '../workspace/workspace-model'
 
-const INITIAL_RENDER_NODE_LIMIT = 500
+const INITIAL_RENDER_NODE_LIMIT = 10_000
 
 const FILE_ICON_MAP: Record<string, string> = {
   '.py': '🐍',
@@ -58,7 +58,10 @@ type FileTreePanelProps = {
   onSelectFile: (relativePath: string) => void
   onRequestCopyRelativePath: (relativePath: string) => void
   onExpandedDirectoriesChange: (expandedDirectories: string[]) => void
-  onRequestLoadDirectory: (relativePath: string) => void
+  onRequestLoadDirectory: (
+    relativePath: string,
+    options?: { append?: boolean },
+  ) => void
   onRequestCreateFile?: (relativePath: string) => void
   onRequestCreateDirectory?: (relativePath: string) => void
   onRequestDeleteFile?: (relativePath: string) => void
@@ -204,6 +207,10 @@ function renderFileTreeNodes(
   ) => void,
   expandedDirectories: Set<string>,
   onToggleDirectory: (relativePath: string) => void,
+  onRequestLoadDirectory: (
+    relativePath: string,
+    options?: { append?: boolean },
+  ) => void,
   loadingDirectoriesSet: Set<string>,
 ): ReactNode {
   if (nodes.length === 0) {
@@ -228,6 +235,11 @@ function renderFileTreeNodes(
         isChanged || (!isExpanded && hasChangedInSubtree)
       const dirGitStatus = gitStatusSubtreeMap.get(node.relativePath) ?? null
       const shouldShowGitBadge = dirGitStatus !== null && !isExpanded
+      const loadedChildCount = (node.children ?? []).length
+      const hasMoreChildren =
+        node.childrenStatus === 'partial' &&
+        node.totalChildCount !== undefined &&
+        loadedChildCount < node.totalChildCount
       rendered.push(
         <li
           className="tree-node tree-node-directory"
@@ -269,7 +281,7 @@ function renderFileTreeNodes(
           {isExpanded &&
             node.childrenStatus === 'not-loaded' ? (
               isExpanded && (
-                <li
+                <div
                   className="tree-node tree-node-placeholder"
                   key={`${node.relativePath}--placeholder`}
                   style={{ paddingLeft: `${(depth + 1) * 12}px` }}
@@ -279,7 +291,7 @@ function renderFileTreeNodes(
                       ? 'Loading...'
                       : ''}
                   </span>
-                </li>
+                </div>
               )
             ) : isExpanded ? (
               <>
@@ -295,20 +307,36 @@ function renderFileTreeNodes(
                   onNodeContextMenu,
                   expandedDirectories,
                   onToggleDirectory,
+                  onRequestLoadDirectory,
                   loadingDirectoriesSet,
                 )}
                 {node.childrenStatus === 'partial' &&
                   node.totalChildCount !== undefined && (
-                    <li
+                    <div
                       className="tree-node tree-node-cap"
                       key={`${node.relativePath}--cap`}
                       style={{ paddingLeft: `${(depth + 1) * 12}px` }}
                     >
                       <span className="tree-cap-text">
-                        Showing {(node.children ?? []).length} of{' '}
+                        Showing {loadedChildCount} of{' '}
                         {node.totalChildCount} items
                       </span>
-                    </li>
+                      {hasMoreChildren && (
+                        <button
+                          className="tree-load-more-button"
+                          disabled={loadingDirectoriesSet.has(node.relativePath)}
+                          onClick={() =>
+                            onRequestLoadDirectory(node.relativePath, {
+                              append: true,
+                            })}
+                          type="button"
+                        >
+                          {loadingDirectoriesSet.has(node.relativePath)
+                            ? 'Loading...'
+                            : 'Load more'}
+                        </button>
+                      )}
+                    </div>
                   )}
               </>
             ) : null}
@@ -630,11 +658,12 @@ export function FileTreePanel({
         handleNodeContextMenu,
         expandedDirectoriesSet,
         toggleDirectory,
+        onRequestLoadDirectory,
         loadingDirectoriesSet,
       )}
       {renderBudget.truncated && (
         <p className="tree-cap-message" data-testid="file-tree-cap-message">
-          Showing first {INITIAL_RENDER_NODE_LIMIT} nodes.
+          Showing first {INITIAL_RENDER_NODE_LIMIT.toLocaleString()} nodes.
         </p>
       )}
       {inlineInput !== null && (
