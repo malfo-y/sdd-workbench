@@ -130,6 +130,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         profile: WorkspaceRemoteConnectionProfile,
       ) => Promise<WorkspaceConnectRemoteResult>
     >()
+  const browseRemoteDirectoriesMock =
+    vi.fn<
+      (
+        request: WorkspaceRemoteDirectoryBrowseRequest,
+      ) => Promise<WorkspaceRemoteDirectoryBrowseResult>
+    >()
   const disconnectRemoteMock =
     vi.fn<
       (workspaceId: string) => Promise<WorkspaceDisconnectRemoteResult>
@@ -205,6 +211,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     watchStartMock.mockReset()
     watchStopMock.mockReset()
     connectRemoteMock.mockReset()
+    browseRemoteDirectoriesMock.mockReset()
     disconnectRemoteMock.mockReset()
     writeFileMock.mockReset()
     openInItermMock.mockReset()
@@ -235,6 +242,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       workspaceId: '',
       errorCode: 'UNKNOWN',
       error: 'Not configured in test.',
+    })
+    browseRemoteDirectoriesMock.mockResolvedValue({
+      ok: true,
+      currentPath: '/home/tester',
+      entries: [],
+      truncated: false,
     })
     disconnectRemoteMock.mockResolvedValue({
       ok: true,
@@ -318,6 +331,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       watchStart: watchStartMock,
       watchStop: watchStopMock,
       connectRemote: connectRemoteMock,
+      browseRemoteDirectories: browseRemoteDirectoriesMock,
       disconnectRemote: disconnectRemoteMock,
       onWatchEvent: onWatchEventMock,
       onWatchFallback: onWatchFallbackMock,
@@ -672,6 +686,84 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('browses remote directories and connects with the selected path', async () => {
+    browseRemoteDirectoriesMock
+      .mockResolvedValueOnce({
+        ok: true,
+        currentPath: '/data',
+        entries: [
+          {
+            name: 'project-a',
+            path: '/data/project-a',
+            kind: 'directory',
+          },
+        ],
+        truncated: false,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        currentPath: '/data/project-a',
+        entries: [],
+        truncated: false,
+      })
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-browse',
+      sessionId: 'session-browse',
+      rootPath: 'remote://remote-workspace-browse',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'browse.example.com' },
+    })
+    fireEvent.click(screen.getByTestId('remote-connect-browse-button'))
+
+    await waitFor(() => {
+      expect(browseRemoteDirectoriesMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'browse.example.com',
+        }),
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('remote-connect-current-path')).toHaveTextContent(
+        '/data',
+      )
+    })
+
+    fireEvent.click(screen.getByTestId('remote-connect-entry-project-a'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('remote-connect-current-path')).toHaveTextContent(
+        '/data/project-a',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'browse.example.com',
+          remoteRoot: '/data/project-a',
+        }),
+      )
+    })
+  })
+
   it('shows standardized banner when remote connect fails with AUTH_FAILED', async () => {
     connectRemoteMock.mockResolvedValueOnce({
       ok: false,
@@ -709,7 +801,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       workspaceId: 'remote-workspace-bootstrap-failed',
       errorCode: 'BOOTSTRAP_FAILED',
       error:
-        'Remote Node.js runtime is missing on the target host. Install Node.js and ensure \"node\" is available in non-interactive SSH shell PATH.',
+        'Remote Node.js runtime is missing on the target host. Install Node.js and ensure "node" is available in non-interactive SSH shell PATH.',
     })
 
     render(
@@ -4803,6 +4895,76 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 5000)
+  })
+
+  it('auto-dismisses remote connection banners after 5 seconds', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-banner-autodismiss',
+      sessionId: 'session-banner-autodismiss',
+      rootPath: 'remote://remote-workspace-banner-autodismiss',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'autodismiss.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/autodismiss' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-workspace-banner-autodismiss' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-banner-autodismiss',
+        state: 'degraded',
+        errorCode: 'TIMEOUT',
+        message: 'agent heartbeat delayed',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('TIMEOUT')
+    })
+
+    const autoDismissCall = setTimeoutSpy.mock.calls.find(
+      (call) => call[1] === 5000,
+    )
+    expect(autoDismissCall).toBeDefined()
+    const timeoutHandler = autoDismissCall?.[0]
+    expect(typeof timeoutHandler).toBe('function')
+
+    await act(async () => {
+      const dismissBanner = timeoutHandler as () => void
+      dismissBanner()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
   })
 
   it('keeps edit mode open when comment update fails and shows error banner', async () => {

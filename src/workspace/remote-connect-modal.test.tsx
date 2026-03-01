@@ -41,11 +41,18 @@ describe('workspace/remote-connect-modal', () => {
   it('restores the latest draft when remounted', () => {
     const onClose = vi.fn()
     const onSubmit = vi.fn()
+    const onBrowse = vi.fn().mockResolvedValue({
+      ok: true,
+      currentPath: '/data',
+      entries: [],
+      truncated: false,
+    })
 
     const firstRender = render(
       <RemoteConnectModal
         isOpen
         isSubmitting={false}
+        onBrowse={onBrowse}
         onClose={onClose}
         onSubmit={onSubmit}
       />,
@@ -76,6 +83,7 @@ describe('workspace/remote-connect-modal', () => {
       <RemoteConnectModal
         isOpen
         isSubmitting={false}
+        onBrowse={onBrowse}
         onClose={onClose}
         onSubmit={onSubmit}
       />,
@@ -107,6 +115,14 @@ describe('workspace/remote-connect-modal', () => {
       <RemoteConnectModal
         isOpen
         isSubmitting={false}
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
         onClose={() => undefined}
         onSubmit={() => undefined}
       />,
@@ -114,5 +130,50 @@ describe('workspace/remote-connect-modal', () => {
 
     expect(screen.getByTestId('remote-connect-host-input')).toHaveValue('')
     expect(screen.getByTestId('remote-connect-root-input')).toHaveValue('')
+  })
+
+  it('keeps browse errors visible and clears them after successful browse', async () => {
+    const onBrowse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        currentPath: '',
+        entries: [],
+        truncated: false,
+        errorCode: 'AUTH_FAILED',
+        error: 'Permission denied',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        currentPath: '/data',
+        entries: [],
+        truncated: false,
+      })
+
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting={false}
+        onBrowse={onBrowse}
+        onClose={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'example.com' },
+    })
+    fireEvent.click(screen.getByTestId('remote-connect-browse-button'))
+
+    expect(await screen.findByTestId('remote-connect-browse-error')).toHaveTextContent(
+      'AUTH_FAILED',
+    )
+
+    fireEvent.click(screen.getByTestId('remote-connect-browse-button'))
+
+    expect(
+      await screen.findByTestId('remote-connect-current-path'),
+    ).toHaveTextContent('/data')
+    expect(screen.queryByTestId('remote-connect-browse-error')).not.toBeInTheDocument()
   })
 })

@@ -188,6 +188,31 @@ type WorkspaceRemoteConnectionProfile = {
   connectTimeoutMs?: number
 }
 
+type WorkspaceRemoteDirectoryBrowseRequest = {
+  host: string
+  user?: string
+  port?: number
+  identityFile?: string
+  targetPath?: string
+  connectTimeoutMs?: number
+  limit?: number
+}
+
+type WorkspaceRemoteDirectoryEntry = {
+  name: string
+  path: string
+  kind: 'directory' | 'symlink'
+}
+
+type WorkspaceRemoteDirectoryBrowseResult = {
+  ok: boolean
+  currentPath: string
+  entries: WorkspaceRemoteDirectoryEntry[]
+  truncated: boolean
+  errorCode?: string
+  error?: string
+}
+
 type WorkspaceRemoteConnectionEvent = {
   workspaceId: string
   sessionId?: string
@@ -350,6 +375,11 @@ const workspaceApi = {
     return ipcRenderer.invoke('workspace:connectRemote', {
       profile,
     }) as Promise<WorkspaceConnectRemoteResult>
+  },
+  browseRemoteDirectories(request: WorkspaceRemoteDirectoryBrowseRequest) {
+    return ipcRenderer.invoke('workspace:browseRemoteDirectories', {
+      request,
+    }) as Promise<WorkspaceRemoteDirectoryBrowseResult>
   },
   disconnectRemote(workspaceId: string) {
     return ipcRenderer.invoke('workspace:disconnectRemote', {

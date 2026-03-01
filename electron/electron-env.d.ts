@@ -224,6 +224,31 @@ interface WorkspaceRemoteConnectionProfile {
   connectTimeoutMs?: number
 }
 
+interface WorkspaceRemoteDirectoryBrowseRequest {
+  host: string
+  user?: string
+  port?: number
+  identityFile?: string
+  targetPath?: string
+  connectTimeoutMs?: number
+  limit?: number
+}
+
+interface WorkspaceRemoteDirectoryEntry {
+  name: string
+  path: string
+  kind: 'directory' | 'symlink'
+}
+
+interface WorkspaceRemoteDirectoryBrowseResult {
+  ok: boolean
+  currentPath: string
+  entries: WorkspaceRemoteDirectoryEntry[]
+  truncated: boolean
+  errorCode?: string
+  error?: string
+}
+
 interface WorkspaceRemoteConnectionEvent {
   workspaceId: string
   sessionId?: string
@@ -330,6 +355,9 @@ interface Window {
     connectRemote: (
       profile: WorkspaceRemoteConnectionProfile,
     ) => Promise<WorkspaceConnectRemoteResult>
+    browseRemoteDirectories: (
+      request: WorkspaceRemoteDirectoryBrowseRequest,
+    ) => Promise<WorkspaceRemoteDirectoryBrowseResult>
     disconnectRemote: (
       workspaceId: string,
     ) => Promise<WorkspaceDisconnectRemoteResult>

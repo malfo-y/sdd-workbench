@@ -137,6 +137,9 @@ type WorkspaceProviderProps = {
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
 const WORKSPACE_INDEX_NODE_CAP = 100_000
 const DIRECTORY_PAGE_SIZE = 500
+const REMOTE_BANNER_AUTODISMISS_MS = 5_000
+const WATCH_FALLBACK_BANNER_MESSAGE =
+  'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.'
 const REMOTE_SENSITIVE_KEY_VALUE_PATTERN =
   /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
 const REMOTE_HOME_SSH_PATH_PATTERN = /~\/\.ssh\/[^\s'":;,)]+/g
@@ -366,14 +369,45 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     Record<WorkspaceId, number>
   >({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
+  const remoteBannerAutoDismissTimerRef = useRef<number | null>(null)
+
+  const clearRemoteBannerAutoDismissTimer = useCallback(() => {
+    if (remoteBannerAutoDismissTimerRef.current === null) {
+      return
+    }
+    window.clearTimeout(remoteBannerAutoDismissTimerRef.current)
+    remoteBannerAutoDismissTimerRef.current = null
+  }, [])
+
+  const scheduleRemoteBannerAutoDismiss = useCallback(
+    (message: string) => {
+      clearRemoteBannerAutoDismissTimer()
+      remoteBannerAutoDismissTimerRef.current = window.setTimeout(() => {
+        setBannerMessage((currentMessage) =>
+          currentMessage === message ? null : currentMessage,
+        )
+        remoteBannerAutoDismissTimerRef.current = null
+      }, REMOTE_BANNER_AUTODISMISS_MS)
+    },
+    [clearRemoteBannerAutoDismissTimer],
+  )
 
   const clearBanner = useCallback(() => {
+    clearRemoteBannerAutoDismissTimer()
     setBannerMessage(null)
-  }, [])
+  }, [clearRemoteBannerAutoDismissTimer])
 
   const showBanner = useCallback((message: string) => {
+    clearRemoteBannerAutoDismissTimer()
     setBannerMessage(message)
-  }, [])
+  }, [clearRemoteBannerAutoDismissTimer])
+
+  useEffect(
+    () => () => {
+      clearRemoteBannerAutoDismissTimer()
+    },
+    [clearRemoteBannerAutoDismissTimer],
+  )
 
   const loadWorkspaceIndex = useCallback(
     async (
@@ -2558,12 +2592,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         })),
       )
       setBannerMessage((currentMessage) =>
-        currentMessage ??
-        'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
+        currentMessage ?? WATCH_FALLBACK_BANNER_MESSAGE,
       )
+      scheduleRemoteBannerAutoDismiss(WATCH_FALLBACK_BANNER_MESSAGE)
     })
     return unsubscribe
-  }, [])
+  }, [scheduleRemoteBannerAutoDismiss])
 
   useEffect(() => {
     const unsubscribe = window.workspace.onRemoteConnectionEvent((remoteEvent) => {
@@ -2597,17 +2631,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         (remoteEvent.state === 'disconnected' &&
           (remoteEvent.errorCode || remoteEvent.message))
       ) {
-        setBannerMessage(
-          getRemoteConnectionErrorMessage(
-            remoteEvent.errorCode,
-            remoteEvent.message,
-          ),
+        const errorMessage = getRemoteConnectionErrorMessage(
+          remoteEvent.errorCode,
+          remoteEvent.message,
         )
+        setBannerMessage(errorMessage)
+        scheduleRemoteBannerAutoDismiss(errorMessage)
       }
     })
 
     return unsubscribe
-  }, [findWorkspaceIdByRemoteWorkspaceId])
+  }, [findWorkspaceIdByRemoteWorkspaceId, scheduleRemoteBannerAutoDismiss])
 
   const canGoBack = activeWorkspace
     ? canStepWorkspaceFileHistory(activeWorkspace, 'back')

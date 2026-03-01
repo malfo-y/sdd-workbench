@@ -1361,6 +1361,32 @@
   width: min(540px, 100%);
 }
 
+.remote-connect-step-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.remote-connect-step-tab {
+  background: #111;
+  border: 1px solid #4a4a4a;
+  border-radius: 8px;
+  color: #b4b4b4;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+}
+
+.remote-connect-step-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.remote-connect-step-tab.is-active {
+  border-color: #5ba8e2;
+  color: #dceefe;
+}
+
 .comment-modal h2 {
   font-size: 1.1rem;
   margin: 0;
@@ -1386,6 +1412,66 @@
 .remote-connect-input:focus-visible {
   outline: 2px solid #7bb6e8;
   outline-offset: 1px;
+}
+
+.remote-connect-browse-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.remote-connect-browser {
+  background: #121212;
+  border: 1px solid #3f3f3f;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.remote-connect-browser-toolbar,
+.remote-connect-browser-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.remote-connect-browser-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.remote-connect-browser-entry {
+  align-items: center;
+  background: #161616;
+  border: 1px solid #343434;
+  border-radius: 6px;
+  color: #d3d3d3;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  justify-content: space-between;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.remote-connect-browser-entry:hover {
+  background: #1c1c1c;
+  border-color: #4f4f4f;
+}
+
+.remote-connect-browser-entry-name {
+  overflow-wrap: anywhere;
+}
+
+.remote-connect-browser-entry-kind {
+  color: #98bfe0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-left: 8px;
 }
 
 .comment-modal-target,

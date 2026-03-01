@@ -1058,6 +1058,38 @@ function App() {
     [connectRemoteWorkspace],
   )
 
+  const handleBrowseRemoteDirectories = useCallback(
+    async (
+      request: WorkspaceRemoteDirectoryBrowseRequest,
+    ): Promise<WorkspaceRemoteDirectoryBrowseResult> => {
+      if (typeof window.workspace.browseRemoteDirectories !== 'function') {
+        return {
+          ok: false,
+          currentPath: request.targetPath?.trim() ?? '',
+          entries: [],
+          truncated: false,
+          errorCode: 'UNKNOWN',
+          error:
+            'Remote directory browse API is unavailable. Restart SDD Workbench to load latest preload/main changes.',
+        }
+      }
+
+      try {
+        return await window.workspace.browseRemoteDirectories(request)
+      } catch {
+        return {
+          ok: false,
+          currentPath: request.targetPath?.trim() ?? '',
+          entries: [],
+          truncated: false,
+          errorCode: 'UNKNOWN',
+          error: 'Failed to browse remote directories.',
+        }
+      }
+    },
+    [],
+  )
+
   const handleDisconnectRemoteWorkspace = useCallback(async () => {
     if (!activeWorkspaceId) {
       return
@@ -1937,6 +1969,7 @@ function App() {
       <RemoteConnectModal
         isOpen={isRemoteConnectModalOpen}
         isSubmitting={isConnectingRemoteWorkspace}
+        onBrowse={handleBrowseRemoteDirectories}
         onClose={() => {
           if (!isConnectingRemoteWorkspace) {
             setIsRemoteConnectModalOpen(false)

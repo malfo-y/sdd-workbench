@@ -19,6 +19,11 @@ import {
   type GitFileStatusMap,
 } from './git-file-statuses'
 import { RemoteConnectionService } from './remote-agent/connection-service'
+import {
+  browseRemoteDirectories,
+  type RemoteDirectoryBrowseEntry,
+  type RemoteDirectoryBrowseRequest,
+} from './remote-agent/directory-browser'
 import { toRemoteAgentError } from './remote-agent/protocol'
 import { loadRemoteReliabilityPolicy } from './remote-agent/reliability-policy'
 import { redactRemoteErrorMessage } from './remote-agent/security'
@@ -284,6 +289,19 @@ type WorkspaceWatchStopRequest = {
 
 type WorkspaceConnectRemoteRequest = {
   profile: RemoteConnectionProfile
+}
+
+type WorkspaceBrowseRemoteDirectoriesRequest = {
+  request: RemoteDirectoryBrowseRequest
+}
+
+type WorkspaceBrowseRemoteDirectoriesResult = {
+  ok: boolean
+  currentPath: string
+  entries: RemoteDirectoryBrowseEntry[]
+  truncated: boolean
+  errorCode?: string
+  error?: string
 }
 
 type WorkspaceDisconnectRemoteRequest = {
@@ -3022,6 +3040,77 @@ async function handleWorkspaceConnectRemote(
   return connectResult
 }
 
+async function handleWorkspaceBrowseRemoteDirectories(
+  _event: IpcMainInvokeEvent,
+  payload: WorkspaceBrowseRemoteDirectoriesRequest,
+): Promise<WorkspaceBrowseRemoteDirectoriesResult> {
+  const request = payload?.request
+  if (!request) {
+    return {
+      ok: false,
+      currentPath: '',
+      entries: [],
+      truncated: false,
+      errorCode: 'UNKNOWN',
+      error: 'request is required.',
+    }
+  }
+
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'remoteBrowse.request',
+    host: request.host ?? null,
+    user: request.user ?? null,
+    port: request.port ?? null,
+    targetPath: request.targetPath ?? null,
+    hasIdentityFile:
+      typeof request.identityFile === 'string' && request.identityFile.trim().length > 0,
+    limit: request.limit ?? null,
+  })
+
+  try {
+    const result = await browseRemoteDirectories(request)
+    queueRemoteAgentLog({
+      at: new Date().toISOString(),
+      source: 'remoteBrowse.result',
+      ok: true,
+      currentPath: result.currentPath,
+      entryCount: result.entries.length,
+      truncated: result.truncated,
+    })
+
+    return {
+      ok: true,
+      currentPath: result.currentPath,
+      entries: result.entries,
+      truncated: result.truncated,
+    }
+  } catch (error) {
+    const normalized = toRemoteAgentError(error, 'UNKNOWN')
+    const sanitizedError = redactRemoteErrorMessage(
+      normalized.message,
+      'Failed to browse remote directories.',
+    )
+
+    queueRemoteAgentLog({
+      at: new Date().toISOString(),
+      source: 'remoteBrowse.result',
+      ok: false,
+      errorCode: normalized.code,
+      error: sanitizedError,
+    })
+
+    return {
+      ok: false,
+      currentPath: request.targetPath?.trim() ?? '',
+      entries: [],
+      truncated: false,
+      errorCode: normalized.code,
+      error: sanitizedError,
+    }
+  }
+}
+
 function sanitizeRemoteLogMessage(message: string | undefined): string | null {
   if (!message || message.trim().length === 0) {
     return null
@@ -3087,6 +3176,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:watchStart')
   ipcMain.removeHandler('workspace:watchStop')
   ipcMain.removeHandler('workspace:connectRemote')
+  ipcMain.removeHandler('workspace:browseRemoteDirectories')
   ipcMain.removeHandler('workspace:disconnectRemote')
   ipcMain.removeHandler('system:openInIterm')
   ipcMain.removeHandler('system:openInVsCode')
@@ -3117,6 +3207,10 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStartRouted)
   ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStopRouted)
   ipcMain.handle('workspace:connectRemote', handleWorkspaceConnectRemote)
+  ipcMain.handle(
+    'workspace:browseRemoteDirectories',
+    handleWorkspaceBrowseRemoteDirectories,
+  )
   ipcMain.handle('workspace:disconnectRemote', handleWorkspaceDisconnectRemote)
   ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
   ipcMain.handle('system:openInVsCode', handleSystemOpenInVsCode)
