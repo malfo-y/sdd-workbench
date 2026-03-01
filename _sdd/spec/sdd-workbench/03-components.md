@@ -12,8 +12,9 @@
   - `.md` 파일 선택 시 Spec 탭 자동 전환, 그 외 파일은 Code 탭 자동 전환
   - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서로 적용)
   - 파일 트리 CRUD 콜백(`onRequestCreateFile/Directory`, `onRequestDeleteFile/Directory`, `onRequestRename`) 연결 + confirm dialog + dirty file 삭제 처리 (F25/F25b)
-  - 코멘트 전용 배너 helper + auto-dismiss 타이머 제어
+  - 코멘트 배너 + 원격 연결/폴백 배너 auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
+  - (F28) `handleBrowseRemoteDirectories` + `RemoteConnectModal` 2-step(profile/directory) browse-then-connect orchestration
   - `Cmd+Shift+Up/Down` 키보드 워크스페이스 순환 전환 리스너
   - `Cmd+Shift+Left/Right` 키보드 탭 전환 리스너
   - 리사이즈 핸들 1개(사이드바 ↔ 콘텐츠), `PaneSizes = { left, content }`
@@ -40,7 +41,8 @@
   - (F26) `loadWorkspaceGitFileStatuses` 액션: `workspace:getGitFileStatuses` IPC 조회, workspace open/hydration/watch event/saveFile 시점에 호출, request ID 기반 stale 방지
   - `gitFileStatuses: Record<string, GitFileStatusKind>` 상태 필드 (F26)
   - (F27) `connectRemoteWorkspace`/`disconnectRemoteWorkspace`/`retryRemoteWorkspaceConnection` 액션 + remote 연결 상태 이벤트/배너 반영
-  - (F27) 원격 연결 모달 입력값 저장(localStorage key: `sdd-workbench.remote-connect-draft.v1`)
+  - (F27/F28) 원격 연결 모달 입력값 저장(localStorage key: `sdd-workbench.remote-connect-draft.v1`, `activeStep`/`lastBrowsePath`/`remoteRoot` 포함)
+  - (F27/F28) remote 연결 단절/강등 이벤트 + watch fallback 배너 5초 auto-dismiss 스케줄링
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
   - session 상태에 `activeFileGitLineMarkers` 포함
@@ -139,11 +141,12 @@
   - `workspace:getGitLineMarkers` 단건 diff 조회(`git diff --unified=0 HEAD -- <relativePath>`) + 실패 safe degrade
   - `MAX_WORKSPACE_INDEX_NODES=100000`, `WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`, `workspace:indexDirectory` offset/limit 페이지네이션
   - `buildDirectoryChildren` + `handleWorkspaceIndexDirectory` (on-demand 디렉토리 IPC)
-  - polling watcher child cap 초과 디렉토리 자동 제외
+  - local polling watcher child cap 초과 디렉토리 자동 제외
   - (F25) `workspace:createFile`, `workspace:createDirectory`, `workspace:deleteFile`, `workspace:deleteDirectory` 핸들러: 경로 검증 + 존재 확인 + `beginWorkspaceWriteOperation`/`endWorkspaceWriteOperation`
   - (F25b) `workspace:rename` 핸들러: old/new 경로 검증 + 존재/충돌 확인 + 부모 디렉토리 생성 + `fs.rename`
   - (F26) `workspace:getGitFileStatuses` 핸들러: git 저장소 확인 → `git status --porcelain` → `parseGitStatusPorcelain()` 파싱
   - (F27) `workspace:connectRemote`/`workspace:disconnectRemote` 핸들러 + remote connection event log(`remote-agent.log`) 기록
+  - (F28) `workspace:browseRemoteDirectories` 핸들러 + browse request/result log(`remote-agent.log`) 기록
 - `electron/workspace-watch-mode.ts`
   - `isRemoteMountedHint` + override 우선순위 기반 watch mode resolver
 - `electron/workspace-backend/types.ts` (F27)
@@ -160,12 +163,15 @@
   - SSH 실행/agent bootstrap/세션 생명주기 + timeout/reconnect 관리
 - `electron/remote-agent/bootstrap.ts` (F27)
   - 원격 runtime 배포 스크립트 생성/실행 + probe/healthcheck + SSH `identityFile` 옵션 처리
+- `electron/remote-agent/directory-browser.ts` (F28)
+  - SSH 단발 호출 기반 remote 디렉토리 browse(`DEFAULT_BROWSE_LIMIT=500`, `MAX_BROWSE_LIMIT=5000`, `DEFAULT_BROWSE_TIMEOUT_MS=7000`) + 오류 코드 표준화
 - `electron/remote-agent/connection-service.ts` (F27)
   - reconnect/backoff 정책 + session registry 연동 + remote connection event 발행
 - `electron/remote-agent/security.ts` (F27)
   - remote root 경계 검증 + 허용 메서드 화이트리스트
 - `electron/remote-agent/runtime/*` (F27)
   - remote runtime CLI/요청 라우터/workspace ops/watch ops 구현 + payload 번들
+  - watch ops: polling 1500ms, 파일 상한 100,000, symlink 추적 + realpath 순환 방지 집합 적용
 - `electron/git-line-markers.ts`
   - unified diff hunk 파싱으로 라인 마커(`added`/`modified`) 계산
 - `electron/git-file-statuses.ts` (F26)

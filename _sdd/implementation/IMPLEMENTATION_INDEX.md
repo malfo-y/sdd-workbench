@@ -1,5 +1,26 @@
 # IMPLEMENTATION_INDEX
 
+## F28
+
+### Sync Record - 2026-03-01T14:46:09Z
+
+- note: F28 구현 완료 스펙 동기화 (SSH 선접속 기반 remote directory browse + remoteRoot 선택) + remote watcher/배너 정책 반영
+- copied files:
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/02-architecture.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/05-operational-guides.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
 ## F27
 
 ### Sync Record - 2026-03-01T02:20:33Z

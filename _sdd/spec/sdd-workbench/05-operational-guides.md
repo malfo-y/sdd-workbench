@@ -7,8 +7,9 @@
 - 코드 프리뷰 제한: 2MB 초과 시 preview unavailable
 - 하이라이트(Shiki 비동기)는 file content/language 변경 시에만 수행하며, 완료 전까지 plaintext fallback 표시
 - watcher 이벤트는 debounce 처리
-- polling watcher는 기본 1500ms 간격으로 메타데이터 diff(`mtimeMs + size`)를 수행
-- polling watcher는 child cap(`500`) 초과 디렉토리를 자동 제외하여 과대 디렉토리 반복 스캔을 방지
+- local polling watcher는 기본 1500ms 간격으로 메타데이터 diff(`mtimeMs + size`)를 수행
+- local polling watcher는 child cap(`500`) 초과 디렉토리를 자동 제외하여 과대 디렉토리 반복 스캔을 방지
+- remote runtime polling watcher는 기본 1500ms 간격 메타데이터 diff(`mtimeMs + size`) + 파일 상한 100,000 + symlink 추적(realpath 순환 방지) 정책을 사용
 - 파일 트리 changed marker 버블링 계산은 1-pass(O(n)) 기준으로 유지
 - 디렉토리별 child cap(`WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`) 적용으로 과대 디렉토리 cap 처리
 - `not-loaded` 디렉토리 on-demand 확장은 `workspace:indexDirectory` IPC 단건 호출
@@ -17,6 +18,7 @@
 - (F27) remote RPC 요청 타임아웃 기본값: `REMOTE_AGENT_REQUEST_TIMEOUT_MS=15000`
 - (F27) remote 연결 자동 재시도 기본값: `REMOTE_AGENT_RECONNECT_ATTEMPTS=3`
 - (F27) remote agent bootstrap 자동화는 MVP 범위로 제한하며, 현재 구현은 연결 시 runtime 배포(덮어쓰기) + 실행 가능 여부/버전 검증을 수행한다.
+- (F28) remote directory browse 기본값: `DEFAULT_BROWSE_LIMIT=500`, `MAX_BROWSE_LIMIT=5000`, `DEFAULT_BROWSE_TIMEOUT_MS=7000`
 
 ## 2. 보안 기준
 
@@ -45,6 +47,7 @@
 - (F27) 재시도 한도 초과 시 자동 재시도를 중단하고 명시적 사용자 재시도 액션으로 전환한다.
 - (F27) remote 프로토콜 버전 불일치 시 기능 강등 없이 즉시 연결 실패 처리(`AGENT_PROTOCOL_MISMATCH`)
 - (F27) F15(SSHFS 기반) 연결 경로는 폐기되었고 remote-protocol 단일 경로를 사용한다.
+- (F28) remote directory browse 실패(`AUTH_FAILED`/`TIMEOUT`/`PATH_DENIED` 등)는 연결 실패와 분리해 모달 내 고정 오류로 표시한다.
 
 ## 4. 테스트 운영
 
@@ -79,12 +82,12 @@
 14. watch mode를 `Native/Polling`으로 변경했을 때 override 우선 적용 확인
 15. native 실패 시 polling fallback 배너 노출 및 변경 감지 유지 확인
 16. remote workspace 연결 시 watch mode가 `polling`으로 표시되고 `REMOTE` 배지가 표시되는지 확인
-17. 코멘트 액션 배너가 5초 후 자동 dismiss되고 `Dismiss`로 즉시 닫히는지 확인
+17. 코멘트 액션 배너 및 remote 연결/폴백 배너가 5초 후 자동 dismiss되고 `Dismiss`로 즉시 닫히는지 확인
 18. `View Comments` 상단 global comments(read-only/empty), `Export Comments`의 global 포함 상태(`included`/`not included`) 표기를 확인
 19. 대규모 워크스페이스에서 초기 인덱싱 시 node cap(100,000) + child cap(500) 적용 확인
 20. `not-loaded` 디렉토리 확장 시 on-demand 로드 + "Loading..." placeholder 동작 확인
 21. `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시 확인
-22. polling watcher가 child cap 초과 디렉토리를 제외하고 스캔하는지 확인
+22. local polling watcher가 child cap 초과 디렉토리를 제외하고 스캔하는지 확인
 23. 텍스트 파일에서 Git added(초록)/modified(파랑) 라인 마커가 표시되고, 이미지/preview unavailable에서는 비표시인지 확인
 24. 워크스페이스 2개 이상에서 `Cmd+Shift+Down`(다음)/`Cmd+Shift+Up`(이전) 전환 확인 + 순서 미변경 + wrap-around 확인
 25. 워크스페이스 1개일 때 `Cmd+Shift+Up/Down` 무동작 확인
@@ -105,6 +108,7 @@
 40. (F27) remote watch 이벤트가 `changedRelativePaths`, `hasStructureChanges` 형식으로 반영되는지 확인
 41. (F27) remote 연결 단절 시 상태가 `degraded` 또는 `disconnected`로 반영되고 재시도 UI가 표시되는지 확인
 42. (F27) remote root 경계 밖 접근 시 `PATH_DENIED` 오류로 거부되는지 확인
+43. (F28) remote connect 모달에서 `Browse Directories` -> `Use Current Directory`로 `remoteRoot`를 선택해 연결 가능한지 확인
 
 ## 5. 개발 환경
 

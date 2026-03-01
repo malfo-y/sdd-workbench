@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.42.0`
+- 문서 버전: `0.43.0`
 - 마지막 업데이트: `2026-03-01`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -28,6 +28,7 @@
   - F25b draft: `/_sdd/drafts/feature_draft_f25b_file_tree_rename.md`
   - F26: git file-level status markers in file tree
   - F27 draft: `/_sdd/drafts/feature_draft_f27_remote_agent_protocol_mvp.md`
+  - F28 draft: `/_sdd/drafts/feature_draft_f28_remote_root_browse_after_ssh.md`
   - F24.1: code editor line wrap toggle button + default On
   - F07.2: code editor scroll position restore on history navigation
 - 리라이트:
@@ -38,8 +39,8 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F27` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
-- 신규 동기화 범위: `F27` Remote Agent Protocol 기반 원격 워크스페이스 MVP 완료
+- 구현 완료 범위: `F01~F28` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 신규 동기화 범위: `F28` SSH 선접속 기반 remote root browse UX + 원격 watcher 안정화(파일 상한/심링크 추적) 반영
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump
@@ -49,8 +50,8 @@
   6. global comments(워크스페이스 단위) + export 선행 prepend + export 대상 선택(pending/exported 모두 가능) + global 포함 체크박스 + global comments export 카운트 반영
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
   8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + comment 피드백 auto-dismiss + header action 그룹 명확화
-  9. Remote Agent Protocol 기반 원격 워크스페이스 연결: 모달 입력 + SSH bootstrap + 원격 파일/감시/git RPC + 상태/오류 표준화
-  10. 대규모 워크스페이스 지원: 인덱싱 cap 100,000 + 디렉토리별 child cap 500 + on-demand 확장 + 과대 디렉토리 polling 제외
+  9. Remote Agent Protocol 기반 원격 워크스페이스 연결: 모달 입력 + SSH bootstrap + 원격 파일/감시/git RPC + 상태/오류 표준화 + SSH browse 기반 remoteRoot 선택(F28)
+  10. 대규모/원격 워크스페이스 감시 안정화: 인덱싱 cap 100,000 + 디렉토리별 child cap 500 + on-demand 확장 + local polling 과대 디렉토리 제외 + remote polling 100,000 파일 상한/심링크 추적
   11. active file 기준 Git diff 라인 마커(added/modified)로 변경 위치를 즉시 식별
   12. code viewer 텍스트 검색(Ctrl/Cmd+F): substring 매칭 + 라인 하이라이트 + 이전/다음 이동 + wrap-around
   13. 키보드 워크스페이스 전환(Cmd+Shift+Up/Down): 순서 유지 순환 전환 + wrap-around
@@ -80,7 +81,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F27), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F28), 상세 수용 기준, 리스크/백로그
 
 ---
 

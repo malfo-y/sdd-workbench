@@ -17,7 +17,7 @@
 9. CodeMirror 6 기반 코드 에디터로 spec-code 왕복 편집 비용 절감(read-only 뷰어 대체 → 직접 편집 + 저장)
 10. 파일 트리에서 파일/디렉토리 직접 생성·삭제·이름변경으로 spec-code 편집 흐름을 워크스페이스 내에서 완결(F25/F25b)
 11. 파일 트리에서 git 파일 상태(Untracked/Added/Modified)를 뱃지로 즉시 식별(F26)
-12. Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입해 원격 작업을 SSH agent 세션으로 처리(F27, Implemented)
+12. Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입해 원격 작업을 SSH agent 세션으로 처리하고, SSH 선접속 후 디렉토리 browse로 remote root 선택 UX를 제공한다(F27/F28, Implemented)
 
 ## 3. 범위
 
@@ -39,7 +39,7 @@
 - Add Global Comments + export 선행 prepend
 - code/rendered marker hover preview로 코멘트 본문 요약 확인
 - View Comments 상단 global comments 표시 + "Include in export" 체크박스로 global 포함 선택 + Export modal global 포함 상태 표시
-- 코멘트 배너 5초 auto-dismiss(코멘트 액션 경로 한정)
+- 코멘트 액션 배너 + remote 연결/폴백 배너 5초 auto-dismiss
 - header comments 액션 그룹 + title 옆 Back/Forward + Code/Spec 탭 배치
 - active file Git diff 라인 마커(added/modified) 표시
 - Cmd+Shift+Up/Down 워크스페이스 키보드 순환 전환
@@ -49,7 +49,7 @@
 - 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added)/M(Modified) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked)
 - 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
 - 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
-- Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Remote Root 입력 + identityFile 선택 + bootstrap/runtime 설치/검증, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27)
+- Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Port/Identity 입력 -> SSH 디렉토리 browse -> remoteRoot 선택(수동 입력 fallback) -> bootstrap/runtime 설치/검증, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27/F28)
 
 ### 3.2 MVP 제외 범위
 
@@ -85,7 +85,7 @@
 1. 초기 인덱싱 시 디렉토리별 child cap(500)을 적용하여 과대 디렉토리를 `partial`로 표시한다.
 2. 초기 인덱싱은 노드 cap(100,000)과 child cap(500)으로 제한해 초기 로드 속도를 확보한다.
 3. `not-loaded` 디렉토리를 확장하면 on-demand로 해당 디렉토리의 자식을 로드한다.
-4. polling watcher는 child cap 초과 디렉토리를 자동 제외하여 과대 디렉토리의 반복 스캔을 방지한다.
+4. local polling watcher는 child cap 초과 디렉토리를 제외해 반복 스캔 부하를 억제하고, remote polling watcher는 100,000 파일 상한 + symlink 추적(실경로 순환 방지) 정책을 사용한다.
 
 ### 4.4 코멘트-LLM 흐름
 
@@ -96,12 +96,13 @@
 5. `View Comments`에서 "Include in export" 체크박스로 Global Comments 포함 여부를 선택
 6. `Export Comments`에서 Global Comments 선행 + pending-only line comment bundle을 내보내고 `exportedAt`를 기록
 
-### 4.6 원격 에이전트 워크스페이스 연결 흐름(F27, Implemented)
+### 4.6 원격 에이전트 워크스페이스 연결 흐름(F27/F28, Implemented)
 
-1. 사용자가 `Connect Remote Workspace`에서 host/user/port/remote root/agent path/identity file을 입력한다.
-2. Main 프로세스는 SSH로 원격 agent runtime을 배포(덮어쓰기)하고 `--protocol-version` + `--healthcheck`를 검증한 뒤 stdio 세션을 시작한다.
-3. 연결 성공 시 renderer는 remote workspace 세션을 생성하고 기존 `workspace:index/read/write/create/delete/rename/watch/git/comments` 플로우를 동일하게 사용한다.
-4. 연결 장애/타임아웃 시 상태를 `degraded` 또는 `disconnected`로 표기하고 자동 재시도(기본 3회) 후 수동 재시도 경로를 제공한다.
+1. 사용자가 `Connect Remote Workspace`에서 host/user/port/agent path/identity file을 입력하고 `Browse Directories`로 SSH 기반 원격 디렉토리 목록을 조회한다.
+2. 브라우저에서 current path/상위 이동/하위 디렉토리 이동 후 `Use Current Directory`로 `remoteRoot`를 확정한다(수동 입력 fallback 유지).
+3. Main 프로세스는 SSH로 원격 agent runtime을 배포(덮어쓰기)하고 `--protocol-version` + `--healthcheck`를 검증한 뒤 stdio 세션을 시작한다.
+4. 연결 성공 시 renderer는 remote workspace 세션을 생성하고 기존 `workspace:index/read/write/create/delete/rename/watch/git/comments` 플로우를 동일하게 사용한다.
+5. 연결 장애/타임아웃 시 상태를 `degraded` 또는 `disconnected`로 표기하고 자동 재시도(기본 3회) 후 수동 재시도 경로를 제공한다.
 
 ## 5. 현재 기능 커버리지 요약
 
@@ -138,6 +139,7 @@
 | 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
 | 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
 | Remote Agent Protocol 기반 원격 워크스페이스 실행 | Implemented | F27 |
+| SSH 선접속 기반 원격 디렉토리 browse + remoteRoot 선택 | Implemented | F28 |
 
 ## 6. Open Questions
 

@@ -1,3 +1,22 @@
+## 2026-03-01 - F28 구현 완료 반영 + 원격 browse/watch 운영 정책 동기화
+
+- Context:
+  - F27 연결 경로는 안정화되었지만, 실제 접속에서 `remoteRoot`를 사전 입력해야 하는 UX 장벽이 남아 있었음.
+  - 후속 구현에서 연결 전 SSH 디렉토리 browse(F28), remote runtime watcher 보강(파일 상한/심링크 추적), remote/fallback 배너 auto-dismiss가 코드에 반영됨.
+- Decision:
+  - F28(SSH 선접속 기반 remote directory browse + `remoteRoot` 선택)을 `Implemented/Done`으로 반영한다.
+  - 원격 연결 모달은 profile 입력 -> directory browse 2-step 흐름으로 고정하고, 마지막 browse 상태(`activeStep`/`lastBrowsePath`)를 draft와 함께 저장한다.
+  - remote directory browse는 `workspace:browseRemoteDirectories` 계약으로 표준화하고, `AUTH_FAILED`/`TIMEOUT`/`PATH_DENIED` 오류를 연결 실패와 분리해 노출한다.
+  - remote runtime polling watcher 정책은 `1500ms`, 파일 상한 `100,000`, symlink 추적(realpath 순환 방지)으로 명시한다.
+  - 코멘트 액션 배너 외에 remote 연결/폴백 배너도 5초 auto-dismiss 대상으로 확장한다.
+- Rationale:
+  - 사용자가 경로를 정확히 기억하지 못해도 SSH 접속 후 탐색 방식으로 진입할 수 있어 원격 연결 성공률이 높아진다.
+  - local/remote watcher 정책을 분리해 문서화해야 대규모 원격 워크스페이스에서 기대 동작과 디버깅 기준이 일치한다.
+  - remote 장애 배너 잔류를 줄이면 반복 재시도 시 화면 점유가 완화된다.
+- Impact / follow-up:
+  - `main.md`, split spec(`01~05`, `appendix`)와 IPC/운영 문서를 F28+watcher 정책 기준으로 동기화한다.
+  - `_sdd/implementation/features/F28` 아카이브와 `IMPLEMENTATION_INDEX.md`에 이번 sync 기록을 추가한다.
+
 ## 2026-03-01 - F27 구현 완료 반영 + 원격 연결 운영 정책 확정
 
 - Context:

@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F27)
+## A. 기능 이력 (F01~F28)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -48,6 +48,7 @@
 | F24.1 | Done | 2026-02-27 | 코드 에디터 line wrap 토글 버튼(헤더 Wrap On/Off, `wrapCompartment` 기반 동적 전환, 기본 On) |
 | F07.2 | Done | 2026-02-27 | 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 시 픽셀 스크롤 복원(`codeScrollPositionsRef`, `onScrollChange`/`restoredScrollTop` prop, rAF 기반 적용) |
 | F27 | Done | 2026-03-01 | Remote Agent Protocol 기반 원격 워크스페이스 MVP(SSH agent session + backend 추상화 + 원격 watch/git/comments 브리지 + bootstrap/runtime 번들 + identityFile 지원 + 연결 상태 표준화) |
+| F28 | Done | 2026-03-01 | SSH 선접속 기반 remote directory browse + remoteRoot 선택(2-step 모달, browse 실패 고정 표시, 기존 connectRemote 계약 재사용) |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -68,12 +69,12 @@
 - export 모달 global comments 포함 시 `N comment(s) + global comments included` 카운트 표시, `_COMMENTS.md` `Total comments (+ global comments)` 표기
 - code/rendered marker hover preview(`+N more`, read-only)
 - header action 그룹 재배치 + compact/icon-only 정책
-- 코멘트 배너 auto-dismiss(5s) + `View Comments`/`Export Comments` global 가시성 명시
+- 코멘트 액션 배너 + remote 연결/폴백 배너 auto-dismiss(5s) + `View Comments`/`Export Comments` global 가시성 명시
 - `View Comments` global comments "Include in export" 체크박스 + Delete Exported 하단 좌측 배치
 - Shiki 기반 syntax highlight(JS regex 엔진, 40+ 언어 lazy 로드, github-dark 테마, 비동기 + plaintext fallback)
 - watcher 모드 자동 판정(`isRemoteMountedHint`) + 수동 override + fallback 정책
 - 대규모 워크스페이스 lazy indexing(node cap 100,000 + 디렉토리별 child cap 500) + on-demand 확장
-- polling watcher child cap 초과 디렉토리 자동 제외
+- local polling watcher child cap 초과 디렉토리 자동 제외 + remote runtime polling(100,000 파일 상한 + symlink 추적/순환 방지)
 - active file 단건 Git diff 기반 라인 마커(added/modified) + 실패 safe degrade + image/preview unavailable 비표시
 - code viewer 텍스트 검색: `Ctrl/Cmd+F` 토글(이미지/preview unavailable 모드 무시), substring case-insensitive 매칭, 매치 라인 `is-search-match`/`is-search-focus` 하이라이트, 이전/다음 이동(버튼 + Enter/Shift+Enter) + wrap-around, `N / M` 카운트 + `No results` 표시, Escape/닫기로 하이라이트 해제, 파일 변경 시 검색 상태 자동 초기화
 - 워크스페이스 키보드 전환: `Cmd+Shift+Up`(이전)/`Cmd+Shift+Down`(다음) 순서 유지 순환, 워크스페이스 1개일 때 무동작, 드롭다운 전환은 기존 MRU 동작 유지
@@ -87,6 +88,7 @@
 - (F24.1) 코드 에디터 line wrap 토글: 헤더에 "Wrap On/Off" 버튼, 기본 On, 클릭으로 동적 전환(`wrapCompartment.reconfigure`), `aria-pressed` 반영, 가로 스크롤 방지로 트랙패드 wheel 히스토리 내비게이션 안정화
 - (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 후 해당 파일의 마지막 픽셀 스크롤 위치를 복원; 저장: `view.scrollDOM` native scroll 이벤트 → `codeScrollPositionsRef[workspaceId::relativePath]`; 복원: 콘텐츠 재로드(`view.setState`) 직후 `requestAnimationFrame`으로 `scrollDOM.scrollTop` 적용; 첫 방문 시 복원 없음(scrollTop=0 유지)
 - (F27) Remote Agent Protocol 원격 워크스페이스: `workspace:*` 계약 유지 상태로 remote backend를 도입하고, 원격 연결(`connectRemote`) + 파일 I/O/CRUD/watch/git/comments 메타데이터를 SSH agent RPC로 처리한다. bootstrap은 MVP 범위에서 runtime 배포(덮어쓰기) + healthcheck/버전 검증으로 제한한다.
+- (F28) remote connect 모달은 profile 입력 후 `Browse Directories`로 원격 경로를 탐색해 `Use Current Directory`로 `remoteRoot`를 확정할 수 있으며, 수동 입력 fallback을 유지한다.
 
 ## C. 리스크/백로그
 
