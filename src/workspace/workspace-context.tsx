@@ -243,7 +243,10 @@ function isFilePathPotentiallyPresent(
       node.kind === 'directory' &&
       filePath.startsWith(node.relativePath + '/')
     ) {
-      if (node.childrenStatus === 'not-loaded') {
+      if (
+        node.childrenStatus === 'not-loaded' ||
+        node.childrenStatus === 'partial'
+      ) {
         return true
       }
 
@@ -500,7 +503,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               ...currentSession,
               fileTree: indexResult.fileTree,
               changedFiles: currentSession.changedFiles.filter((relativePath) =>
-                indexedFilePathSet.has(relativePath),
+                indexedFilePathSet.has(relativePath) ||
+                isFilePathPotentiallyPresent(indexResult.fileTree, relativePath),
               ),
               activeFile: activeFileStillExists ? currentSession.activeFile : null,
               activeSpec: activeSpecStillExists ? currentSession.activeSpec : null,

@@ -89,6 +89,17 @@ function buildChangedSubtreeSet(
   changedFileSet: Set<string>,
 ): Set<string> {
   const changedSubtreeSet = new Set<string>()
+  const changedDirectoryHintSet = new Set<string>()
+
+  for (const changedRelativePath of changedFileSet) {
+    let currentPath = changedRelativePath
+    let parentPath = getParentPath(currentPath)
+    while (parentPath) {
+      changedDirectoryHintSet.add(parentPath)
+      currentPath = parentPath
+      parentPath = getParentPath(currentPath)
+    }
+  }
 
   const visitNode = (node: WorkspaceFileNode): boolean => {
     const nodeChanged = changedFileSet.has(node.relativePath)
@@ -106,7 +117,10 @@ function buildChangedSubtreeSet(
       }
     }
 
-    const subtreeChanged = nodeChanged || childChanged
+    const subtreeChanged =
+      nodeChanged ||
+      childChanged ||
+      changedDirectoryHintSet.has(node.relativePath)
     if (subtreeChanged) {
       changedSubtreeSet.add(node.relativePath)
     }

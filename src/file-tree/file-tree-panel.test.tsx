@@ -179,6 +179,118 @@ describe('FileTreePanel context copy', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('bubbles changed marker for lazy subtree based on changed path hints', () => {
+    const onExpandedDirectoriesChange = vi.fn()
+
+    const { rerender } = render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/utils/math.ts']}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [],
+                childrenStatus: 'not-loaded',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
+        loadingDirectories={[]}
+      />,
+    )
+
+    expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('tree-changed-indicator-src/utils'),
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/utils/math.ts']}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [],
+                childrenStatus: 'not-loaded',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
+        loadingDirectories={[]}
+      />,
+    )
+
+    expect(screen.queryByTestId('tree-changed-indicator-src')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tree-changed-indicator-src/utils')).toBeInTheDocument()
+  })
+
+  it('bubbles changed marker for partial directories even when file is not currently loaded', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/missing.ts']}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'visible.ts',
+                relativePath: 'src/visible.ts',
+                kind: 'file',
+              },
+            ],
+            childrenStatus: 'partial',
+            totalChildCount: 2000,
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
+        loadingDirectories={[]}
+      />,
+    )
+
+    expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
+  })
+
   it('moves changed marker deeper as directories are expanded', () => {
     const onExpandedDirectoriesChange = vi.fn()
 
