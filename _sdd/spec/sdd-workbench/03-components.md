@@ -43,6 +43,7 @@
   - (F27) `connectRemoteWorkspace`/`disconnectRemoteWorkspace`/`retryRemoteWorkspaceConnection` 액션 + remote 연결 상태 이벤트/배너 반영
   - (F27/F28) 원격 연결 모달 입력값 저장(localStorage key: `sdd-workbench.remote-connect-draft.v1`, `activeStep`/`lastBrowsePath`/`remoteRoot` 포함)
   - (F27/F28) remote 연결 단절/강등 이벤트 + watch fallback 배너 5초 auto-dismiss 스케줄링
+  - lazy 디렉토리(`not-loaded`/`partial`) 하위 변경 파일은 `isFilePathPotentiallyPresent` 힌트로 `changedFiles` 유지(재인덱싱 직후 marker 소실 방지)
 - `src/workspace/workspace-model.ts`
   - 순수 상태 전이(`watchModePreference`, `watchMode`, `isRemoteMounted`, `loadingDirectories` 포함)
   - session 상태에 `activeFileGitLineMarkers` 포함
@@ -59,7 +60,7 @@
 - `src/file-tree/file-tree-panel.tsx`
   - 디렉토리 토글형 트리 렌더
   - 파일/디렉토리 우클릭 경로 복사
-  - changed marker 표시(visible 파일 + collapse 버블링 상위 디렉토리)
+  - changed marker 표시(visible 파일 + collapse 버블링 상위 디렉토리 + lazy subtree changed path 힌트 버블링)
   - `not-loaded` 디렉토리 확장 시 on-demand 로드 트리거 + "Loading..." placeholder
   - 초기 렌더 노드 cap(`INITIAL_RENDER_NODE_LIMIT=10000`)으로 렌더 프레임 급증 방지
   - `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시
@@ -102,6 +103,7 @@
 - `src/spec-viewer/spec-viewer-panel.tsx`
   - rendered markdown + TOC + 링크/소스 액션
   - `Add Comment`/`Go to Source` source popover
+  - same-document anchor(`#heading-id`) 클릭 시 패널 내부 heading scroll 처리(브라우저 기본 이동 차단)
   - comment marker 매핑 렌더 + hover popover
   - spec scroll position capture/restore(런타임)
 - `src/spec-viewer/spec-link-utils.ts`
@@ -129,7 +131,7 @@
 - `src/code-comments/export-comments-modal.tsx`
   - export target/길이 가드 + global comments 포함 상태 표시(View Comments 체크박스 상태 반영) + 코멘트 갯수에 global comments 포함 여부 표시(`N comment(s) + global comments included`)
 - `src/code-comments/comment-list-modal.tsx`
-  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm, 하단 좌측 배치) + global comments 상단 read-only 섹션 + "Include in export" 체크박스 + 코멘트 target 클릭 시 해당 파일/라인으로 점프(모달 닫힘)
+  - 코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm, 하단 좌측 배치) + global comments 상단 섹션(inline 편집/비우기/저장 + "Include in export" 체크박스) + 코멘트 target 클릭 시 해당 파일/라인으로 점프(모달 닫힘)
 - `src/code-comments/global-comments-modal.tsx`
   - 워크스페이스 전역 코멘트 편집/저장
 

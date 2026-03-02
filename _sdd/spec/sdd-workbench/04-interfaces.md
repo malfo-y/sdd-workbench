@@ -113,11 +113,12 @@ type CodeComment = {
 
 동작 규칙:
 
-1. same-workspace 상대 링크만 내부 라우팅
-2. external/unresolved는 자동 이동 없이 copy popover
-3. rendered selection 액션(`Add Comment`, `Go to Source`)은 현재 `activeSpec` 범위에서만 동작
-4. same-spec source jump는 가능한 경우 `activeSpecContent`를 재사용해 rendered 패널 리셋을 피한다.
-5. rendered spec scroll position은 `workspace + activeSpecPath` 키로 런타임 저장/복원한다.
+1. same-document anchor(`#heading-id`)는 브라우저 기본 이동 대신 현재 렌더 패널 내부 heading으로 스크롤한다.
+2. same-workspace 상대 링크만 내부 라우팅
+3. external/unresolved는 자동 이동 없이 copy popover
+4. rendered selection 액션(`Add Comment`, `Go to Source`)은 현재 `activeSpec` 범위에서만 동작
+5. same-spec source jump는 가능한 경우 `activeSpecContent`를 재사용해 rendered 패널 리셋을 피한다.
+6. rendered spec scroll position은 `workspace + activeSpecPath` 키로 런타임 저장/복원한다.
 
 ## 3. IPC 계약
 
@@ -278,9 +279,9 @@ type CodeComment = {
 ## 4. 코멘트/Export 정책 계약
 
 1. `Add Comment`는 CodeEditor/SpecViewer 모두에서 동일 저장 플로우를 사용한다.
-2. `View Comments`는 상단 global comments(read-only) + 하단 line comments 목록을 함께 보여준다. global comments가 존재하면 "Include in export" 체크박스(기본 체크)를 제공한다.
-3. `View Comments` 편집/삭제/Delete Exported는 동일 comments 저장 플로우를 재사용한다. `Delete Exported`는 모달 하단 좌측에 배치한다.
-4. global comments 빈 값은 `No global comments.` empty 상태 문구로 표시한다.
+2. `View Comments`는 상단 global comments + 하단 line comments 목록을 함께 보여준다. global comments가 존재하면 "Include in export" 체크박스(기본 체크)를 제공한다.
+3. `View Comments`에서 global comments는 inline 편집/비우기/저장을 지원하며, empty 상태에서는 `No global comments.` 문구와 `Add Global Comments` 액션을 표시한다.
+4. `View Comments` line comment 편집/삭제/Delete Exported는 동일 comments 저장 플로우를 재사용한다. `Delete Exported`는 모달 하단 좌측에 배치한다.
 5. `Delete Exported`는 `exportedAt`가 있는 line comment만 삭제하고 pending comment는 유지한다.
 6. Export 기본 동작은 pending comments(`exportedAt` 없음)만 포함한다. 단, View Comments에서 명시적으로 코멘트를 선택한 경우 선택된 코멘트를 모두 export할 수 있으며, 이때 pending/exported 구분은 적용하지 않는다.
 7. global comments가 비어있지 않고 "Include in export" 체크박스가 선택된 경우에만 export 문서에 `Global Comments` 섹션을 `Comments` 섹션보다 먼저 배치한다.
@@ -312,13 +313,14 @@ type CodeComment = {
 4. recursion이 지연된 디렉토리(예: symlink 디렉토리)는 `children=[]`, `childrenStatus='not-loaded'`로 설정한다.
 5. `not-loaded` 디렉토리 확장 시 `workspace:indexDirectory`로 on-demand 로드한다.
 6. local polling watcher는 child cap 초과 디렉토리를 자동 제외하고, remote runtime polling watcher는 파일 상한 100,000 + symlink 추적(realpath 순환 방지)을 적용한다.
-7. `isFilePathPotentiallyPresent` 헬퍼로 un-indexed 서브트리 내 active file이 re-index 시 클리어되지 않도록 보호한다.
+7. `isFilePathPotentiallyPresent` 헬퍼로 `not-loaded`/`partial` 서브트리 내 active file과 changedFiles가 re-index 시 즉시 클리어되지 않도록 보호한다.
 
 ## 7. 파일 트리 변경 마커 가시화 규칙
 
 1. 변경 파일이 현재 visible이면 파일 노드에 `●`를 표시한다.
 2. 변경 파일이 collapse된 디렉토리 하위에 있으면 nearest visible collapsed ancestor 디렉토리에 `●`를 표시한다.
-3. 디렉토리를 확장하면 마커는 더 하위 visible 노드로 이동한다.
+3. lazy 디렉토리(`not-loaded`/`partial`) 하위 경로는 changed path 힌트 기반으로 ancestor 버블링을 유지한다.
+4. 디렉토리를 확장하면 마커는 더 하위 visible 노드로 이동한다.
 
 ## 8. 코드 뷰어 텍스트 검색 규칙 (F21 커스텀 검색 → F24에서 CM6 `@codemirror/search`로 대체 완료)
 

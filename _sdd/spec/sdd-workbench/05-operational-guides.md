@@ -69,8 +69,8 @@
 1. 멀티 워크스페이스 추가/전환/닫기
 2. Code/Spec 탭 전환(클릭 + `Cmd+Shift+Left/Right`) + 탭 전환 시 스크롤 위치 유지 확인
 3. watcher 변경 마커 및 active file 자동 반영
-4. collapse 상태에서 변경 마커가 상위 디렉토리로 버블링되는지 확인
-5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 확인
+4. collapse 상태에서 변경 마커가 상위 디렉토리로 버블링되는지 확인(`not-loaded`/`partial` lazy 디렉토리 포함)
+5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 + same-document anchor(`#heading`) 클릭 시 패널 내 heading 이동 확인
 6. Back/Forward(mouse/swipe/wheel) 동작
 7. CodeViewer/SpecViewer에서 Add Comment + marker 표시
 8. View Comments에서 edit/delete/Delete Exported 동작 + 실패 시 모달 유지 확인
@@ -83,7 +83,7 @@
 15. native 실패 시 polling fallback 배너 노출 및 변경 감지 유지 확인
 16. remote workspace 연결 시 watch mode가 `polling`으로 표시되고 `REMOTE` 배지가 표시되는지 확인
 17. 코멘트 액션 배너 및 remote 연결/폴백 배너가 5초 후 자동 dismiss되고 `Dismiss`로 즉시 닫히는지 확인
-18. `View Comments` 상단 global comments(read-only/empty), `Export Comments`의 global 포함 상태(`included`/`not included`) 표기를 확인
+18. `View Comments` 상단 global comments(inline edit/clear/save/empty), `Export Comments`의 global 포함 상태(`included`/`not included`) 표기를 확인
 19. 대규모 워크스페이스에서 초기 인덱싱 시 node cap(100,000) + child cap(500) 적용 확인
 20. `not-loaded` 디렉토리 확장 시 on-demand 로드 + "Loading..." placeholder 동작 확인
 21. `partial` 디렉토리에 "Showing N of M items" cap 메시지 표시 확인
