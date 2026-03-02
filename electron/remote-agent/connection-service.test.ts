@@ -17,6 +17,7 @@ class FakeTransport implements RemoteAgentTransport {
     _params?: unknown,
     _timeoutMs?: number,
   ): Promise<TResult> {
+    void [_method, _params, _timeoutMs]
     return undefined as TResult
   }
 
@@ -28,6 +29,7 @@ class FakeTransport implements RemoteAgentTransport {
       protocolVersion: string
     }) => void,
   ): () => void {
+    void _listener
     return () => undefined
   }
 }

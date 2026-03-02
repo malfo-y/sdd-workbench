@@ -221,7 +221,8 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
     return this.watchBridge.start(request.watchModePreference)
   }
 
-  async watchStop(_request: WorkspaceWatchStopRequest): Promise<unknown> {
+  async watchStop(request: WorkspaceWatchStopRequest): Promise<unknown> {
+    void request
     try {
       await this.watchBridge.stop()
     } catch (error) {

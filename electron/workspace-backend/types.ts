@@ -62,9 +62,25 @@ export type WorkspaceReadCommentsRequest = {
   rootPath: string
 }
 
+export type WorkspaceCodeCommentRecord = {
+  id: string
+  relativePath: string
+  startLine: number
+  endLine: number
+  body: string
+  anchor: {
+    snippet: string
+    hash: string
+    before?: string
+    after?: string
+  }
+  createdAt: string
+  exportedAt?: string
+}
+
 export type WorkspaceWriteCommentsRequest = {
   rootPath: string
-  comments: any[]
+  comments: WorkspaceCodeCommentRecord[]
 }
 
 export type WorkspaceReadGlobalCommentsRequest = {

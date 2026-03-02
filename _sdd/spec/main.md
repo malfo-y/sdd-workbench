@@ -62,8 +62,9 @@
   18. (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added, 초록)/M(Modified, 주황) 뱃지 + 디렉토리 접힘 시 하위 상태 버블링
   19. (F24.1) 코드 에디터 line wrap 토글 버튼: 헤더 "Wrap On/Off" 버튼, `wrapCompartment` 기반 동적 전환, 기본 On(가로 스크롤 방지)
   20. (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 시 이전 픽셀 스크롤 위치를 복원(런타임, `codeScrollPositionsRef`)
-- 최신 품질 게이트(2026-02-27):
+- 최신 품질 게이트(2026-03-02):
   - `npm run build` -> pass
+  - `npm test` -> `49 files, 490 passed, 1 skipped`
   - `npm run lint` -> pass
 
 ---

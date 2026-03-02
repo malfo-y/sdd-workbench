@@ -55,11 +55,8 @@ export class JsonLineDecoder<TMessage = unknown> {
     }
 
     const messages: TMessage[] = []
-    while (true) {
-      const newlineIndex = this.buffer.indexOf('\n')
-      if (newlineIndex < 0) {
-        break
-      }
+    let newlineIndex = this.buffer.indexOf('\n')
+    while (newlineIndex >= 0) {
 
       let line = this.buffer.slice(0, newlineIndex)
       this.buffer = this.buffer.slice(newlineIndex + 1)
@@ -86,6 +83,8 @@ export class JsonLineDecoder<TMessage = unknown> {
           error,
         )
       }
+
+      newlineIndex = this.buffer.indexOf('\n')
     }
 
     return messages

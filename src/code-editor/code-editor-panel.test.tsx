@@ -18,15 +18,28 @@ function getCM6View(container: HTMLElement): EditorView | null {
   return cmEditor ? EditorView.findFromDOM(cmEditor as HTMLElement) : null
 }
 
+type EditorKeydownHandler = (view: EditorView, event: KeyboardEvent) => boolean
+
+type EditorInputStateLike = {
+  handlers?: {
+    keydown?: {
+      handlers?: EditorKeydownHandler[]
+    }
+  }
+}
+
+function getKeydownHandlers(view: EditorView): EditorKeydownHandler[] {
+  const inputState = (view as { inputState?: EditorInputStateLike }).inputState
+  return inputState?.handlers?.keydown?.handlers ?? []
+}
+
 /**
  * Dispatch a keydown event to the CM6 view's keymap handlers.
  * Uses the internal inputState handler mechanism because jsdom does not
  * fully emulate browser keyboard handling that CM6 relies on.
  */
 function dispatchKeyToView(view: EditorView, event: KeyboardEvent): void {
-  const inputState = (view as any).inputState
-  const handlers: Array<(view: EditorView, event: KeyboardEvent) => boolean> =
-    inputState?.handlers?.keydown?.handlers ?? []
+  const handlers = getKeydownHandlers(view)
   for (const h of handlers) {
     h(view, event)
   }
@@ -414,9 +427,7 @@ describe('CodeEditorPanel', () => {
     // (which causes the keymap plugin to preventDefault on the DOM event).
     // We verify this by calling the run function directly through the internal
     // keymap structure.
-    const inputState = (view as any).inputState
-    const keydownHandlers: Array<(view: EditorView, event: KeyboardEvent) => boolean> =
-      inputState?.handlers?.keydown?.handlers ?? []
+    const keydownHandlers = getKeydownHandlers(view)
 
     const event = new KeyboardEvent('keydown', {
       key: 's',
@@ -727,9 +738,7 @@ describe('CodeEditorPanel', () => {
     const v = view as EditorView
     // The search extension registers a Mod-f keymap handler.
     // Verify the inputState has keydown handlers (meaning keymaps were installed).
-    const inputState = (v as any).inputState
-    const keydownHandlers: Array<(view: EditorView, event: KeyboardEvent) => boolean> =
-      inputState?.handlers?.keydown?.handlers ?? []
+    const keydownHandlers = getKeydownHandlers(v)
     expect(keydownHandlers.length).toBeGreaterThan(0)
   })
 

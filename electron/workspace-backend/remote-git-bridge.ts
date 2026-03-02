@@ -32,8 +32,9 @@ export class RemoteGitBridge {
   }
 
   getGitFileStatuses(
-    _request: WorkspaceGetGitFileStatusesRequest,
+    request: WorkspaceGetGitFileStatusesRequest,
   ): Promise<unknown> {
+    void request
     return this.requestRemote(this.workspaceId, 'workspace.getGitFileStatuses')
   }
 }

@@ -9,22 +9,24 @@ class FakeTransport implements RemoteAgentTransport {
   readonly start = vi.fn(async () => undefined)
   readonly stop = vi.fn(async () => undefined)
   requestImpl: (
-    _method: string,
-    _params?: unknown,
-    _timeoutMs?: number,
+    method: string,
+    params?: unknown,
+    timeoutMs?: number,
   ) => Promise<unknown> = vi.fn(
-    async (_method: string, _params?: unknown, _timeoutMs?: number) =>
-      undefined as unknown,
+    async (method: string, params?: unknown, timeoutMs?: number) => {
+      void [method, params, timeoutMs]
+      return undefined as unknown
+    },
   )
   async request<TResult = unknown>(
-    _method: string,
-    _params?: unknown,
-    _timeoutMs?: number,
+    method: string,
+    params?: unknown,
+    timeoutMs?: number,
   ): Promise<TResult> {
     return (await this.requestImpl(
-      _method,
-      _params,
-      _timeoutMs,
+      method,
+      params,
+      timeoutMs,
     )) as TResult
   }
 

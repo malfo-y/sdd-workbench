@@ -51,9 +51,9 @@
 
 ## 4. 테스트 운영
 
-### 4.1 자동 게이트 (2026-02-25 기준)
+### 4.1 자동 게이트 (2026-03-02 기준)
 
-- `npm test` -> `26 files, 360 passed, 1 skipped`
+- `npm test` -> `49 files, 490 passed, 1 skipped`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
