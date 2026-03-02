@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 export type CopyActionPopoverAction = {
   label: string
@@ -16,9 +16,10 @@ type CopyActionPopoverProps = {
   ariaLabel?: string
 }
 
-const POPOVER_WIDTH = 280
-const POPOVER_HEIGHT = 180
+const POPOVER_FALLBACK_WIDTH = 280
+const POPOVER_FALLBACK_HEIGHT = 180
 const VIEWPORT_EDGE_PADDING = 12
+const ANCHOR_OFFSET = 10
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -34,25 +35,52 @@ export function CopyActionPopover({
   ariaLabel = 'Copy actions',
 }: CopyActionPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const [position, setPosition] = useState(() => ({
+    left: x + ANCHOR_OFFSET,
+    top: y + ANCHOR_OFFSET,
+  }))
 
-  const position = useMemo(() => {
+  useLayoutEffect(() => {
     if (typeof window === 'undefined') {
-      return { left: x, top: y }
+      return
     }
 
-    return {
-      left: clamp(
-        x + 10,
+    const updatePosition = () => {
+      const width = popoverRef.current?.offsetWidth || POPOVER_FALLBACK_WIDTH
+      const height = popoverRef.current?.offsetHeight || POPOVER_FALLBACK_HEIGHT
+      const maxLeft = Math.max(
         VIEWPORT_EDGE_PADDING,
-        window.innerWidth - POPOVER_WIDTH - VIEWPORT_EDGE_PADDING,
-      ),
-      top: clamp(
-        y + 10,
+        window.innerWidth - width - VIEWPORT_EDGE_PADDING,
+      )
+      const maxTop = Math.max(
         VIEWPORT_EDGE_PADDING,
-        window.innerHeight - POPOVER_HEIGHT,
-      ),
+        window.innerHeight - height - VIEWPORT_EDGE_PADDING,
+      )
+      const nextLeft = clamp(
+        x + ANCHOR_OFFSET,
+        VIEWPORT_EDGE_PADDING,
+        maxLeft,
+      )
+      const nextTop = clamp(
+        y + ANCHOR_OFFSET,
+        VIEWPORT_EDGE_PADDING,
+        maxTop,
+      )
+
+      setPosition((previous) => {
+        if (previous.left === nextLeft && previous.top === nextTop) {
+          return previous
+        }
+        return { left: nextLeft, top: nextTop }
+      })
     }
-  }, [x, y])
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [actions.length, description, title, x, y])
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {

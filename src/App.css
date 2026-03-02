@@ -841,9 +841,11 @@
   border: 1px solid #4b4b4b;
   border-radius: 8px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  max-width: 280px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   padding: 10px;
   position: fixed;
+  width: min(320px, calc(100vw - 24px));
   z-index: 45;
 }
 
@@ -859,20 +861,25 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
   font-size: 0.78rem;
-  margin: 0;
-  overflow-wrap: anywhere;
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copy-action-popover-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .copy-action-popover-actions button {
-  flex: 1;
-  font-size: 0.70rem;
-  padding: 0.4em 0.5em;
+  font-size: 0.82rem;
+  justify-content: flex-start;
+  padding: 0.5em 0.65em;
+  text-align: left;
+  width: 100%;
 }
 
 .comment-hover-popover {

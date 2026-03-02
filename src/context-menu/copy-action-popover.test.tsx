@@ -40,7 +40,7 @@ describe('CopyActionPopover', () => {
 
       expect(screen.getByRole('dialog', { name: 'Copy actions' })).toHaveStyle({
         left: '28px',
-        top: '60px',
+        top: '48px',
       })
     } finally {
       Object.defineProperty(window, 'innerWidth', {
