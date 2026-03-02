@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommentListModal } from './comment-list-modal'
 import type { CodeComment } from './comment-types'
@@ -203,6 +203,71 @@ describe('CommentListModal', () => {
     expect(screen.getByTestId('comment-list-global-empty')).toHaveTextContent(
       'No global comments.',
     )
+  })
+
+  it('supports editing and saving global comments from view modal', async () => {
+    const onSaveGlobalComments = vi.fn(() => true)
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments={'## Global\n- shared context'}
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onSaveGlobalComments={onSaveGlobalComments}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Global Comments' }))
+    fireEvent.change(screen.getByTestId('comment-list-global-editor'), {
+      target: { value: 'Updated global context' },
+    })
+    fireEvent.click(screen.getByTestId('save-global-comments-button'))
+
+    await waitFor(() => {
+      expect(onSaveGlobalComments).toHaveBeenCalledWith('Updated global context')
+    })
+    expect(screen.getByTestId('comment-list-global-body')).toHaveTextContent(
+      'Updated global context',
+    )
+  })
+
+  it('supports clearing global comments from view modal', async () => {
+    const onSaveGlobalComments = vi.fn(() => true)
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments={'## Global\n- shared context'}
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onSaveGlobalComments={onSaveGlobalComments}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Global Comments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    fireEvent.click(screen.getByTestId('save-global-comments-button'))
+
+    await waitFor(() => {
+      expect(onSaveGlobalComments).toHaveBeenCalledWith('')
+    })
+    expect(screen.getByTestId('comment-list-global-empty')).toHaveTextContent(
+      'No global comments.',
+    )
+    expect(screen.queryByTestId('include-global-comments-checkbox')).not.toBeInTheDocument()
   })
 
   it('default selection: pending comments checked, exported comments unchecked', () => {

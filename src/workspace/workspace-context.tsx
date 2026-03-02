@@ -27,6 +27,9 @@ import {
   type LineSelectionRange,
   type WorkspaceId,
   type WorkspaceGitLineMarker,
+  type WorkspaceKind,
+  type WorkspaceRemoteConnectionState,
+  type WorkspaceRemoteProfile,
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
   type WorkspaceState,
@@ -46,6 +49,10 @@ type WorkspaceContextValue = {
   workspaces: Array<{ id: WorkspaceId; rootPath: string }>
   activeWorkspaceId: WorkspaceId | null
   rootPath: string | null
+  workspaceKind: WorkspaceKind | null
+  remoteProfile: WorkspaceRemoteProfile | null
+  remoteConnectionState: WorkspaceRemoteConnectionState | null
+  remoteErrorCode: string | null
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
   gitFileStatuses: Record<string, GitFileStatusKind>
@@ -80,6 +87,9 @@ type WorkspaceContextValue = {
   bannerMessage: string | null
   markFileDirty: () => void
   openWorkspace: () => Promise<void>
+  connectRemoteWorkspace: (profile: WorkspaceRemoteProfile) => Promise<boolean>
+  disconnectRemoteWorkspace: (workspaceId?: WorkspaceId) => Promise<boolean>
+  retryRemoteWorkspaceConnection: (workspaceId?: WorkspaceId) => Promise<boolean>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
   switchWorkspace: (workspaceId: WorkspaceId) => void
   closeWorkspace: (workspaceId: WorkspaceId) => void
@@ -99,7 +109,10 @@ type WorkspaceContextValue = {
   saveFile: (content: string) => Promise<boolean>
   setSelectionRange: (selectionRange: LineSelectionRange | null) => void
   setExpandedDirectories: (expandedDirectories: string[]) => void
-  loadDirectoryChildren: (relativePath: string) => Promise<void>
+  loadDirectoryChildren: (
+    relativePath: string,
+    options?: { append?: boolean },
+  ) => Promise<void>
   setWatchModePreference: (
     preference: WorkspaceWatchModePreference,
   ) => Promise<void>
@@ -122,7 +135,16 @@ type WorkspaceProviderProps = {
 }
 
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
-const WORKSPACE_INDEX_NODE_CAP = 10_000
+const WORKSPACE_INDEX_NODE_CAP = 100_000
+const DIRECTORY_PAGE_SIZE = 500
+const REMOTE_BANNER_AUTODISMISS_MS = 5_000
+const WATCH_FALLBACK_BANNER_MESSAGE =
+  'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.'
+const REMOTE_SENSITIVE_KEY_VALUE_PATTERN =
+  /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
+const REMOTE_HOME_SSH_PATH_PATTERN = /~\/\.ssh\/[^\s'":;,)]+/g
+const REMOTE_ABSOLUTE_PATH_PATTERN =
+  /(?:[A-Za-z]:\\|\/)(?:[^\\/\s'":]+[\\/])*[^\\/\s'":]*/g
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
@@ -144,6 +166,43 @@ function getSpecPreviewUnavailableMessage(
 
 function getWorkspaceIndexTruncationMessage() {
   return `Workspace index truncated at ${WORKSPACE_INDEX_NODE_CAP.toLocaleString()} nodes.`
+}
+
+function sanitizeRemoteBannerMessage(rawMessage: string): string {
+  return rawMessage
+    .replace(REMOTE_SENSITIVE_KEY_VALUE_PATTERN, (_input, key) => `${key}=[REDACTED]`)
+    .replace(REMOTE_HOME_SSH_PATH_PATTERN, '[REDACTED_PATH]')
+    .replace(REMOTE_ABSOLUTE_PATH_PATTERN, '[REDACTED_PATH]')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getRemoteConnectionErrorMessage(
+  errorCode?: string,
+  fallbackMessage?: string,
+): string {
+  if (errorCode === 'AUTH_FAILED') {
+    return 'Remote connection failed (AUTH_FAILED). Check SSH credentials and permissions.'
+  }
+  if (errorCode === 'TIMEOUT') {
+    return 'Remote connection timed out (TIMEOUT).'
+  }
+  if (errorCode === 'AGENT_PROTOCOL_MISMATCH') {
+    return 'Remote agent protocol mismatch (AGENT_PROTOCOL_MISMATCH).'
+  }
+  if (errorCode === 'PATH_DENIED') {
+    return 'Remote workspace path denied (PATH_DENIED).'
+  }
+  if (errorCode === 'BOOTSTRAP_FAILED') {
+    if (fallbackMessage && fallbackMessage.trim().length > 0) {
+      return `Remote agent bootstrap failed (BOOTSTRAP_FAILED). ${sanitizeRemoteBannerMessage(fallbackMessage)}`
+    }
+    return 'Remote agent bootstrap failed (BOOTSTRAP_FAILED). Check agent path/runtime prerequisites.'
+  }
+  if (fallbackMessage && fallbackMessage.trim().length > 0) {
+    return sanitizeRemoteBannerMessage(fallbackMessage)
+  }
+  return 'Failed to connect remote workspace.'
 }
 
 function withoutChangedFileMarker(changedFiles: string[], relativePath: string) {
@@ -184,7 +243,10 @@ function isFilePathPotentiallyPresent(
       node.kind === 'directory' &&
       filePath.startsWith(node.relativePath + '/')
     ) {
-      if (node.childrenStatus === 'not-loaded') {
+      if (
+        node.childrenStatus === 'not-loaded' ||
+        node.childrenStatus === 'partial'
+      ) {
         return true
       }
 
@@ -197,6 +259,33 @@ function isFilePathPotentiallyPresent(
   }
 
   return false
+}
+
+function findDirectoryNodeInTree(
+  tree: WorkspaceFileNode[],
+  directoryRelativePath: string,
+): WorkspaceFileNode | null {
+  for (const node of tree) {
+    if (node.kind !== 'directory') {
+      continue
+    }
+
+    if (node.relativePath === directoryRelativePath) {
+      return node
+    }
+
+    if (
+      node.children &&
+      directoryRelativePath.startsWith(node.relativePath + '/')
+    ) {
+      const found = findDirectoryNodeInTree(node.children, directoryRelativePath)
+      if (found) {
+        return found
+      }
+    }
+  }
+
+  return null
 }
 
 function createWorkspaceStateFromSnapshot(
@@ -213,19 +302,34 @@ function createWorkspaceStateFromSnapshot(
     const addResult = addOrFocusWorkspace(
       nextState,
       persistedWorkspaceSession.rootPath,
+      {
+        workspaceId,
+        sessionOptions: {
+          workspaceKind: persistedWorkspaceSession.workspaceKind,
+          remoteWorkspaceId: persistedWorkspaceSession.remoteWorkspaceId,
+          remoteProfile: persistedWorkspaceSession.remoteProfile,
+          remoteConnectionState: persistedWorkspaceSession.remoteConnectionState,
+          remoteErrorCode: persistedWorkspaceSession.remoteErrorCode,
+        },
+      },
     )
-      nextState = updateWorkspaceSession(
-        addResult.state,
-        addResult.workspaceId,
-        (session) => ({
-          ...session,
-          activeFile: persistedWorkspaceSession.activeFile,
-          activeSpec: persistedWorkspaceSession.activeSpec,
-          expandedDirectories: persistedWorkspaceSession.expandedDirectories,
-          fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
-          watchModePreference: persistedWorkspaceSession.watchModePreference,
-        }),
-      )
+    nextState = updateWorkspaceSession(
+      addResult.state,
+      addResult.workspaceId,
+      (session) => ({
+        ...session,
+        activeFile: persistedWorkspaceSession.activeFile,
+        activeSpec: persistedWorkspaceSession.activeSpec,
+        expandedDirectories: persistedWorkspaceSession.expandedDirectories,
+        fileLastLineByPath: persistedWorkspaceSession.fileLastLineByPath,
+        watchModePreference: persistedWorkspaceSession.watchModePreference,
+        workspaceKind: persistedWorkspaceSession.workspaceKind,
+        remoteWorkspaceId: persistedWorkspaceSession.remoteWorkspaceId,
+        remoteProfile: persistedWorkspaceSession.remoteProfile,
+        remoteConnectionState: persistedWorkspaceSession.remoteConnectionState,
+        remoteErrorCode: persistedWorkspaceSession.remoteErrorCode,
+      }),
+    )
   }
 
   if (
@@ -268,14 +372,45 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     Record<WorkspaceId, number>
   >({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
+  const remoteBannerAutoDismissTimerRef = useRef<number | null>(null)
+
+  const clearRemoteBannerAutoDismissTimer = useCallback(() => {
+    if (remoteBannerAutoDismissTimerRef.current === null) {
+      return
+    }
+    window.clearTimeout(remoteBannerAutoDismissTimerRef.current)
+    remoteBannerAutoDismissTimerRef.current = null
+  }, [])
+
+  const scheduleRemoteBannerAutoDismiss = useCallback(
+    (message: string) => {
+      clearRemoteBannerAutoDismissTimer()
+      remoteBannerAutoDismissTimerRef.current = window.setTimeout(() => {
+        setBannerMessage((currentMessage) =>
+          currentMessage === message ? null : currentMessage,
+        )
+        remoteBannerAutoDismissTimerRef.current = null
+      }, REMOTE_BANNER_AUTODISMISS_MS)
+    },
+    [clearRemoteBannerAutoDismissTimer],
+  )
 
   const clearBanner = useCallback(() => {
+    clearRemoteBannerAutoDismissTimer()
     setBannerMessage(null)
-  }, [])
+  }, [clearRemoteBannerAutoDismissTimer])
 
   const showBanner = useCallback((message: string) => {
+    clearRemoteBannerAutoDismissTimer()
     setBannerMessage(message)
-  }, [])
+  }, [clearRemoteBannerAutoDismissTimer])
+
+  useEffect(
+    () => () => {
+      clearRemoteBannerAutoDismissTimer()
+    },
+    [clearRemoteBannerAutoDismissTimer],
+  )
 
   const loadWorkspaceIndex = useCallback(
     async (
@@ -310,10 +445,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 selectionRange: null,
                 expandedDirectories: [],
               }
-            : {
-                ...currentSession,
-                isIndexing: true,
-              }),
+            : currentSession),
         })),
       )
 
@@ -368,7 +500,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               ...currentSession,
               fileTree: indexResult.fileTree,
               changedFiles: currentSession.changedFiles.filter((relativePath) =>
-                indexedFilePathSet.has(relativePath),
+                indexedFilePathSet.has(relativePath) ||
+                isFilePathPotentiallyPresent(indexResult.fileTree, relativePath),
               ),
               activeFile: activeFileStillExists ? currentSession.activeFile : null,
               activeSpec: activeSpecStillExists ? currentSession.activeSpec : null,
@@ -406,9 +539,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             }
           }),
         )
-        setBannerMessage(
-          indexResult.truncated ? getWorkspaceIndexTruncationMessage() : null,
-        )
+        if (indexResult.truncated) {
+          setBannerMessage(getWorkspaceIndexTruncationMessage())
+        }
         return 'success'
       } catch (error) {
         if (indexRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
@@ -963,7 +1096,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           })),
         )
         if (watchStartResult.fallbackApplied) {
-          setBannerMessage(
+          setBannerMessage((currentMessage) =>
+            currentMessage ??
             'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
           )
         }
@@ -1019,7 +1153,6 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       })
 
       if (isExistingWorkspace) {
-        setBannerMessage(null)
         return
       }
 
@@ -1036,6 +1169,223 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       )
     }
   }, [loadWorkspaceIndex, loadWorkspaceGitFileStatuses, startWorkspaceWatch])
+
+  const findWorkspaceIdByRemoteWorkspaceId = useCallback(
+    (remoteWorkspaceId: string): WorkspaceId | null => {
+      for (const [workspaceId, session] of Object.entries(
+        workspaceStateRef.current.workspacesById,
+      )) {
+        if (
+          session.workspaceKind === 'remote' &&
+          session.remoteWorkspaceId === remoteWorkspaceId
+        ) {
+          return workspaceId
+        }
+      }
+      return null
+    },
+    [],
+  )
+
+  const connectRemoteWorkspace = useCallback(
+    async (profile: WorkspaceRemoteProfile) => {
+      const workspaceId = profile.workspaceId?.trim()
+      const host = profile.host?.trim()
+      const remoteRoot = profile.remoteRoot?.trim()
+      if (!workspaceId || !host || !remoteRoot) {
+        setBannerMessage(
+          'Remote workspace profile is invalid: workspaceId, host, and remoteRoot are required.',
+        )
+        return false
+      }
+
+      const normalizedProfile: WorkspaceRemoteProfile = {
+        ...profile,
+        workspaceId,
+        host,
+        remoteRoot,
+        ...(profile.user?.trim() ? { user: profile.user.trim() } : {}),
+        ...(profile.agentPath?.trim() ? { agentPath: profile.agentPath.trim() } : {}),
+        ...(profile.identityFile?.trim()
+          ? { identityFile: profile.identityFile.trim() }
+          : {}),
+      }
+
+      try {
+        const connectResult = await window.workspace.connectRemote(normalizedProfile)
+        if (!connectResult.ok) {
+          const existingWorkspaceId = findWorkspaceIdByRemoteWorkspaceId(
+            connectResult.workspaceId,
+          )
+          if (existingWorkspaceId) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(
+                previous,
+                existingWorkspaceId,
+                (currentSession) => ({
+                  ...currentSession,
+                  workspaceKind: 'remote',
+                  remoteWorkspaceId: connectResult.workspaceId,
+                  remoteProfile: normalizedProfile,
+                  remoteConnectionState: 'disconnected',
+                  remoteErrorCode: connectResult.errorCode,
+                }),
+              ),
+            )
+          }
+          setBannerMessage(
+            getRemoteConnectionErrorMessage(
+              connectResult.errorCode,
+              connectResult.error,
+            ),
+          )
+          return false
+        }
+
+        const rendererWorkspaceId = connectResult.workspaceId
+        const rootPath = connectResult.rootPath
+
+        setWorkspaceState((previous) => {
+          const addResult = addOrFocusWorkspace(previous, rootPath, {
+            workspaceId: rendererWorkspaceId,
+            sessionOptions: {
+              workspaceKind: 'remote',
+              remoteWorkspaceId: connectResult.workspaceId,
+              remoteProfile: normalizedProfile,
+              remoteConnectionState: connectResult.remoteConnectionState,
+              remoteErrorCode: null,
+            },
+          })
+          return updateWorkspaceSession(
+            addResult.state,
+            addResult.workspaceId,
+            (currentSession) => ({
+              ...currentSession,
+              workspaceKind: 'remote',
+              remoteWorkspaceId: connectResult.workspaceId,
+              remoteProfile: normalizedProfile,
+              remoteConnectionState: connectResult.remoteConnectionState,
+              remoteErrorCode: null,
+            }),
+          )
+        })
+
+        const watchStarted = await startWorkspaceWatch(rendererWorkspaceId, rootPath)
+        const indexStatus = await loadWorkspaceIndex(rendererWorkspaceId, rootPath)
+        if (indexStatus === 'success') {
+          void loadWorkspaceGitFileStatuses(rendererWorkspaceId, rootPath)
+        }
+        if (!watchStarted || indexStatus === 'failed') {
+          return false
+        }
+        return true
+      } catch (error) {
+        setBannerMessage(
+          getRemoteConnectionErrorMessage(
+            undefined,
+            error instanceof Error ? error.message : undefined,
+          ),
+        )
+        return false
+      }
+    },
+    [
+      findWorkspaceIdByRemoteWorkspaceId,
+      loadWorkspaceGitFileStatuses,
+      loadWorkspaceIndex,
+      startWorkspaceWatch,
+    ],
+  )
+
+  const disconnectRemoteWorkspace = useCallback(
+    async (workspaceId?: WorkspaceId) => {
+      const targetWorkspaceId =
+        workspaceId ?? workspaceStateRef.current.activeWorkspaceId
+      if (!targetWorkspaceId) {
+        return false
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[targetWorkspaceId]
+      if (
+        !workspaceSession ||
+        workspaceSession.workspaceKind !== 'remote' ||
+        !workspaceSession.remoteWorkspaceId
+      ) {
+        return true
+      }
+
+      try {
+        await stopWorkspaceWatch(targetWorkspaceId)
+        const disconnectResult = await window.workspace.disconnectRemote(
+          workspaceSession.remoteWorkspaceId,
+        )
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            remoteConnectionState: 'disconnected',
+            remoteErrorCode: disconnectResult.ok ? null : 'CONNECTION_CLOSED',
+          })),
+        )
+
+        if (!disconnectResult.ok) {
+          setBannerMessage(
+            disconnectResult.error
+              ? `Failed to disconnect remote workspace: ${disconnectResult.error}`
+              : 'Failed to disconnect remote workspace.',
+          )
+          return false
+        }
+        return true
+      } catch (error) {
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, targetWorkspaceId, (currentSession) => ({
+            ...currentSession,
+            remoteConnectionState: 'disconnected',
+            remoteErrorCode: 'CONNECTION_CLOSED',
+          })),
+        )
+        setBannerMessage(
+          error instanceof Error
+            ? `Failed to disconnect remote workspace: ${error.message}`
+            : 'Failed to disconnect remote workspace.',
+        )
+        return false
+      }
+    },
+    [stopWorkspaceWatch],
+  )
+
+  const retryRemoteWorkspaceConnection = useCallback(
+    async (workspaceId?: WorkspaceId) => {
+      const targetWorkspaceId =
+        workspaceId ?? workspaceStateRef.current.activeWorkspaceId
+      if (!targetWorkspaceId) {
+        setBannerMessage('Cannot retry remote connection: no active workspace selected.')
+        return false
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[targetWorkspaceId]
+      if (!workspaceSession || workspaceSession.workspaceKind !== 'remote') {
+        setBannerMessage('Cannot retry remote connection: active workspace is not remote.')
+        return false
+      }
+
+      if (workspaceSession.remoteConnectionState === 'connecting') {
+        setBannerMessage('Remote connection is already in progress.')
+        return false
+      }
+
+      if (!workspaceSession.remoteProfile) {
+        setBannerMessage('Cannot retry remote connection: remote profile is unavailable.')
+        return false
+      }
+
+      return connectRemoteWorkspace(workspaceSession.remoteProfile)
+    },
+    [connectRemoteWorkspace],
+  )
 
   const getActiveIsDirty = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -1076,6 +1426,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     ) {
       return
     }
+    void disconnectRemoteWorkspace(workspaceId)
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
     delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
@@ -1086,10 +1437,14 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
-  }, [getActiveIsDirty, stopWorkspaceWatch])
+  }, [disconnectRemoteWorkspace, getActiveIsDirty, stopWorkspaceWatch])
 
   const loadWorkspaceSpec = useCallback(
-    (workspaceId: WorkspaceId, relativePath: string) => {
+    (
+      workspaceId: WorkspaceId,
+      relativePath: string,
+      mode: 'select' | 'refresh' = 'select',
+    ) => {
       const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
       if (!workspaceSession) {
         return
@@ -1097,13 +1452,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
       const requestId = (readSpecRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
       readSpecRequestIdByWorkspaceRef.current[workspaceId] = requestId
+      const shouldPreserveCurrentContent = mode === 'refresh'
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
           ...currentSession,
           activeSpec: relativePath,
-          activeSpecContent: null,
-          activeSpecReadError: null,
+          activeSpecContent: shouldPreserveCurrentContent
+            ? currentSession.activeSpecContent
+            : null,
+          activeSpecReadError: shouldPreserveCurrentContent
+            ? currentSession.activeSpecReadError
+            : null,
           isReadingSpec: true,
         })),
       )
@@ -1122,13 +1482,24 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             setWorkspaceState((previous) =>
               updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
                 ...currentSession,
-                activeSpecContent: null,
-                activeSpecReadError: readResult.error
-                  ? `Failed to read file: ${readResult.error}`
-                  : 'Failed to read file.',
+                activeSpecContent: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecContent
+                  : null,
+                activeSpecReadError: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecReadError
+                  : readResult.error
+                    ? `Failed to read file: ${readResult.error}`
+                    : 'Failed to read file.',
                 isReadingSpec: false,
               })),
             )
+            if (shouldPreserveCurrentContent) {
+              setBannerMessage(
+                readResult.error
+                  ? `Failed to read file: ${readResult.error}`
+                  : 'Failed to read file.',
+              )
+            }
             return
           }
 
@@ -1136,13 +1507,24 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             setWorkspaceState((previous) =>
               updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
                 ...currentSession,
-                activeSpecContent: null,
-                activeSpecReadError: getSpecPreviewUnavailableMessage(
-                  readResult.previewUnavailableReason ?? 'binary_file',
-                ),
+                activeSpecContent: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecContent
+                  : null,
+                activeSpecReadError: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecReadError
+                  : getSpecPreviewUnavailableMessage(
+                      readResult.previewUnavailableReason ?? 'binary_file',
+                    ),
                 isReadingSpec: false,
               })),
             )
+            if (shouldPreserveCurrentContent) {
+              setBannerMessage(
+                getSpecPreviewUnavailableMessage(
+                  readResult.previewUnavailableReason ?? 'binary_file',
+                ),
+              )
+            }
             return
           }
 
@@ -1162,14 +1544,25 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           setWorkspaceState((previous) =>
             updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
               ...currentSession,
-              activeSpecContent: null,
+              activeSpecContent: shouldPreserveCurrentContent
+                ? currentSession.activeSpecContent
+                : null,
               activeSpecReadError:
-                error instanceof Error
-                  ? `Failed to read file: ${error.message}`
-                  : 'Failed to read file.',
+                shouldPreserveCurrentContent
+                  ? currentSession.activeSpecReadError
+                  : error instanceof Error
+                    ? `Failed to read file: ${error.message}`
+                    : 'Failed to read file.',
               isReadingSpec: false,
             })),
           )
+          if (shouldPreserveCurrentContent) {
+            setBannerMessage(
+              error instanceof Error
+                ? `Failed to read file: ${error.message}`
+                : 'Failed to read file.',
+            )
+          }
         }
       })()
     },
@@ -1865,7 +2258,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   )
 
   const loadDirectoryChildren = useCallback(
-    async (relativePath: string) => {
+    async (relativePath: string, options?: { append?: boolean }) => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
       if (!activeWorkspaceId) {
         return
@@ -1881,6 +2274,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
+      const appendChildren = options?.append === true
+      const directoryNode = findDirectoryNodeInTree(
+        workspaceSession.fileTree,
+        relativePath,
+      )
+      const offset = appendChildren ? (directoryNode?.children?.length ?? 0) : 0
+
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
           ...currentSession,
@@ -1895,6 +2295,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         const result = await window.workspace.indexDirectory(
           workspaceSession.rootPath,
           relativePath,
+          {
+            offset,
+            limit: DIRECTORY_PAGE_SIZE,
+          },
         )
 
         if (workspaceStateRef.current.activeWorkspaceId !== activeWorkspaceId) {
@@ -1919,6 +2323,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               result.children,
               result.childrenStatus,
               result.totalChildCount,
+              { appendChildren },
             ),
             loadingDirectories: currentSession.loadingDirectories.filter(
               (dir) => dir !== relativePath,
@@ -2003,6 +2408,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           continue
         }
 
+        if (workspaceSession.workspaceKind === 'remote') {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              remoteConnectionState: 'disconnected',
+              remoteErrorCode: null,
+            })),
+          )
+          continue
+        }
+
         const watchStarted = await startWorkspaceWatch(
           workspaceId,
           workspaceSession.rootPath,
@@ -2082,13 +2498,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     stopWorkspaceWatch,
   ])
 
-  const activeWorkspaceRootPath = workspaceState.activeWorkspaceId
-    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId]?.rootPath ?? null
+  const activeWorkspace = workspaceState.activeWorkspaceId
+    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
     : null
+  const activeWorkspaceRootPath = activeWorkspace?.rootPath ?? null
 
   useEffect(() => {
     const activeWorkspaceId = workspaceState.activeWorkspaceId
     if (!activeWorkspaceId || !activeWorkspaceRootPath) {
+      return
+    }
+    if (
+      activeWorkspace?.workspaceKind === 'remote' &&
+      activeWorkspace.remoteConnectionState !== 'connected' &&
+      activeWorkspace.remoteConnectionState !== 'degraded'
+    ) {
       return
     }
 
@@ -2096,6 +2520,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     void loadWorkspaceGlobalComments(activeWorkspaceId, activeWorkspaceRootPath)
   }, [
     activeWorkspaceRootPath,
+    activeWorkspace?.remoteConnectionState,
+    activeWorkspace?.workspaceKind,
     loadWorkspaceComments,
     loadWorkspaceGlobalComments,
     workspaceState.activeWorkspaceId,
@@ -2167,7 +2593,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         activeSpec !== null &&
         activeSpec !== activeFile
       ) {
-        loadWorkspaceSpec(watchEvent.workspaceId, activeSpec)
+        loadWorkspaceSpec(watchEvent.workspaceId, activeSpec, 'refresh')
       }
 
       if (hasStructureChanges && workspaceSession) {
@@ -2208,16 +2634,58 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           isRemoteMounted: true,
         })),
       )
-      setBannerMessage(
-        'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.',
+      setBannerMessage((currentMessage) =>
+        currentMessage ?? WATCH_FALLBACK_BANNER_MESSAGE,
       )
+      scheduleRemoteBannerAutoDismiss(WATCH_FALLBACK_BANNER_MESSAGE)
     })
     return unsubscribe
-  }, [])
+  }, [scheduleRemoteBannerAutoDismiss])
 
-  const activeWorkspace = workspaceState.activeWorkspaceId
-    ? workspaceState.workspacesById[workspaceState.activeWorkspaceId] ?? null
-    : null
+  useEffect(() => {
+    const unsubscribe = window.workspace.onRemoteConnectionEvent((remoteEvent) => {
+      if (!remoteEvent.workspaceId) {
+        return
+      }
+
+      const workspaceId =
+        workspaceStateRef.current.workspacesById[remoteEvent.workspaceId]
+          ? remoteEvent.workspaceId
+          : findWorkspaceIdByRemoteWorkspaceId(remoteEvent.workspaceId)
+      if (!workspaceId) {
+        return
+      }
+
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+          ...currentSession,
+          workspaceKind: 'remote',
+          remoteWorkspaceId: remoteEvent.workspaceId,
+          remoteConnectionState: remoteEvent.state,
+          remoteErrorCode:
+            remoteEvent.state === 'connected'
+              ? null
+              : remoteEvent.errorCode ?? currentSession.remoteErrorCode,
+        })),
+      )
+
+      if (
+        remoteEvent.state === 'degraded' ||
+        (remoteEvent.state === 'disconnected' &&
+          (remoteEvent.errorCode || remoteEvent.message))
+      ) {
+        const errorMessage = getRemoteConnectionErrorMessage(
+          remoteEvent.errorCode,
+          remoteEvent.message,
+        )
+        setBannerMessage(errorMessage)
+        scheduleRemoteBannerAutoDismiss(errorMessage)
+      }
+    })
+
+    return unsubscribe
+  }, [findWorkspaceIdByRemoteWorkspaceId, scheduleRemoteBannerAutoDismiss])
+
   const canGoBack = activeWorkspace
     ? canStepWorkspaceFileHistory(activeWorkspace, 'back')
     : false
@@ -2231,6 +2699,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       workspaces: listWorkspaces(workspaceState),
       activeWorkspaceId: workspaceState.activeWorkspaceId,
       rootPath: activeWorkspace?.rootPath ?? null,
+      workspaceKind: activeWorkspace?.workspaceKind ?? null,
+      remoteProfile: activeWorkspace?.remoteProfile ?? null,
+      remoteConnectionState: activeWorkspace?.remoteConnectionState ?? null,
+      remoteErrorCode: activeWorkspace?.remoteErrorCode ?? null,
       fileTree: activeWorkspace?.fileTree ?? [],
       changedFiles: activeWorkspace?.changedFiles ?? [],
       gitFileStatuses: activeWorkspace?.gitFileStatuses ?? {},
@@ -2264,6 +2736,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       externalChangeDetected,
       bannerMessage,
       openWorkspace,
+      connectRemoteWorkspace,
+      disconnectRemoteWorkspace,
+      retryRemoteWorkspaceConnection,
       setActiveWorkspace,
       switchWorkspace,
       closeWorkspace,
@@ -2297,6 +2772,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       activeWorkspace,
       bannerMessage,
       externalChangeDetected,
+      connectRemoteWorkspace,
+      disconnectRemoteWorkspace,
+      retryRemoteWorkspaceConnection,
       openWorkspace,
       setActiveWorkspace,
       switchWorkspace,

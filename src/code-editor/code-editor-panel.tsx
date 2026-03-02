@@ -145,6 +145,13 @@ function getDisplayLanguage(filePath: string | null): string {
   return DISPLAY_MAP[extension] ?? 'plaintext'
 }
 
+function clampSelectionPosition(position: number, docLength: number): number {
+  if (!Number.isFinite(position)) {
+    return 0
+  }
+  return Math.max(0, Math.min(position, docLength))
+}
+
 function CopyPathIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -294,6 +301,7 @@ export function CodeEditorPanel({
   const onDirtyChangeRef = useRef(onDirtyChange)
   const onScrollChangeRef = useRef(onScrollChange)
   const restoredScrollTopRef = useRef<number | null>(restoredScrollTop ?? null)
+  const lastRenderedFileRef = useRef<string | null>(null)
   const readOnlyCompartment = useRef(new Compartment())
   const wrapCompartment = useRef(new Compartment())
   const [isLineWrapEnabled, setIsLineWrapEnabled] = useState(true)
@@ -472,6 +480,13 @@ export function CodeEditorPanel({
     }
 
     const newContent = activeFileContent ?? ''
+    const previousSelection = view.state.selection.main
+    const previousScrollTop = view.scrollDOM.scrollTop
+    const shouldPreserveViewportState =
+      activeFile !== null &&
+      lastRenderedFileRef.current !== null &&
+      lastRenderedFileRef.current === activeFile
+    const shouldRestoreFocus = shouldPreserveViewportState && view.hasFocus
 
     // Build extensions including async language support
     let cancelled = false
@@ -502,16 +517,41 @@ export function CodeEditorPanel({
       })
       view.setState(newState)
 
-      // Restore scroll position after content is set
-      const targetScrollTop = restoredScrollTopRef.current
-      if (typeof targetScrollTop === 'number' && Number.isFinite(targetScrollTop) && targetScrollTop > 0) {
-        const scrollTop = Math.trunc(targetScrollTop)
+      if (shouldPreserveViewportState) {
+        const docLength = view.state.doc.length
+        const nextAnchor = clampSelectionPosition(previousSelection.anchor, docLength)
+        const nextHead = clampSelectionPosition(previousSelection.head, docLength)
+        view.dispatch({
+          selection: {
+            anchor: nextAnchor,
+            head: nextHead,
+          },
+        })
         requestAnimationFrame(() => {
           if (!cancelled) {
-            view.scrollDOM.scrollTop = scrollTop
+            view.scrollDOM.scrollTop = Math.max(0, Math.trunc(previousScrollTop))
+            if (shouldRestoreFocus) {
+              view.focus()
+            }
           }
         })
+      } else {
+        // Restore scroll position after content is set
+        const targetScrollTop = restoredScrollTopRef.current
+        if (
+          typeof targetScrollTop === 'number' &&
+          Number.isFinite(targetScrollTop) &&
+          targetScrollTop > 0
+        ) {
+          const scrollTop = Math.trunc(targetScrollTop)
+          requestAnimationFrame(() => {
+            if (!cancelled) {
+              view.scrollDOM.scrollTop = scrollTop
+            }
+          })
+        }
       }
+      lastRenderedFileRef.current = activeFile
 
       // Dispatch gutter markers after setState so the new state includes the fields
       const gitMap: Map<number, GitMarkerKind> = new Map()

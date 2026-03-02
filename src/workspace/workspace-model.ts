@@ -20,8 +20,33 @@ export type WorkspaceGitLineMarker = {
 
 export type GitFileStatusKind = 'added' | 'modified' | 'untracked'
 
+export type WorkspaceKind = 'local' | 'remote'
+
+export type WorkspaceRemoteConnectionState =
+  | 'connecting'
+  | 'connected'
+  | 'degraded'
+  | 'disconnected'
+
+export type WorkspaceRemoteProfile = {
+  workspaceId: string
+  host: string
+  remoteRoot: string
+  user?: string
+  port?: number
+  agentPath?: string
+  identityFile?: string
+  requestTimeoutMs?: number
+  connectTimeoutMs?: number
+}
+
 export type WorkspaceSession = {
   rootPath: string
+  workspaceKind: WorkspaceKind
+  remoteWorkspaceId: string | null
+  remoteProfile: WorkspaceRemoteProfile | null
+  remoteConnectionState: WorkspaceRemoteConnectionState | null
+  remoteErrorCode: string | null
   fileTree: WorkspaceFileNode[]
   changedFiles: string[]
   fileLastLineByPath: Record<string, number>
@@ -69,6 +94,19 @@ type AddOrFocusWorkspaceResult = {
   created: boolean
 }
 
+type CreateWorkspaceSessionOptions = {
+  workspaceKind?: WorkspaceKind
+  remoteWorkspaceId?: string | null
+  remoteProfile?: WorkspaceRemoteProfile | null
+  remoteConnectionState?: WorkspaceRemoteConnectionState | null
+  remoteErrorCode?: string | null
+}
+
+type AddOrFocusWorkspaceOptions = {
+  workspaceId?: WorkspaceId
+  sessionOptions?: CreateWorkspaceSessionOptions
+}
+
 export type WorkspaceFileHistoryDirection = 'back' | 'forward'
 
 export type WorkspaceFileHistoryStepResult = {
@@ -104,9 +142,23 @@ export function createWorkspaceId(rootPath: string): WorkspaceId {
   return trimmedPath
 }
 
-export function createWorkspaceSession(rootPath: string): WorkspaceSession {
+export function createWorkspaceSession(
+  rootPath: string,
+  options: CreateWorkspaceSessionOptions = {},
+): WorkspaceSession {
+  const workspaceKind = options.workspaceKind ?? 'local'
+
   return {
     rootPath,
+    workspaceKind,
+    remoteWorkspaceId:
+      workspaceKind === 'remote' ? (options.remoteWorkspaceId ?? null) : null,
+    remoteProfile:
+      workspaceKind === 'remote' ? (options.remoteProfile ?? null) : null,
+    remoteConnectionState:
+      workspaceKind === 'remote' ? (options.remoteConnectionState ?? null) : null,
+    remoteErrorCode:
+      workspaceKind === 'remote' ? (options.remoteErrorCode ?? null) : null,
     fileTree: [],
     changedFiles: [],
     fileLastLineByPath: {},
@@ -353,8 +405,10 @@ export function stepWorkspaceFileHistory(
 export function addOrFocusWorkspace(
   state: WorkspaceState,
   rootPath: string,
+  options?: AddOrFocusWorkspaceOptions,
 ): AddOrFocusWorkspaceResult {
-  const workspaceId = createWorkspaceId(rootPath)
+  const requestedWorkspaceId = options?.workspaceId?.trim()
+  const workspaceId = requestedWorkspaceId || createWorkspaceId(rootPath)
   const existingSession = state.workspacesById[workspaceId]
 
   if (existingSession) {
@@ -367,7 +421,7 @@ export function addOrFocusWorkspace(
 
   const nextWorkspacesById = {
     ...state.workspacesById,
-    [workspaceId]: createWorkspaceSession(rootPath),
+    [workspaceId]: createWorkspaceSession(rootPath, options?.sessionOptions),
   }
 
   return {
@@ -551,6 +605,7 @@ export function mergeDirectoryChildren(
   children: WorkspaceFileNode[],
   childrenStatus: 'complete' | 'partial',
   totalChildCount: number,
+  options?: { appendChildren?: boolean },
 ): WorkspaceFileNode[] {
   return tree.map((node): WorkspaceFileNode => {
     if (node.kind !== 'directory') {
@@ -558,9 +613,21 @@ export function mergeDirectoryChildren(
     }
 
     if (node.relativePath === directoryRelativePath) {
+      const nextChildren = options?.appendChildren
+        ? [
+            ...(node.children ?? []),
+            ...children.filter(
+              (childNode) =>
+                !(node.children ?? []).some(
+                  (existingChildNode) =>
+                    existingChildNode.relativePath === childNode.relativePath,
+                ),
+            ),
+          ]
+        : children
       return {
         ...node,
-        children,
+        children: nextChildren,
         childrenStatus,
         totalChildCount,
       }
@@ -578,6 +645,7 @@ export function mergeDirectoryChildren(
           children,
           childrenStatus,
           totalChildCount,
+          options,
         ),
       }
     }

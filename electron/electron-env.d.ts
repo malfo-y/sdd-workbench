@@ -191,6 +191,8 @@ interface WorkspaceWatchFallbackEvent {
 interface WorkspaceIndexDirectoryRequest {
   rootPath: string
   relativePath: string
+  offset?: number
+  limit?: number
 }
 
 interface WorkspaceIndexDirectoryResult {
@@ -210,6 +212,74 @@ interface WorkspaceHistoryNavigationEvent {
   source: WorkspaceHistoryNavigationSource
 }
 
+interface WorkspaceRemoteConnectionProfile {
+  workspaceId: string
+  host: string
+  remoteRoot: string
+  user?: string
+  port?: number
+  agentPath?: string
+  identityFile?: string
+  requestTimeoutMs?: number
+  connectTimeoutMs?: number
+}
+
+interface WorkspaceRemoteDirectoryBrowseRequest {
+  host: string
+  user?: string
+  port?: number
+  identityFile?: string
+  targetPath?: string
+  connectTimeoutMs?: number
+  limit?: number
+}
+
+interface WorkspaceRemoteDirectoryEntry {
+  name: string
+  path: string
+  kind: 'directory' | 'symlink'
+}
+
+interface WorkspaceRemoteDirectoryBrowseResult {
+  ok: boolean
+  currentPath: string
+  entries: WorkspaceRemoteDirectoryEntry[]
+  truncated: boolean
+  errorCode?: string
+  error?: string
+}
+
+interface WorkspaceRemoteConnectionEvent {
+  workspaceId: string
+  sessionId?: string
+  state: 'connecting' | 'connected' | 'degraded' | 'disconnected'
+  errorCode?: string
+  message?: string
+  occurredAt: string
+}
+
+type WorkspaceConnectRemoteResult =
+  | {
+      ok: true
+      workspaceId: string
+      sessionId: string
+      rootPath: string
+      remoteConnectionState: 'connected' | 'degraded'
+      state: 'connected' | 'degraded'
+    }
+  | {
+      ok: false
+      workspaceId: string
+      errorCode: string
+      error: string
+    }
+
+interface WorkspaceDisconnectRemoteResult {
+  ok: boolean
+  workspaceId: string
+  error?: string
+}
+
 interface SystemOpenInResult {
   ok: boolean
   error?: string
@@ -222,6 +292,7 @@ interface Window {
     indexDirectory: (
       rootPath: string,
       relativePath: string,
+      options?: { offset?: number; limit?: number },
     ) => Promise<WorkspaceIndexDirectoryResult>
     readFile: (
       rootPath: string,
@@ -281,11 +352,23 @@ interface Window {
       watchModePreference?: WorkspaceWatchModePreference,
     ) => Promise<WorkspaceWatchControlResult>
     watchStop: (workspaceId: string) => Promise<WorkspaceWatchControlResult>
+    connectRemote: (
+      profile: WorkspaceRemoteConnectionProfile,
+    ) => Promise<WorkspaceConnectRemoteResult>
+    browseRemoteDirectories: (
+      request: WorkspaceRemoteDirectoryBrowseRequest,
+    ) => Promise<WorkspaceRemoteDirectoryBrowseResult>
+    disconnectRemote: (
+      workspaceId: string,
+    ) => Promise<WorkspaceDisconnectRemoteResult>
     onWatchEvent: (
       listener: (event: WorkspaceWatchEvent) => void,
     ) => () => void
     onWatchFallback: (
       listener: (event: WorkspaceWatchFallbackEvent) => void,
+    ) => () => void
+    onRemoteConnectionEvent: (
+      listener: (event: WorkspaceRemoteConnectionEvent) => void,
     ) => () => void
     onHistoryNavigate: (
       listener: (event: WorkspaceHistoryNavigationEvent) => void,

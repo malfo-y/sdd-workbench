@@ -371,6 +371,11 @@ export function SpecViewerPanel({
       markdownContent ? extractMarkdownHeadings(markdownContent, 3) : [],
     [markdownContent],
   )
+  const documentHeadings = useMemo(
+    () =>
+      markdownContent ? extractMarkdownHeadings(markdownContent, 6) : [],
+    [markdownContent],
+  )
   const contentRef = useRef<HTMLElement | null>(null)
   const [linkPopoverState, setLinkPopoverState] = useState<LinkPopoverState | null>(
     null,
@@ -549,6 +554,64 @@ export function SpecViewerPanel({
       setSourcePopoverState(null)
       const resolvedLink = resolveSpecLink(href, activeSpecPath)
       if (resolvedLink.kind === 'anchor') {
+        event.preventDefault()
+        const containerElement = contentRef.current
+        if (!containerElement) {
+          return
+        }
+
+        const rawHeadingId = resolvedLink.href.slice(1).trim()
+        if (!rawHeadingId) {
+          return
+        }
+
+        const decodedHeadingId = (() => {
+          try {
+            return decodeURIComponent(rawHeadingId)
+          } catch {
+            return rawHeadingId
+          }
+        })()
+
+        const candidateHeadingIds = Array.from(
+          new Set([decodedHeadingId, rawHeadingId]),
+        )
+        for (const headingId of candidateHeadingIds) {
+          const headingText =
+            documentHeadings.find((heading) => heading.id === headingId)?.text ??
+            null
+          const escapedId =
+            typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+              ? CSS.escape(headingId)
+              : headingId
+          const targetHeading =
+            containerElement.querySelector<HTMLElement>(`#${escapedId}`) ??
+            document.getElementById(headingId)
+          const fallbackHeading =
+            targetHeading ??
+            (headingText
+              ? Array.from(
+                  containerElement.querySelectorAll<HTMLElement>(
+                    'h1, h2, h3, h4, h5, h6',
+                  ),
+                ).find(
+                  (headingElement) =>
+                    headingElement.textContent?.trim() === headingText,
+                ) ?? null
+              : null)
+          if (!fallbackHeading) {
+            continue
+          }
+
+          if (typeof fallbackHeading.scrollIntoView === 'function') {
+            fallbackHeading.scrollIntoView({
+              block: 'start',
+              inline: 'nearest',
+            })
+          }
+          return
+        }
+
         return
       }
 
@@ -578,7 +641,7 @@ export function SpecViewerPanel({
         y: event.clientY,
       })
     },
-    [activeSpecPath, closeCommentHover, onOpenRelativePath],
+    [activeSpecPath, closeCommentHover, documentHeadings, onOpenRelativePath],
   )
 
   const handleSpecContextMenu = useCallback(
@@ -717,13 +780,13 @@ export function SpecViewerPanel({
         </p>
       )}
 
-      {activeSpecPath && isLoading && (
+      {activeSpecPath && isLoading && !markdownContent && (
         <p className="spec-viewer-loading" data-testid="spec-viewer-loading">
           Loading markdown preview...
         </p>
       )}
 
-      {activeSpecPath && !isLoading && readError && (
+      {activeSpecPath && !isLoading && readError && !markdownContent && (
         <p className="spec-viewer-error" data-testid="spec-viewer-error" role="alert">
           {readError}
         </p>
@@ -738,7 +801,7 @@ export function SpecViewerPanel({
         </p>
       )}
 
-      {activeSpecPath && !isLoading && !readError && markdownContent && (
+      {activeSpecPath && markdownContent && (
         <div className="spec-viewer-body">
           {tocHeadings.length > 0 && (
             <nav className="spec-viewer-toc" data-testid="spec-viewer-toc">

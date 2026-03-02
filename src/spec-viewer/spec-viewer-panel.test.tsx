@@ -256,7 +256,7 @@ describe('SpecViewerPanel', () => {
     })
   })
 
-  it('keeps default behavior for same-document anchor links', () => {
+  it('scrolls to same-document heading for markdown anchor links', () => {
     const onOpenRelativePath = vi
       .fn<
         (
@@ -266,8 +266,17 @@ describe('SpecViewerPanel', () => {
       >()
       .mockReturnValue(true)
     renderPanel({
-      markdownContent: '[Jump](#title)\n\n# Title',
+      markdownContent: '[Jump](#1-환경-설정)\n\n## 1. 환경 설정',
       onOpenRelativePath,
+    })
+
+    const heading = screen.getByRole('heading', {
+      name: '1. 환경 설정',
+    }) as HTMLElement
+    const headingScrollIntoView = vi.fn()
+    Object.defineProperty(heading, 'scrollIntoView', {
+      configurable: true,
+      value: headingScrollIntoView,
     })
 
     const anchorLink = screen.getByRole('link', { name: 'Jump' })
@@ -279,7 +288,8 @@ describe('SpecViewerPanel', () => {
     })
     anchorLink.dispatchEvent(clickEvent)
 
-    expect(clickEvent.defaultPrevented).toBe(false)
+    expect(clickEvent.defaultPrevented).toBe(true)
+    expect(headingScrollIntoView).toHaveBeenCalled()
     expect(onOpenRelativePath).not.toHaveBeenCalled()
   })
 

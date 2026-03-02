@@ -23,6 +23,11 @@ type WorkspaceIndexDirectoryResult = {
   error?: string
 }
 
+type WorkspaceIndexDirectoryOptions = {
+  offset?: number
+  limit?: number
+}
+
 type WorkspaceIndexResult = {
   ok: boolean
   fileTree: WorkspaceFileNode[]
@@ -171,6 +176,74 @@ type WorkspaceHistoryNavigationEvent = {
   source: WorkspaceHistoryNavigationSource
 }
 
+type WorkspaceRemoteConnectionProfile = {
+  workspaceId: string
+  host: string
+  remoteRoot: string
+  user?: string
+  port?: number
+  agentPath?: string
+  identityFile?: string
+  requestTimeoutMs?: number
+  connectTimeoutMs?: number
+}
+
+type WorkspaceRemoteDirectoryBrowseRequest = {
+  host: string
+  user?: string
+  port?: number
+  identityFile?: string
+  targetPath?: string
+  connectTimeoutMs?: number
+  limit?: number
+}
+
+type WorkspaceRemoteDirectoryEntry = {
+  name: string
+  path: string
+  kind: 'directory' | 'symlink'
+}
+
+type WorkspaceRemoteDirectoryBrowseResult = {
+  ok: boolean
+  currentPath: string
+  entries: WorkspaceRemoteDirectoryEntry[]
+  truncated: boolean
+  errorCode?: string
+  error?: string
+}
+
+type WorkspaceRemoteConnectionEvent = {
+  workspaceId: string
+  sessionId?: string
+  state: 'connecting' | 'connected' | 'degraded' | 'disconnected'
+  errorCode?: string
+  message?: string
+  occurredAt: string
+}
+
+type WorkspaceConnectRemoteResult =
+  | {
+      ok: true
+      workspaceId: string
+      sessionId: string
+      rootPath: string
+      remoteConnectionState: 'connected' | 'degraded'
+      state: 'connected' | 'degraded'
+    }
+  | {
+      ok: false
+      workspaceId: string
+      errorCode: string
+      error: string
+    }
+
+type WorkspaceDisconnectRemoteResult = {
+  ok: boolean
+  workspaceId: string
+  error?: string
+}
+
 type SystemOpenInResult = {
   ok: boolean
   error?: string
@@ -187,10 +260,16 @@ const workspaceApi = {
       rootPath,
     }) as Promise<WorkspaceIndexResult>
   },
-  indexDirectory(rootPath: string, relativePath: string) {
+  indexDirectory(
+    rootPath: string,
+    relativePath: string,
+    options?: WorkspaceIndexDirectoryOptions,
+  ) {
     return ipcRenderer.invoke('workspace:indexDirectory', {
       rootPath,
       relativePath,
+      offset: options?.offset,
+      limit: options?.limit,
     }) as Promise<WorkspaceIndexDirectoryResult>
   },
   readFile(rootPath: string, relativePath: string) {
@@ -292,6 +371,21 @@ const workspaceApi = {
       workspaceId,
     }) as Promise<WorkspaceWatchControlResult>
   },
+  connectRemote(profile: WorkspaceRemoteConnectionProfile) {
+    return ipcRenderer.invoke('workspace:connectRemote', {
+      profile,
+    }) as Promise<WorkspaceConnectRemoteResult>
+  },
+  browseRemoteDirectories(request: WorkspaceRemoteDirectoryBrowseRequest) {
+    return ipcRenderer.invoke('workspace:browseRemoteDirectories', {
+      request,
+    }) as Promise<WorkspaceRemoteDirectoryBrowseResult>
+  },
+  disconnectRemote(workspaceId: string) {
+    return ipcRenderer.invoke('workspace:disconnectRemote', {
+      workspaceId,
+    }) as Promise<WorkspaceDisconnectRemoteResult>
+  },
   onWatchEvent(listener: (event: WorkspaceWatchEvent) => void) {
     const handler = (
       _event: Electron.IpcRendererEvent,
@@ -314,6 +408,20 @@ const workspaceApi = {
     ipcRenderer.on('workspace:watchFallback', handler)
     return () => {
       ipcRenderer.off('workspace:watchFallback', handler)
+    }
+  },
+  onRemoteConnectionEvent(
+    listener: (event: WorkspaceRemoteConnectionEvent) => void,
+  ) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: WorkspaceRemoteConnectionEvent,
+    ) => {
+      listener(payload)
+    }
+    ipcRenderer.on('workspace:remoteConnectionEvent', handler)
+    return () => {
+      ipcRenderer.off('workspace:remoteConnectionEvent', handler)
     }
   },
   onHistoryNavigate(

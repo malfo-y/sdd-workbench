@@ -62,6 +62,18 @@ function clearWorkspaceSessionStorage() {
   window.localStorage.removeItem(WORKSPACE_SESSION_STORAGE_KEY)
 }
 
+async function expandWorkspaceSummaryIfCollapsed() {
+  const expandButton = screen.queryByRole('button', { name: 'Expand' })
+  if (!expandButton) {
+    return
+  }
+
+  fireEvent.click(expandButton)
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
+  })
+}
+
 describe('F01/F02/F03/F04 workspace flow', () => {
   const openDialogMock = vi.fn<() => Promise<WorkspaceOpenDialogResult>>()
   const indexWorkspaceMock =
@@ -112,11 +124,28 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     >()
   const watchStopMock =
     vi.fn<(workspaceId: string) => Promise<WorkspaceWatchControlResult>>()
+  const connectRemoteMock =
+    vi.fn<
+      (
+        profile: WorkspaceRemoteConnectionProfile,
+      ) => Promise<WorkspaceConnectRemoteResult>
+    >()
+  const browseRemoteDirectoriesMock =
+    vi.fn<
+      (
+        request: WorkspaceRemoteDirectoryBrowseRequest,
+      ) => Promise<WorkspaceRemoteDirectoryBrowseResult>
+    >()
+  const disconnectRemoteMock =
+    vi.fn<
+      (workspaceId: string) => Promise<WorkspaceDisconnectRemoteResult>
+    >()
   const indexDirectoryMock =
     vi.fn<
       (
         rootPath: string,
         relativePath: string,
+        options?: { offset?: number; limit?: number },
       ) => Promise<WorkspaceIndexDirectoryResult>
     >()
   const writeFileMock =
@@ -157,6 +186,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         listener: (event: WorkspaceHistoryNavigationEvent) => void,
       ) => () => void
     >()
+  const remoteConnectionListeners = new Set<
+    (event: WorkspaceRemoteConnectionEvent) => void
+  >()
+  const onRemoteConnectionEventMock =
+    vi.fn<
+      (
+        listener: (event: WorkspaceRemoteConnectionEvent) => void,
+      ) => () => void
+    >()
 
   beforeEach(() => {
     openDialogMock.mockReset()
@@ -172,6 +210,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     exportCommentsBundleMock.mockReset()
     watchStartMock.mockReset()
     watchStopMock.mockReset()
+    connectRemoteMock.mockReset()
+    browseRemoteDirectoriesMock.mockReset()
+    disconnectRemoteMock.mockReset()
     writeFileMock.mockReset()
     openInItermMock.mockReset()
     openInVsCodeMock.mockReset()
@@ -184,9 +225,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     onWatchEventMock.mockReset()
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
+    onRemoteConnectionEventMock.mockReset()
     watchListeners.clear()
     watchFallbackListeners.clear()
     historyNavigateListeners.clear()
+    remoteConnectionListeners.clear()
     watchStartMock.mockResolvedValue({
       ok: true,
       watchMode: 'native',
@@ -194,6 +237,22 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       fallbackApplied: false,
     })
     watchStopMock.mockResolvedValue({ ok: true })
+    connectRemoteMock.mockResolvedValue({
+      ok: false,
+      workspaceId: '',
+      errorCode: 'UNKNOWN',
+      error: 'Not configured in test.',
+    })
+    browseRemoteDirectoriesMock.mockResolvedValue({
+      ok: true,
+      currentPath: '/home/tester',
+      entries: [],
+      truncated: false,
+    })
+    disconnectRemoteMock.mockResolvedValue({
+      ok: true,
+      workspaceId: '',
+    })
     readCommentsMock.mockResolvedValue({
       ok: true,
       comments: [],
@@ -245,6 +304,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         historyNavigateListeners.delete(listener)
       }
     })
+    onRemoteConnectionEventMock.mockImplementation((listener) => {
+      remoteConnectionListeners.add(listener)
+      return () => {
+        remoteConnectionListeners.delete(listener)
+      }
+    })
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
       value: createTestStorage(),
@@ -265,8 +330,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       exportCommentsBundle: exportCommentsBundleMock,
       watchStart: watchStartMock,
       watchStop: watchStopMock,
+      connectRemote: connectRemoteMock,
+      browseRemoteDirectories: browseRemoteDirectoriesMock,
+      disconnectRemote: disconnectRemoteMock,
       onWatchEvent: onWatchEventMock,
       onWatchFallback: onWatchFallbackMock,
+      onRemoteConnectionEvent: onRemoteConnectionEventMock,
       onHistoryNavigate: onHistoryNavigateMock,
       openInIterm: openInItermMock,
       openInVsCode: openInVsCodeMock,
@@ -287,6 +356,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
   const emitHistoryNavigateEvent = (event: WorkspaceHistoryNavigationEvent) => {
     for (const listener of historyNavigateListeners) {
+      listener(event)
+    }
+  }
+
+  const emitRemoteConnectionEvent = (event: WorkspaceRemoteConnectionEvent) => {
+    for (const listener of remoteConnectionListeners) {
       listener(event)
     }
   }
@@ -423,6 +498,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('workspace-remote-badge')).toHaveTextContent(
       'REMOTE',
     )
+    await expandWorkspaceSummaryIfCollapsed()
     expect(screen.getByTestId('workspace-watch-mode-preference')).toHaveValue(
       'auto',
     )
@@ -546,7 +622,467 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     const sidebarButtons = Array.from(
       screen.getByTestId('sidebar-workspace-actions').querySelectorAll('button'),
     ).map((button) => button.getAttribute('aria-label'))
-    expect(sidebarButtons).toEqual(['Open Workspace', 'Close Workspace'])
+    expect(sidebarButtons).toEqual([
+      'Open Workspace',
+      'Connect Remote Workspace',
+      'Close Workspace',
+    ])
+  })
+
+  it('connects a remote workspace from modal and shows remote state', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-a',
+      sessionId: 'session-a',
+      rootPath: 'remote://remote-workspace-a',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/project-a' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_ed25519' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'example.com',
+          remoteRoot: '/srv/project-a',
+          identityFile: '~/.ssh/id_ed25519',
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+    expect(screen.getByTestId('workspace-path')).toHaveAttribute(
+      'title',
+      'remote://remote-workspace-a',
+    )
+    await expandWorkspaceSummaryIfCollapsed()
+    expect(screen.getByTestId('workspace-remote-target')).toHaveTextContent(
+      'example.com:/srv/project-a',
+    )
+  })
+
+  it('browses remote directories and connects with the selected path', async () => {
+    browseRemoteDirectoriesMock
+      .mockResolvedValueOnce({
+        ok: true,
+        currentPath: '/data',
+        entries: [
+          {
+            name: 'project-a',
+            path: '/data/project-a',
+            kind: 'directory',
+          },
+        ],
+        truncated: false,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        currentPath: '/data/project-a',
+        entries: [],
+        truncated: false,
+      })
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-browse',
+      sessionId: 'session-browse',
+      rootPath: 'remote://remote-workspace-browse',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'browse.example.com' },
+    })
+    fireEvent.click(screen.getByTestId('remote-connect-browse-button'))
+
+    await waitFor(() => {
+      expect(browseRemoteDirectoriesMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'browse.example.com',
+        }),
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('remote-connect-current-path')).toHaveTextContent(
+        '/data',
+      )
+    })
+
+    fireEvent.click(screen.getByTestId('remote-connect-entry-project-a'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('remote-connect-current-path')).toHaveTextContent(
+        '/data/project-a',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'browse.example.com',
+          remoteRoot: '/data/project-a',
+        }),
+      )
+    })
+  })
+
+  it('shows standardized banner when remote connect fails with AUTH_FAILED', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: false,
+      workspaceId: 'remote-workspace-auth-failed',
+      errorCode: 'AUTH_FAILED',
+      error: 'permission denied',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'auth.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/private' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('AUTH_FAILED')
+    })
+    expect(
+      screen.getByRole('dialog', { name: 'Connect Remote Workspace' }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows bootstrap failure detail when remote connect fails with BOOTSTRAP_FAILED', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: false,
+      workspaceId: 'remote-workspace-bootstrap-failed',
+      errorCode: 'BOOTSTRAP_FAILED',
+      error:
+        'Remote Node.js runtime is missing on the target host. Install Node.js and ensure "node" is available in non-interactive SSH shell PATH.',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'bootstrap.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/bootstrap' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('BOOTSTRAP_FAILED')
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('Node.js runtime is missing')
+  })
+
+  it('updates remote connection state from events and disconnects on close', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-events',
+      sessionId: 'session-events',
+      rootPath: 'remote://remote-workspace-events',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'events.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/events' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-events',
+        state: 'degraded',
+        errorCode: 'TIMEOUT',
+        message: 'agent heartbeat delayed',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'degraded',
+      )
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('TIMEOUT')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
+
+    await waitFor(() => {
+      expect(disconnectRemoteMock).toHaveBeenCalledWith('remote-workspace-events')
+    })
+  })
+
+  it('retries remote connect with the last profile when transiently disconnected', async () => {
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId: 'remote-workspace-retry',
+        sessionId: 'session-retry-1',
+        rootPath: 'remote://remote-workspace-retry',
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId: 'remote-workspace-retry',
+        sessionId: 'session-retry-2',
+        rootPath: 'remote://remote-workspace-retry',
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'retry.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/retry' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-workspace-retry' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_ed25519' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-retry',
+        state: 'disconnected',
+        errorCode: 'TIMEOUT',
+        message: 'transient outage',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await expandWorkspaceSummaryIfCollapsed()
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-retry-button')).toHaveTextContent(
+        'Retry Connect',
+      )
+    })
+
+    fireEvent.click(screen.getByTestId('workspace-remote-retry-button'))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+    })
+    expect(connectRemoteMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        workspaceId: 'remote-workspace-retry',
+        host: 'retry.example.com',
+        remoteRoot: '/srv/retry',
+        identityFile: '~/.ssh/id_ed25519',
+      }),
+    )
+  })
+
+  it('shows reconnect guidance for fatal remote errors', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-fatal',
+      sessionId: 'session-fatal',
+      rootPath: 'remote://remote-workspace-fatal',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'fatal.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/private' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-workspace-fatal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-fatal',
+        state: 'disconnected',
+        errorCode: 'AUTH_FAILED',
+        message: 'Permission denied',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await expandWorkspaceSummaryIfCollapsed()
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-retry-button')).toHaveTextContent(
+        'Reconnect',
+      )
+    })
+    expect(screen.getByTestId('workspace-remote-retry-hint')).toHaveTextContent(
+      'Fix credentials/path and reconnect',
+    )
+  })
+
+  it('redacts sensitive payloads from remote event banners', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-redact',
+      sessionId: 'session-redact',
+      rootPath: 'remote://remote-workspace-redact',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'redact.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/redact' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-workspace-redact' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-redact',
+        state: 'disconnected',
+        message: 'ssh stderr: password=hunter2 ~/.ssh/id_ed25519 /Users/tester/.ssh/id_ed25519',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('password=[REDACTED]')
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('[REDACTED_PATH]')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('hunter2')
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      '/Users/tester/.ssh/id_ed25519',
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      '~/.ssh/id_ed25519',
+    )
   })
 
   it('opens active workspace in iTerm, VSCode, and Finder', async () => {
@@ -684,7 +1220,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Workspace index truncated at 10,000 nodes.',
+        'Workspace index truncated at 100,000 nodes.',
       )
     })
   })
@@ -892,7 +1428,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   })
 
   it('shows a cap message when indexed nodes exceed initial render limit', async () => {
-    const hugeTree: WorkspaceFileNode[] = Array.from({ length: 520 }, (_, index) => ({
+    const hugeTree: WorkspaceFileNode[] = Array.from({ length: 10_020 }, (_, index) => ({
       name: `dir-${index}`,
       relativePath: `dir-${index}`,
       kind: 'directory',
@@ -918,7 +1454,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('file-tree-cap-message')).toHaveTextContent(
-        'Showing first 500 nodes.',
+        'Showing first 10,000 nodes.',
       )
     })
   })
@@ -1268,6 +1804,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         'polling',
       )
     })
+    await expandWorkspaceSummaryIfCollapsed()
     await waitFor(() => {
       expect(screen.getByTestId('workspace-watch-mode-preference')).toHaveValue(
         'polling',
@@ -2177,6 +2714,62 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps file tree visible while structure refresh is in flight', async () => {
+    const workspaceRoot = '/Users/tester/watch-structure-inflight'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+
+    let resolveRefreshIndex:
+      | ((result: WorkspaceIndexResult) => void)
+      | null = null
+    const refreshIndexPromise = new Promise<WorkspaceIndexResult>((resolve) => {
+      resolveRefreshIndex = resolve
+    })
+
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+      })
+      .mockImplementationOnce(async () => refreshIndexPromise)
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: [],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    expect(screen.queryByText('Indexing workspace files...')).not.toBeInTheDocument()
+
+    expect(resolveRefreshIndex).not.toBeNull()
+    resolveRefreshIndex!({
+      ok: true,
+      fileTree: [{ name: 'b.ts', relativePath: 'b.ts', kind: 'file' }],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'b.ts' })).toBeInTheDocument()
+    })
+  })
+
   it('clears active file when watcher structure refresh removes it from tree', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-remove'
 
@@ -2352,6 +2945,76 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     // After auto-refresh, the editor container remains mounted
     expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
     expect(screen.getByTestId('tree-changed-indicator-a.ts')).toBeInTheDocument()
+  })
+
+  it('keeps rendered spec visible while active spec refresh is in flight', async () => {
+    const workspaceRoot = '/Users/tester/watch-spec-refresh-visible'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'README.md',
+          relativePath: 'README.md',
+          kind: 'file',
+        },
+      ],
+    })
+
+    let resolveRefreshRead:
+      | ((result: WorkspaceReadFileResult) => void)
+      | null = null
+    const refreshReadPromise = new Promise<WorkspaceReadFileResult>((resolve) => {
+      resolveRefreshRead = resolve
+    })
+    readFileMock
+      .mockResolvedValueOnce({
+        ok: true,
+        content: '# V1',
+      })
+      .mockImplementationOnce(async () => refreshReadPromise)
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'V1' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['README.md'],
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.getByTestId('spec-viewer-content')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'V1' })).toBeInTheDocument()
+    expect(screen.queryByTestId('spec-viewer-loading')).not.toBeInTheDocument()
+
+    expect(resolveRefreshRead).not.toBeNull()
+    resolveRefreshRead!({
+      ok: true,
+      content: '# V2',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'V2' })).toBeInTheDocument()
+    })
   })
 
   it('stops watcher when active workspace is closed', async () => {
@@ -4358,6 +5021,76 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 5000)
+  })
+
+  it('auto-dismisses remote connection banners after 5 seconds', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-banner-autodismiss',
+      sessionId: 'session-banner-autodismiss',
+      rootPath: 'remote://remote-workspace-banner-autodismiss',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'autodismiss.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/autodismiss' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-workspace-banner-autodismiss' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-banner-autodismiss',
+        state: 'degraded',
+        errorCode: 'TIMEOUT',
+        message: 'agent heartbeat delayed',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('TIMEOUT')
+    })
+
+    const autoDismissCall = setTimeoutSpy.mock.calls.find(
+      (call) => call[1] === 5000,
+    )
+    expect(autoDismissCall).toBeDefined()
+    const timeoutHandler = autoDismissCall?.[0]
+    expect(typeof timeoutHandler).toBe('function')
+
+    await act(async () => {
+      const dismissBanner = timeoutHandler as () => void
+      dismissBanner()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
   })
 
   it('keeps edit mode open when comment update fails and shows error banner', async () => {

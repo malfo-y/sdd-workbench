@@ -38,10 +38,12 @@ import { FileTreePanel } from './file-tree/file-tree-panel'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
 import { abbreviateWorkspacePath } from './workspace/path-format'
+import { RemoteConnectModal } from './workspace/remote-connect-modal'
 import { useWorkspace } from './workspace/use-workspace'
 import { WorkspaceSwitcher } from './workspace/workspace-switcher'
 import type {
   LineSelectionRange,
+  WorkspaceRemoteProfile,
   WorkspaceWatchModePreference,
 } from './workspace/workspace-model'
 
@@ -118,6 +120,24 @@ function formatWorkspaceWatchMode(watchMode: 'native' | 'polling' | null) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function isFatalRemoteErrorCode(errorCode: string | null) {
+  return (
+    errorCode === 'AUTH_FAILED' ||
+    errorCode === 'AGENT_PROTOCOL_MISMATCH' ||
+    errorCode === 'PATH_DENIED'
+  )
+}
+
+function getRemoteRecoveryHint(errorCode: string | null) {
+  if (!errorCode) {
+    return 'Retry connection to restore remote workspace access.'
+  }
+  if (isFatalRemoteErrorCode(errorCode)) {
+    return 'Connection failed due to configuration or permission issues. Fix credentials/path and reconnect.'
+  }
+  return 'Temporary connectivity issue detected. Retry connection to recover the session.'
 }
 
 type WheelHistoryState = {
@@ -354,6 +374,10 @@ function App() {
     workspaces,
     activeWorkspaceId,
     rootPath,
+    workspaceKind,
+    remoteProfile,
+    remoteConnectionState,
+    remoteErrorCode,
     fileTree,
     changedFiles,
     gitFileStatuses,
@@ -383,6 +407,9 @@ function App() {
     isRemoteMounted,
     bannerMessage,
     openWorkspace,
+    connectRemoteWorkspace,
+    disconnectRemoteWorkspace,
+    retryRemoteWorkspaceConnection,
     setActiveWorkspace,
     switchWorkspace,
     closeWorkspace,
@@ -441,6 +468,12 @@ function App() {
     useState(false)
   const [isViewCommentsModalOpen, setIsViewCommentsModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isRemoteConnectModalOpen, setIsRemoteConnectModalOpen] = useState(false)
+  const [isWorkspaceSummaryExpanded, setIsWorkspaceSummaryExpanded] =
+    useState(false)
+  const [isConnectingRemoteWorkspace, setIsConnectingRemoteWorkspace] =
+    useState(false)
+  const [isRetryingRemoteWorkspace, setIsRetryingRemoteWorkspace] = useState(false)
   const [exportSelectedCommentIds, setExportSelectedCommentIds] = useState<string[] | null>(null)
   const [exportIncludeGlobalComments, setExportIncludeGlobalComments] = useState(false)
   const [isExportingComments, setIsExportingComments] = useState(false)
@@ -490,6 +523,17 @@ function App() {
     isExportingComments
   const canCloseWorkspace =
     activeWorkspaceId !== null && workspaces.some(({ id }) => id === activeWorkspaceId)
+  const isActiveRemoteWorkspace = workspaceKind === 'remote'
+  const shouldShowRemoteBadge = isActiveRemoteWorkspace || isRemoteMounted
+  const remoteConnectionLabel = remoteConnectionState ?? 'disconnected'
+  const shouldShowRetryRemoteButton =
+    isActiveRemoteWorkspace &&
+    (remoteConnectionLabel === 'degraded' ||
+      remoteConnectionLabel === 'disconnected')
+  const isFatalRemoteFailure = isFatalRemoteErrorCode(remoteErrorCode)
+  const remoteRecoveryHint = shouldShowRetryRemoteButton
+    ? getRemoteRecoveryHint(remoteErrorCode)
+    : null
   const wheelHistoryStateRef = useRef<WheelHistoryState>({
     accumulatedDeltaX: 0,
     lastEventAt: 0,
@@ -692,6 +736,28 @@ function App() {
       }
     },
     [globalCommentsModalState, saveGlobalComments, showCommentBanner],
+  )
+
+  const handleSaveGlobalCommentsFromList = useCallback(
+    async (body: string) => {
+      if (!activeWorkspaceId) {
+        showCommentBanner('Cannot save global comments: no active workspace selected.')
+        return false
+      }
+
+      const saved = await saveGlobalComments(body, activeWorkspaceId)
+      if (!saved) {
+        return false
+      }
+
+      showCommentBanner(
+        body.trim().length === 0
+          ? 'Global comments cleared.'
+          : 'Global comments saved.',
+      )
+      return true
+    },
+    [activeWorkspaceId, saveGlobalComments, showCommentBanner],
   )
 
   const handleRequestAddCommentFromSpec = useCallback(
@@ -998,6 +1064,69 @@ function App() {
     },
     [setWatchModePreference],
   )
+
+  const handleSubmitRemoteConnect = useCallback(
+    async (profile: WorkspaceRemoteProfile) => {
+      setIsConnectingRemoteWorkspace(true)
+      try {
+        const connected = await connectRemoteWorkspace(profile)
+        if (connected) {
+          setIsRemoteConnectModalOpen(false)
+        }
+      } finally {
+        setIsConnectingRemoteWorkspace(false)
+      }
+    },
+    [connectRemoteWorkspace],
+  )
+
+  const handleBrowseRemoteDirectories = useCallback(
+    async (
+      request: WorkspaceRemoteDirectoryBrowseRequest,
+    ): Promise<WorkspaceRemoteDirectoryBrowseResult> => {
+      if (typeof window.workspace.browseRemoteDirectories !== 'function') {
+        return {
+          ok: false,
+          currentPath: request.targetPath?.trim() ?? '',
+          entries: [],
+          truncated: false,
+          errorCode: 'UNKNOWN',
+          error:
+            'Remote directory browse API is unavailable. Restart SDD Workbench to load latest preload/main changes.',
+        }
+      }
+
+      try {
+        return await window.workspace.browseRemoteDirectories(request)
+      } catch {
+        return {
+          ok: false,
+          currentPath: request.targetPath?.trim() ?? '',
+          entries: [],
+          truncated: false,
+          errorCode: 'UNKNOWN',
+          error: 'Failed to browse remote directories.',
+        }
+      }
+    },
+    [],
+  )
+
+  const handleDisconnectRemoteWorkspace = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      return
+    }
+    await disconnectRemoteWorkspace(activeWorkspaceId)
+  }, [activeWorkspaceId, disconnectRemoteWorkspace])
+
+  const handleRetryRemoteWorkspaceConnection = useCallback(async () => {
+    setIsRetryingRemoteWorkspace(true)
+    try {
+      await retryRemoteWorkspaceConnection(activeWorkspaceId ?? undefined)
+    } finally {
+      setIsRetryingRemoteWorkspace(false)
+    }
+  }, [activeWorkspaceId, retryRemoteWorkspaceConnection])
 
   const workspaceLayoutStyle = useMemo(
     () =>
@@ -1592,6 +1721,18 @@ function App() {
                     <OpenIcon />
                   </button>
                   <button
+                    aria-label="Connect Remote Workspace"
+                    className="workspace-connect-remote-button"
+                    data-testid="workspace-connect-remote-button"
+                    onClick={() => {
+                      setIsRemoteConnectModalOpen(true)
+                    }}
+                    title="Connect Remote Workspace"
+                    type="button"
+                  >
+                    Remote
+                  </button>
+                  <button
                     aria-label="Close Workspace"
                     className="workspace-open-in-button"
                     disabled={!canCloseWorkspace}
@@ -1609,8 +1750,21 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="workspace-summary">
-              <p className="label">Current Workspace</p>
+            <div
+              className={`workspace-summary ${isWorkspaceSummaryExpanded ? '' : 'workspace-summary-collapsed'}`}
+            >
+              <div className="workspace-summary-header">
+                <p className="label">Current Workspace</p>
+                <button
+                  className="workspace-summary-toggle"
+                  onClick={() => {
+                    setIsWorkspaceSummaryExpanded((previous) => !previous)
+                  }}
+                  type="button"
+                >
+                  {isWorkspaceSummaryExpanded ? 'Collapse' : 'Expand'}
+                </button>
+              </div>
               <p
                 className="path workspace-summary-path"
                 data-testid="workspace-path"
@@ -1626,7 +1780,7 @@ function App() {
                 >
                   {formatWorkspaceWatchMode(watchMode)}
                 </span>
-                {isRemoteMounted && (
+                {shouldShowRemoteBadge && (
                   <span
                     className="workspace-remote-badge"
                     data-testid="workspace-remote-badge"
@@ -1634,27 +1788,89 @@ function App() {
                     REMOTE
                   </span>
                 )}
+                {isActiveRemoteWorkspace && (
+                  <span
+                    className={`workspace-remote-connection-state workspace-remote-connection-state-${remoteConnectionLabel}`}
+                    data-testid="workspace-remote-connection-state"
+                  >
+                    {remoteConnectionLabel}
+                  </span>
+                )}
               </div>
-              <div className="workspace-watch-preference">
-                <label
-                  className="workspace-watch-preference-label"
-                  htmlFor="workspace-watch-preference-select"
-                >
-                  Watch Mode
-                </label>
-                <select
-                  className="workspace-watch-preference-select"
-                  data-testid="workspace-watch-mode-preference"
-                  disabled={!rootPath}
-                  id="workspace-watch-preference-select"
-                  onChange={handleWatchModePreferenceChange}
-                  value={watchModePreference}
-                >
-                  <option value="auto">Auto</option>
-                  <option value="native">Native</option>
-                  <option value="polling">Polling</option>
-                </select>
-              </div>
+              {isWorkspaceSummaryExpanded && (
+                <>
+                  {isActiveRemoteWorkspace && remoteProfile && (
+                    <p className="workspace-remote-target" data-testid="workspace-remote-target">
+                      {remoteProfile.user ? `${remoteProfile.user}@` : ''}
+                      {remoteProfile.host}:{remoteProfile.remoteRoot}
+                    </p>
+                  )}
+                  {isActiveRemoteWorkspace && remoteErrorCode && (
+                    <p
+                      className="workspace-remote-error-code"
+                      data-testid="workspace-remote-error-code"
+                    >
+                      Last error: {remoteErrorCode}
+                    </p>
+                  )}
+                  {isActiveRemoteWorkspace && remoteRecoveryHint && (
+                    <p
+                      className="workspace-remote-retry-hint"
+                      data-testid="workspace-remote-retry-hint"
+                    >
+                      {remoteRecoveryHint}
+                    </p>
+                  )}
+                  <div className="workspace-watch-preference">
+                    <label
+                      className="workspace-watch-preference-label"
+                      htmlFor="workspace-watch-preference-select"
+                    >
+                      Watch Mode
+                    </label>
+                    <select
+                      className="workspace-watch-preference-select"
+                      data-testid="workspace-watch-mode-preference"
+                      disabled={!rootPath}
+                      id="workspace-watch-preference-select"
+                      onChange={handleWatchModePreferenceChange}
+                      value={watchModePreference}
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="native">Native</option>
+                      <option value="polling">Polling</option>
+                    </select>
+                  </div>
+                  {shouldShowRetryRemoteButton && (
+                    <button
+                      className="workspace-remote-retry-button"
+                      data-testid="workspace-remote-retry-button"
+                      disabled={isRetryingRemoteWorkspace || isConnectingRemoteWorkspace}
+                      onClick={() => {
+                        void handleRetryRemoteWorkspaceConnection()
+                      }}
+                      type="button"
+                    >
+                      {isRetryingRemoteWorkspace
+                        ? 'Retrying...'
+                        : isFatalRemoteFailure
+                          ? 'Reconnect'
+                          : 'Retry Connect'}
+                    </button>
+                  )}
+                  {isActiveRemoteWorkspace && remoteConnectionLabel !== 'disconnected' && (
+                    <button
+                      className="workspace-remote-disconnect-button"
+                      onClick={() => {
+                        void handleDisconnectRemoteWorkspace()
+                      }}
+                      type="button"
+                    >
+                      Disconnect Remote
+                    </button>
+                  )}
+                </>
+              )}
             </div>
             <div className="workspace-open-in">
               <span className="workspace-open-in-label">Open In:</span>
@@ -1772,6 +1988,17 @@ function App() {
         </div>
       </section>
 
+      <RemoteConnectModal
+        isOpen={isRemoteConnectModalOpen}
+        isSubmitting={isConnectingRemoteWorkspace}
+        onBrowse={handleBrowseRemoteDirectories}
+        onClose={() => {
+          if (!isConnectingRemoteWorkspace) {
+            setIsRemoteConnectModalOpen(false)
+          }
+        }}
+        onSubmit={handleSubmitRemoteConnect}
+      />
       <CommentEditorModal
         isOpen={commentDraftState !== null}
         isSaving={isWritingComments}
@@ -1788,6 +2015,7 @@ function App() {
         comments={comments}
         globalComments={globalComments}
         isOpen={isViewCommentsModalOpen}
+        isSavingGlobalComments={isWritingGlobalComments}
         isSaving={isWritingComments}
         onClose={() => {
           if (!isWritingComments) {
@@ -1796,6 +2024,7 @@ function App() {
         }}
         onDeleteComment={handleDeleteComment}
         onDeleteExportedComments={handleDeleteExportedComments}
+        onSaveGlobalComments={handleSaveGlobalCommentsFromList}
         onUpdateComment={handleUpdateComment}
         onRequestExport={(selectedIds, includeGlobal) => {
           setExportSelectedCommentIds(selectedIds)

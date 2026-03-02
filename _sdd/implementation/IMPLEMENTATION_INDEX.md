@@ -1,5 +1,67 @@
 # IMPLEMENTATION_INDEX
 
+## DRIFT_20260302
+
+### Sync Record - 2026-03-02T06:23:48Z
+
+- note: post-F28 spec drift sync (same-document anchor in-panel 이동, lazy subtree changed marker 버블링 보강, View Comments global comments inline 편집/비우기 반영)
+- copied files:
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_PLAN_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_1.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_PLAN_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_2.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_PLAN_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_PLAN_PHASE_4.md <- _sdd/implementation/IMPLEMENTATION_PLAN_PHASE_4.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_REPORT_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_REPORT_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_REPORT_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+  - `_sdd/implementation/features/DRIFT_20260302/SYNC_20260302_152334_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/02-architecture.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/05-operational-guides.md`
+
+## F28
+
+### Sync Record - 2026-03-01T14:46:09Z
+
+- note: F28 구현 완료 스펙 동기화 (SSH 선접속 기반 remote directory browse + remoteRoot 선택) + remote watcher/배너 정책 반영
+- copied files:
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+  - `_sdd/implementation/features/F28/SYNC_20260301_133146_IMPLEMENTATION_REPORT_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/02-architecture.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/05-operational-guides.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
+## F27
+
+### Sync Record - 2026-03-01T02:20:33Z
+
+- note: F27 구현 완료 스펙 동기화 (planned -> implemented) + phase 5/6 안정화(identityFile, bootstrap/runtime, remote watch/index 정책) 반영
+- copied files:
+  - `_sdd/implementation/features/F27/SYNC_20260301_112033_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/02-architecture.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/05-operational-guides.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
 ## F26
 
 ### Sync Record - 2026-02-25T10:27:57Z

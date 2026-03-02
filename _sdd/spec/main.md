@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.40.0`
-- 마지막 업데이트: `2026-02-27`
+- 문서 버전: `0.44.0`
+- 마지막 업데이트: `2026-03-02`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -27,6 +27,8 @@
   - F25 draft: `/_sdd/drafts/feature_draft_f25_file_tree_crud.md`
   - F25b draft: `/_sdd/drafts/feature_draft_f25b_file_tree_rename.md`
   - F26: git file-level status markers in file tree
+  - F27 draft: `/_sdd/drafts/feature_draft_f27_remote_agent_protocol_mvp.md`
+  - F28 draft: `/_sdd/drafts/feature_draft_f28_remote_root_browse_after_ssh.md`
   - F24.1: code editor line wrap toggle button + default On
   - F07.2: code editor scroll position restore on history navigation
 - 리라이트:
@@ -37,18 +39,19 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F26` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 구현 완료 범위: `F01~F28` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 신규 동기화 범위: post-F28 드리프트 동기화(동일 문서 anchor in-panel 이동, lazy subtree changed marker 버블링 보강, View Comments 내 global comments inline 편집/비우기)
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
-  2. spec link/selection 기반 code line jump
+  2. spec link/selection 기반 code line jump + same-document anchor(`#heading`) in-panel 이동
   3. 컨텍스트 복사 + Open In(iTerm/VSCode)
   4. file watcher 기반 변경 감지 + collapse 버블링 marker 가시화 + history navigation
   5. inline comment + comment 관리(View/Edit/Delete/Delete Exported) + LLM export bundle + 코멘트 target 클릭으로 해당 코드 라인 점프
-  6. global comments(워크스페이스 단위) + export 선행 prepend + export 대상 선택(pending/exported 모두 가능) + global 포함 체크박스 + global comments export 카운트 반영
+  6. global comments(워크스페이스 단위) + export 선행 prepend + export 대상 선택(pending/exported 모두 가능) + global 포함 체크박스 + View Comments 내 inline 편집/비우기 + global comments export 카운트 반영
   7. code/rendered marker hover preview로 코멘트 본문 맥락 즉시 확인
   8. spec->code 점프 시 rendered spec 문맥(스크롤 위치) 유지 + comment 피드백 auto-dismiss + header action 그룹 명확화
-  9. SSHFS 마운트 원격 워크스페이스 자동 polling + 수동 watch mode override
-  10. 대규모 워크스페이스 지원: remote 깊이제한 + 디렉토리별 child cap + on-demand 확장 + 과대 디렉토리 polling 제외
+  9. Remote Agent Protocol 기반 원격 워크스페이스 연결: 모달 입력 + SSH bootstrap + 원격 파일/감시/git RPC + 상태/오류 표준화 + SSH browse 기반 remoteRoot 선택(F28)
+  10. 대규모/원격 워크스페이스 감시 안정화: 인덱싱 cap 100,000 + 디렉토리별 child cap 500 + on-demand 확장 + local polling 과대 디렉토리 제외 + remote polling 100,000 파일 상한/심링크 추적 + lazy subtree changed marker 힌트 버블링
   11. active file 기준 Git diff 라인 마커(added/modified)로 변경 위치를 즉시 식별
   12. code viewer 텍스트 검색(Ctrl/Cmd+F): substring 매칭 + 라인 하이라이트 + 이전/다음 이동 + wrap-around
   13. 키보드 워크스페이스 전환(Cmd+Shift+Up/Down): 순서 유지 순환 전환 + wrap-around
@@ -59,8 +62,9 @@
   18. (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added, 초록)/M(Modified, 주황) 뱃지 + 디렉토리 접힘 시 하위 상태 버블링
   19. (F24.1) 코드 에디터 line wrap 토글 버튼: 헤더 "Wrap On/Off" 버튼, `wrapCompartment` 기반 동적 전환, 기본 On(가로 스크롤 방지)
   20. (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 시 이전 픽셀 스크롤 위치를 복원(런타임, `codeScrollPositionsRef`)
-- 최신 품질 게이트(2026-02-27):
+- 최신 품질 게이트(2026-03-02):
   - `npm run build` -> pass
+  - `npm test` -> `49 files, 490 passed, 1 skipped`
   - `npm run lint` -> pass
 
 ---
@@ -78,7 +82,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F25), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F28), 상세 수용 기준, 리스크/백로그
 
 ---
 
@@ -102,7 +106,15 @@
 
 ## 5. Open Questions
 
-- 현재 없음 (`2026-02-27` 기준)
+현재 기준 Open Question 없음.
+
+결정사항:
+1. 기존 SSHFS 기반 원격 연결(F15)은 폐기하고 F27 remote-protocol 단일 경로로 전환한다.
+2. 원격 agent 자동화는 MVP 수준으로 제한한다.
+   범위: 연결 시 runtime 배포(덮어쓰기) -> 실행 가능 여부(`--healthcheck`) -> 프로토콜 버전 검증
+   제외: 자동 업그레이드/롤백, 복수 배포 채널 관리, 고급 장애복구 오케스트레이션
+3. 원격 연결 입력 UX는 모달로 시작하고, 마지막 입력값(host/user/port/remoteRoot/workspaceId/agentPath/identityFile)은 로컬 저장소에 저장해 재접속 시 재사용한다.
+4. SSH 개인키 경로(`identityFile`)를 프로필에 저장할 수 있으며, 연결 시 `ssh -i <identityFile> -o IdentitiesOnly=yes`로 실행한다.
 
 ---
 

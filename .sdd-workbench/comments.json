@@ -1,29 +1,45 @@
 [
   {
-    "id": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md:10-10:eeae7cee:2026-02-25T04:32:07.700Z",
-    "relativePath": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md",
-    "startLine": 10,
-    "endLine": 10,
-    "body": "test comment",
+    "id": "_sdd/spec/main.md:107-107:a43d2895:2026-02-28T01:57:14.109Z",
+    "relativePath": "_sdd/spec/main.md",
+    "startLine": 107,
+    "endLine": 107,
+    "body": "이건 무슨 의미야? 어떤 차이가 있어?",
     "anchor": {
-      "snippet": "## 태스크 개요",
-      "hash": "eeae7cee",
-      "before": "---"
+      "snippet": "1. 원격 연결 프로필 입력 UX를 모달로 시작할지, 별도 패널로 시작할지 확정 필요",
+      "hash": "a43d2895",
+      "after": "2. 원격 agent 배포 전략(원격 스크립트/바이너리)의 MVP 자동화 수준 확정 필요"
     },
-    "createdAt": "2026-02-25T04:32:07.700Z"
+    "createdAt": "2026-02-28T01:57:14.109Z",
+    "exportedAt": "2026-02-28T01:58:35.404Z"
   },
   {
-    "id": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md:55-55:276b6d75:2026-02-25T04:23:08.307Z",
-    "relativePath": "_sdd/implementation/IMPLEMENTATION_PLAN_PHASE_3.md",
-    "startLine": 55,
-    "endLine": 55,
-    "body": "sadf",
+    "id": "_sdd/spec/main.md:108-108:b768ad2b:2026-02-28T01:58:06.504Z",
+    "relativePath": "_sdd/spec/main.md",
+    "startLine": 108,
+    "endLine": 108,
+    "body": "자동화라는게 agent를 자동으로 설치하는 걸 의미하는 거야?",
     "anchor": {
-      "snippet": "- [C] `src/code-editor/cm6-git-gutter.ts` -- Git marker gutter extension",
-      "hash": "276b6d75",
-      "before": "**Target Files**:",
-      "after": "- [C] `src/code-editor/cm6-git-gutter.test.ts` -- marker 매핑 로직 테스트"
+      "snippet": "2. 원격 agent 배포 전략(원격 스크립트/바이너리)의 MVP 자동화 수준 확정 필요",
+      "hash": "b768ad2b",
+      "before": "1. 원격 연결 프로필 입력 UX를 모달로 시작할지, 별도 패널로 시작할지 확정 필요",
+      "after": "3. 기존 SSHFS 기반 remote 감지(F15)와 F27 remote-protocol 연결의 UI 표기 구분 규칙 확정 필요"
     },
-    "createdAt": "2026-02-25T04:23:08.307Z"
+    "createdAt": "2026-02-28T01:58:06.504Z",
+    "exportedAt": "2026-02-28T01:58:35.404Z"
+  },
+  {
+    "id": "_sdd/spec/main.md:109-109:2ffb1182:2026-02-28T01:57:46.256Z",
+    "relativePath": "_sdd/spec/main.md",
+    "startLine": 109,
+    "endLine": 109,
+    "body": "기존 sshfs 기반 구현은 모두 폐기할 거야.",
+    "anchor": {
+      "snippet": "3. 기존 SSHFS 기반 remote 감지(F15)와 F27 remote-protocol 연결의 UI 표기 구분 규칙 확정 필요",
+      "hash": "2ffb1182",
+      "before": "2. 원격 agent 배포 전략(원격 스크립트/바이너리)의 MVP 자동화 수준 확정 필요"
+    },
+    "createdAt": "2026-02-28T01:57:46.256Z",
+    "exportedAt": "2026-02-28T01:58:35.404Z"
   }
 ]

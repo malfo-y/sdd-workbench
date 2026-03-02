@@ -268,6 +268,11 @@ describe('workspace-model', () => {
 
   it('initializes comments state fields for new sessions', () => {
     const session = createWorkspaceSession(ROOT_A)
+    expect(session.workspaceKind).toBe('local')
+    expect(session.remoteWorkspaceId).toBeNull()
+    expect(session.remoteProfile).toBeNull()
+    expect(session.remoteConnectionState).toBeNull()
+    expect(session.remoteErrorCode).toBeNull()
     expect(session.activeFileGitLineMarkers).toEqual([])
     expect(session.comments).toEqual([])
     expect(session.isReadingComments).toBe(false)
@@ -281,6 +286,48 @@ describe('workspace-model', () => {
     expect(session.watchMode).toBeNull()
     expect(session.isRemoteMounted).toBe(false)
     expect(session.loadingDirectories).toEqual([])
+  })
+
+  it('creates remote workspace session with explicit id and metadata', () => {
+    const remoteWorkspaceId = 'remote-session-a'
+    const remoteRootPath = 'remote://remote-session-a'
+    const result = addOrFocusWorkspace(
+      createEmptyWorkspaceState(),
+      remoteRootPath,
+      {
+        workspaceId: remoteWorkspaceId,
+        sessionOptions: {
+          workspaceKind: 'remote',
+          remoteWorkspaceId: remoteWorkspaceId,
+          remoteConnectionState: 'connected',
+          remoteProfile: {
+            workspaceId: remoteWorkspaceId,
+            host: 'example.com',
+            user: 'tester',
+            remoteRoot: '/repo',
+            identityFile: '~/.ssh/id_ed25519',
+          },
+        },
+      },
+    )
+
+    expect(result.workspaceId).toBe(remoteWorkspaceId)
+    expect(result.state.activeWorkspaceId).toBe(remoteWorkspaceId)
+    expect(result.state.workspaceOrder).toEqual([remoteWorkspaceId])
+    expect(result.state.workspacesById[remoteWorkspaceId]).toMatchObject({
+      rootPath: remoteRootPath,
+      workspaceKind: 'remote',
+      remoteWorkspaceId,
+      remoteConnectionState: 'connected',
+      remoteErrorCode: null,
+      remoteProfile: {
+        workspaceId: remoteWorkspaceId,
+        host: 'example.com',
+        user: 'tester',
+        remoteRoot: '/repo',
+        identityFile: '~/.ssh/id_ed25519',
+      },
+    })
   })
 
   it('preserves fileLastLineByPath when selection is cleared', () => {
@@ -483,5 +530,38 @@ describe('mergeDirectoryChildren', () => {
     expect(result[0].childrenStatus).toBe('partial')
     expect(result[0].totalChildCount).toBe(600)
     expect(result[0].children).toHaveLength(2)
+  })
+
+  it('appends children when appendChildren option is enabled', () => {
+    const tree: WorkspaceFileNode[] = [
+      {
+        name: 'lib',
+        relativePath: 'lib',
+        kind: 'directory',
+        children: [
+          { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+        ],
+        childrenStatus: 'partial',
+        totalChildCount: 3,
+      },
+    ]
+
+    const newChildren: WorkspaceFileNode[] = [
+      { name: 'b.ts', relativePath: 'lib/b.ts', kind: 'file' },
+      { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+    ]
+
+    const result = mergeDirectoryChildren(
+      tree,
+      'lib',
+      newChildren,
+      'partial',
+      3,
+      { appendChildren: true },
+    )
+    expect(result[0].children).toEqual([
+      { name: 'a.ts', relativePath: 'lib/a.ts', kind: 'file' },
+      { name: 'b.ts', relativePath: 'lib/b.ts', kind: 'file' },
+    ])
   })
 })

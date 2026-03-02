@@ -18,15 +18,28 @@ function getCM6View(container: HTMLElement): EditorView | null {
   return cmEditor ? EditorView.findFromDOM(cmEditor as HTMLElement) : null
 }
 
+type EditorKeydownHandler = (view: EditorView, event: KeyboardEvent) => boolean
+
+type EditorInputStateLike = {
+  handlers?: {
+    keydown?: {
+      handlers?: EditorKeydownHandler[]
+    }
+  }
+}
+
+function getKeydownHandlers(view: EditorView): EditorKeydownHandler[] {
+  const inputState = (view as { inputState?: EditorInputStateLike }).inputState
+  return inputState?.handlers?.keydown?.handlers ?? []
+}
+
 /**
  * Dispatch a keydown event to the CM6 view's keymap handlers.
  * Uses the internal inputState handler mechanism because jsdom does not
  * fully emulate browser keyboard handling that CM6 relies on.
  */
 function dispatchKeyToView(view: EditorView, event: KeyboardEvent): void {
-  const inputState = (view as any).inputState
-  const handlers: Array<(view: EditorView, event: KeyboardEvent) => boolean> =
-    inputState?.handlers?.keydown?.handlers ?? []
+  const handlers = getKeydownHandlers(view)
   for (const h of handlers) {
     h(view, event)
   }
@@ -258,6 +271,10 @@ describe('CodeEditorPanel', () => {
     })
 
     const wrapToggle = screen.getByTestId('code-viewer-wrap-toggle')
+    expect(wrapToggle).toHaveTextContent('Wrap On')
+    expect(wrapToggle).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(wrapToggle)
     expect(wrapToggle).toHaveTextContent('Wrap Off')
     expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
 
@@ -265,10 +282,6 @@ describe('CodeEditorPanel', () => {
     expect(wrapToggle).toHaveTextContent('Wrap On')
     expect(wrapToggle).toHaveAttribute('aria-pressed', 'true')
     expect(container.querySelector('.cm-lineWrapping')).not.toBeNull()
-
-    fireEvent.click(wrapToggle)
-    expect(wrapToggle).toHaveTextContent('Wrap Off')
-    expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
   })
 
   // ---- CM6 container rendering -------------------------------------------
@@ -414,9 +427,7 @@ describe('CodeEditorPanel', () => {
     // (which causes the keymap plugin to preventDefault on the DOM event).
     // We verify this by calling the run function directly through the internal
     // keymap structure.
-    const inputState = (view as any).inputState
-    const keydownHandlers: Array<(view: EditorView, event: KeyboardEvent) => boolean> =
-      inputState?.handlers?.keydown?.handlers ?? []
+    const keydownHandlers = getKeydownHandlers(view)
 
     const event = new KeyboardEvent('keydown', {
       key: 's',
@@ -727,9 +738,7 @@ describe('CodeEditorPanel', () => {
     const v = view as EditorView
     // The search extension registers a Mod-f keymap handler.
     // Verify the inputState has keydown handlers (meaning keymaps were installed).
-    const inputState = (v as any).inputState
-    const keydownHandlers: Array<(view: EditorView, event: KeyboardEvent) => boolean> =
-      inputState?.handlers?.keydown?.handlers ?? []
+    const keydownHandlers = getKeydownHandlers(v)
     expect(keydownHandlers.length).toBeGreaterThan(0)
   })
 
@@ -817,6 +826,49 @@ describe('CodeEditorPanel', () => {
       const doc = view.state.doc.toString()
       expect(doc).toBe('updated content')
     })
+  })
+
+  it('preserves selection and focus on same-file content refresh', async () => {
+    const props = makeDefaultProps()
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      const view = getCM6View(container)
+      expect(view).not.toBeNull()
+    })
+
+    const view = getCM6View(container)
+    expect(view).not.toBeNull()
+    if (!view) return
+
+    view.dispatch({
+      selection: { anchor: 6, head: 11 },
+    })
+    view.focus()
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2 updated\nline3'}
+      />,
+    )
+
+    await waitFor(() => {
+      const updatedView = getCM6View(container)
+      if (!updatedView) return
+      expect(updatedView.state.doc.toString()).toBe('line1\nline2 updated\nline3')
+      expect(updatedView.state.selection.main.anchor).toBe(6)
+      expect(updatedView.state.selection.main.head).toBe(11)
+    })
+    expect(document.activeElement?.closest('.cm-editor')).not.toBeNull()
   })
 
   // ---- H. Language display for various file extensions --------------------

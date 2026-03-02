@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
+import { appendFile, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import {
@@ -9,7 +10,6 @@ import {
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
 } from './workspace-watch-mode'
-import { detectRemoteMountPoint } from './remote-mount-detection'
 import {
   parseGitDiffLineMarkers,
   type WorkspaceGitLineMarker,
@@ -18,6 +18,24 @@ import {
   parseGitStatusPorcelain,
   type GitFileStatusMap,
 } from './git-file-statuses'
+import { RemoteConnectionService } from './remote-agent/connection-service'
+import {
+  browseRemoteDirectories,
+  type RemoteDirectoryBrowseEntry,
+  type RemoteDirectoryBrowseRequest,
+} from './remote-agent/directory-browser'
+import { toRemoteAgentError } from './remote-agent/protocol'
+import { loadRemoteReliabilityPolicy } from './remote-agent/reliability-policy'
+import { redactRemoteErrorMessage } from './remote-agent/security'
+import type {
+  RemoteConnectResult,
+  RemoteConnectionEvent,
+  RemoteConnectionProfile,
+  RemoteDisconnectResult,
+} from './remote-agent/types'
+import { createLocalWorkspaceBackend } from './workspace-backend/local-workspace-backend'
+import { createRemoteWorkspaceBackend } from './workspace-backend/remote-workspace-backend'
+import { WorkspaceBackendRouter } from './workspace-backend/backend-router'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -247,6 +265,8 @@ type WorkspaceExportCommentsBundleResult = {
 type WorkspaceIndexDirectoryRequest = {
   rootPath: string
   relativePath: string
+  offset?: number
+  limit?: number
 }
 
 type WorkspaceIndexDirectoryResult = {
@@ -267,6 +287,27 @@ type WorkspaceWatchStopRequest = {
   workspaceId: string
 }
 
+type WorkspaceConnectRemoteRequest = {
+  profile: RemoteConnectionProfile
+}
+
+type WorkspaceBrowseRemoteDirectoriesRequest = {
+  request: RemoteDirectoryBrowseRequest
+}
+
+type WorkspaceBrowseRemoteDirectoriesResult = {
+  ok: boolean
+  currentPath: string
+  entries: RemoteDirectoryBrowseEntry[]
+  truncated: boolean
+  errorCode?: string
+  error?: string
+}
+
+type WorkspaceDisconnectRemoteRequest = {
+  workspaceId: string
+}
+
 type WorkspaceWatchControlResult = {
   ok: boolean
   watchMode?: WorkspaceWatchMode
@@ -279,6 +320,11 @@ type WorkspaceWatchEventPayload = {
   workspaceId: string
   changedRelativePaths: string[]
   hasStructureChanges: boolean
+}
+
+type WorkspaceWatchFallbackEvent = {
+  workspaceId: string
+  watchMode: WorkspaceWatchMode
 }
 
 type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
@@ -342,17 +388,17 @@ const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
   '.sdd-workbench',
 ])
 
-const WORKSPACE_INDEX_SHALLOW_DEPTH = 3
 const WORKSPACE_INDEX_DIRECTORY_CHILD_CAP = 500
 
 const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
-const MAX_WORKSPACE_INDEX_NODES = 10_000
+const MAX_WORKSPACE_INDEX_NODES = 100_000
 const MAX_WORKSPACE_POLL_FILES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
 const WORKSPACE_WATCH_POLL_INTERVAL_MS = 1500
-const WORKSPACE_WATCH_REMOTE_POLL_INTERVAL_MS = 5000
 const WATCHABLE_FILE_EVENTS = new Set(['add', 'change', 'unlink'])
 const WATCHABLE_STRUCTURE_EVENTS = new Set(['add', 'unlink', 'addDir', 'unlinkDir'])
+const REMOTE_AGENT_LOG_DIRECTORY_NAME = 'logs'
+const REMOTE_AGENT_LOG_FILE_NAME = 'remote-agent.log'
 const ALLOWED_IMAGE_PREVIEW_MIME_PREFIX = 'data:image/'
 const BLOCKED_IMAGE_EXTENSIONS = new Set(['.svg'])
 const SDD_WORKBENCH_DIRECTORY = '.sdd-workbench'
@@ -376,6 +422,12 @@ const fileNameCollator = new Intl.Collator(undefined, {
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
 const workspacesInFallbackTransition = new Set<string>()
 let stopAllWorkspaceWatchersPromise: Promise<void> | null = null
+let remoteAgentLogWriteQueue: Promise<void> = Promise.resolve()
+const remoteReliabilityPolicy = loadRemoteReliabilityPolicy()
+const remoteConnectionService = new RemoteConnectionService({
+  emitEvent: sendWorkspaceRemoteConnectionEvent,
+  policy: remoteReliabilityPolicy,
+})
 let hasRequestedQuitWatcherShutdown = false
 let workspaceWriteOperationsInFlight = 0
 const QUIT_WRITE_SETTLE_TIMEOUT_MS = 5000
@@ -436,6 +488,12 @@ function toBundleTimestamp(date = new Date()) {
   const seconds = String(date.getSeconds()).padStart(2, '0')
 
   return `${year}${month}${day}_${hours}${minutes}${seconds}`
+}
+
+function runBackgroundTask(task: Promise<unknown>, label: string): void {
+  void task.catch((error) => {
+    console.warn(`${label} failed.`, error)
+  })
 }
 
 async function writeFileAtomic(targetPath: string, content: string) {
@@ -618,6 +676,83 @@ type BuildWorkspaceTreeResult = {
   totalChildCount: number
 }
 
+type IndexedWorkspaceEntry = {
+  name: string
+  absolutePath: string
+  kind: 'file' | 'directory'
+  isSymbolicLink: boolean
+}
+
+async function resolveWorkspaceEntryKind(
+  absolutePath: string,
+  entry: Dirent,
+): Promise<Omit<IndexedWorkspaceEntry, 'name' | 'absolutePath'> | null> {
+  if (entry.isFile()) {
+    return {
+      kind: 'file',
+      isSymbolicLink: false,
+    }
+  }
+
+  if (entry.isDirectory()) {
+    return {
+      kind: 'directory',
+      isSymbolicLink: false,
+    }
+  }
+
+  if (!entry.isSymbolicLink()) {
+    return null
+  }
+
+  try {
+    const targetStats = await stat(absolutePath)
+    if (targetStats.isDirectory()) {
+      return {
+        kind: 'directory',
+        isSymbolicLink: true,
+      }
+    }
+    if (targetStats.isFile()) {
+      return {
+        kind: 'file',
+        isSymbolicLink: true,
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+async function collectIndexedWorkspaceEntries(
+  directoryPath: string,
+): Promise<IndexedWorkspaceEntry[]> {
+  const entries = await readdir(directoryPath, { withFileTypes: true })
+  const indexedEntries: IndexedWorkspaceEntry[] = []
+
+  for (const entry of entries) {
+    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
+      continue
+    }
+
+    const absolutePath = path.join(directoryPath, entry.name)
+    const entryKind = await resolveWorkspaceEntryKind(absolutePath, entry)
+    if (!entryKind) {
+      continue
+    }
+
+    indexedEntries.push({
+      name: entry.name,
+      absolutePath,
+      ...entryKind,
+    })
+  }
+
+  return indexedEntries
+}
+
 async function buildWorkspaceTree(
   rootPath: string,
   currentDirectory: string,
@@ -632,17 +767,7 @@ async function buildWorkspaceTree(
   const maxDepth = options?.maxDepth
   const currentDepth = options?.currentDepth ?? 0
 
-  const entries = await readdir(currentDirectory, { withFileTypes: true })
-
-  const eligibleEntries = entries.filter((entry) => {
-    if (entry.isSymbolicLink()) {
-      return false
-    }
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      return false
-    }
-    return entry.isFile() || entry.isDirectory()
-  })
+  const eligibleEntries = await collectIndexedWorkspaceEntries(currentDirectory)
 
   const totalChildCount = eligibleEntries.length
   const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
@@ -660,17 +785,19 @@ async function buildWorkspaceTree(
       break
     }
 
-    const absolutePath = path.join(currentDirectory, entry.name)
-    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+    const relativePath = normalizeToWorkspaceRelativePath(
+      entry.absolutePath,
+      rootPath,
+    )
 
     if (!relativePath || relativePath.startsWith('..')) {
       continue
     }
 
-    if (entry.isDirectory()) {
+    if (entry.kind === 'directory') {
       indexBudget.remainingNodes -= 1
 
-      if (skipRecurse) {
+      if (skipRecurse || entry.isSymbolicLink) {
         nodes.push({
           name: entry.name,
           relativePath,
@@ -683,7 +810,7 @@ async function buildWorkspaceTree(
 
       const childResult = await buildWorkspaceTree(
         rootPath,
-        absolutePath,
+        entry.absolutePath,
         indexBudget,
         { maxDepth, currentDepth: currentDepth + 1 },
       )
@@ -702,7 +829,7 @@ async function buildWorkspaceTree(
       continue
     }
 
-    if (entry.isFile()) {
+    if (entry.kind === 'file') {
       indexBudget.remainingNodes -= 1
       nodes.push({
         name: entry.name,
@@ -722,37 +849,25 @@ async function buildWorkspaceTree(
 async function buildDirectoryChildren(
   rootPath: string,
   directoryPath: string,
+  options?: { offset?: number; limit?: number },
 ): Promise<{
   children: WorkspaceFileNode[]
   childrenStatus: 'complete' | 'partial'
   totalChildCount: number
 }> {
-  const entries = await readdir(directoryPath, { withFileTypes: true })
-  const eligibleEntries = entries.filter((entry) => {
-    if (entry.isSymbolicLink()) {
-      return false
-    }
-    if (WORKSPACE_INDEX_IGNORE_NAMES.has(entry.name)) {
-      return false
-    }
-    return entry.isFile() || entry.isDirectory()
-  })
-
-  const totalChildCount = eligibleEntries.length
-  const isCapped = totalChildCount > WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
-  const cappedEntries = isCapped
-    ? eligibleEntries.slice(0, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
-    : eligibleEntries
+  const eligibleEntries = await collectIndexedWorkspaceEntries(directoryPath)
 
   const nodes: WorkspaceFileNode[] = []
-  for (const entry of cappedEntries) {
-    const absolutePath = path.join(directoryPath, entry.name)
-    const relativePath = normalizeToWorkspaceRelativePath(absolutePath, rootPath)
+  for (const entry of eligibleEntries) {
+    const relativePath = normalizeToWorkspaceRelativePath(
+      entry.absolutePath,
+      rootPath,
+    )
     if (!relativePath || relativePath.startsWith('..')) {
       continue
     }
 
-    if (entry.isDirectory()) {
+    if (entry.kind === 'directory') {
       nodes.push({
         name: entry.name,
         relativePath,
@@ -770,9 +885,25 @@ async function buildDirectoryChildren(
     })
   }
 
+  const sortedNodes = sortWorkspaceTree(nodes)
+  const totalChildCount = sortedNodes.length
+  const rawOffset = options?.offset
+  const parsedOffset =
+    typeof rawOffset === 'number' && Number.isFinite(rawOffset)
+      ? Math.max(0, Math.floor(rawOffset))
+      : 0
+  const rawLimit = options?.limit
+  const parsedLimit =
+    typeof rawLimit === 'number' && Number.isFinite(rawLimit)
+      ? Math.max(1, Math.floor(rawLimit))
+      : WORKSPACE_INDEX_DIRECTORY_CHILD_CAP
+  const effectiveLimit = Math.min(parsedLimit, WORKSPACE_INDEX_DIRECTORY_CHILD_CAP)
+  const pagedChildren = sortedNodes.slice(parsedOffset, parsedOffset + effectiveLimit)
+  const hasMore = parsedOffset + pagedChildren.length < totalChildCount
+
   return {
-    children: sortWorkspaceTree(nodes),
-    childrenStatus: isCapped ? 'partial' : 'complete',
+    children: pagedChildren,
+    childrenStatus: hasMore ? 'partial' : 'complete',
     totalChildCount,
   }
 }
@@ -817,7 +948,10 @@ async function handleWorkspaceIndexDirectory(
       }
     }
 
-    const result = await buildDirectoryChildren(resolvedRootPath, resolvedTargetPath)
+    const result = await buildDirectoryChildren(resolvedRootPath, resolvedTargetPath, {
+      offset: request.offset,
+      limit: request.limit,
+    })
     return {
       ok: true,
       children: result.children,
@@ -891,19 +1025,14 @@ async function handleWorkspaceIndex(
       }
     }
 
-    const isRemoteMounted = detectRemoteMountPoint(resolvedRootPath)
     const indexBudget = {
       remainingNodes: MAX_WORKSPACE_INDEX_NODES,
       truncated: false,
     }
-    const depthOptions = isRemoteMounted
-      ? { maxDepth: WORKSPACE_INDEX_SHALLOW_DEPTH, currentDepth: 0 }
-      : undefined
     const treeResult = await buildWorkspaceTree(
       resolvedRootPath,
       resolvedRootPath,
       indexBudget,
-      depthOptions,
     )
     return {
       ok: true,
@@ -1889,6 +2018,30 @@ function sendWorkspaceWatchEvent(payload: WorkspaceWatchEventPayload) {
   win.webContents.send('workspace:watchEvent', payload)
 }
 
+function sendWorkspaceWatchFallbackEvent(payload: WorkspaceWatchFallbackEvent) {
+  if (!win || win.isDestroyed()) {
+    return
+  }
+  win.webContents.send('workspace:watchFallback', payload)
+}
+
+function sendWorkspaceRemoteConnectionEvent(payload: RemoteConnectionEvent) {
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'remoteConnectionEvent',
+    workspaceId: payload.workspaceId,
+    sessionId: payload.sessionId ?? null,
+    state: payload.state,
+    errorCode: payload.errorCode ?? null,
+    message: sanitizeRemoteLogMessage(payload.message),
+    occurredAt: payload.occurredAt,
+  })
+  if (!win || win.isDestroyed()) {
+    return
+  }
+  win.webContents.send('workspace:remoteConnectionEvent', payload)
+}
+
 function sendWorkspaceHistoryNavigationEvent(
   payload: WorkspaceHistoryNavigationEventPayload,
 ) {
@@ -2283,17 +2436,15 @@ async function switchToPollingFallback(
     const pollEntry = await createPollingWorkspaceWatcherEntry(
       workspaceId,
       resolvedRootPath,
-      WORKSPACE_WATCH_REMOTE_POLL_INTERVAL_MS,
+      WORKSPACE_WATCH_POLL_INTERVAL_MS,
     )
     workspaceWatchers.set(workspaceId, pollEntry)
     scheduleWorkspacePollingTick(workspaceId)
 
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('workspace:watchFallback', {
-        workspaceId,
-        watchMode: 'polling' as const,
-      })
-    }
+    sendWorkspaceWatchFallbackEvent({
+      workspaceId,
+      watchMode: 'polling',
+    })
   } catch (error) {
     console.error(
       `Failed to switch workspace "${workspaceId}" to polling fallback.`,
@@ -2377,11 +2528,10 @@ async function handleWorkspaceWatchStart(
       }
     }
 
-    const isRemoteMountedHint = detectRemoteMountPoint(resolvedRootPath)
     const watchModeResolution = resolveWorkspaceWatchMode({
       rootPath: resolvedRootPath,
       watchModePreference: request.watchModePreference,
-      isRemoteMountedHint,
+      isRemoteMountedHint: false,
     })
     const existingWatchEntry = workspaceWatchers.get(workspaceId)
     if (
@@ -2400,9 +2550,6 @@ async function handleWorkspaceWatchStart(
       await stopWorkspaceWatcher(workspaceId)
     }
 
-    const remotePollInterval = watchModeResolution.isRemoteMounted
-      ? WORKSPACE_WATCH_REMOTE_POLL_INTERVAL_MS
-      : WORKSPACE_WATCH_POLL_INTERVAL_MS
     let fallbackApplied = false
     let resolvedWatchMode = watchModeResolution.watchMode
     let watchEntry: WorkspaceWatcherEntry
@@ -2410,7 +2557,11 @@ async function handleWorkspaceWatchStart(
       watchEntry =
         resolvedWatchMode === 'native'
           ? await createNativeWorkspaceWatcherEntry(workspaceId, resolvedRootPath)
-          : await createPollingWorkspaceWatcherEntry(workspaceId, resolvedRootPath, remotePollInterval)
+          : await createPollingWorkspaceWatcherEntry(
+            workspaceId,
+            resolvedRootPath,
+            WORKSPACE_WATCH_POLL_INTERVAL_MS,
+          )
     } catch (error) {
       if (resolvedWatchMode !== 'native') {
         throw error
@@ -2422,7 +2573,7 @@ async function handleWorkspaceWatchStart(
       watchEntry = await createPollingWorkspaceWatcherEntry(
         workspaceId,
         resolvedRootPath,
-        remotePollInterval,
+        WORKSPACE_WATCH_POLL_INTERVAL_MS,
       )
       resolvedWatchMode = 'polling'
       fallbackApplied = true
@@ -2470,6 +2621,540 @@ async function handleWorkspaceWatchStop(
   }
 }
 
+const DUMMY_IPC_EVENT = {} as IpcMainInvokeEvent
+
+const localWorkspaceBackend = createLocalWorkspaceBackend({
+  index: async (request) => handleWorkspaceIndex(DUMMY_IPC_EVENT, request),
+  indexDirectory: async (request) =>
+    handleWorkspaceIndexDirectory(DUMMY_IPC_EVENT, request),
+  readFile: async (request) => handleWorkspaceReadFile(DUMMY_IPC_EVENT, request),
+  writeFile: async (request) =>
+    handleWorkspaceWriteFile(DUMMY_IPC_EVENT, request),
+  createFile: async (request) =>
+    handleWorkspaceCreateFile(DUMMY_IPC_EVENT, request),
+  createDirectory: async (request) =>
+    handleWorkspaceCreateDirectory(DUMMY_IPC_EVENT, request),
+  deleteFile: async (request) =>
+    handleWorkspaceDeleteFile(DUMMY_IPC_EVENT, request),
+  deleteDirectory: async (request) =>
+    handleWorkspaceDeleteDirectory(DUMMY_IPC_EVENT, request),
+  rename: async (request) => handleWorkspaceRename(DUMMY_IPC_EVENT, request),
+  getGitLineMarkers: async (request) =>
+    handleWorkspaceGetGitLineMarkers(DUMMY_IPC_EVENT, request),
+  getGitFileStatuses: async (request) =>
+    handleWorkspaceGetGitFileStatuses(DUMMY_IPC_EVENT, request),
+  readComments: async (request) =>
+    handleWorkspaceReadComments(DUMMY_IPC_EVENT, request),
+  writeComments: async (request) =>
+    handleWorkspaceWriteComments(DUMMY_IPC_EVENT, request),
+  readGlobalComments: async (request) =>
+    handleWorkspaceReadGlobalComments(DUMMY_IPC_EVENT, request),
+  writeGlobalComments: async (request) =>
+    handleWorkspaceWriteGlobalComments(DUMMY_IPC_EVENT, request),
+  exportCommentsBundle: async (request) =>
+    handleWorkspaceExportCommentsBundle(DUMMY_IPC_EVENT, request),
+  watchStart: async (request) =>
+    handleWorkspaceWatchStart(DUMMY_IPC_EVENT, request),
+  watchStop: async (request) =>
+    handleWorkspaceWatchStop(DUMMY_IPC_EVENT, request),
+})
+
+const workspaceBackendRouter = new WorkspaceBackendRouter(localWorkspaceBackend)
+
+function toBackendErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  try {
+    const normalized = toRemoteAgentError(error)
+    return redactRemoteErrorMessage(normalized.message, fallbackMessage)
+  } catch {
+    if (error instanceof Error) {
+      return redactRemoteErrorMessage(error.message, fallbackMessage)
+    }
+    return fallbackMessage
+  }
+}
+
+async function handleWorkspaceIndexRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceIndexRequest,
+): Promise<WorkspaceIndexResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.index(request)) as WorkspaceIndexResult
+  } catch (error) {
+    return {
+      ok: false,
+      fileTree: [],
+      error: toBackendErrorMessage(error, 'Failed to index workspace'),
+    }
+  }
+}
+
+async function handleWorkspaceIndexDirectoryRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceIndexDirectoryRequest,
+): Promise<WorkspaceIndexDirectoryResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.indexDirectory(request)) as WorkspaceIndexDirectoryResult
+  } catch (error) {
+    return {
+      ok: false,
+      children: [],
+      childrenStatus: 'complete',
+      totalChildCount: 0,
+      error: toBackendErrorMessage(error, 'Failed to index directory'),
+    }
+  }
+}
+
+async function handleWorkspaceReadFileRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceReadFileRequest,
+): Promise<WorkspaceReadFileResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.readFile(request)) as WorkspaceReadFileResult
+  } catch (error) {
+    return {
+      ok: false,
+      content: null,
+      error: toBackendErrorMessage(error, 'Failed to read file'),
+    }
+  }
+}
+
+async function handleWorkspaceWriteFileRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWriteFileRequest,
+): Promise<WorkspaceWriteFileResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.writeFile(request)) as WorkspaceWriteFileResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to write file.'),
+    }
+  }
+}
+
+async function handleWorkspaceCreateFileRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceCreateFileRequest,
+): Promise<WorkspaceCreateFileResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.createFile(request)) as WorkspaceCreateFileResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to create file.'),
+    }
+  }
+}
+
+async function handleWorkspaceCreateDirectoryRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceCreateDirectoryRequest,
+): Promise<WorkspaceCreateDirectoryResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.createDirectory(request)) as WorkspaceCreateDirectoryResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to create directory.'),
+    }
+  }
+}
+
+async function handleWorkspaceDeleteFileRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceDeleteFileRequest,
+): Promise<WorkspaceDeleteFileResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.deleteFile(request)) as WorkspaceDeleteFileResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to delete file.'),
+    }
+  }
+}
+
+async function handleWorkspaceDeleteDirectoryRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceDeleteDirectoryRequest,
+): Promise<WorkspaceDeleteDirectoryResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.deleteDirectory(request)) as WorkspaceDeleteDirectoryResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to delete directory.'),
+    }
+  }
+}
+
+async function handleWorkspaceRenameRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceRenameRequest,
+): Promise<WorkspaceRenameResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.rename(request)) as WorkspaceRenameResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to rename.'),
+    }
+  }
+}
+
+async function handleWorkspaceGetGitLineMarkersRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceGetGitLineMarkersRequest,
+): Promise<WorkspaceGetGitLineMarkersResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.getGitLineMarkers(request)) as WorkspaceGetGitLineMarkersResult
+  } catch (error) {
+    return {
+      ok: false,
+      markers: [],
+      error: toBackendErrorMessage(error, 'Failed to read git line markers.'),
+    }
+  }
+}
+
+async function handleWorkspaceGetGitFileStatusesRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceGetGitFileStatusesRequest,
+): Promise<WorkspaceGetGitFileStatusesResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.getGitFileStatuses(request)) as WorkspaceGetGitFileStatusesResult
+  } catch (error) {
+    return {
+      ok: false,
+      statuses: {},
+      error: toBackendErrorMessage(error, 'Failed to read git file statuses.'),
+    }
+  }
+}
+
+async function handleWorkspaceReadCommentsRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceReadCommentsRequest,
+): Promise<WorkspaceReadCommentsResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.readComments(request)) as WorkspaceReadCommentsResult
+  } catch (error) {
+    return {
+      ok: false,
+      comments: [],
+      error: toBackendErrorMessage(error, 'Failed to read comments.'),
+    }
+  }
+}
+
+async function handleWorkspaceWriteCommentsRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWriteCommentsRequest,
+): Promise<WorkspaceWriteCommentsResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.writeComments(request)) as WorkspaceWriteCommentsResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to write comments.'),
+    }
+  }
+}
+
+async function handleWorkspaceReadGlobalCommentsRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceReadGlobalCommentsRequest,
+): Promise<WorkspaceReadGlobalCommentsResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.readGlobalComments(request)) as WorkspaceReadGlobalCommentsResult
+  } catch (error) {
+    return {
+      ok: false,
+      body: '',
+      error: toBackendErrorMessage(error, 'Failed to read global comments.'),
+    }
+  }
+}
+
+async function handleWorkspaceWriteGlobalCommentsRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWriteGlobalCommentsRequest,
+): Promise<WorkspaceWriteGlobalCommentsResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.writeGlobalComments(request)) as WorkspaceWriteGlobalCommentsResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to write global comments.'),
+    }
+  }
+}
+
+async function handleWorkspaceExportCommentsBundleRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceExportCommentsBundleRequest,
+): Promise<WorkspaceExportCommentsBundleResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.exportCommentsBundle(request)) as WorkspaceExportCommentsBundleResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to export comments bundle.'),
+    }
+  }
+}
+
+async function handleWorkspaceWatchStartRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWatchStartRequest,
+): Promise<WorkspaceWatchControlResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.watchStart(request)) as WorkspaceWatchControlResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to start workspace watcher.'),
+    }
+  }
+}
+
+async function handleWorkspaceWatchStopRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceWatchStopRequest,
+): Promise<WorkspaceWatchControlResult> {
+  try {
+    const workspaceId = request?.workspaceId
+    if (!workspaceId) {
+      return {
+        ok: false,
+        error: 'workspaceId is required.',
+      }
+    }
+
+    const remoteRootPath = workspaceBackendRouter.getRemoteRootPath(workspaceId)
+    if (remoteRootPath) {
+      const backend = workspaceBackendRouter.resolveByRootPath(remoteRootPath)
+      return (await backend.watchStop(request)) as WorkspaceWatchControlResult
+    }
+
+    return (await localWorkspaceBackend.watchStop(
+      request,
+    )) as WorkspaceWatchControlResult
+  } catch (error) {
+    return {
+      ok: false,
+      error: toBackendErrorMessage(error, 'Failed to stop workspace watcher.'),
+    }
+  }
+}
+
+async function handleWorkspaceConnectRemote(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceConnectRemoteRequest,
+): Promise<RemoteConnectResult> {
+  const profile = request?.profile
+  if (!profile) {
+    return {
+      ok: false,
+      workspaceId: '',
+      errorCode: 'UNKNOWN',
+      error: 'profile is required.',
+    }
+  }
+
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'connectRemote.request',
+    workspaceId: profile.workspaceId ?? null,
+    host: profile.host ?? null,
+    user: profile.user ?? null,
+    port: profile.port ?? null,
+    remoteRoot: profile.remoteRoot ?? null,
+    agentPath: profile.agentPath ?? null,
+    hasIdentityFile:
+      typeof profile.identityFile === 'string' && profile.identityFile.trim().length > 0,
+  })
+
+  const connectResult = await remoteConnectionService.connect(profile)
+  if (!connectResult.ok) {
+    queueRemoteAgentLog({
+      at: new Date().toISOString(),
+      source: 'connectRemote.result',
+      ok: false,
+      workspaceId: connectResult.workspaceId,
+      errorCode: connectResult.errorCode,
+      error: sanitizeRemoteLogMessage(connectResult.error),
+    })
+    return connectResult
+  }
+
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'connectRemote.result',
+    ok: true,
+    workspaceId: connectResult.workspaceId,
+    sessionId: connectResult.sessionId,
+    rootPath: connectResult.rootPath,
+    remoteConnectionState: connectResult.remoteConnectionState,
+  })
+
+  const remoteBackend = createRemoteWorkspaceBackend({
+    workspaceId: connectResult.workspaceId,
+    rootPath: connectResult.rootPath,
+    requestRemote: async (workspaceId, method, params) =>
+      remoteConnectionService.request(workspaceId, method, params),
+    subscribeAgentEvents: (workspaceId, listener) =>
+      remoteConnectionService.onAgentEvent(workspaceId, listener),
+    sendWatchEvent: sendWorkspaceWatchEvent,
+    sendWatchFallback: sendWorkspaceWatchFallbackEvent,
+  })
+
+  workspaceBackendRouter.registerRemoteWorkspace({
+    workspaceId: connectResult.workspaceId,
+    rootPath: connectResult.rootPath,
+    backend: remoteBackend,
+  })
+
+  return connectResult
+}
+
+async function handleWorkspaceBrowseRemoteDirectories(
+  _event: IpcMainInvokeEvent,
+  payload: WorkspaceBrowseRemoteDirectoriesRequest,
+): Promise<WorkspaceBrowseRemoteDirectoriesResult> {
+  const request = payload?.request
+  if (!request) {
+    return {
+      ok: false,
+      currentPath: '',
+      entries: [],
+      truncated: false,
+      errorCode: 'UNKNOWN',
+      error: 'request is required.',
+    }
+  }
+
+  queueRemoteAgentLog({
+    at: new Date().toISOString(),
+    source: 'remoteBrowse.request',
+    host: request.host ?? null,
+    user: request.user ?? null,
+    port: request.port ?? null,
+    targetPath: request.targetPath ?? null,
+    hasIdentityFile:
+      typeof request.identityFile === 'string' && request.identityFile.trim().length > 0,
+    limit: request.limit ?? null,
+  })
+
+  try {
+    const result = await browseRemoteDirectories(request)
+    queueRemoteAgentLog({
+      at: new Date().toISOString(),
+      source: 'remoteBrowse.result',
+      ok: true,
+      currentPath: result.currentPath,
+      entryCount: result.entries.length,
+      truncated: result.truncated,
+    })
+
+    return {
+      ok: true,
+      currentPath: result.currentPath,
+      entries: result.entries,
+      truncated: result.truncated,
+    }
+  } catch (error) {
+    const normalized = toRemoteAgentError(error, 'UNKNOWN')
+    const sanitizedError = redactRemoteErrorMessage(
+      normalized.message,
+      'Failed to browse remote directories.',
+    )
+
+    queueRemoteAgentLog({
+      at: new Date().toISOString(),
+      source: 'remoteBrowse.result',
+      ok: false,
+      errorCode: normalized.code,
+      error: sanitizedError,
+    })
+
+    return {
+      ok: false,
+      currentPath: request.targetPath?.trim() ?? '',
+      entries: [],
+      truncated: false,
+      errorCode: normalized.code,
+      error: sanitizedError,
+    }
+  }
+}
+
+function sanitizeRemoteLogMessage(message: string | undefined): string | null {
+  if (!message || message.trim().length === 0) {
+    return null
+  }
+
+  const sanitized = redactRemoteErrorMessage(message, '')
+  return sanitized.length > 0 ? sanitized : null
+}
+
+function queueRemoteAgentLog(payload: Record<string, unknown>): void {
+  remoteAgentLogWriteQueue = remoteAgentLogWriteQueue
+    .then(async () => {
+      const userDataDirectoryPath = app.getPath('userData')
+      const logDirectoryPath = path.join(
+        userDataDirectoryPath,
+        REMOTE_AGENT_LOG_DIRECTORY_NAME,
+      )
+      const logFilePath = path.join(logDirectoryPath, REMOTE_AGENT_LOG_FILE_NAME)
+      await mkdir(logDirectoryPath, { recursive: true })
+      await appendFile(logFilePath, `${JSON.stringify(payload)}\n`, 'utf8')
+    })
+    .catch(() => undefined)
+}
+
+async function handleWorkspaceDisconnectRemote(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceDisconnectRemoteRequest,
+): Promise<RemoteDisconnectResult> {
+  const workspaceId = request?.workspaceId
+  if (!workspaceId) {
+    return {
+      ok: false,
+      workspaceId: '',
+      error: 'workspaceId is required.',
+    }
+  }
+
+  const disconnectResult = await remoteConnectionService.disconnect(workspaceId)
+  await workspaceBackendRouter.unregisterRemoteWorkspaceByWorkspaceId(
+    workspaceId.trim(),
+  )
+  return disconnectResult
+}
+
 function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:openDialog')
   ipcMain.removeHandler('workspace:index')
@@ -2490,34 +3175,43 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:exportCommentsBundle')
   ipcMain.removeHandler('workspace:watchStart')
   ipcMain.removeHandler('workspace:watchStop')
+  ipcMain.removeHandler('workspace:connectRemote')
+  ipcMain.removeHandler('workspace:browseRemoteDirectories')
+  ipcMain.removeHandler('workspace:disconnectRemote')
   ipcMain.removeHandler('system:openInIterm')
   ipcMain.removeHandler('system:openInVsCode')
   ipcMain.removeHandler('system:openInFinder')
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
-  ipcMain.handle('workspace:index', handleWorkspaceIndex)
-  ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectory)
-  ipcMain.handle('workspace:readFile', handleWorkspaceReadFile)
-  ipcMain.handle('workspace:writeFile', handleWorkspaceWriteFile)
-  ipcMain.handle('workspace:createFile', handleWorkspaceCreateFile)
-  ipcMain.handle('workspace:createDirectory', handleWorkspaceCreateDirectory)
-  ipcMain.handle('workspace:deleteFile', handleWorkspaceDeleteFile)
-  ipcMain.handle('workspace:deleteDirectory', handleWorkspaceDeleteDirectory)
-  ipcMain.handle('workspace:rename', handleWorkspaceRename)
-  ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkers)
-  ipcMain.handle('workspace:getGitFileStatuses', handleWorkspaceGetGitFileStatuses)
-  ipcMain.handle('workspace:readComments', handleWorkspaceReadComments)
-  ipcMain.handle('workspace:writeComments', handleWorkspaceWriteComments)
-  ipcMain.handle('workspace:readGlobalComments', handleWorkspaceReadGlobalComments)
+  ipcMain.handle('workspace:index', handleWorkspaceIndexRouted)
+  ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectoryRouted)
+  ipcMain.handle('workspace:readFile', handleWorkspaceReadFileRouted)
+  ipcMain.handle('workspace:writeFile', handleWorkspaceWriteFileRouted)
+  ipcMain.handle('workspace:createFile', handleWorkspaceCreateFileRouted)
+  ipcMain.handle('workspace:createDirectory', handleWorkspaceCreateDirectoryRouted)
+  ipcMain.handle('workspace:deleteFile', handleWorkspaceDeleteFileRouted)
+  ipcMain.handle('workspace:deleteDirectory', handleWorkspaceDeleteDirectoryRouted)
+  ipcMain.handle('workspace:rename', handleWorkspaceRenameRouted)
+  ipcMain.handle('workspace:getGitLineMarkers', handleWorkspaceGetGitLineMarkersRouted)
+  ipcMain.handle('workspace:getGitFileStatuses', handleWorkspaceGetGitFileStatusesRouted)
+  ipcMain.handle('workspace:readComments', handleWorkspaceReadCommentsRouted)
+  ipcMain.handle('workspace:writeComments', handleWorkspaceWriteCommentsRouted)
+  ipcMain.handle('workspace:readGlobalComments', handleWorkspaceReadGlobalCommentsRouted)
   ipcMain.handle(
     'workspace:writeGlobalComments',
-    handleWorkspaceWriteGlobalComments,
+    handleWorkspaceWriteGlobalCommentsRouted,
   )
   ipcMain.handle(
     'workspace:exportCommentsBundle',
-    handleWorkspaceExportCommentsBundle,
+    handleWorkspaceExportCommentsBundleRouted,
   )
-  ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStart)
-  ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStop)
+  ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStartRouted)
+  ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStopRouted)
+  ipcMain.handle('workspace:connectRemote', handleWorkspaceConnectRemote)
+  ipcMain.handle(
+    'workspace:browseRemoteDirectories',
+    handleWorkspaceBrowseRemoteDirectories,
+  )
+  ipcMain.handle('workspace:disconnectRemote', handleWorkspaceDisconnectRemote)
   ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
   ipcMain.handle('system:openInVsCode', handleSystemOpenInVsCode)
   ipcMain.handle('system:openInFinder', handleSystemOpenInFinder)
@@ -2594,7 +3288,12 @@ function createWindow() {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  void stopAllWorkspaceWatchers()
+  runBackgroundTask(stopAllWorkspaceWatchers(), 'stopAllWorkspaceWatchers')
+  runBackgroundTask(
+    workspaceBackendRouter.clearRemoteWorkspaces(),
+    'clearRemoteWorkspaces',
+  )
+  runBackgroundTask(remoteConnectionService.shutdown(), 'remoteConnectionService.shutdown')
   if (process.platform !== 'darwin') {
     app.quit()
     win = null
@@ -2619,14 +3318,21 @@ app.on('before-quit', (event) => {
     }
 
     await Promise.race([
-      stopAllWorkspaceWatchers(),
+      Promise.all([
+        stopAllWorkspaceWatchers(),
+        workspaceBackendRouter.clearRemoteWorkspaces(),
+        remoteConnectionService.shutdown(),
+      ]).then(() => undefined),
       new Promise<void>((resolve) => {
         setTimeout(resolve, QUIT_WATCHER_SHUTDOWN_TIMEOUT_MS)
       }),
     ])
 
     app.exit(0)
-  })()
+  })().catch((error) => {
+    console.warn('before-quit cleanup failed.', error)
+    app.exit(0)
+  })
 })
 
 app.on('activate', () => {
