@@ -1,4 +1,5 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, realpath, stat } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
 import path from 'node:path'
 import { normalizeToWorkspaceRelativePath } from './path-guard'
 import type { RuntimeWatchEventPayload, RuntimeWatchFallbackPayload, RuntimeWatchMode } from './runtime-types'
@@ -31,8 +32,43 @@ const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
   '.sdd-workbench',
 ])
 
-const MAX_WORKSPACE_POLL_FILES = 10_000
+const MAX_WORKSPACE_POLL_FILES = 100_000
 const DEFAULT_POLL_INTERVAL_MS = 1500
+
+type WatchEntryKind = {
+  kind: 'file' | 'directory'
+}
+
+async function resolveWatchEntryKind(
+  absolutePath: string,
+  entry: Dirent,
+): Promise<WatchEntryKind | null> {
+  if (entry.isFile()) {
+    return { kind: 'file' }
+  }
+
+  if (entry.isDirectory()) {
+    return { kind: 'directory' }
+  }
+
+  if (!entry.isSymbolicLink()) {
+    return null
+  }
+
+  try {
+    const targetStats = await stat(absolutePath)
+    if (targetStats.isDirectory()) {
+      return { kind: 'directory' }
+    }
+    if (targetStats.isFile()) {
+      return { kind: 'file' }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
 
 function hasIgnoredWorkspaceSegment(relativePath: string): boolean {
   return relativePath
@@ -60,11 +96,22 @@ async function buildWorkspacePollingSnapshot(
 ): Promise<RuntimePollingSnapshot> {
   const fileMetadataByRelativePath = new Map<string, string>()
   const directoryPaths = new Set<string>()
+  const visitedDirectoryRealPaths = new Set<string>()
   let fileCount = 0
 
   async function walkDirectory(currentDirectory: string): Promise<void> {
     if (fileCount >= MAX_WORKSPACE_POLL_FILES) {
       return
+    }
+
+    try {
+      const currentDirectoryRealPath = await realpath(currentDirectory)
+      if (visitedDirectoryRealPaths.has(currentDirectoryRealPath)) {
+        return
+      }
+      visitedDirectoryRealPaths.add(currentDirectoryRealPath)
+    } catch {
+      // Skip realpath de-duplication for unreadable/transient paths.
     }
 
     const entries = await readdir(currentDirectory, { withFileTypes: true })
@@ -74,12 +121,13 @@ async function buildWorkspacePollingSnapshot(
         return
       }
 
-      if (entry.isSymbolicLink()) {
+      const absolutePath = path.join(currentDirectory, entry.name)
+      if (shouldIgnoreWatchPath(rootPath, absolutePath)) {
         continue
       }
 
-      const absolutePath = path.join(currentDirectory, entry.name)
-      if (shouldIgnoreWatchPath(rootPath, absolutePath)) {
+      const entryKind = await resolveWatchEntryKind(absolutePath, entry)
+      if (!entryKind) {
         continue
       }
 
@@ -88,13 +136,9 @@ async function buildWorkspacePollingSnapshot(
         continue
       }
 
-      if (entry.isDirectory()) {
+      if (entryKind.kind === 'directory') {
         directoryPaths.add(relativePath)
         await walkDirectory(absolutePath)
-        continue
-      }
-
-      if (!entry.isFile()) {
         continue
       }
 

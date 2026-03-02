@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -38,6 +38,41 @@ describe('remote-agent/runtime/watch-ops', () => {
       expect(stopResult).toEqual({ ok: true })
     } finally {
       await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('tracks file changes inside symlinked directories', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-watch-root-'))
+    const externalPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-watch-target-'))
+    const emitted: Array<{ eventName: string; payload: unknown }> = []
+
+    try {
+      await symlink(externalPath, path.join(rootPath, 'linked'))
+
+      const service = new RuntimeWatchService(rootPath, (eventName, payload) => {
+        emitted.push({ eventName, payload })
+      })
+
+      await service.start('native')
+
+      await writeFile(path.join(externalPath, 'symlink-target.txt'), 'hello\n', 'utf8')
+      await wait(1_800)
+
+      const watchEvents = emitted.filter(
+        (event) => event.eventName === 'workspace.watchEvent',
+      )
+      const hasChangedPath = watchEvents.some((event) => {
+        const payload = event.payload as {
+          changedRelativePaths?: string[]
+        }
+        return payload.changedRelativePaths?.includes('linked/symlink-target.txt') === true
+      })
+
+      expect(hasChangedPath).toBe(true)
+      await service.stop()
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+      await rm(externalPath, { recursive: true, force: true })
     }
   })
 })
