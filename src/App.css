@@ -1571,6 +1571,14 @@
   margin-top: 8px;
 }
 
+.comment-list-global-editor {
+  min-height: 160px;
+}
+
+.comment-list-global-actions {
+  justify-content: flex-start;
+}
+
 .comment-list-modal-delete-exported {
   margin-right: auto;
 }

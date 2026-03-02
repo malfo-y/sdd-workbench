@@ -738,6 +738,28 @@ function App() {
     [globalCommentsModalState, saveGlobalComments, showCommentBanner],
   )
 
+  const handleSaveGlobalCommentsFromList = useCallback(
+    async (body: string) => {
+      if (!activeWorkspaceId) {
+        showCommentBanner('Cannot save global comments: no active workspace selected.')
+        return false
+      }
+
+      const saved = await saveGlobalComments(body, activeWorkspaceId)
+      if (!saved) {
+        return false
+      }
+
+      showCommentBanner(
+        body.trim().length === 0
+          ? 'Global comments cleared.'
+          : 'Global comments saved.',
+      )
+      return true
+    },
+    [activeWorkspaceId, saveGlobalComments, showCommentBanner],
+  )
+
   const handleRequestAddCommentFromSpec = useCallback(
     (input: {
       relativePath: string
@@ -1993,6 +2015,7 @@ function App() {
         comments={comments}
         globalComments={globalComments}
         isOpen={isViewCommentsModalOpen}
+        isSavingGlobalComments={isWritingGlobalComments}
         isSaving={isWritingComments}
         onClose={() => {
           if (!isWritingComments) {
@@ -2001,6 +2024,7 @@ function App() {
         }}
         onDeleteComment={handleDeleteComment}
         onDeleteExportedComments={handleDeleteExportedComments}
+        onSaveGlobalComments={handleSaveGlobalCommentsFromList}
         onUpdateComment={handleUpdateComment}
         onRequestExport={(selectedIds, includeGlobal) => {
           setExportSelectedCommentIds(selectedIds)

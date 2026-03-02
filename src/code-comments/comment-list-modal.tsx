@@ -8,6 +8,7 @@ import {
 type CommentListModalProps = {
   isOpen: boolean
   isSaving: boolean
+  isSavingGlobalComments?: boolean
   comments: readonly CodeComment[]
   globalComments: string
   onClose: () => void
@@ -17,6 +18,7 @@ type CommentListModalProps = {
   ) => boolean | Promise<boolean>
   onDeleteComment: (commentId: string) => boolean | Promise<boolean>
   onDeleteExportedComments: () => boolean | Promise<boolean>
+  onSaveGlobalComments?: (body: string) => boolean | Promise<boolean>
   onRequestExport: (selectedCommentIds: string[], includeGlobalComments: boolean) => void
   onJumpToComment: (relativePath: string, startLine: number, endLine: number) => void
 }
@@ -45,12 +47,14 @@ function isLongCommentBody(body: string) {
 export function CommentListModal({
   isOpen,
   isSaving,
+  isSavingGlobalComments = false,
   comments,
   globalComments,
   onClose,
   onUpdateComment,
   onDeleteComment,
   onDeleteExportedComments,
+  onSaveGlobalComments,
   onRequestExport,
   onJumpToComment,
 }: CommentListModalProps) {
@@ -68,10 +72,16 @@ export function CommentListModal({
     () => new Set(),
   )
   const [includeGlobalComments, setIncludeGlobalComments] = useState(true)
+  const [savedGlobalComments, setSavedGlobalComments] = useState(globalComments)
+  const [editingGlobalCommentsBody, setEditingGlobalCommentsBody] =
+    useState(globalComments)
+  const [isEditingGlobalComments, setIsEditingGlobalComments] = useState(false)
 
   // Ref to read latest comments without including in deps (prevents reset on every comment change)
   const commentsRef = useRef(comments)
   commentsRef.current = comments
+  const globalCommentsRef = useRef(globalComments)
+  globalCommentsRef.current = globalComments
 
   useEffect(() => {
     if (!isOpen) {
@@ -83,6 +93,9 @@ export function CommentListModal({
     setPendingDeleteCommentId(null)
     setIsDeleteExportedConfirmOpen(false)
     setIncludeGlobalComments(true)
+    setIsEditingGlobalComments(false)
+    setSavedGlobalComments(globalCommentsRef.current)
+    setEditingGlobalCommentsBody(globalCommentsRef.current)
     // Default: pending comments selected, exported comments unselected
     setSelectedCommentIds(
       new Set(
@@ -107,7 +120,13 @@ export function CommentListModal({
   const exportedCommentCount = sortedComments.filter(
     (comment) => Boolean(comment.exportedAt),
   ).length
-  const hasGlobalComments = globalComments.trim().length > 0
+  const hasGlobalComments = savedGlobalComments.trim().length > 0
+  const canEditGlobalComments = Boolean(onSaveGlobalComments)
+  const canSaveGlobalComments = Boolean(
+    canEditGlobalComments &&
+      !isSavingGlobalComments &&
+      editingGlobalCommentsBody !== savedGlobalComments,
+  )
 
   if (!isOpen) {
     return null
@@ -196,6 +215,18 @@ export function CommentListModal({
     setPendingDeleteCommentId(null)
   }
 
+  const handleSaveGlobalComments = async () => {
+    if (!onSaveGlobalComments || !canSaveGlobalComments) {
+      return
+    }
+    const didSave = await onSaveGlobalComments(editingGlobalCommentsBody)
+    if (!didSave) {
+      return
+    }
+    setSavedGlobalComments(editingGlobalCommentsBody)
+    setIsEditingGlobalComments(false)
+  }
+
   const selectedCount = selectedCommentIds.size
 
   return (
@@ -213,20 +244,95 @@ export function CommentListModal({
           data-testid="comment-list-global-section"
         >
           <h3>Global Comments</h3>
-          {hasGlobalComments ? (
-            <pre
-              className="comment-list-global-body"
-              data-testid="comment-list-global-body"
-            >
-              {globalComments}
-            </pre>
+          {isEditingGlobalComments ? (
+            <>
+              <label className="comment-modal-label" htmlFor="comment-list-global-editor">
+                Global comments (Markdown)
+              </label>
+              <textarea
+                className="comment-modal-textarea comment-list-global-editor"
+                data-testid="comment-list-global-editor"
+                id="comment-list-global-editor"
+                onChange={(event) => {
+                  setEditingGlobalCommentsBody(event.target.value)
+                }}
+                rows={7}
+                value={editingGlobalCommentsBody}
+              />
+              <div className="comment-modal-actions comment-list-global-actions">
+                <button
+                  disabled={isSavingGlobalComments}
+                  onClick={() => {
+                    setEditingGlobalCommentsBody('')
+                  }}
+                  type="button"
+                >
+                  Clear
+                </button>
+                <button
+                  disabled={isSavingGlobalComments}
+                  onClick={() => {
+                    setIsEditingGlobalComments(false)
+                    setEditingGlobalCommentsBody(savedGlobalComments)
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  data-testid="save-global-comments-button"
+                  disabled={!canSaveGlobalComments}
+                  onClick={() => {
+                    void handleSaveGlobalComments()
+                  }}
+                  type="button"
+                >
+                  {isSavingGlobalComments ? 'Saving...' : 'Save Global Comments'}
+                </button>
+              </div>
+            </>
+          ) : hasGlobalComments ? (
+            <>
+              <pre
+                className="comment-list-global-body"
+                data-testid="comment-list-global-body"
+              >
+                {savedGlobalComments}
+              </pre>
+              <div className="comment-modal-actions comment-list-global-actions">
+                <button
+                  disabled={!canEditGlobalComments || isSavingGlobalComments}
+                  onClick={() => {
+                    setIsEditingGlobalComments(true)
+                    setEditingGlobalCommentsBody(savedGlobalComments)
+                  }}
+                  type="button"
+                >
+                  Edit Global Comments
+                </button>
+              </div>
+            </>
           ) : (
-            <p
-              className="comment-list-global-empty"
-              data-testid="comment-list-global-empty"
-            >
-              No global comments.
-            </p>
+            <>
+              <p
+                className="comment-list-global-empty"
+                data-testid="comment-list-global-empty"
+              >
+                No global comments.
+              </p>
+              <div className="comment-modal-actions comment-list-global-actions">
+                <button
+                  disabled={!canEditGlobalComments || isSavingGlobalComments}
+                  onClick={() => {
+                    setIsEditingGlobalComments(true)
+                    setEditingGlobalCommentsBody(savedGlobalComments)
+                  }}
+                  type="button"
+                >
+                  Add Global Comments
+                </button>
+              </div>
+            </>
           )}
           {hasGlobalComments && (
             <label className="comment-list-global-checkbox">
@@ -471,7 +577,7 @@ export function CommentListModal({
           >
             Export Selected ({selectedCount})
           </button>
-          <button disabled={isSaving} onClick={onClose} type="button">
+          <button disabled={isSaving || isSavingGlobalComments} onClick={onClose} type="button">
             Close
           </button>
         </div>
