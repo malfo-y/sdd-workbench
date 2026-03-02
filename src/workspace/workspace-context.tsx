@@ -445,10 +445,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 selectionRange: null,
                 expandedDirectories: [],
               }
-            : {
-                ...currentSession,
-                isIndexing: true,
-              }),
+            : currentSession),
         })),
       )
 
@@ -1443,7 +1440,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   }, [disconnectRemoteWorkspace, getActiveIsDirty, stopWorkspaceWatch])
 
   const loadWorkspaceSpec = useCallback(
-    (workspaceId: WorkspaceId, relativePath: string) => {
+    (
+      workspaceId: WorkspaceId,
+      relativePath: string,
+      mode: 'select' | 'refresh' = 'select',
+    ) => {
       const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
       if (!workspaceSession) {
         return
@@ -1451,13 +1452,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
       const requestId = (readSpecRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
       readSpecRequestIdByWorkspaceRef.current[workspaceId] = requestId
+      const shouldPreserveCurrentContent = mode === 'refresh'
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
           ...currentSession,
           activeSpec: relativePath,
-          activeSpecContent: null,
-          activeSpecReadError: null,
+          activeSpecContent: shouldPreserveCurrentContent
+            ? currentSession.activeSpecContent
+            : null,
+          activeSpecReadError: shouldPreserveCurrentContent
+            ? currentSession.activeSpecReadError
+            : null,
           isReadingSpec: true,
         })),
       )
@@ -1476,13 +1482,24 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             setWorkspaceState((previous) =>
               updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
                 ...currentSession,
-                activeSpecContent: null,
-                activeSpecReadError: readResult.error
-                  ? `Failed to read file: ${readResult.error}`
-                  : 'Failed to read file.',
+                activeSpecContent: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecContent
+                  : null,
+                activeSpecReadError: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecReadError
+                  : readResult.error
+                    ? `Failed to read file: ${readResult.error}`
+                    : 'Failed to read file.',
                 isReadingSpec: false,
               })),
             )
+            if (shouldPreserveCurrentContent) {
+              setBannerMessage(
+                readResult.error
+                  ? `Failed to read file: ${readResult.error}`
+                  : 'Failed to read file.',
+              )
+            }
             return
           }
 
@@ -1490,13 +1507,24 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             setWorkspaceState((previous) =>
               updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
                 ...currentSession,
-                activeSpecContent: null,
-                activeSpecReadError: getSpecPreviewUnavailableMessage(
-                  readResult.previewUnavailableReason ?? 'binary_file',
-                ),
+                activeSpecContent: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecContent
+                  : null,
+                activeSpecReadError: shouldPreserveCurrentContent
+                  ? currentSession.activeSpecReadError
+                  : getSpecPreviewUnavailableMessage(
+                      readResult.previewUnavailableReason ?? 'binary_file',
+                    ),
                 isReadingSpec: false,
               })),
             )
+            if (shouldPreserveCurrentContent) {
+              setBannerMessage(
+                getSpecPreviewUnavailableMessage(
+                  readResult.previewUnavailableReason ?? 'binary_file',
+                ),
+              )
+            }
             return
           }
 
@@ -1516,14 +1544,25 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           setWorkspaceState((previous) =>
             updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
               ...currentSession,
-              activeSpecContent: null,
+              activeSpecContent: shouldPreserveCurrentContent
+                ? currentSession.activeSpecContent
+                : null,
               activeSpecReadError:
-                error instanceof Error
-                  ? `Failed to read file: ${error.message}`
-                  : 'Failed to read file.',
+                shouldPreserveCurrentContent
+                  ? currentSession.activeSpecReadError
+                  : error instanceof Error
+                    ? `Failed to read file: ${error.message}`
+                    : 'Failed to read file.',
               isReadingSpec: false,
             })),
           )
+          if (shouldPreserveCurrentContent) {
+            setBannerMessage(
+              error instanceof Error
+                ? `Failed to read file: ${error.message}`
+                : 'Failed to read file.',
+            )
+          }
         }
       })()
     },
@@ -2554,7 +2593,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         activeSpec !== null &&
         activeSpec !== activeFile
       ) {
-        loadWorkspaceSpec(watchEvent.workspaceId, activeSpec)
+        loadWorkspaceSpec(watchEvent.workspaceId, activeSpec, 'refresh')
       }
 
       if (hasStructureChanges && workspaceSession) {

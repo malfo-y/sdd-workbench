@@ -2714,6 +2714,62 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps file tree visible while structure refresh is in flight', async () => {
+    const workspaceRoot = '/Users/tester/watch-structure-inflight'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+
+    let resolveRefreshIndex:
+      | ((result: WorkspaceIndexResult) => void)
+      | null = null
+    const refreshIndexPromise = new Promise<WorkspaceIndexResult>((resolve) => {
+      resolveRefreshIndex = resolve
+    })
+
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+      })
+      .mockImplementationOnce(async () => refreshIndexPromise)
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: [],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    expect(screen.queryByText('Indexing workspace files...')).not.toBeInTheDocument()
+
+    expect(resolveRefreshIndex).not.toBeNull()
+    resolveRefreshIndex!({
+      ok: true,
+      fileTree: [{ name: 'b.ts', relativePath: 'b.ts', kind: 'file' }],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'b.ts' })).toBeInTheDocument()
+    })
+  })
+
   it('clears active file when watcher structure refresh removes it from tree', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-remove'
 
@@ -2889,6 +2945,76 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     // After auto-refresh, the editor container remains mounted
     expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
     expect(screen.getByTestId('tree-changed-indicator-a.ts')).toBeInTheDocument()
+  })
+
+  it('keeps rendered spec visible while active spec refresh is in flight', async () => {
+    const workspaceRoot = '/Users/tester/watch-spec-refresh-visible'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'README.md',
+          relativePath: 'README.md',
+          kind: 'file',
+        },
+      ],
+    })
+
+    let resolveRefreshRead:
+      | ((result: WorkspaceReadFileResult) => void)
+      | null = null
+    const refreshReadPromise = new Promise<WorkspaceReadFileResult>((resolve) => {
+      resolveRefreshRead = resolve
+    })
+    readFileMock
+      .mockResolvedValueOnce({
+        ok: true,
+        content: '# V1',
+      })
+      .mockImplementationOnce(async () => refreshReadPromise)
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'V1' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['README.md'],
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.getByTestId('spec-viewer-content')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'V1' })).toBeInTheDocument()
+    expect(screen.queryByTestId('spec-viewer-loading')).not.toBeInTheDocument()
+
+    expect(resolveRefreshRead).not.toBeNull()
+    resolveRefreshRead!({
+      ok: true,
+      content: '# V2',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'V2' })).toBeInTheDocument()
+    })
   })
 
   it('stops watcher when active workspace is closed', async () => {

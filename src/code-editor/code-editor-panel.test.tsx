@@ -828,6 +828,49 @@ describe('CodeEditorPanel', () => {
     })
   })
 
+  it('preserves selection and focus on same-file content refresh', async () => {
+    const props = makeDefaultProps()
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      const view = getCM6View(container)
+      expect(view).not.toBeNull()
+    })
+
+    const view = getCM6View(container)
+    expect(view).not.toBeNull()
+    if (!view) return
+
+    view.dispatch({
+      selection: { anchor: 6, head: 11 },
+    })
+    view.focus()
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2 updated\nline3'}
+      />,
+    )
+
+    await waitFor(() => {
+      const updatedView = getCM6View(container)
+      if (!updatedView) return
+      expect(updatedView.state.doc.toString()).toBe('line1\nline2 updated\nline3')
+      expect(updatedView.state.selection.main.anchor).toBe(6)
+      expect(updatedView.state.selection.main.head).toBe(11)
+    })
+    expect(document.activeElement?.closest('.cm-editor')).not.toBeNull()
+  })
+
   // ---- H. Language display for various file extensions --------------------
 
   it('shows correct language for Python files (.py)', () => {

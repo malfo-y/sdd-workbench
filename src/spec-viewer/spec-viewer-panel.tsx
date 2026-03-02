@@ -780,13 +780,13 @@ export function SpecViewerPanel({
         </p>
       )}
 
-      {activeSpecPath && isLoading && (
+      {activeSpecPath && isLoading && !markdownContent && (
         <p className="spec-viewer-loading" data-testid="spec-viewer-loading">
           Loading markdown preview...
         </p>
       )}
 
-      {activeSpecPath && !isLoading && readError && (
+      {activeSpecPath && !isLoading && readError && !markdownContent && (
         <p className="spec-viewer-error" data-testid="spec-viewer-error" role="alert">
           {readError}
         </p>
@@ -801,7 +801,7 @@ export function SpecViewerPanel({
         </p>
       )}
 
-      {activeSpecPath && !isLoading && !readError && markdownContent && (
+      {activeSpecPath && markdownContent && (
         <div className="spec-viewer-body">
           {tocHeadings.length > 0 && (
             <nav className="spec-viewer-toc" data-testid="spec-viewer-toc">
