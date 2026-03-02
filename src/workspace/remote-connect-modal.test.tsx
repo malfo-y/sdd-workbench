@@ -176,4 +176,54 @@ describe('workspace/remote-connect-modal', () => {
     ).toHaveTextContent('/data')
     expect(screen.queryByTestId('remote-connect-browse-error')).not.toBeInTheDocument()
   })
+
+  it('closes on Escape when idle', () => {
+    const onClose = vi.fn()
+
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting={false}
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
+        onClose={onClose}
+        onSubmit={() => undefined}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores Escape while submitting', () => {
+    const onClose = vi.fn()
+
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
+        onClose={onClose}
+        onSubmit={() => undefined}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })

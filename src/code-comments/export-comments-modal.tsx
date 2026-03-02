@@ -60,6 +60,25 @@ export function ExportCommentsModal({
     setCopyToClipboard(false)
   }, [clipboardDisabled])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isExporting) {
+        return
+      }
+      event.preventDefault()
+      onCancel()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, isExporting, onCancel])
+
   if (!isOpen) {
     return null
   }

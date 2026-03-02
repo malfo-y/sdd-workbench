@@ -185,6 +185,25 @@ export function RemoteConnectModal({
     saveRemoteConnectDraft(draft)
   }, [draft])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isSubmitting || isBrowsing) {
+        return
+      }
+      event.preventDefault()
+      onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isBrowsing, isOpen, isSubmitting, onClose])
+
   if (!isOpen) {
     return null
   }

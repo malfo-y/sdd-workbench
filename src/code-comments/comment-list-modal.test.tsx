@@ -573,4 +573,87 @@ describe('CommentListModal', () => {
     expect(onJumpToComment).toHaveBeenCalledOnce()
     expect(onJumpToComment).toHaveBeenCalledWith('src/a.ts', 2, 3)
   })
+
+  it('closes modal on Escape when idle', () => {
+    const onClose = vi.fn()
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={onClose}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Escape cancels comment edit before closing modal', () => {
+    const onClose = vi.fn()
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={onClose}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    expect(screen.getByLabelText('Edit comment body')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByLabelText('Edit comment body')).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Escape cancels delete confirmation before closing modal', () => {
+    const onClose = vi.fn()
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={onClose}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+    expect(screen.getByRole('button', { name: 'Confirm Delete' })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByRole('button', { name: 'Confirm Delete' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

@@ -127,6 +127,59 @@ export function CommentListModal({
       !isSavingGlobalComments &&
       editingGlobalCommentsBody !== savedGlobalComments,
   )
+  const canDismissModal = !isSaving && !isSavingGlobalComments
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !canDismissModal) {
+        return
+      }
+
+      event.preventDefault()
+
+      if (editingCommentId) {
+        setEditingCommentId(null)
+        setEditingBody('')
+        return
+      }
+
+      if (pendingDeleteCommentId) {
+        setPendingDeleteCommentId(null)
+        return
+      }
+
+      if (isDeleteExportedConfirmOpen) {
+        setIsDeleteExportedConfirmOpen(false)
+        return
+      }
+
+      if (isEditingGlobalComments) {
+        setIsEditingGlobalComments(false)
+        setEditingGlobalCommentsBody(savedGlobalComments)
+        return
+      }
+
+      onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [
+    canDismissModal,
+    editingCommentId,
+    isDeleteExportedConfirmOpen,
+    isEditingGlobalComments,
+    isOpen,
+    onClose,
+    pendingDeleteCommentId,
+    savedGlobalComments,
+  ])
 
   if (!isOpen) {
     return null

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ExportCommentsModal } from './export-comments-modal'
 
@@ -69,5 +69,36 @@ describe('ExportCommentsModal', () => {
     )
 
     expect(screen.getByText('0 comment(s) + global comments included')).toBeInTheDocument()
+  })
+
+  it('cancels on Escape when idle', () => {
+    const onCancel = vi.fn()
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        onCancel={onCancel}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores Escape while exporting', () => {
+    const onCancel = vi.fn()
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        isExporting
+        onCancel={onCancel}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(onCancel).not.toHaveBeenCalled()
   })
 })

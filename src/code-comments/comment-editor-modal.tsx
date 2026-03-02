@@ -27,6 +27,25 @@ export function CommentEditorModal({
     setBody('')
   }, [isOpen, relativePath, selectionRange])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isSaving) {
+        return
+      }
+      event.preventDefault()
+      onCancel()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, isSaving, onCancel])
+
   if (!isOpen || !relativePath || !selectionRange) {
     return null
   }

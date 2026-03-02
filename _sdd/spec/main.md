@@ -7,7 +7,6 @@
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
-  - UI 스케치: `/_sdd/spec/ui_sketch.png`
   - F11 draft: `/_sdd/drafts/feature_draft_f11_inline_code_comments_and_llm_export_bundle.md`
   - F11.1 draft: `/_sdd/drafts/feature_draft_f11_1_markdown_comment_entry_and_comment_markers.md`
   - F11.2 draft: `/_sdd/drafts/feature_draft_f11_2_spec_jump_scroll_retention_and_collapsed_marker_bubbling.md`
@@ -64,7 +63,7 @@
   20. (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 시 이전 픽셀 스크롤 위치를 복원(런타임, `codeScrollPositionsRef`)
 - 최신 품질 게이트(2026-03-02):
   - `npm run build` -> pass
-  - `npm test` -> `49 files, 490 passed, 1 skipped`
+  - `npm test` -> `49 files, 493 passed, 1 skipped`
   - `npm run lint` -> pass
 
 ---

@@ -24,6 +24,25 @@ export function GlobalCommentsModal({
     setBody(initialValue)
   }, [initialValue, isOpen])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isSaving) {
+        return
+      }
+      event.preventDefault()
+      onCancel()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, isSaving, onCancel])
+
   if (!isOpen) {
     return null
   }
