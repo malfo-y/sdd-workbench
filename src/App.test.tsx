@@ -676,9 +676,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         'connected',
       )
     })
+    expect(screen.getByTestId('workspace-path')).toHaveTextContent(
+      'remote:/srv/project-a',
+    )
     expect(screen.getByTestId('workspace-path')).toHaveAttribute(
       'title',
-      'remote://remote-workspace-a',
+      'example.com:/srv/project-a',
     )
     await expandWorkspaceSummaryIfCollapsed()
     expect(screen.getByTestId('workspace-remote-target')).toHaveTextContent(

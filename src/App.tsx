@@ -37,7 +37,11 @@ import {
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
-import { abbreviateWorkspacePath } from './workspace/path-format'
+import {
+  formatRemoteWorkspaceSummaryPath,
+  formatRemoteWorkspaceTooltip,
+  formatWorkspaceSummaryPath,
+} from './workspace/path-format'
 import { RemoteConnectModal } from './workspace/remote-connect-modal'
 import { useWorkspace } from './workspace/use-workspace'
 import { WorkspaceSwitcher } from './workspace/workspace-switcher'
@@ -438,9 +442,19 @@ function App() {
     deleteDirectory,
     renameFileOrDirectory,
   } = useWorkspace()
+  const isActiveRemoteWorkspace = workspaceKind === 'remote'
   const displayPath = rootPath
-    ? abbreviateWorkspacePath(rootPath)
+    ? isActiveRemoteWorkspace && remoteProfile
+      ? formatRemoteWorkspaceSummaryPath(remoteProfile.remoteRoot)
+      : formatWorkspaceSummaryPath(rootPath)
     : 'No workspace selected'
+  const workspacePathTitle = isActiveRemoteWorkspace && remoteProfile
+    ? formatRemoteWorkspaceTooltip(
+        remoteProfile.host,
+        remoteProfile.remoteRoot,
+        remoteProfile.user,
+      )
+    : rootPath ?? ''
   const [paneSizes, setPaneSizes] = useState<PaneSizes>({
     left: 20,
     content: 80,
@@ -523,7 +537,6 @@ function App() {
     isExportingComments
   const canCloseWorkspace =
     activeWorkspaceId !== null && workspaces.some(({ id }) => id === activeWorkspaceId)
-  const isActiveRemoteWorkspace = workspaceKind === 'remote'
   const shouldShowRemoteBadge = isActiveRemoteWorkspace || isRemoteMounted
   const remoteConnectionLabel = remoteConnectionState ?? 'disconnected'
   const shouldShowRetryRemoteButton =
@@ -1768,7 +1781,7 @@ function App() {
               <p
                 className="path workspace-summary-path"
                 data-testid="workspace-path"
-                title={rootPath ?? ''}
+                title={workspacePathTitle}
               >
                 {displayPath}
               </p>

@@ -283,16 +283,14 @@
   outline-offset: 1px;
 }
 
-.workspace-summary-path {
-  font-size: 0.76rem;
+.workspace-summary-path.path {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  font-size: 0.72rem;
   line-height: 1.25;
   margin-top: 8px;
-}
-
-.workspace-summary-collapsed .workspace-summary-path {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .workspace-watch-status {
