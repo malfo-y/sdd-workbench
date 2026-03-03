@@ -1432,7 +1432,7 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey || !event.shiftKey) return
+      if (!event.metaKey || !event.ctrlKey) return
 
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault()

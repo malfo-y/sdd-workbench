@@ -2570,6 +2570,152 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('switches Code/Spec tabs with Cmd+Ctrl+Left/Right only', async () => {
+    const workspaceRoot = '/Users/tester/keyboard-tab-switch'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'guide.md', relativePath: 'guide.md', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'a.ts') {
+        return { ok: true, content: 'const a = 1\n' }
+      }
+      if (relativePath === 'guide.md') {
+        return { ok: true, content: '# Guide\n' }
+      }
+      return { ok: false, error: 'not found' }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'guide.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Code')
+    })
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowRight',
+      metaKey: true,
+      shiftKey: true,
+    })
+    expect(
+      screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active'),
+    ).toHaveTextContent('Code')
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowRight',
+      metaKey: true,
+      ctrlKey: true,
+    })
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Spec')
+    })
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowLeft',
+      metaKey: true,
+      ctrlKey: true,
+    })
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Code')
+    })
+  })
+
+  it('switches workspace with Cmd+Ctrl+Up/Down only', async () => {
+    const workspaceARoot = '/Users/tester/keyboard-workspace-a'
+    const workspaceBRoot = '/Users/tester/keyboard-workspace-b'
+
+    openDialogMock
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceARoot,
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceBRoot,
+      })
+    indexWorkspaceMock.mockImplementation(async (rootPath) => ({
+      ok: true,
+      fileTree: [
+        {
+          name: rootPath === workspaceARoot ? 'a.ts' : 'b.ts',
+          relativePath: rootPath === workspaceARoot ? 'a.ts' : 'b.ts',
+          kind: 'file',
+        },
+      ],
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceARoot)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
+    })
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowUp',
+      metaKey: true,
+      shiftKey: true,
+    })
+    expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowUp',
+      metaKey: true,
+      ctrlKey: true,
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceARoot)
+    })
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowDown',
+      metaKey: true,
+      ctrlKey: true,
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
+    })
+  })
+
   it('applies watcher changed indicators per workspace', async () => {
     const projectARoot = '/Users/tester/watch-a'
     const projectBRoot = '/Users/tester/watch-b'

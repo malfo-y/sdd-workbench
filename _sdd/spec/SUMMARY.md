@@ -1,8 +1,8 @@
 # SDD Workbench - Specification Summary
 
-**생성일** (Generated): 2026-03-02 16:53
+**생성일** (Generated): 2026-03-03 09:20
 **스펙 버전** (Spec Version): 0.44.0
-**최종 업데이트** (Last Updated): 2026-03-02
+**최종 업데이트** (Last Updated): 2026-03-03
 
 ---
 
@@ -156,6 +156,7 @@ Main (IPC handlers, local/remote backend router)
 
 ### Key Files
 - **Spec Index**: `_sdd/spec/main.md`
+- **UI Sketch**: `docs/ui_sketch.jpg`
 - **Overview**: `_sdd/spec/sdd-workbench/01-overview.md`
 - **Architecture**: `_sdd/spec/sdd-workbench/02-architecture.md`
 - **Components**: `_sdd/spec/sdd-workbench/03-components.md`

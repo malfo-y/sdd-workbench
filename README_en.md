@@ -94,8 +94,8 @@ The left sidebar includes:
 - file tree
 
 Keyboard shortcuts:
-- `Cmd+Shift+Up` / `Cmd+Shift+Down`: previous/next workspace
-- `Cmd+Shift+Left` / `Cmd+Shift+Right`: `Code`/`Spec` tab switch
+- `Cmd+Ctrl+Up` / `Cmd+Ctrl+Down`: previous/next workspace
+- `Cmd+Ctrl+Left` / `Cmd+Ctrl+Right`: `Code`/`Spec` tab switch
 
 ### File tree operations
 
