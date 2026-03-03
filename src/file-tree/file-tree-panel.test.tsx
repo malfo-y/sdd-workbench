@@ -291,6 +291,42 @@ describe('FileTreePanel context copy', () => {
     expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
   })
 
+  it('keeps changed marker on expanded partial directories when changed file is hidden', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={['src/missing.ts']}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'visible.ts',
+                relativePath: 'src/visible.ts',
+                kind: 'file',
+              },
+            ],
+            childrenStatus: 'partial',
+            totalChildCount: 2000,
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestLoadDirectory={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        gitFileStatuses={{}}
+        loadingDirectories={[]}
+      />,
+    )
+
+    expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
+  })
+
   it('moves changed marker deeper as directories are expanded', () => {
     const onExpandedDirectoriesChange = vi.fn()
 

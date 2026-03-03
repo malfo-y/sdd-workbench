@@ -2805,6 +2805,52 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('normalizes watcher changed paths before rendering changed indicators', async () => {
+    const workspaceRoot = '/Users/tester/watch-normalize-paths'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [
+            {
+              name: 'a.ts',
+              relativePath: 'src/a.ts',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['./src\\a.ts', '/tmp/invalid.ts'],
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tree-changed-indicator-src')).toBeInTheDocument()
+    })
+  })
+
   it('refreshes file tree when watcher reports structure-only changes', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-refresh'
 

@@ -245,8 +245,12 @@ function renderFileTreeNodes(
       const isExpanded = expandedDirectories.has(node.relativePath)
       const hasChangedInSubtree = changedSubtreeSet.has(node.relativePath)
       const isChanged = changedFileSet.has(node.relativePath)
+      const hasHiddenChildren =
+        node.childrenStatus === 'not-loaded' || node.childrenStatus === 'partial'
       const shouldShowChangedIndicator =
-        isChanged || (!isExpanded && hasChangedInSubtree)
+        isChanged ||
+        (!isExpanded && hasChangedInSubtree) ||
+        (isExpanded && hasChangedInSubtree && hasHiddenChildren)
       const dirGitStatus = gitStatusSubtreeMap.get(node.relativePath) ?? null
       const shouldShowGitBadge = dirGitStatus !== null && !isExpanded
       const loadedChildCount = (node.children ?? []).length

@@ -212,6 +212,23 @@ function withoutChangedFileMarker(changedFiles: string[], relativePath: string) 
   return changedFiles.filter((path) => path !== relativePath)
 }
 
+function normalizeWatchRelativePath(relativePath: string): string | null {
+  const normalized = relativePath.trim().replace(/\\/g, '/')
+  if (!normalized || normalized === '.' || normalized.startsWith('../')) {
+    return null
+  }
+  if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) {
+    return null
+  }
+
+  const withoutLeadingCurrent = normalized.replace(/^\.\//, '')
+  const withoutDuplicateSlashes = withoutLeadingCurrent.replace(/\/{2,}/g, '/')
+  if (!withoutDuplicateSlashes) {
+    return null
+  }
+  return withoutDuplicateSlashes
+}
+
 function collectFileRelativePaths(
   nodes: WorkspaceFileNode[],
   output = new Set<string>(),
@@ -2544,10 +2561,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   useEffect(() => {
     const watchedWorkspaceIds = watchedWorkspaceIdsRef.current
     const unsubscribe = window.workspace.onWatchEvent((watchEvent) => {
+      const normalizedChangedRelativePaths = Array.from(
+        new Set(
+          watchEvent.changedRelativePaths
+            .map((relativePath) => normalizeWatchRelativePath(relativePath))
+            .filter((relativePath): relativePath is string => relativePath !== null),
+        ),
+      )
       const hasStructureChanges = watchEvent.hasStructureChanges === true
       if (
         !watchEvent.workspaceId ||
-        (watchEvent.changedRelativePaths.length === 0 && !hasStructureChanges)
+        (normalizedChangedRelativePaths.length === 0 && !hasStructureChanges)
       ) {
         return
       }
@@ -2556,23 +2580,27 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         workspaceStateRef.current.workspacesById[watchEvent.workspaceId]
       const activeFile = workspaceSession?.activeFile ?? null
       const shouldRefreshActiveFile =
-        activeFile !== null && watchEvent.changedRelativePaths.includes(activeFile)
+        activeFile !== null &&
+        normalizedChangedRelativePaths.includes(activeFile)
       const isCurrentlyDirty = workspaceSession?.isDirty ?? false
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, watchEvent.workspaceId, (currentSession) => {
-          const nextChangedFiles = Array.from(
-            new Set([
-              ...currentSession.changedFiles,
-              ...watchEvent.changedRelativePaths,
-            ]),
-          )
-          if (nextChangedFiles.length === currentSession.changedFiles.length) {
+          const nextChangedFilesSet = new Set(currentSession.changedFiles)
+          let hasNewChangedPath = false
+          for (const relativePath of normalizedChangedRelativePaths) {
+            if (nextChangedFilesSet.has(relativePath)) {
+              continue
+            }
+            nextChangedFilesSet.add(relativePath)
+            hasNewChangedPath = true
+          }
+          if (!hasNewChangedPath) {
             return currentSession
           }
           return {
             ...currentSession,
-            changedFiles: nextChangedFiles,
+            changedFiles: Array.from(nextChangedFilesSet),
           }
         }),
       )
@@ -2587,7 +2615,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
       const activeSpec = workspaceSession?.activeSpec ?? null
       const shouldRefreshActiveSpec =
-        activeSpec !== null && watchEvent.changedRelativePaths.includes(activeSpec)
+        activeSpec !== null &&
+        normalizedChangedRelativePaths.includes(activeSpec)
       if (
         shouldRefreshActiveSpec &&
         activeSpec !== null &&

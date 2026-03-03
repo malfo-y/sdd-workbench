@@ -53,7 +53,7 @@
 
 ### 4.1 자동 게이트 (2026-03-02 기준)
 
-- `npm test` -> `49 files, 490 passed, 1 skipped`
+- `npm test` -> `49 files, 493 passed, 1 skipped`
 - `npm run lint` -> pass
 - `npm run build` -> pass
 
@@ -109,6 +109,7 @@
 41. (F27) remote 연결 단절 시 상태가 `degraded` 또는 `disconnected`로 반영되고 재시도 UI가 표시되는지 확인
 42. (F27) remote root 경계 밖 접근 시 `PATH_DENIED` 오류로 거부되는지 확인
 43. (F28) remote connect 모달에서 `Browse Directories` -> `Use Current Directory`로 `remoteRoot`를 선택해 연결 가능한지 확인
+44. (F27) remote polling watcher에서 symlink 디렉토리 내부 파일 변경이 `changedRelativePaths`에 반영되는지 확인
 
 ## 5. 개발 환경
 
