@@ -2591,7 +2591,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       if (relativePath === 'guide.md') {
         return { ok: true, content: '# Guide\n' }
       }
-      return { ok: false, error: 'not found' }
+      return { ok: false, content: null, error: 'not found' }
     })
 
     render(
