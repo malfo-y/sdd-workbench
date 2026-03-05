@@ -65,6 +65,45 @@ describe('source-line-resolver', () => {
     })
   })
 
+  it('resolves source line from selection offset inside a multiline code block', () => {
+    const pre = document.createElement('pre')
+    pre.setAttribute('data-source-line', '3')
+    const code = document.createElement('code')
+    const textNode = document.createTextNode('alpha\nbeta\ngamma')
+    code.append(textNode)
+    pre.append(code)
+
+    const selection = {
+      anchorNode: textNode,
+      anchorOffset: 8,
+      focusNode: textNode,
+      focusOffset: 10,
+    } as unknown as Selection
+
+    expect(resolveSourceLineFromSelection(selection)).toBe(4)
+  })
+
+  it('resolves line range from selection offsets inside a multiline code block', () => {
+    const pre = document.createElement('pre')
+    pre.setAttribute('data-source-line', '20')
+    const code = document.createElement('code')
+    const textNode = document.createTextNode('first\nsecond\nthird')
+    code.append(textNode)
+    pre.append(code)
+
+    const selection = {
+      anchorNode: textNode,
+      anchorOffset: 14,
+      focusNode: textNode,
+      focusOffset: 2,
+    } as unknown as Selection
+
+    expect(resolveSourceLineRangeFromSelection(selection)).toEqual({
+      startLine: 20,
+      endLine: 22,
+    })
+  })
+
   it('prefers target resolution before selection fallback', () => {
     const targetBlock = document.createElement('p')
     targetBlock.setAttribute('data-source-line', '3')

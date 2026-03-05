@@ -74,7 +74,10 @@ const TRACKPAD_HISTORY_MIN_AXIS_DELTA = 18
 const TRACKPAD_HISTORY_TRIGGER_DELTA = 120
 const TRACKPAD_HISTORY_IDLE_RESET_MS = 160
 const TRACKPAD_HISTORY_COOLDOWN_MS = 380
+const WHEEL_DELTA_MODE_PIXEL = 0
+const MOUSE_WHEEL_DISCRETE_STEP_DELTA = 120
 const COMMENT_BANNER_AUTODISMISS_MS = 5000
+const HISTORY_NAVIGATION_SCOPE_SELECTOR = '[data-history-navigation-scope="true"]'
 
 type PaneSizes = {
   left: number
@@ -186,6 +189,34 @@ function shouldSkipTrackpadHistoryFallback(
   }
 
   return false
+}
+
+function isLikelyMouseHorizontalWheel(event: WheelEvent): boolean {
+  const absDeltaX = Math.abs(event.deltaX)
+  const absDeltaY = Math.abs(event.deltaY)
+
+  if (absDeltaX === 0) {
+    return false
+  }
+
+  // Trackpad horizontal gesture fallback is tuned for pixel-precision input.
+  if (event.deltaMode !== WHEEL_DELTA_MODE_PIXEL) {
+    return true
+  }
+
+  const isDiscreteStepDelta =
+    Number.isInteger(absDeltaX) &&
+    absDeltaX % MOUSE_WHEEL_DISCRETE_STEP_DELTA === 0
+
+  return isDiscreteStepDelta && absDeltaY === 0
+}
+
+function isHistoryNavigationScopeTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false
+  }
+
+  return target.closest(HISTORY_NAVIGATION_SCOPE_SELECTOR) !== null
 }
 
 function ItermIcon() {
@@ -553,6 +584,7 @@ function App() {
     cooldownUntil: 0,
     lastTriggeredDirection: null,
   })
+  const isHistoryNavigationScopeActiveRef = useRef(false)
   const [commentBannerState, setCommentBannerState] =
     useState<CommentBannerState | null>(null)
 
@@ -907,15 +939,32 @@ function App() {
             exportSnapshot.map((comment) => comment.id),
           )
           const exportTimestamp = new Date().toISOString()
-          const markedComments = comments.map((comment) =>
-            exportedCommentIds.has(comment.id)
-              ? { ...comment, exportedAt: exportTimestamp }
-              : comment,
-          )
+          const nextComments = input.deleteExportedComments
+            ? comments.filter((comment) => !exportedCommentIds.has(comment.id))
+            : comments.map((comment) =>
+                exportedCommentIds.has(comment.id)
+                  ? { ...comment, exportedAt: exportTimestamp }
+                  : comment,
+              )
 
-          const isStatusSaved = await saveComments(markedComments)
+          const isStatusSaved = await saveComments(nextComments)
           if (!isStatusSaved) {
-            showCommentBanner('Comments exported, but failed to record export status.')
+            showCommentBanner(
+              input.deleteExportedComments
+                ? 'Comments exported, but failed to delete exported comments.'
+                : 'Comments exported, but failed to record export status.',
+            )
+            return
+          }
+        }
+
+        if (input.deleteExportedComments && effectiveExportHasGlobalComments) {
+          const isGlobalCommentsCleared = await saveGlobalComments(
+            '',
+            activeWorkspaceId,
+          )
+          if (!isGlobalCommentsCleared) {
+            showCommentBanner('Comments exported, but failed to clear global comments.')
             return
           }
         }
@@ -943,6 +992,7 @@ function App() {
       pendingComments,
       rootPath,
       saveComments,
+      saveGlobalComments,
       showCommentBanner,
       writeToClipboard,
     ],
@@ -1417,6 +1467,10 @@ function App() {
 
   useEffect(() => {
     const handleMouseUp = (event: MouseEvent) => {
+      if (!isHistoryNavigationScopeTarget(event.target)) {
+        return
+      }
+
       if (event.button === 3) {
         event.preventDefault()
         navigateHistory('back')
@@ -1436,7 +1490,25 @@ function App() {
   }, [navigateHistory])
 
   useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      isHistoryNavigationScopeActiveRef.current = isHistoryNavigationScopeTarget(
+        event.target,
+      )
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown, true)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true)
+    }
+  }, [])
+
+  useEffect(() => {
     const unsubscribe = window.workspace.onHistoryNavigate((event) => {
+      const isScopeHovered =
+        document.querySelector(`${HISTORY_NAVIGATION_SCOPE_SELECTOR}:hover`) !== null
+      if (!isHistoryNavigationScopeActiveRef.current && !isScopeHovered) {
+        return
+      }
       navigateHistory(event.direction)
     })
 
@@ -1476,7 +1548,15 @@ function App() {
 
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
+      if (!isHistoryNavigationScopeTarget(event.target)) {
+        return
+      }
+
       if (event.ctrlKey || event.metaKey || event.altKey) {
+        return
+      }
+
+      if (isLikelyMouseHorizontalWheel(event)) {
         return
       }
 
@@ -1955,7 +2035,11 @@ function App() {
         />
 
         <div className="pane-slot">
-          <div className={`content-pane-wrapper${activeTab !== 'code' ? ' is-hidden' : ''}`} data-testid="content-pane-code">
+          <div
+            className={`content-pane-wrapper${activeTab !== 'code' ? ' is-hidden' : ''}`}
+            data-history-navigation-scope="true"
+            data-testid="content-pane-code"
+          >
             <CodeEditorPanel
               activeFile={activeFile}
               activeFileContent={activeFileContent}
@@ -1980,7 +2064,11 @@ function App() {
               restoredScrollTop={restoredCodeScrollTop}
             />
           </div>
-          <div className={`content-pane-wrapper${activeTab !== 'spec' ? ' is-hidden' : ''}`} data-testid="content-pane-spec">
+          <div
+            className={`content-pane-wrapper${activeTab !== 'spec' ? ' is-hidden' : ''}`}
+            data-history-navigation-scope="true"
+            data-testid="content-pane-spec"
+          >
             <section className="workspace-card spec-panel" data-testid="spec-panel">
               <SpecViewerPanel
                 activeSpecPath={activeSpec}

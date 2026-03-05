@@ -5,6 +5,7 @@ export type ExportCommentsModalInput = {
   copyToClipboard: boolean
   writeCommentsFile: boolean
   writeBundleFile: boolean
+  deleteExportedComments: boolean
 }
 
 type ExportCommentsModalProps = {
@@ -36,6 +37,7 @@ export function ExportCommentsModal({
   const [copyToClipboard, setCopyToClipboard] = useState(true)
   const [writeCommentsFile, setWriteCommentsFile] = useState(true)
   const [writeBundleFile, setWriteBundleFile] = useState(true)
+  const [deleteExportedComments, setDeleteExportedComments] = useState(true)
 
   useEffect(() => {
     if (!isOpen) {
@@ -45,6 +47,7 @@ export function ExportCommentsModal({
     setCopyToClipboard(true)
     setWriteCommentsFile(true)
     setWriteBundleFile(true)
+    setDeleteExportedComments(true)
   }, [isOpen])
 
   const estimatedBundleLength = useMemo(
@@ -104,6 +107,7 @@ export function ExportCommentsModal({
             copyToClipboard: copyToClipboard && !clipboardDisabled,
             writeCommentsFile,
             writeBundleFile,
+            deleteExportedComments,
           })
         }}
         role="dialog"
@@ -165,6 +169,17 @@ export function ExportCommentsModal({
               type="checkbox"
             />
             Write bundle file (`.sdd-workbench/exports`)
+          </label>
+          <label>
+            <input
+              checked={deleteExportedComments}
+              disabled={isExporting}
+              onChange={(event) => {
+                setDeleteExportedComments(event.target.checked)
+              }}
+              type="checkbox"
+            />
+            Delete exported comments
           </label>
         </fieldset>
 

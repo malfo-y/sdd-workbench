@@ -2443,12 +2443,120 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
     })
 
-    fireEvent.mouseUp(window, { button: 3 })
+    const filePanel = screen.getByTestId('file-panel')
+    const codeViewerPanel = screen.getByTestId('code-viewer-panel')
+
+    fireEvent.mouseUp(filePanel, { button: 3 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    fireEvent.mouseUp(codeViewerPanel, { button: 3 })
     await waitFor(() => {
       expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
     })
 
-    fireEvent.mouseUp(window, { button: 4 })
+    fireEvent.mouseUp(codeViewerPanel, { button: 4 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+  })
+
+  it('navigates history via horizontal wheel only inside code/spec panels', async () => {
+    const workspaceRoot = '/Users/tester/history-wheel-scope'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    fireEvent.wheel(screen.getByTestId('file-panel'), { deltaX: -45, deltaY: 0, deltaMode: 0 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    const codeViewerPanel = screen.getByTestId('code-viewer-panel')
+    fireEvent.wheel(codeViewerPanel, { deltaX: -45, deltaY: 0, deltaMode: 0 })
+    fireEvent.wheel(codeViewerPanel, { deltaX: -45, deltaY: 0, deltaMode: 0 })
+    fireEvent.wheel(codeViewerPanel, { deltaX: -45, deltaY: 0, deltaMode: 0 })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+  })
+
+  it('does not navigate history via mouse horizontal wheel in code/spec panels', async () => {
+    const workspaceRoot = '/Users/tester/history-mouse-horizontal-wheel'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content: `content:${relativePath}`,
+    }))
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    const codeViewerPanel = screen.getByTestId('code-viewer-panel')
+    fireEvent.wheel(codeViewerPanel, { deltaX: -120, deltaY: 0, deltaMode: 0 })
+    fireEvent.wheel(codeViewerPanel, { deltaX: -3, deltaY: 0, deltaMode: 1 })
     await waitFor(() => {
       expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
     })
@@ -2493,6 +2601,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
     })
 
+    emitHistoryNavigateEvent({
+      direction: 'back',
+      source: 'swipe',
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+    })
+
+    fireEvent.pointerDown(screen.getByTestId('code-viewer-panel'))
     emitHistoryNavigateEvent({
       direction: 'back',
       source: 'swipe',
@@ -2556,6 +2673,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     // Navigate back -> should switch to Code tab (app.ts)
+    fireEvent.pointerDown(screen.getByTestId('spec-panel'))
     emitHistoryNavigateEvent({ direction: 'back', source: 'swipe' })
     await waitFor(() => {
       expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('app.ts')
@@ -5817,6 +5935,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     const bundleSectionIndex = bundleMarkdown.indexOf('## Comments')
     expect(bundleGlobalIndex).toBeGreaterThan(-1)
     expect(bundleGlobalIndex).toBeLessThan(bundleSectionIndex)
+    expect(writeGlobalCommentsMock).toHaveBeenCalledTimes(1)
+    expect(writeGlobalCommentsMock).toHaveBeenCalledWith(workspaceRoot, '')
   })
 
   it('allows export when only global comments exist and keeps line export status unchanged', async () => {
@@ -5880,6 +6000,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(writeCommentsMock).not.toHaveBeenCalled()
     expect(clipboardWriteText).toHaveBeenCalledTimes(1)
+    expect(writeGlobalCommentsMock).toHaveBeenCalledTimes(1)
+    expect(writeGlobalCommentsMock).toHaveBeenCalledWith(workspaceRoot, '')
   })
 
   it('excludes global comments from export when global checkbox is unchecked', async () => {
@@ -5959,6 +6081,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     const [request] = exportCommentsBundleMock.mock.calls[0]
     const bundleMarkdown = request.bundleMarkdown ?? ''
     expect(bundleMarkdown).not.toContain('## Global Comments')
+    expect(writeGlobalCommentsMock).not.toHaveBeenCalled()
   })
 
   it('disables clipboard export when bundle exceeds max length and exports files only', async () => {
@@ -6048,26 +6171,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     const [, writtenComments] = writeCommentsMock.mock.calls[0]
-    expect(writtenComments).toHaveLength(1)
-    expect(writtenComments[0]).toMatchObject({
-      relativePath: 'src/a.ts',
-      exportedAt: expect.any(String),
-    })
+    expect(writtenComments).toHaveLength(0)
 
-    // Re-open View Comments, manually select the now-exported comment, verify 0 pending
+    // Re-open View Comments and verify exported comment was removed by default.
     fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
     })
-    fireEvent.click(screen.getByLabelText('Select comment from src/a.ts:L1'))
-    fireEvent.click(screen.getByTestId('export-selected-button'))
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
-    })
-    expect(screen.getByText('0 pending comment(s)')).toBeInTheDocument()
-    expect(screen.getByText('Global comments: not included')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
+    expect(screen.getByText('No comments yet.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Select comment from src/a.ts:L1')).not.toBeInTheDocument()
   })
 
   it('allows export of already-exported comments when selected from View Comments', async () => {
@@ -6209,11 +6321,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(writeCommentsMock).toHaveBeenCalledTimes(1)
     })
     const [, writtenComments] = writeCommentsMock.mock.calls[0]
-    expect(writtenComments).toHaveLength(1)
-    expect(writtenComments[0]).toMatchObject({
-      relativePath: 'docs/spec.md',
-      exportedAt: expect.any(String),
-    })
+    expect(writtenComments).toHaveLength(0)
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
@@ -6296,11 +6404,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(writeCommentsMock).toHaveBeenCalledTimes(1)
     })
     const [, writtenComments] = writeCommentsMock.mock.calls[0]
-    expect(writtenComments).toHaveLength(1)
-    expect(writtenComments[0]).toMatchObject({
-      relativePath: 'docs/spec.md',
-      exportedAt: expect.any(String),
-    })
+    expect(writtenComments).toHaveLength(0)
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(

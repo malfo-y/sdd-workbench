@@ -101,4 +101,31 @@ describe('ExportCommentsModal', () => {
 
     expect(onCancel).not.toHaveBeenCalled()
   })
+
+  it('defaults delete exported comments to checked', () => {
+    render(<ExportCommentsModal {...DEFAULT_PROPS} />)
+
+    expect(screen.getByLabelText('Delete exported comments')).toBeChecked()
+  })
+
+  it('passes delete exported comments checkbox value on confirm', () => {
+    const onConfirm = vi.fn()
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    fireEvent.click(screen.getByLabelText('Delete exported comments'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deleteExportedComments: false,
+      }),
+    )
+  })
 })

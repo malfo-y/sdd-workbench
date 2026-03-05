@@ -37,13 +37,84 @@ function toElement(node: Node | null): Element | null {
   return node instanceof Element ? node : node.parentElement
 }
 
-function resolveSourceLineFromElement(element: Element | null): number | null {
+function clampNodeOffset(node: Node, rawOffset: number | undefined): number {
+  const maxOffset =
+    node instanceof CharacterData ? node.data.length : node.childNodes.length
+  const fallbackOffset = maxOffset
+  const candidateOffset =
+    typeof rawOffset === 'number' && Number.isFinite(rawOffset)
+      ? Math.trunc(rawOffset)
+      : fallbackOffset
+  if (candidateOffset <= 0) {
+    return 0
+  }
+  if (candidateOffset >= maxOffset) {
+    return maxOffset
+  }
+  return candidateOffset
+}
+
+function countLineBreaks(text: string): number {
+  let count = 0
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === '\n') {
+      count += 1
+    }
+  }
+  return count
+}
+
+function resolveCodeBlockLineOffset(
+  codeElement: HTMLElement,
+  targetNode: Node,
+  targetOffset: number | undefined,
+): number | null {
+  if (!codeElement.contains(targetNode)) {
+    return null
+  }
+
+  try {
+    const range = document.createRange()
+    range.setStart(codeElement, 0)
+    range.setEnd(targetNode, clampNodeOffset(targetNode, targetOffset))
+    return countLineBreaks(range.toString())
+  } catch {
+    return null
+  }
+}
+
+function resolveSourceLineFromNode(
+  node: Node | null,
+  nodeOffset?: number,
+): number | null {
+  const element = toElement(node)
+  if (!element) {
+    return null
+  }
+
+  const targetNode = node ?? element
   let current: Element | null = element
   while (current) {
     const normalized = normalizeSourceLine(
       current.getAttribute(SOURCE_LINE_ATTRIBUTE),
     )
     if (normalized !== null) {
+      if (
+        current instanceof HTMLElement &&
+        current.tagName.toLowerCase() === 'pre'
+      ) {
+        const codeElement = current.querySelector<HTMLElement>('code')
+        if (codeElement) {
+          const codeBlockLineOffset = resolveCodeBlockLineOffset(
+            codeElement,
+            targetNode,
+            nodeOffset,
+          )
+          if (codeBlockLineOffset !== null) {
+            return normalized + codeBlockLineOffset
+          }
+        }
+      }
       return normalized
     }
     current = current.parentElement
@@ -55,7 +126,7 @@ export function resolveSourceLineFromTarget(target: EventTarget | null): number 
   if (!(target instanceof Node)) {
     return null
   }
-  return resolveSourceLineFromElement(toElement(target))
+  return resolveSourceLineFromNode(target)
 }
 
 export function resolveSourceLineFromSelection(
@@ -66,8 +137,8 @@ export function resolveSourceLineFromSelection(
   }
 
   return (
-    resolveSourceLineFromElement(toElement(selection.anchorNode)) ??
-    resolveSourceLineFromElement(toElement(selection.focusNode))
+    resolveSourceLineFromNode(selection.anchorNode, selection.anchorOffset) ??
+    resolveSourceLineFromNode(selection.focusNode, selection.focusOffset)
   )
 }
 
@@ -78,8 +149,14 @@ export function resolveSourceLineRangeFromSelection(
     return null
   }
 
-  const anchorLine = resolveSourceLineFromElement(toElement(selection.anchorNode))
-  const focusLine = resolveSourceLineFromElement(toElement(selection.focusNode))
+  const anchorLine = resolveSourceLineFromNode(
+    selection.anchorNode,
+    selection.anchorOffset,
+  )
+  const focusLine = resolveSourceLineFromNode(
+    selection.focusNode,
+    selection.focusOffset,
+  )
   if (anchorLine === null && focusLine === null) {
     return null
   }

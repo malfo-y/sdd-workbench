@@ -91,6 +91,18 @@ describe('SpecViewerPanel', () => {
     }
   }
 
+  function findTextNodeContaining(root: Node, fragment: string): Text | null {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    let currentNode = walker.nextNode()
+    while (currentNode) {
+      if (currentNode.textContent?.includes(fragment)) {
+        return currentNode as Text
+      }
+      currentNode = walker.nextNode()
+    }
+    return null
+  }
+
   it('renders markdown and keeps toc collapsed by default', () => {
     renderPanel()
 
@@ -459,6 +471,69 @@ describe('SpecViewerPanel', () => {
       selectionRange: {
         startLine: 5,
         endLine: 5,
+      },
+    })
+  })
+
+  it('resolves source line inside fenced code block based on selection offset', async () => {
+    const { onRequestAddComment } = renderPanel({
+      markdownContent:
+        '# Title\n\n```json\n{\n  "first": 1,\n  "second": 2,\n  "third": 3\n}\n```',
+    })
+
+    const contentElement = screen.getByTestId('spec-viewer-content')
+    const codeElement = contentElement.querySelector('pre code')
+    const preElement = codeElement?.closest('pre')
+    const baseSourceLine = Number(preElement?.getAttribute('data-source-line'))
+    if (!codeElement || !preElement || !Number.isFinite(baseSourceLine)) {
+      throw new Error('Expected rendered fenced code block with data-source-line')
+    }
+
+    await waitFor(() => {
+      expect(findTextNodeContaining(codeElement, '"third"')).not.toBeNull()
+    })
+    const selectionTextNode = findTextNodeContaining(codeElement, '"third"')
+    if (!selectionTextNode) {
+      throw new Error('Expected code text node to contain target fragment')
+    }
+    const anchorOffset = selectionTextNode.data.indexOf('"third"')
+    if (anchorOffset < 0) {
+      throw new Error('Expected text node to include target fragment')
+    }
+
+    const prefixRange = document.createRange()
+    prefixRange.setStart(codeElement, 0)
+    prefixRange.setEnd(selectionTextNode, anchorOffset)
+    const lineOffset = (prefixRange.toString().match(/\n/g) ?? []).length
+    const expectedLine = baseSourceLine + lineOffset
+
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset,
+      focusNode: selectionTextNode,
+      focusOffset: anchorOffset + '"third"'.length,
+      toString: () => '"third"',
+    } as unknown as Selection)
+
+    const contextMenuTarget =
+      selectionTextNode.parentElement ?? (codeElement as HTMLElement)
+    fireEvent.contextMenu(contextMenuTarget, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
+      `Line ${expectedLine}`,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: expectedLine,
+        endLine: expectedLine,
       },
     })
   })
