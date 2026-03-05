@@ -4066,6 +4066,83 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(readFileMock).not.toHaveBeenCalled()
   })
 
+  it('refreshes file tree immediately after deleting a file from context menu', async () => {
+    const workspaceRoot = '/Users/tester/projects/delete-refresh-workspace'
+    const originalConfirm = window.confirm
+    const confirmMock = vi.fn<() => boolean>().mockReturnValue(true)
+    window.confirm = confirmMock
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'a.ts',
+                relativePath: 'src/a.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+          },
+        ],
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'a.ts' }), {
+      clientX: 120,
+      clientY: 140,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(deleteFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/a.ts')
+    })
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'a.ts' }),
+      ).not.toBeInTheDocument()
+    })
+    expect(confirmMock).toHaveBeenCalledTimes(1)
+    window.confirm = originalConfirm
+  })
+
   it('renders markdown in right spec panel when .md file is selected', async () => {
     const indexedTree: WorkspaceFileNode[] = [
       {

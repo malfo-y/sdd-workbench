@@ -2042,6 +2042,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         )
       }
 
+      void loadWorkspaceIndex(activeWorkspaceId, rootPath, 'refresh')
+      void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
       return true
     } catch (error) {
       const errorMessage =
@@ -2051,7 +2053,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setBannerMessage(errorMessage)
       return false
     }
-  }, [])
+  }, [loadWorkspaceGitFileStatuses, loadWorkspaceIndex])
 
   const deleteDirectory = useCallback(async (relativePath: string) => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -2091,6 +2093,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         )
       }
 
+      void loadWorkspaceIndex(activeWorkspaceId, rootPath, 'refresh')
+      void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
       return true
     } catch (error) {
       const errorMessage =
@@ -2100,7 +2104,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setBannerMessage(errorMessage)
       return false
     }
-  }, [])
+  }, [loadWorkspaceGitFileStatuses, loadWorkspaceIndex])
 
   const renameFileOrDirectory = useCallback(async (oldRelativePath: string, newRelativePath: string) => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
