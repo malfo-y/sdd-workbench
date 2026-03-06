@@ -1453,6 +1453,106 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('refreshes git badges and line markers when the window regains focus', async () => {
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'auth.ts',
+            relativePath: 'src/auth.ts',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'line1\nline2\nline3',
+    })
+    getGitFileStatusesMock.mockResolvedValue({
+      ok: true,
+      statuses: {},
+    })
+    getGitLineMarkersMock.mockResolvedValue({
+      ok: true,
+      markers: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'auth.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'auth.ts' }))
+
+    await waitFor(() => {
+      expect(getGitLineMarkersMock).toHaveBeenCalledWith(
+        '/Users/tester/projects/sdd-workbench',
+        'src/auth.ts',
+      )
+    })
+    expect(screen.queryByTestId('tree-git-badge-src/auth.ts')).not.toBeInTheDocument()
+
+    const gitStatusCallCountBeforeFocus = getGitFileStatusesMock.mock.calls.length
+    const gitLineMarkerCallCountBeforeFocus = getGitLineMarkersMock.mock.calls.length
+
+    await act(async () => {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 300)
+      })
+    })
+
+    getGitFileStatusesMock.mockResolvedValueOnce({
+      ok: true,
+      statuses: {
+        'src/auth.ts': 'modified',
+      },
+    })
+    getGitLineMarkersMock.mockResolvedValueOnce({
+      ok: true,
+      markers: [{ line: 2, kind: 'modified' }],
+    })
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    await waitFor(() => {
+      expect(getGitFileStatusesMock).toHaveBeenCalledTimes(
+        gitStatusCallCountBeforeFocus + 1,
+      )
+    })
+    await waitFor(() => {
+      expect(getGitLineMarkersMock).toHaveBeenCalledTimes(
+        gitLineMarkerCallCountBeforeFocus + 1,
+      )
+    })
+    expect(screen.getByTestId('tree-git-badge-src/auth.ts')).toHaveTextContent('M')
+  })
+
   it('shows a cap message when indexed nodes exceed initial render limit', async () => {
     const hugeTree: WorkspaceFileNode[] = Array.from({ length: 10_020 }, (_, index) => ({
       name: `dir-${index}`,

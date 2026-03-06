@@ -138,6 +138,7 @@ type WorkspaceProviderProps = {
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
 const WORKSPACE_INDEX_NODE_CAP = 100_000
 const DIRECTORY_PAGE_SIZE = 500
+const GIT_DECORATION_REFRESH_DEBOUNCE_MS = 250
 const REMOTE_BANNER_AUTODISMISS_MS = 5_000
 const WATCH_FALLBACK_BANNER_MESSAGE =
   'Native watcher is unavailable for this workspace. Fallback to polling watcher is active.'
@@ -814,6 +815,52 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
     },
     [],
+  )
+
+  const lastGitDecorationRefreshAtRef = useRef(0)
+
+  const refreshWorkspaceGitDecorations = useCallback(
+    (workspaceId: WorkspaceId, rootPath: string, activeFile?: string | null) => {
+      void loadWorkspaceGitFileStatuses(workspaceId, rootPath)
+      if (activeFile) {
+        void loadWorkspaceGitLineMarkers(workspaceId, rootPath, activeFile)
+      }
+    },
+    [loadWorkspaceGitFileStatuses, loadWorkspaceGitLineMarkers],
+  )
+
+  const refreshActiveWorkspaceGitDecorations = useCallback(
+    (options?: {
+      force?: boolean
+    }) => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
+        return
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      if (!workspaceSession) {
+        return
+      }
+
+      const now = Date.now()
+      if (
+        options?.force !== true &&
+        now - lastGitDecorationRefreshAtRef.current <
+          GIT_DECORATION_REFRESH_DEBOUNCE_MS
+      ) {
+        return
+      }
+
+      lastGitDecorationRefreshAtRef.current = now
+      refreshWorkspaceGitDecorations(
+        activeWorkspaceId,
+        workspaceSession.rootPath,
+        workspaceSession.activeFile,
+      )
+    },
+    [refreshWorkspaceGitDecorations],
   )
 
   const saveComments = useCallback(async (nextComments: CodeComment[]) => {
@@ -2745,6 +2792,33 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
     }
   }, [loadWorkspaceFile, loadWorkspaceGitFileStatuses, loadWorkspaceIndex, loadWorkspaceSpec])
+
+  useEffect(() => {
+    refreshActiveWorkspaceGitDecorations({
+      force: true,
+    })
+  }, [workspaceState.activeWorkspaceId, refreshActiveWorkspaceGitDecorations])
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      refreshActiveWorkspaceGitDecorations()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        return
+      }
+      refreshActiveWorkspaceGitDecorations()
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refreshActiveWorkspaceGitDecorations])
 
   useEffect(() => {
     const unsubscribe = window.workspace.onWatchFallback((fallbackEvent) => {
