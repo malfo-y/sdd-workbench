@@ -28,6 +28,11 @@ import {
   sanitizeMarkdownUri,
 } from './markdown-security'
 import { SpecLinkPopover } from './spec-link-popover'
+import {
+  buildSourceLineAttributes,
+  getMarkdownNodeSourceLine,
+  type MarkdownNodeWithPosition,
+} from './source-line-metadata'
 import { SpecSourcePopover } from './spec-source-popover'
 import {
   resolveNearestSourceLineFromPoint,
@@ -86,26 +91,6 @@ type CommentHoverState = {
 
 const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'blocked placeholder text'
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
-
-type MarkdownNodeWithPosition = {
-  type?: string
-  tagName?: string
-  position?: {
-    start?: {
-      line?: number
-    }
-  }
-  children?: MarkdownNodeWithPosition[]
-}
-
-function getMarkdownNodeSourceLine(node: MarkdownNodeWithPosition | undefined) {
-  const candidate = node?.position?.start?.line
-  if (typeof candidate !== 'number' || !Number.isFinite(candidate)) {
-    return undefined
-  }
-  const normalized = Math.trunc(candidate)
-  return normalized >= 1 ? normalized : undefined
-}
 
 function isMarkerContainerTag(tagName: string) {
   return tagName === 'blockquote' || tagName === 'li'
@@ -196,10 +181,11 @@ function renderBlockWithSourceLine(
   ]
     .filter((value) => value.length > 0)
     .join(' ')
-  const baseProps = {
+  const sourceLineAttributes = buildSourceLineAttributes(node)
+  const baseProps: Record<string, unknown> = {
     ...restProps,
+    ...sourceLineAttributes,
     className: mergedClassName.length > 0 ? mergedClassName : undefined,
-    'data-source-line': sourceLine,
     'data-has-comment-marker': hasCommentMarker ? 'true' : undefined,
     'data-comment-count': hasCommentMarker ? String(markerCount) : undefined,
   }
@@ -223,6 +209,28 @@ function renderBlockWithSourceLine(
       },
       String(markerCount),
     ),
+    children ?? null,
+  )
+}
+
+function renderElementWithSourceLine(
+  tagName: string,
+  props: Record<string, unknown>,
+  options?: {
+    includeAnchorLine?: boolean
+  },
+) {
+  const { node, children, ...restProps } = props as {
+    node?: MarkdownNodeWithPosition
+    children?: ReactNode
+  }
+
+  return createElement(
+    tagName,
+    {
+      ...restProps,
+      ...buildSourceLineAttributes(node, options),
+    } as Record<string, unknown>,
     children ?? null,
   )
 }
@@ -967,10 +975,12 @@ export function SpecViewerPanel({
     () => ({
       a: (props) => {
         const { node, href, children, ...anchorProps } = props
-        void node
         return (
           <a
             {...anchorProps}
+            {...buildSourceLineAttributes(node, {
+              includeAnchorLine: false,
+            })}
             href={href}
             onClick={(event) => handleMarkdownLinkClick(event, href)}
           >
@@ -1013,7 +1023,13 @@ export function SpecViewerPanel({
           typeof className === 'string' ? className.match(/language-(\w+)/) : null
         if (!languageMatch) {
           return (
-            <code className={className} {...codeProps}>
+            <code
+              {...buildSourceLineAttributes(node, {
+                includeAnchorLine: false,
+              })}
+              className={className}
+              {...codeProps}
+            >
               {children}
             </code>
           )
@@ -1067,6 +1083,18 @@ export function SpecViewerPanel({
           handleCommentMarkerMouseEnter,
           scheduleCommentHoverClose,
         ),
+      tr: (props) =>
+        renderElementWithSourceLine('tr', props as Record<string, unknown>, {
+          includeAnchorLine: false,
+        }),
+      th: (props) =>
+        renderElementWithSourceLine('th', props as Record<string, unknown>, {
+          includeAnchorLine: false,
+        }),
+      td: (props) =>
+        renderElementWithSourceLine('td', props as Record<string, unknown>, {
+          includeAnchorLine: false,
+        }),
       h1: (props) =>
         renderBlockWithSourceLine(
           'h1',

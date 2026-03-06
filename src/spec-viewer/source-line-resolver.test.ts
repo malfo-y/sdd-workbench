@@ -83,6 +83,28 @@ describe('source-line-resolver', () => {
     expect(resolveSourceLineFromSelection(selection)).toBe(4)
   })
 
+  it('estimates source line from a multiline rendered span', () => {
+    const block = document.createElement('p')
+    block.setAttribute('data-source-line', '3')
+    block.setAttribute('data-source-line-start', '3')
+    block.setAttribute('data-source-line-end', '5')
+    const textNode = document.createTextNode('alpha beta gamma')
+    block.append(textNode)
+
+    const selection = {
+      anchorNode: textNode,
+      anchorOffset: textNode.data.indexOf('gamma'),
+      focusNode: textNode,
+      focusOffset: textNode.data.length,
+    } as unknown as Selection
+
+    expect(resolveSourceLineFromSelection(selection)).toBe(5)
+    expect(resolveSourceLineRangeFromSelection(selection)).toEqual({
+      startLine: 5,
+      endLine: 5,
+    })
+  })
+
   it('resolves line range from selection offsets inside a multiline code block', () => {
     const pre = document.createElement('pre')
     pre.setAttribute('data-source-line', '20')
@@ -101,6 +123,53 @@ describe('source-line-resolver', () => {
     expect(resolveSourceLineRangeFromSelection(selection)).toEqual({
       startLine: 20,
       endLine: 22,
+    })
+  })
+
+  it('prefers a nested cell span over the parent table source line', () => {
+    const table = document.createElement('table')
+    table.setAttribute('data-source-line', '3')
+    table.setAttribute('data-source-line-start', '3')
+    table.setAttribute('data-source-line-end', '5')
+    const row = document.createElement('tr')
+    row.setAttribute('data-source-line-start', '5')
+    row.setAttribute('data-source-line-end', '5')
+    const cell = document.createElement('td')
+    cell.setAttribute('data-source-line-start', '5')
+    cell.setAttribute('data-source-line-end', '5')
+    const textNode = document.createTextNode('beta')
+    cell.append(textNode)
+    row.append(cell)
+    table.append(row)
+
+    expect(resolveSourceLineFromTarget(textNode)).toBe(5)
+  })
+
+  it('normalizes range across two nodes with different source spans', () => {
+    const firstBlock = document.createElement('p')
+    firstBlock.setAttribute('data-source-line', '4')
+    firstBlock.setAttribute('data-source-line-start', '4')
+    firstBlock.setAttribute('data-source-line-end', '5')
+    const firstText = document.createTextNode('alpha beta')
+    firstBlock.append(firstText)
+
+    const secondBlock = document.createElement('p')
+    secondBlock.setAttribute('data-source-line', '7')
+    secondBlock.setAttribute('data-source-line-start', '7')
+    secondBlock.setAttribute('data-source-line-end', '8')
+    const secondText = document.createTextNode('gamma delta')
+    secondBlock.append(secondText)
+
+    const selection = {
+      anchorNode: firstText,
+      anchorOffset: firstText.data.indexOf('beta'),
+      focusNode: secondText,
+      focusOffset: secondText.data.length,
+    } as unknown as Selection
+
+    expect(resolveSourceLineRangeFromSelection(selection)).toEqual({
+      startLine: 5,
+      endLine: 8,
     })
   })
 

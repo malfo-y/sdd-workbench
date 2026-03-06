@@ -541,6 +541,101 @@ describe('SpecViewerPanel', () => {
     })
   })
 
+  it('estimates a later source line for multiline paragraph selections', () => {
+    const { onRequestAddComment } = renderPanel({
+      markdownContent: '# Title\n\nalpha\nbeta\ngamma',
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const paragraph = screen.getByTestId('spec-viewer-content').querySelector('p')
+    if (!paragraph) {
+      throw new Error('Expected rendered paragraph')
+    }
+
+    const selectionTextNode = findTextNodeContaining(paragraph, 'gamma')
+    if (!selectionTextNode) {
+      throw new Error('Expected paragraph text node containing gamma')
+    }
+    const anchorOffset = selectionTextNode.data.indexOf('gamma')
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 5,
+        endLine: 5,
+      },
+    })
+  })
+
+  it('uses the table cell source line instead of the table block line', () => {
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
+      markdownContent:
+        '# Title\n\n| left | right |\n| --- | --- |\n| alpha | beta |\n',
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const table = screen.getByRole('table')
+    const cell = screen.getByRole('cell', { name: 'beta' })
+    const tableSourceLine = Number(table.getAttribute('data-source-line'))
+    const cellSourceLine = Number(cell.getAttribute('data-source-line-start'))
+    const selectionTextNode = findTextNodeContaining(cell, 'beta')
+    if (
+      !selectionTextNode ||
+      !Number.isFinite(tableSourceLine) ||
+      !Number.isFinite(cellSourceLine)
+    ) {
+      throw new Error('Expected table and cell source metadata')
+    }
+    expect(cellSourceLine).not.toBe(tableSourceLine)
+
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset: 0,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => 'beta',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(cell, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
+      `Line ${cellSourceLine}`,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: cellSourceLine,
+        endLine: cellSourceLine,
+      },
+    })
+
+    fireEvent.contextMenu(cell, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(cellSourceLine)
+  })
+
   it('renders comment count marker on nearest markdown block', async () => {
     renderPanel({
       markdownContent: '# Title\n\nParagraph',

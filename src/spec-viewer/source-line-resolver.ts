@@ -1,4 +1,8 @@
-const SOURCE_LINE_ATTRIBUTE = 'data-source-line'
+import {
+  SOURCE_LINE_ATTRIBUTE,
+  SOURCE_LINE_END_ATTRIBUTE,
+  SOURCE_LINE_START_ATTRIBUTE,
+} from './source-line-metadata'
 
 export type SourceLineRange = {
   startLine: number
@@ -64,6 +68,75 @@ function countLineBreaks(text: string): number {
   return count
 }
 
+function resolveSourceLineSpanFromElement(
+  element: Element | null,
+): SourceLineRange | null {
+  if (!element) {
+    return null
+  }
+
+  const anchorLine = normalizeSourceLine(element.getAttribute(SOURCE_LINE_ATTRIBUTE))
+  const startLine = normalizeSourceLine(
+    element.getAttribute(SOURCE_LINE_START_ATTRIBUTE),
+  )
+  const endLine = normalizeSourceLine(
+    element.getAttribute(SOURCE_LINE_END_ATTRIBUTE),
+  )
+  const normalizedStartLine = startLine ?? anchorLine ?? endLine
+  const normalizedEndLine = endLine ?? anchorLine ?? startLine
+  if (normalizedStartLine === null || normalizedEndLine === null) {
+    return null
+  }
+
+  return {
+    startLine: Math.min(normalizedStartLine, normalizedEndLine),
+    endLine: Math.max(normalizedStartLine, normalizedEndLine),
+  }
+}
+
+function resolveNodeTextOffsetWithinElement(
+  element: HTMLElement,
+  targetNode: Node,
+  targetOffset: number | undefined,
+): number | null {
+  if (!element.contains(targetNode)) {
+    return null
+  }
+
+  try {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    range.setEnd(targetNode, clampNodeOffset(targetNode, targetOffset))
+    return range.toString().length
+  } catch {
+    return null
+  }
+}
+
+function estimateLineFromSpanOffset(
+  span: SourceLineRange,
+  textOffset: number | null,
+  totalTextLength: number,
+) {
+  if (span.startLine >= span.endLine) {
+    return span.startLine
+  }
+
+  if (textOffset === null || totalTextLength <= 0) {
+    return span.startLine
+  }
+
+  const totalLineCount = span.endLine - span.startLine + 1
+  const boundedOffset = Math.max(0, Math.min(textOffset, totalTextLength))
+  const ratio = boundedOffset / totalTextLength
+  const lineIndex = Math.min(
+    totalLineCount - 1,
+    Math.floor(ratio * totalLineCount),
+  )
+
+  return span.startLine + lineIndex
+}
+
 function resolveCodeBlockLineOffset(
   codeElement: HTMLElement,
   targetNode: Node,
@@ -95,10 +168,8 @@ function resolveSourceLineFromNode(
   const targetNode = node ?? element
   let current: Element | null = element
   while (current) {
-    const normalized = normalizeSourceLine(
-      current.getAttribute(SOURCE_LINE_ATTRIBUTE),
-    )
-    if (normalized !== null) {
+    const sourceLineSpan = resolveSourceLineSpanFromElement(current)
+    if (sourceLineSpan) {
       if (
         current instanceof HTMLElement &&
         current.tagName.toLowerCase() === 'pre'
@@ -111,11 +182,24 @@ function resolveSourceLineFromNode(
             nodeOffset,
           )
           if (codeBlockLineOffset !== null) {
-            return normalized + codeBlockLineOffset
+            return sourceLineSpan.startLine + codeBlockLineOffset
           }
         }
       }
-      return normalized
+      if (current instanceof HTMLElement) {
+        const textOffset = resolveNodeTextOffsetWithinElement(
+          current,
+          targetNode,
+          nodeOffset,
+        )
+        return estimateLineFromSpanOffset(
+          sourceLineSpan,
+          textOffset,
+          current.textContent?.length ?? 0,
+        )
+      }
+
+      return sourceLineSpan.startLine
     }
     current = current.parentElement
   }

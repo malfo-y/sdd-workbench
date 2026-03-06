@@ -1332,3 +1332,56 @@
   - deleted-only hunk는 MVP 범위 밖으로 분리해 렌더에서 제외했다.
   - Git 실패/비저장소 경로는 오류 배너 없이 `markers=[]`로 안전 degrade한다.
   - image preview/preview unavailable 상태에서는 라인 렌더 자체를 건너뛰어 Git 마커를 표시하지 않는다.
+
+---
+
+## F32 Addendum (2026-03-06)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f32_spec_comment_anchor_precision.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `1, 2` (completed)
+  - Phase 2: `3` (completed)
+  - Phase 3: `4, 5` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 1 | source metadata helper 추가 | P0 | - | completed | `source-line-metadata.test.ts` pass |
+| 2 | Spec Viewer renderer metadata 확장 | P0 | 1 | completed | `spec-viewer-panel.test.tsx` pass |
+| 3 | `source-line-resolver` line span 해석 추가 | P0 | 1,2 | completed | `source-line-resolver.test.ts` pass |
+| 4 | source action wiring에 개선된 anchor 계산 통합 | P1 | 3 | completed | `spec-viewer-panel.test.tsx` pass |
+| 5 | paragraph/list/blockquote/table/fallback 회귀 테스트 추가 | P0 | 3,4 | completed | targeted vitest + `npm test` pass |
+
+### 2) Files Changed (F32)
+
+- `src/spec-viewer/source-line-metadata.ts` (new)
+- `src/spec-viewer/source-line-metadata.test.ts` (new)
+- `src/spec-viewer/source-line-resolver.ts`
+- `src/spec-viewer/source-line-resolver.test.ts`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+
+### 3) Test and Quality Gate Status (F32)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npx vitest run src/spec-viewer/source-line-metadata.test.ts src/spec-viewer/source-line-resolver.test.ts src/spec-viewer/spec-viewer-panel.test.tsx`: pass (`45 passed`)
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`55 files, 555 passed, 1 skipped`)
+
+### 4) Parallel Groups Executed (F32)
+
+- Group A: `1 -> 2` (`spec-viewer-panel.tsx` metadata wiring 충돌로 순차)
+- Group B: `3` (resolver 단독 업그레이드)
+- Group C: `4 -> 5` (panel integration + regression tests 순차 검증)
+
+### 5) Blockers and Decisions (F32)
+
+- Blockers: 없음
+- Applied decisions:
+  - source anchor 정밀도는 line-level best-effort로 제한하고 문자/column anchor는 제외했다.
+  - search/comment marker 대표 block anchor는 기존 `data-source-line`을 유지하고, resolver 전용 세밀 metadata는 `data-source-line-start/end`로 확장했다.
+  - multiline paragraph는 rendered text offset 비율을 이용해 source span 안의 line을 추정한다.
+  - table row/cell과 inline link/code는 세밀 metadata를 추가하되, search highlight 대표 block은 기존 table/block 경로를 유지했다.
