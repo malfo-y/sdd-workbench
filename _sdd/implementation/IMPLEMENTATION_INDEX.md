@@ -1,5 +1,21 @@
 # IMPLEMENTATION_INDEX
 
+## f32_spec_comment_anchor_precision
+
+### Sync Record - 2026-03-06T06:17:12Z
+
+- note: F32 구현 완료 스펙 동기화 (Spec Viewer comment/source action line anchor 정밀도 개선, source span metadata helper, multiline paragraph/table cell best-effort line 추정) 반영
+- copied files:
+  - `_sdd/implementation/features/f32_spec_comment_anchor_precision/SYNC_20260306_151705_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- excluded root artifacts:
+  - `_sdd/implementation/IMPLEMENTATION_PLAN*.md`, `_sdd/implementation/IMPLEMENTATION_REVIEW.md`, `_sdd/implementation/IMPLEMENTATION_REPORT*.md`는 현재 루트 문서 헤더가 F32 전용 상태가 아니어서 이번 feature archive에서는 제외
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+
 ## f31_search_star_wildcard_support
 
 ### Sync Record - 2026-03-06T01:39:49Z
