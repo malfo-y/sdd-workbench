@@ -459,6 +459,7 @@ function App() {
     setSelectionRange,
     setExpandedDirectories,
     loadDirectoryChildren,
+    searchFiles,
     setWatchModePreference,
     clearBanner,
     externalChangeDetected,
@@ -2014,6 +2015,7 @@ function App() {
               onExpandedDirectoriesChange={setExpandedDirectories}
               onRequestCopyRelativePath={handleCopyRelativePath}
               onRequestLoadDirectory={loadDirectoryChildren}
+              onSearchFiles={searchFiles}
               onSelectFile={handleSelectFileFromTree}
               rootPath={rootPath}
               onRequestCreateFile={handleRequestCreateFile}
@@ -2074,6 +2076,7 @@ function App() {
                 activeSpecPath={activeSpec}
                 commentLineEntries={activeSpecCommentLineEntries}
                 commentLineCounts={activeSpecCommentLineCounts}
+                isActive={activeTab === 'spec'}
                 isLoading={isReadingSpec}
                 markdownContent={activeSpecContent}
                 onScrollPositionChange={handleSpecScrollPositionChange}

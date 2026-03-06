@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
@@ -67,6 +68,7 @@ type FileTreePanelProps = {
   onRequestDeleteFile?: (relativePath: string) => void
   onRequestDeleteDirectory?: (relativePath: string) => void
   onRequestRename?: (oldRelativePath: string, newRelativePath: string) => void
+  onSearchFiles?: (query: string) => Promise<WorkspaceSearchFilesResult>
 }
 
 type RenderBudget = {
@@ -433,6 +435,7 @@ export function FileTreePanel({
   onRequestDeleteFile,
   onRequestDeleteDirectory,
   onRequestRename,
+  onSearchFiles,
 }: FileTreePanelProps) {
   const [contextMenuState, setContextMenuState] = useState<{
     x: number
@@ -443,6 +446,23 @@ export function FileTreePanel({
   const [inlineInput, setInlineInput] = useState<InlineInputState>(null)
   const [inlineInputValue, setInlineInputValue] = useState('')
   const [inlineInputError, setInlineInputError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchState, setSearchState] = useState<{
+    loading: boolean
+    results: WorkspaceSearchFileMatch[]
+    truncated: boolean
+    skippedLargeDirectoryCount: number
+    depthLimitHit: boolean
+    timedOut: boolean
+  }>({
+    loading: false,
+    results: [],
+    truncated: false,
+    skippedLargeDirectoryCount: 0,
+    depthLimitHit: false,
+    timedOut: false,
+  })
+  const searchRequestTokenRef = useRef(0)
 
   const expandedDirectoriesSet = useMemo(
     () => new Set(expandedDirectories),
@@ -464,7 +484,84 @@ export function FileTreePanel({
 
   useEffect(() => {
     setContextMenuState(null)
+    setSearchQuery('')
+    setSearchState({
+      loading: false,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
   }, [rootPath])
+
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim()
+    if (!rootPath || !onSearchFiles || trimmedQuery.length === 0) {
+      setSearchState((previous) =>
+        previous.loading ||
+        previous.results.length > 0 ||
+        previous.truncated ||
+        previous.skippedLargeDirectoryCount > 0 ||
+        previous.depthLimitHit ||
+        previous.timedOut
+          ? {
+              loading: false,
+              results: [],
+              truncated: false,
+              skippedLargeDirectoryCount: 0,
+              depthLimitHit: false,
+              timedOut: false,
+            }
+          : previous,
+      )
+      return
+    }
+
+    const requestToken = searchRequestTokenRef.current + 1
+    searchRequestTokenRef.current = requestToken
+    setSearchState((previous) => ({
+      ...previous,
+      loading: true,
+    }))
+
+    const timeoutId = window.setTimeout(() => {
+      void onSearchFiles(trimmedQuery)
+        .then((result) => {
+          if (searchRequestTokenRef.current !== requestToken) {
+            return
+          }
+
+          setSearchState({
+            loading: false,
+            results: result.ok ? result.results : [],
+            truncated: result.ok ? result.truncated : false,
+            skippedLargeDirectoryCount: result.ok
+              ? result.skippedLargeDirectoryCount
+              : 0,
+            depthLimitHit: result.ok ? result.depthLimitHit : false,
+            timedOut: result.ok ? result.timedOut : false,
+          })
+        })
+        .catch(() => {
+          if (searchRequestTokenRef.current !== requestToken) {
+            return
+          }
+          setSearchState({
+            loading: false,
+            results: [],
+            truncated: false,
+            skippedLargeDirectoryCount: 0,
+            depthLimitHit: false,
+            timedOut: false,
+          })
+        })
+    }, 200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [onSearchFiles, rootPath, searchQuery])
 
   const closeContextMenu = useCallback(() => {
     setContextMenuState(null)
@@ -561,6 +658,30 @@ export function FileTreePanel({
     [],
   )
 
+  const handleSearchResultSelect = useCallback(
+    (relativePath: string) => {
+      const segments = relativePath.split('/').slice(0, -1)
+      if (segments.length > 0) {
+        const nextExpandedDirectories = new Set(expandedDirectoriesSet)
+        let currentPath = ''
+        for (const segment of segments) {
+          currentPath = currentPath ? `${currentPath}/${segment}` : segment
+          nextExpandedDirectories.add(currentPath)
+        }
+        onExpandedDirectoriesChange([...nextExpandedDirectories])
+      }
+      onSelectFile(relativePath)
+    },
+    [expandedDirectoriesSet, onExpandedDirectoriesChange, onSelectFile],
+  )
+
+  const hasActiveSearch = searchQuery.trim().length > 0
+  const shouldShowSearchHint =
+    searchState.truncated ||
+    searchState.skippedLargeDirectoryCount > 0 ||
+    searchState.depthLimitHit ||
+    searchState.timedOut
+
   if (!rootPath) {
     return (
       <section className="file-tree-panel" data-testid="file-tree-panel">
@@ -572,15 +693,17 @@ export function FileTreePanel({
   if (isIndexing) {
     return (
       <section className="file-tree-panel" data-testid="file-tree-panel">
+        <div className="tree-search-bar">
+          <input
+            className="tree-search-input"
+            data-testid="file-tree-search-input"
+            disabled
+            placeholder="Search files (* supported)"
+            type="search"
+            value={searchQuery}
+          />
+        </div>
         <p className="tree-empty">Indexing workspace files...</p>
-      </section>
-    )
-  }
-
-  if (fileTree.length === 0) {
-    return (
-      <section className="file-tree-panel" data-testid="file-tree-panel">
-        <p className="tree-empty">No files found.</p>
       </section>
     )
   }
@@ -664,25 +787,103 @@ export function FileTreePanel({
       data-testid="file-tree-panel"
       onContextMenu={handlePanelContextMenu}
     >
-      {renderFileTreeNodes(
-        fileTree,
-        0,
-        renderBudget,
-        activeFile,
-        changedFilesSet,
-        changedSubtreeSet,
-        gitStatusSubtreeMap,
-        onSelectFile,
-        handleNodeContextMenu,
-        expandedDirectoriesSet,
-        toggleDirectory,
-        onRequestLoadDirectory,
-        loadingDirectoriesSet,
-      )}
-      {renderBudget.truncated && (
-        <p className="tree-cap-message" data-testid="file-tree-cap-message">
-          Showing first {INITIAL_RENDER_NODE_LIMIT.toLocaleString()} nodes.
-        </p>
+      <div className="tree-search-bar">
+        <input
+          className="tree-search-input"
+          data-testid="file-tree-search-input"
+          onChange={(event) => {
+            setSearchQuery(event.target.value)
+          }}
+          placeholder="Search files (* supported)"
+          type="search"
+          value={searchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <button
+            className="tree-search-clear-button"
+            onClick={() => {
+              setSearchQuery('')
+            }}
+            type="button"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {hasActiveSearch ? (
+        <>
+          {searchState.loading ? (
+            <p className="tree-empty">Searching files...</p>
+          ) : searchState.results.length > 0 ? (
+            <div
+              className="tree-search-results"
+              data-testid="file-tree-search-results"
+            >
+              <ul className="tree-list">
+                {searchState.results.map((result) => (
+                  <li
+                    className="tree-node tree-node-file"
+                    key={result.relativePath}
+                  >
+                    <button
+                      className="tree-file-button"
+                      onClick={() => handleSearchResultSelect(result.relativePath)}
+                      type="button"
+                    >
+                      <span aria-hidden className="tree-file-icon">
+                        {getFileIcon(result.fileName)}
+                      </span>
+                      <span className="tree-file-name">{result.fileName}</span>
+                      <span className="tree-search-result-path">
+                        {result.relativePath}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p
+              className="tree-empty"
+              data-testid="file-tree-search-empty"
+            >
+              No files found.
+            </p>
+          )}
+          {shouldShowSearchHint && (
+            <p
+              className="tree-search-hint"
+              data-testid="file-tree-search-hint"
+            >
+              Search results may be incomplete.
+            </p>
+          )}
+        </>
+      ) : fileTree.length === 0 ? (
+        <p className="tree-empty">No files found.</p>
+      ) : (
+        <>
+          {renderFileTreeNodes(
+            fileTree,
+            0,
+            renderBudget,
+            activeFile,
+            changedFilesSet,
+            changedSubtreeSet,
+            gitStatusSubtreeMap,
+            onSelectFile,
+            handleNodeContextMenu,
+            expandedDirectoriesSet,
+            toggleDirectory,
+            onRequestLoadDirectory,
+            loadingDirectoriesSet,
+          )}
+          {renderBudget.truncated && (
+            <p className="tree-cap-message" data-testid="file-tree-cap-message">
+              Showing first {INITIAL_RENDER_NODE_LIMIT.toLocaleString()} nodes.
+            </p>
+          )}
+        </>
       )}
       {inlineInput !== null && (
         <div className="tree-inline-input-wrapper">

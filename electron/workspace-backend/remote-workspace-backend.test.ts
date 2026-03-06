@@ -15,6 +15,10 @@ describe('workspace-backend/remote-workspace-backend', () => {
     })
 
     await backend.index({ rootPath: 'remote://workspace-a' })
+    await backend.searchFiles({
+      rootPath: 'remote://workspace-a',
+      query: 'main*test',
+    })
     await backend.readFile({
       rootPath: 'remote://workspace-a',
       relativePath: 'src/main.ts',
@@ -34,11 +38,17 @@ describe('workspace-backend/remote-workspace-backend', () => {
     expect(requestRemote).toHaveBeenNthCalledWith(
       2,
       'workspace-a',
+      'workspace.searchFiles',
+      { query: 'main*test' },
+    )
+    expect(requestRemote).toHaveBeenNthCalledWith(
+      3,
+      'workspace-a',
       'workspace.readFile',
       { relativePath: 'src/main.ts' },
     )
     expect(requestRemote).toHaveBeenNthCalledWith(
-      3,
+      4,
       'workspace-a',
       'workspace.rename',
       {

@@ -43,6 +43,22 @@ interface WorkspaceIndexResult {
   error?: string
 }
 
+interface WorkspaceSearchFileMatch {
+  relativePath: string
+  fileName: string
+  parentRelativePath: string
+}
+
+interface WorkspaceSearchFilesResult {
+  ok: boolean
+  results: WorkspaceSearchFileMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
+  error?: string
+}
+
 type WorkspacePreviewUnavailableReason =
   | 'file_too_large'
   | 'binary_file'
@@ -294,6 +310,16 @@ interface Window {
       relativePath: string,
       options?: { offset?: number; limit?: number },
     ) => Promise<WorkspaceIndexDirectoryResult>
+    searchFiles: (
+      rootPath: string,
+      query: string,
+      options?: {
+        maxDepth?: number
+        maxResults?: number
+        maxDirectoryChildren?: number
+        timeBudgetMs?: number
+      },
+    ) => Promise<WorkspaceSearchFilesResult>
     readFile: (
       rootPath: string,
       relativePath: string,

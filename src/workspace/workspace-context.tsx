@@ -113,6 +113,7 @@ type WorkspaceContextValue = {
     relativePath: string,
     options?: { append?: boolean },
   ) => Promise<void>
+  searchFiles: (query: string) => Promise<WorkspaceSearchFilesResult>
   setWatchModePreference: (
     preference: WorkspaceWatchModePreference,
   ) => Promise<void>
@@ -2370,6 +2371,64 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const searchFiles = useCallback(
+    async (query: string): Promise<WorkspaceSearchFilesResult> => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      if (!activeWorkspaceId) {
+        return {
+          ok: false,
+          results: [],
+          truncated: false,
+          skippedLargeDirectoryCount: 0,
+          depthLimitHit: false,
+          timedOut: false,
+          error: 'No active workspace selected.',
+        }
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      if (!workspaceSession) {
+        return {
+          ok: false,
+          results: [],
+          truncated: false,
+          skippedLargeDirectoryCount: 0,
+          depthLimitHit: false,
+          timedOut: false,
+          error: 'Active workspace is unavailable.',
+        }
+      }
+
+      try {
+        return await window.workspace.searchFiles(
+          workspaceSession.rootPath,
+          query,
+          {
+            maxDepth: 20,
+            maxResults: 200,
+            maxDirectoryChildren: 10_000,
+            timeBudgetMs: 2_000,
+          },
+        )
+      } catch (error) {
+        return {
+          ok: false,
+          results: [],
+          truncated: false,
+          skippedLargeDirectoryCount: 0,
+          depthLimitHit: false,
+          timedOut: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Failed to search files.',
+        }
+      }
+    },
+    [],
+  )
+
   const setWatchModePreference = useCallback(
     async (preference: WorkspaceWatchModePreference) => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -2430,13 +2489,44 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         }
 
         if (workspaceSession.workspaceKind === 'remote') {
-          setWorkspaceState((previous) =>
-            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-              ...currentSession,
-              remoteConnectionState: 'disconnected',
-              remoteErrorCode: null,
-            })),
-          )
+          const remoteProfile = workspaceSession.remoteProfile
+          if (!remoteProfile) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                ...currentSession,
+                remoteConnectionState: 'disconnected',
+                remoteErrorCode: null,
+              })),
+            )
+            continue
+          }
+
+          const reconnected = await connectRemoteWorkspace(remoteProfile)
+          if (!reconnected) {
+            setWorkspaceState((previous) =>
+              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                ...currentSession,
+                remoteConnectionState: 'disconnected',
+              })),
+            )
+            continue
+          }
+
+          if (persistedWorkspaceSession.activeFile) {
+            loadWorkspaceFile(
+              workspaceId,
+              persistedWorkspaceSession.activeFile,
+              'select',
+              'push',
+            )
+          }
+
+          if (
+            persistedWorkspaceSession.activeSpec &&
+            persistedWorkspaceSession.activeSpec !== persistedWorkspaceSession.activeFile
+          ) {
+            loadWorkspaceSpec(workspaceId, persistedWorkspaceSession.activeSpec)
+          }
           continue
         }
 
@@ -2510,6 +2600,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       isDisposed = true
     }
   }, [
+    connectRemoteWorkspace,
     loadWorkspaceFile,
     loadWorkspaceGitFileStatuses,
     loadWorkspaceIndex,
@@ -2789,6 +2880,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setSelectionRange,
       setExpandedDirectories,
       loadDirectoryChildren,
+      searchFiles,
       setWatchModePreference,
       clearBanner,
       reloadExternalChange,
@@ -2826,6 +2918,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setSelectionRange,
       setExpandedDirectories,
       loadDirectoryChildren,
+      searchFiles,
       setWatchModePreference,
       clearBanner,
       reloadExternalChange,

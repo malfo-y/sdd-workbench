@@ -6,6 +6,7 @@ import {
   workspaceIndex,
   workspaceIndexDirectory,
   workspaceReadFile,
+  workspaceSearchFiles,
   workspaceWriteFile,
 } from './workspace-ops'
 
@@ -145,6 +146,94 @@ describe('remote-agent/runtime/workspace-ops', () => {
           }),
         ]),
       )
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('searches files with depth limit, large-directory skip, and result metadata', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-search-'))
+
+    try {
+      await mkdir(path.join(rootPath, 'docs', 'nested', 'deep'), { recursive: true })
+      await mkdir(path.join(rootPath, 'big'), { recursive: true })
+      await writeFile(path.join(rootPath, 'docs', 'Guide.md'), '# guide\n', 'utf8')
+      await writeFile(
+        path.join(rootPath, 'docs', 'nested', 'deep', 'guide-deep.md'),
+        '# deep\n',
+        'utf8',
+      )
+      await Promise.all(
+        Array.from({ length: 11 }, (_, index) =>
+          writeFile(path.join(rootPath, 'big', `guide-${index}.md`), 'x\n', 'utf8'),
+        ),
+      )
+
+      const result = await workspaceSearchFiles(
+        { rootPath },
+        {
+          query: 'guide',
+          maxDepth: 1,
+          maxDirectoryChildren: 10,
+          maxResults: 10,
+        },
+      )
+
+      expect(result.ok).toBe(true)
+      expect(result.results).toEqual([
+        {
+          fileName: 'Guide.md',
+          parentRelativePath: 'docs',
+          relativePath: 'docs/Guide.md',
+        },
+      ])
+      expect(result.skippedLargeDirectoryCount).toBe(1)
+      expect(result.depthLimitHit).toBe(true)
+      expect(result.timedOut).toBe(false)
+      expect(result.truncated).toBe(false)
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('supports wildcard queries and treats wildcard-only query as empty', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-search-wildcard-'))
+
+    try {
+      await mkdir(path.join(rootPath, 'docs'), { recursive: true })
+      await writeFile(path.join(rootPath, 'docs', 'guide-unit-test.md'), '# test\n', 'utf8')
+      await writeFile(path.join(rootPath, 'docs', 'guide.md'), '# guide\n', 'utf8')
+
+      const wildcardResult = await workspaceSearchFiles(
+        { rootPath },
+        {
+          query: 'guide*test',
+          maxDepth: 5,
+          maxDirectoryChildren: 100,
+          maxResults: 10,
+        },
+      )
+
+      expect(wildcardResult.ok).toBe(true)
+      expect(wildcardResult.results).toEqual([
+        {
+          fileName: 'guide-unit-test.md',
+          parentRelativePath: 'docs',
+          relativePath: 'docs/guide-unit-test.md',
+        },
+      ])
+
+      const emptyWildcardResult = await workspaceSearchFiles(
+        { rootPath },
+        {
+          query: '**',
+        },
+      )
+
+      expect(emptyWildcardResult.ok).toBe(true)
+      expect(emptyWildcardResult.results).toEqual([])
+      expect(emptyWildcardResult.truncated).toBe(false)
+      expect(emptyWildcardResult.timedOut).toBe(false)
     } finally {
       await rm(rootPath, { recursive: true, force: true })
     }

@@ -28,10 +28,33 @@ type WorkspaceIndexDirectoryOptions = {
   limit?: number
 }
 
+type WorkspaceSearchFilesOptions = {
+  maxDepth?: number
+  maxResults?: number
+  maxDirectoryChildren?: number
+  timeBudgetMs?: number
+}
+
 type WorkspaceIndexResult = {
   ok: boolean
   fileTree: WorkspaceFileNode[]
   truncated?: boolean
+  error?: string
+}
+
+type WorkspaceSearchFileMatch = {
+  relativePath: string
+  fileName: string
+  parentRelativePath: string
+}
+
+type WorkspaceSearchFilesResult = {
+  ok: boolean
+  results: WorkspaceSearchFileMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
   error?: string
 }
 
@@ -271,6 +294,20 @@ const workspaceApi = {
       offset: options?.offset,
       limit: options?.limit,
     }) as Promise<WorkspaceIndexDirectoryResult>
+  },
+  searchFiles(
+    rootPath: string,
+    query: string,
+    options?: WorkspaceSearchFilesOptions,
+  ) {
+    return ipcRenderer.invoke('workspace:searchFiles', {
+      rootPath,
+      query,
+      maxDepth: options?.maxDepth,
+      maxResults: options?.maxResults,
+      maxDirectoryChildren: options?.maxDirectoryChildren,
+      timeBudgetMs: options?.timeBudgetMs,
+    }) as Promise<WorkspaceSearchFilesResult>
   },
   readFile(rootPath: string, relativePath: string) {
     return ipcRenderer.invoke('workspace:readFile', {

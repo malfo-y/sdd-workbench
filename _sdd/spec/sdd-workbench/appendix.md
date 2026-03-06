@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F28)
+## A. 기능 이력 (F01~F31)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -49,6 +49,9 @@
 | F07.2 | Done | 2026-02-27 | 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 시 픽셀 스크롤 복원(`codeScrollPositionsRef`, `onScrollChange`/`restoredScrollTop` prop, rAF 기반 적용) |
 | F27 | Done | 2026-03-01 | Remote Agent Protocol 기반 원격 워크스페이스 MVP(SSH agent session + backend 추상화 + 원격 watch/git/comments 브리지 + bootstrap/runtime 번들 + identityFile 지원 + 연결 상태 표준화) |
 | F28 | Done | 2026-03-01 | SSH 선접속 기반 remote directory browse + remoteRoot 선택(2-step 모달, browse 실패 고정 표시, 기존 connectRemote 계약 재사용) |
+| F29 | Done | 2026-03-06 | 파일 브라우저 파일명 검색: `workspace:searchFiles` 계약, local/remote 공통 backend 탐색, depth/result/time 보호 정책, partial 힌트 |
+| F30 | Done | 2026-03-06 | 스펙 뷰어 텍스트 검색: raw markdown block search, `Cmd/Ctrl+F` hotkey gate, rendered block highlight/navigation |
+| F31 | Done | 2026-03-06 | 검색 `*` wildcard 지원: ordered token match, wildcard-only query empty 처리, `(* supported)` discoverability, spec search helper 분리 |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -84,6 +87,9 @@
 - (BUG-01) Go to Source 탭 전환 수정: `goToActiveSpecSourceLine`에서 `setActiveTab('code')` 순서를 `openSpecRelativePath` 이후로 이동
 - (F25b) 파일/디렉토리 Rename: 우클릭 "Rename" → 인라인 입력(현재 이름 pre-fill) + Enter/Escape, 코멘트 보호(`comments.some` 기반 대상/하위 검사 → 차단 + 에러 배너), dirty 파일 rename 거부, active file 경로 갱신(직접 rename + 디렉토리 prefix 치환), 빈 영역 메뉴에 Rename 미표시
 - (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` → U(untracked/added, 초록 `#73c991`)/M(modified, 주황 `#e2c08d`) badge 렌더, 디렉토리 접힘 시 `buildGitStatusSubtreeMap` 버블링(modified > added/untracked), 디렉토리 확장 시 badge 숨김, git 비저장소 → badge 미표시, watcher/save 시점 재조회 + request ID stale 방지
+- (F29) 파일 브라우저 파일명 검색: `workspace:searchFiles` backend 계약 기반으로 현재 트리 로드 상태와 무관하게 검색, 기본 depth `20`/result cap `200`/large-dir skip `10000`/time budget `2000ms`, partial 시 `Search results may be incomplete.` 힌트, 결과 클릭 시 ancestor directory best-effort expand + 파일 open
+- (F30) 스펙 뷰어 텍스트 검색: Spec 탭 활성 상태에서만 `Cmd/Ctrl+F`, raw markdown substring(case-insensitive), rendered `data-source-line` block에 `.is-spec-search-match` / `.is-spec-search-focus` 적용, 이전/다음 + `Enter`/`Shift+Enter` wrap-around, `0 / 0` 포함 카운트, `Escape`/닫기/activeSpecPath 변경 시 검색 상태 초기화
+- (F31) 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 모두 `*`를 0개 이상의 임의 문자로 해석하는 ordered token match 적용, `*`/`**`는 empty query로 처리, 파일 브라우저는 `fileName` 기준만 확장, 스펙 검색은 같은 line 안에서만 확장, 두 검색 입력 모두 `(* supported)` placeholder로 discoverability 제공
 - (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
 - (F24.1) 코드 에디터 line wrap 토글: 헤더에 "Wrap On/Off" 버튼, 기본 On, 클릭으로 동적 전환(`wrapCompartment.reconfigure`), `aria-pressed` 반영, 가로 스크롤 방지로 트랙패드 wheel 히스토리 내비게이션 안정화
 - (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 후 해당 파일의 마지막 픽셀 스크롤 위치를 복원; 저장: `view.scrollDOM` native scroll 이벤트 → `codeScrollPositionsRef[workspaceId::relativePath]`; 복원: 콘텐츠 재로드(`view.setState`) 직후 `requestAnimationFrame`으로 `scrollDOM.scrollTop` 적용; 첫 방문 시 복원 없음(scrollTop=0 유지)

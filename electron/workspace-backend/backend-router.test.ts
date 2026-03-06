@@ -7,6 +7,7 @@ function createBackend(kind: 'local' | 'remote', onDispose?: () => Promise<void>
     kind,
     index: async () => ({ ok: true }),
     indexDirectory: async () => ({ ok: true }),
+    searchFiles: async () => ({ ok: true }),
     readFile: async () => ({ ok: true }),
     writeFile: async () => ({ ok: true }),
     createFile: async () => ({ ok: true }),

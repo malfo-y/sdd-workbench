@@ -53,6 +53,21 @@ export type RuntimeWorkspaceFileNode =
       totalChildCount?: number
     }
 
+export type RuntimeWorkspaceSearchFileMatch = {
+  relativePath: string
+  fileName: string
+  parentRelativePath: string
+}
+
+export type RuntimeWorkspaceSearchFilesResult = {
+  ok: true
+  results: RuntimeWorkspaceSearchFileMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
+}
+
 export type RuntimeWatchMode = 'native' | 'polling'
 
 export type RuntimeWatchEventPayload = {

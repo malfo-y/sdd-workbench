@@ -277,59 +277,6 @@
 
 ---
 
-## F31 Addendum (2026-03-06)
-
-### 1) Scope Covered (Phase/Task IDs)
-
-- Active plan: `/_sdd/drafts/feature_draft_f31_search_star_wildcard_support.md` (Part 2)
-- Covered tasks:
-  - Phase 1: `1, 2` (completed)
-  - Phase 2: `3, 4` (completed)
-  - Phase 3: `5, 6` (completed)
-
-| ID | Task | Priority | Dependencies | Status | Tests |
-|----|------|----------|--------------|--------|-------|
-| 1 | 파일 브라우저 wildcard matcher 구현 | P0 | - | completed | `electron/workspace-search.test.ts`, `electron/remote-agent/runtime/workspace-ops.test.ts` pass |
-| 2 | 스펙 검색 wildcard matcher helper 구현 | P0 | - | completed | `src/spec-viewer/spec-search.test.ts` pass |
-| 3 | 파일 브라우저 검색 UI discoverability 반영 | P1 | 1 | completed | `src/file-tree/file-tree-panel.test.tsx` pass |
-| 4 | 스펙 뷰어 wildcard matcher 통합 | P0 | 2 | completed | `src/spec-viewer/spec-viewer-panel.test.tsx` pass |
-| 5 | backend/runtime wildcard 회귀 테스트 추가 | P0 | 1 | completed | backend/runtime targeted suites pass |
-| 6 | renderer wildcard 회귀 테스트 추가 | P0 | 3, 4 | completed | renderer targeted suites pass |
-
-### 2) Files Changed
-
-- `electron/workspace-search.ts`
-- `electron/workspace-search.test.ts`
-- `electron/workspace-backend/backend-integration.test.ts`
-- `electron/workspace-backend/remote-workspace-backend.test.ts`
-- `electron/remote-agent/runtime/workspace-ops.test.ts`
-- `src/file-tree/file-tree-panel.tsx`
-- `src/file-tree/file-tree-panel.test.tsx`
-- `src/spec-viewer/spec-search.ts` (new)
-- `src/spec-viewer/spec-search.test.ts` (new)
-- `src/spec-viewer/spec-viewer-panel.tsx`
-- `src/spec-viewer/spec-viewer-panel.test.tsx`
-- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
-
-### 3) Final Verification
-
-- `node -v` -> `v25.2.1`
-- `npm -v` -> `11.7.0`
-- `npx vitest run electron/workspace-search.test.ts electron/workspace-backend/backend-integration.test.ts electron/workspace-backend/remote-workspace-backend.test.ts electron/remote-agent/runtime/workspace-ops.test.ts src/file-tree/file-tree-panel.test.tsx src/spec-viewer/spec-viewer-panel.test.tsx src/spec-viewer/spec-search.test.ts` -> pass (`7 files, 77 passed`)
-- `npx tsc --noEmit` -> pass
-- `npm test` -> pass (`54 files, 546 passed, 1 skipped`)
-
-### 4) Applied Decisions
-
-- wildcard 범위는 `*` 하나만 지원한다.
-- 매칭 방식은 strict glob이 아니라 case-insensitive ordered token match다.
-- non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급한다.
-- 파일 브라우저 wildcard는 `fileName` 기준만 확장하고 `relativePath` glob은 제외한다.
-- 스펙 뷰어 wildcard는 raw markdown 같은 line 안에서만 매칭하고, 기존 block highlight/navigation 모델을 유지한다.
-- 두 검색 입력 모두 placeholder에 `(* supported)`를 추가해 최소 수준의 discoverability를 제공한다.
-
----
-
 ## F06.1 Addendum (2026-02-21)
 
 ### 1) Scope Covered (Phase/Task IDs)

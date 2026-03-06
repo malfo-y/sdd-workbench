@@ -73,4 +73,46 @@ describe('remote-agent/runtime/request-router', () => {
 
     await router.dispose()
   })
+
+  it('dispatches workspace.searchFiles requests', async () => {
+    const responses: RuntimeResponseMessage[] = []
+    const events: RuntimeEventMessage[] = []
+
+    const rootPath = process.cwd()
+    const router = new RuntimeRequestRouter({
+      rootPath,
+      emitResponse: (response) => {
+        responses.push(response)
+      },
+      emitEvent: (event) => {
+        events.push(event)
+      },
+    })
+
+    await router.handleMessage({
+      type: 'request',
+      id: 'req-3',
+      method: 'workspace.searchFiles',
+      params: {
+        query: 'package',
+        maxResults: 1,
+      },
+      protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+    })
+
+    expect(events).toHaveLength(0)
+    expect(responses).toHaveLength(1)
+    expect(responses[0]).toMatchObject({
+      type: 'response',
+      id: 'req-3',
+      ok: true,
+      result: expect.objectContaining({
+        ok: true,
+        results: expect.any(Array),
+      }),
+      protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+    })
+
+    await router.dispose()
+  })
 })

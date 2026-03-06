@@ -36,6 +36,7 @@ import type {
 import { createLocalWorkspaceBackend } from './workspace-backend/local-workspace-backend'
 import { createRemoteWorkspaceBackend } from './workspace-backend/remote-workspace-backend'
 import { WorkspaceBackendRouter } from './workspace-backend/backend-router'
+import { searchWorkspaceFilesByName } from './workspace-search'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -82,6 +83,31 @@ type WorkspaceIndexResult = {
   ok: boolean
   fileTree: WorkspaceFileNode[]
   truncated?: boolean
+  error?: string
+}
+
+type WorkspaceSearchFilesRequest = {
+  rootPath: string
+  query: string
+  maxDepth?: number
+  maxResults?: number
+  maxDirectoryChildren?: number
+  timeBudgetMs?: number
+}
+
+type WorkspaceSearchFileMatch = {
+  relativePath: string
+  fileName: string
+  parentRelativePath: string
+}
+
+type WorkspaceSearchFilesResult = {
+  ok: boolean
+  results: WorkspaceSearchFileMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
   error?: string
 }
 
@@ -965,6 +991,69 @@ async function handleWorkspaceIndexDirectory(
       childrenStatus: 'complete',
       totalChildCount: 0,
       error: error instanceof Error ? error.message : 'Failed to index directory',
+    }
+  }
+}
+
+async function handleWorkspaceSearchFiles(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceSearchFilesRequest,
+): Promise<WorkspaceSearchFilesResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return {
+        ok: false,
+        results: [],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+        error: 'rootPath is required.',
+      }
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return {
+        ok: false,
+        results: [],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+        error: 'Selected workspace root is not a directory.',
+      }
+    }
+
+    const searchResult = await searchWorkspaceFilesByName({
+      rootPath: resolvedRootPath,
+      query: request?.query ?? '',
+      maxDepth: request?.maxDepth,
+      maxResults: request?.maxResults,
+      maxDirectoryChildren: request?.maxDirectoryChildren,
+      timeBudgetMs: request?.timeBudgetMs,
+      collectEntries: collectIndexedWorkspaceEntries,
+      normalizeRelativePath: normalizeToWorkspaceRelativePath,
+    })
+
+    return {
+      ok: true,
+      ...searchResult,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to search files.',
     }
   }
 }
@@ -2627,6 +2716,8 @@ const localWorkspaceBackend = createLocalWorkspaceBackend({
   index: async (request) => handleWorkspaceIndex(DUMMY_IPC_EVENT, request),
   indexDirectory: async (request) =>
     handleWorkspaceIndexDirectory(DUMMY_IPC_EVENT, request),
+  searchFiles: async (request) =>
+    handleWorkspaceSearchFiles(DUMMY_IPC_EVENT, request),
   readFile: async (request) => handleWorkspaceReadFile(DUMMY_IPC_EVENT, request),
   writeFile: async (request) =>
     handleWorkspaceWriteFile(DUMMY_IPC_EVENT, request),
@@ -2706,6 +2797,26 @@ async function handleWorkspaceIndexDirectoryRouted(
       childrenStatus: 'complete',
       totalChildCount: 0,
       error: toBackendErrorMessage(error, 'Failed to index directory'),
+    }
+  }
+}
+
+async function handleWorkspaceSearchFilesRouted(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceSearchFilesRequest,
+): Promise<WorkspaceSearchFilesResult> {
+  try {
+    const backend = workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
+    return (await backend.searchFiles(request)) as WorkspaceSearchFilesResult
+  } catch (error) {
+    return {
+      ok: false,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+      error: toBackendErrorMessage(error, 'Failed to search files'),
     }
   }
 }
@@ -3159,6 +3270,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:openDialog')
   ipcMain.removeHandler('workspace:index')
   ipcMain.removeHandler('workspace:indexDirectory')
+  ipcMain.removeHandler('workspace:searchFiles')
   ipcMain.removeHandler('workspace:readFile')
   ipcMain.removeHandler('workspace:writeFile')
   ipcMain.removeHandler('workspace:createFile')
@@ -3184,6 +3296,7 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndexRouted)
   ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectoryRouted)
+  ipcMain.handle('workspace:searchFiles', handleWorkspaceSearchFilesRouted)
   ipcMain.handle('workspace:readFile', handleWorkspaceReadFileRouted)
   ipcMain.handle('workspace:writeFile', handleWorkspaceWriteFileRouted)
   ipcMain.handle('workspace:createFile', handleWorkspaceCreateFileRouted)

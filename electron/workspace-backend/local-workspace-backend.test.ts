@@ -13,6 +13,7 @@ describe('workspace-backend/local-workspace-backend', () => {
       deleteFile: vi.fn(async () => ({ ok: true, source: 'deleteFile' })),
       deleteDirectory: vi.fn(async () => ({ ok: true, source: 'deleteDirectory' })),
       rename: vi.fn(async () => ({ ok: true, source: 'rename' })),
+      searchFiles: vi.fn(async () => ({ ok: true, source: 'searchFiles' })),
       getGitLineMarkers: vi.fn(async () => ({ ok: true, source: 'lineMarkers' })),
       getGitFileStatuses: vi.fn(async () => ({ ok: true, source: 'fileStatuses' })),
       readComments: vi.fn(async () => ({ ok: true, source: 'readComments' })),
@@ -39,6 +40,7 @@ describe('workspace-backend/local-workspace-backend', () => {
       oldRelativePath: 'a.txt',
       newRelativePath: 'b.txt',
     })
+    await backend.searchFiles({ rootPath: '/tmp/a', query: 'readme' })
     await backend.getGitLineMarkers({ rootPath: '/tmp/a', relativePath: 'a.ts' })
     await backend.getGitFileStatuses({ rootPath: '/tmp/a' })
     await backend.readComments({ rootPath: '/tmp/a' })
@@ -55,6 +57,7 @@ describe('workspace-backend/local-workspace-backend', () => {
 
     expect(backend.kind).toBe('local')
     expect(handlers.index).toHaveBeenCalledTimes(1)
+    expect(handlers.searchFiles).toHaveBeenCalledTimes(1)
     expect(handlers.watchStop).toHaveBeenCalledTimes(1)
   })
 })

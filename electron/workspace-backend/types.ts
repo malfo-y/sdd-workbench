@@ -12,6 +12,15 @@ export type WorkspaceIndexDirectoryRequest = {
   limit?: number
 }
 
+export type WorkspaceSearchFilesRequest = {
+  rootPath: string
+  query: string
+  maxDepth?: number
+  maxResults?: number
+  maxDirectoryChildren?: number
+  timeBudgetMs?: number
+}
+
 export type WorkspaceReadFileRequest = {
   rootPath: string
   relativePath: string
@@ -127,6 +136,7 @@ export interface WorkspaceBackend {
   readonly kind: WorkspaceBackendKind
   index: (request: WorkspaceIndexRequest) => Promise<unknown>
   indexDirectory: (request: WorkspaceIndexDirectoryRequest) => Promise<unknown>
+  searchFiles: (request: WorkspaceSearchFilesRequest) => Promise<unknown>
   readFile: (request: WorkspaceReadFileRequest) => Promise<unknown>
   writeFile: (request: WorkspaceWriteFileRequest) => Promise<unknown>
   createFile: (request: WorkspaceCreateFileRequest) => Promise<unknown>

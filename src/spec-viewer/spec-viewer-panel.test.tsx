@@ -33,6 +33,7 @@ describe('SpecViewerPanel', () => {
       (input: { relativePath: string; scrollTop: number }) => void
     >(),
     restoredScrollTop = null,
+    isActive = true,
     onOpenRelativePath = vi
       .fn<
         (
@@ -59,6 +60,7 @@ describe('SpecViewerPanel', () => {
       scrollTop: number
     }) => void
     restoredScrollTop?: number | null
+    isActive?: boolean
     onOpenRelativePath?: (
       relativePath: string,
       lineRange: { startLine: number; endLine: number } | null,
@@ -79,6 +81,7 @@ describe('SpecViewerPanel', () => {
         onOpenRelativePath={onOpenRelativePath}
         readError={readError}
         restoredScrollTop={restoredScrollTop}
+        isActive={isActive}
         workspaceRootPath={workspaceRootPath}
       />,
     )
@@ -662,5 +665,137 @@ describe('SpecViewerPanel', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Source actions' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('opens search bar on Cmd+F when spec tab is active and highlights matching blocks', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nGuide intro\n\nOther paragraph',
+      isActive: true,
+    })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    const input = await screen.findByTestId('spec-viewer-search-input')
+    expect(input).toHaveAttribute('placeholder', 'Find in spec (* supported)')
+    fireEvent.change(input, { target: { value: 'guide' } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('1 / 1')
+    })
+    expect(screen.getByText('Guide intro')).toHaveClass('is-spec-search-match')
+    expect(screen.getByText('Guide intro')).toHaveClass('is-spec-search-focus')
+  })
+
+  it('supports wildcard queries within a single markdown line', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nGuide intro for API errors\n\nAnother paragraph',
+      isActive: true,
+    })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    const input = await screen.findByTestId('spec-viewer-search-input')
+    fireEvent.change(input, { target: { value: 'guide*error' } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('1 / 1')
+    })
+    expect(screen.getByText('Guide intro for API errors')).toHaveClass(
+      'is-spec-search-match',
+    )
+    expect(screen.getByText('Guide intro for API errors')).toHaveClass(
+      'is-spec-search-focus',
+    )
+  })
+
+  it('maps table row matches to the rendered table block', async () => {
+    renderPanel({
+      markdownContent:
+        '# Title\n\n| Name | Value |\n| --- | --- |\n| Guide row | 1 |\n| Other | 2 |',
+      isActive: true,
+    })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    const input = await screen.findByTestId('spec-viewer-search-input')
+    const table = screen.getByRole('table') as HTMLElement
+    const tableScrollIntoView = vi.fn()
+    Object.defineProperty(table, 'scrollIntoView', {
+      configurable: true,
+      value: tableScrollIntoView,
+    })
+
+    fireEvent.change(input, { target: { value: 'guide' } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('1 / 1')
+    })
+    expect(table).toHaveClass('is-spec-search-match')
+    expect(table).toHaveClass('is-spec-search-focus')
+    expect(tableScrollIntoView).toHaveBeenCalled()
+  })
+
+  it('navigates between search results and closes search on Escape', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nGuide intro\n\nAnother guide',
+      isActive: true,
+    })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    const input = await screen.findByTestId('spec-viewer-search-input')
+    const firstMatch = screen.getByText('Guide intro') as HTMLElement
+    const secondMatch = screen.getByText('Another guide') as HTMLElement
+    const firstScrollIntoView = vi.fn()
+    const secondScrollIntoView = vi.fn()
+    Object.defineProperty(firstMatch, 'scrollIntoView', {
+      configurable: true,
+      value: firstScrollIntoView,
+    })
+    Object.defineProperty(secondMatch, 'scrollIntoView', {
+      configurable: true,
+      value: secondScrollIntoView,
+    })
+
+    fireEvent.change(input, { target: { value: 'guide' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('2 / 2')
+    })
+    expect(secondMatch).toHaveClass('is-spec-search-focus')
+    expect(secondScrollIntoView).toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(screen.queryByTestId('spec-viewer-search-input')).not.toBeInTheDocument()
+  })
+
+  it('treats wildcard-only query as no matches', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\nGuide intro\n\nAnother paragraph',
+      isActive: true,
+    })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    const input = await screen.findByTestId('spec-viewer-search-input')
+    fireEvent.change(input, { target: { value: '**' } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('0 / 0')
+    })
+    expect(screen.getByText('Guide intro')).not.toHaveClass('is-spec-search-match')
+  })
+
+  it('ignores search hotkey when spec tab is inactive', () => {
+    renderPanel({
+      markdownContent: '# Title\n\nGuide intro',
+      isActive: false,
+    })
+
+    fireEvent.keyDown(window, { key: 'f', metaKey: true })
+
+    expect(screen.queryByTestId('spec-viewer-search-input')).not.toBeInTheDocument()
   })
 })

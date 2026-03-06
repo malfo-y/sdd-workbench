@@ -23,6 +23,7 @@ import {
   resolveWorkspaceRelativePath,
 } from './path-guard'
 import type { RuntimeWorkspaceFileNode } from './runtime-types'
+import { searchWorkspaceFilesByName } from '../../workspace-search'
 
 const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
   '.git',
@@ -508,6 +509,63 @@ export async function workspaceIndex(
     ok: true,
     fileTree: treeResult.nodes,
     truncated: indexBudget.truncated || treeResult.childrenStatus === 'partial',
+  }
+}
+
+export async function workspaceSearchFiles(
+  context: WorkspaceOpsContext,
+  params: {
+    query?: unknown
+    maxDepth?: unknown
+    maxResults?: unknown
+    maxDirectoryChildren?: unknown
+    timeBudgetMs?: unknown
+  },
+): Promise<{
+  ok: true
+  results: Array<{
+    relativePath: string
+    fileName: string
+    parentRelativePath: string
+  }>
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
+}> {
+  const query = typeof params.query === 'string' ? params.query : ''
+  const maxDepth =
+    typeof params.maxDepth === 'number' && Number.isFinite(params.maxDepth)
+      ? params.maxDepth
+      : undefined
+  const maxResults =
+    typeof params.maxResults === 'number' && Number.isFinite(params.maxResults)
+      ? params.maxResults
+      : undefined
+  const maxDirectoryChildren =
+    typeof params.maxDirectoryChildren === 'number' &&
+      Number.isFinite(params.maxDirectoryChildren)
+      ? params.maxDirectoryChildren
+      : undefined
+  const timeBudgetMs =
+    typeof params.timeBudgetMs === 'number' && Number.isFinite(params.timeBudgetMs)
+      ? params.timeBudgetMs
+      : undefined
+
+  const result = await searchWorkspaceFilesByName({
+    rootPath: context.rootPath,
+    query,
+    maxDepth,
+    maxResults,
+    maxDirectoryChildren,
+    timeBudgetMs,
+    collectEntries: collectIndexedWorkspaceEntries,
+    normalizeRelativePath: normalizeToWorkspaceRelativePath,
+  })
+
+  return {
+    ok: true,
+    ...result,
   }
 }
 

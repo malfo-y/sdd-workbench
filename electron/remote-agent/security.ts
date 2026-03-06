@@ -3,6 +3,7 @@ import { RemoteAgentError } from './protocol'
 const REMOTE_WORKSPACE_METHOD_ALLOWLIST = [
   'workspace.index',
   'workspace.indexDirectory',
+  'workspace.searchFiles',
   'workspace.readFile',
   'workspace.writeFile',
   'workspace.createFile',

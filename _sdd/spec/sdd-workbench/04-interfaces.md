@@ -139,6 +139,7 @@ type CodeComment = {
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
 | `workspace:writeFile` | Renderer -> Main (`invoke`) | 파일 저장(atomic write, 경계 검사) (F24) |
 | `workspace:indexDirectory` | Renderer -> Main (`invoke`) | on-demand 단일 디렉토리 자식 로드 |
+| `workspace:searchFiles` | Renderer -> Main (`invoke`) | local/remote 공통 파일명 검색 + partial 메타데이터 반환 (F29) |
 | `workspace:createFile` | Renderer -> Main (`invoke`) | 빈 파일 생성(경계 검사 + 중복 확인) (F25) |
 | `workspace:createDirectory` | Renderer -> Main (`invoke`) | 디렉토리 생성(경계 검사 + 중복 확인) (F25) |
 | `workspace:deleteFile` | Renderer -> Main (`invoke`) | 파일 삭제(경계 검사 + 파일 확인) (F25) |
@@ -163,6 +164,16 @@ type CodeComment = {
 - request: `{ rootPath, relativePath, offset?: number, limit?: number }`
 - response: `{ ok, children: WorkspaceFileNode[], childrenStatus: 'complete'|'partial', totalChildCount: number, error?: string }`
 - 디렉토리별 child cap(`500`) 적용, 초과 시 `partial` + `totalChildCount` 반환
+
+`workspace:searchFiles` 계약 요약 (F29):
+
+- request: `{ rootPath, query, maxDepth?: number, maxResults?: number, maxDirectoryChildren?: number, timeBudgetMs?: number }`
+- response: `{ ok: boolean, results: Array<{ relativePath: string, fileName: string, parentRelativePath: string }>, truncated: boolean, skippedLargeDirectoryCount: number, depthLimitHit: boolean, timedOut: boolean, error?: string }`
+- 기본 정책: `maxDepth=20`, `maxResults=200`, `maxDirectoryChildren=10000`, `timeBudgetMs=2000`
+- 검색 범위: 파일 내용이 아닌 파일명 기준 검색만 대상이며, `*` 미포함 query는 substring(case-insensitive), `*` 포함 query는 ordered token wildcard match(case-insensitive)로 해석
+- wildcard 보호: non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급해 결과 0건을 반환한다.
+- 보호 규칙: `.git`, `node_modules`, `dist`, `build`, `out`, `.next`, `.turbo` ignore 유지, symlink directory는 재귀 탐색하지 않음
+- partial 상태: 결과 cap, large directory skip, depth limit, time budget 초과 시 `truncated/skippedLargeDirectoryCount/depthLimitHit/timedOut`로 UI 힌트를 제공
 
 `workspace:browseRemoteDirectories` 계약 요약 (F28):
 
@@ -333,6 +344,32 @@ type CodeComment = {
 5. 검색 바에는 현재 매치 위치를 `N / M` 형식으로 표시하며, 매치 0건일 때 `No results`를 표시한다.
 6. `Escape` 또는 닫기 버튼으로 검색 바를 닫으면 모든 검색 하이라이트가 해제된다.
 7. activeFile이 변경되면 검색 상태(검색어, 포커스 인덱스, 열림 여부)를 전체 초기화한다.
+
+## 8.1 파일 브라우저 파일명 검색 규칙 (F29)
+
+1. 파일 브라우저 상단에 검색 입력과 clear 액션을 제공한다.
+2. 검색은 현재 로드된 트리 상태와 무관하게 `workspace:searchFiles` backend 계약을 사용한다.
+3. 검색 입력은 `(* supported)` 등 최소 수준의 discoverability 문구로 wildcard 지원을 드러낸다.
+4. 매칭 기준은 파일명 기준 검색이며, `*` 미포함 query는 substring case-insensitive, `*` 포함 query는 ordered token wildcard match(case-insensitive) 방식이다.
+5. non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급한다.
+6. 기본 정책은 depth limit `20`, 결과 cap `200`, large-directory child cap `10000`, time budget `2000ms`다.
+7. large-directory skip, depth limit hit, timed out, result truncation은 `Search results may be incomplete.` 힌트로 표기한다.
+8. 검색 결과는 `relativePath`, `fileName`, `parentRelativePath`를 포함하며, 클릭 시 파일을 열고 ancestor directory를 best-effort로 확장한다.
+9. 검색어가 비면 일반 파일 트리로 즉시 복귀한다.
+10. 결과 0건일 때 `No files found.` 상태를 표시한다.
+
+## 8.2 스펙 뷰어 텍스트 검색 규칙 (F30)
+
+1. Spec 탭이 활성 상태일 때만 `Cmd/Ctrl+F`로 검색 바를 연다.
+2. 검색 입력은 `(* supported)` 등 최소 수준의 discoverability 문구로 wildcard 지원을 드러낸다.
+3. 검색은 현재 `markdownContent` 원문 전체를 대상으로 수행하며, `*` 미포함 query는 substring case-insensitive, `*` 포함 query는 같은 line 안의 ordered token wildcard match(case-insensitive) 방식으로 해석한다.
+4. non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급한다.
+5. raw markdown 매치 라인은 rendered `data-source-line` block으로 매핑되어 `.is-spec-search-match` / `.is-spec-search-focus` 클래스로 표시한다.
+6. 결과 탐색은 이전/다음 버튼과 `Enter` / `Shift+Enter` wrap-around로 수행한다.
+7. 포커스된 block은 `scrollIntoView({ block: 'nearest' })`에 준하는 방식으로 현재 viewport 안으로 이동한다.
+8. 결과 카운트는 `N / M` 형식으로 표시하며, 매치가 없으면 `0 / 0`을 표시한다.
+9. `Escape` 또는 닫기 버튼으로 검색 바를 닫으면 검색어/포커스/하이라이트가 모두 해제된다.
+10. `activeSpecPath`가 변경되면 검색 상태를 초기화한다.
 
 ## 9. 파일 편집/저장/Dirty 상태 규칙 (F24)
 

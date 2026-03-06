@@ -10,6 +10,7 @@
   - 워크스페이스 관리(선택기/Open/Close)는 사이드바 상단에 배치
   - `activeTab` 상태(`'code' | 'spec'`)로 콘텐츠 영역 전환, `display: none`으로 비활성 탭 보존
   - `.md` 파일 선택 시 Spec 탭 자동 전환, 그 외 파일은 Code 탭 자동 전환
+  - `SpecViewerPanel`에 `isActive={activeTab === 'spec'}` 전달, Spec 탭 활성 상태에서만 `Cmd/Ctrl+F`가 스펙 검색 UI를 열도록 게이트
   - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서로 적용)
   - 파일 트리 CRUD 콜백(`onRequestCreateFile/Directory`, `onRequestDeleteFile/Directory`, `onRequestRename`) 연결 + confirm dialog + dirty file 삭제 처리 (F25/F25b)
   - 코멘트 배너 + 원격 연결/폴백 배너 auto-dismiss 타이머 제어
@@ -36,6 +37,7 @@
   - workspace별 watch mode preference 변경/재시작 + fallback 배너 처리
   - comments/global-comments read-write 액션 제공
   - `loadDirectoryChildren` on-demand 디렉토리 확장 + `isFilePathPotentiallyPresent` lazy tree 보호
+  - (F29) `searchFiles(query)` 액션: `workspace:searchFiles` IPC 호출, 기본 탐색 제한(`maxDepth=20`, `maxResults=200`, `maxDirectoryChildren=10000`, `timeBudgetMs=2000`) 적용, 로컬/리모트 backend 차이를 renderer에서 숨김
   - (F25) `createFile`, `createDirectory`, `deleteFile`, `deleteDirectory` 액션: IPC 호출 + active file 삭제 시 `activeFile=null` / `activeFileContent=null` / `isDirty=false` 초기화
   - (F25b) `renameFileOrDirectory` 액션: 코멘트 보호 검사(`comments.some`) → dirty 거부 → `workspace:rename` IPC → active file 경로 갱신(직접 rename + 디렉토리 하위 prefix 치환)
   - (F26) `loadWorkspaceGitFileStatuses` 액션: `workspace:getGitFileStatuses` IPC 조회, workspace open/hydration/watch event/saveFile 시점에 호출, request ID 기반 stale 방지
@@ -59,6 +61,10 @@
 
 - `src/file-tree/file-tree-panel.tsx`
   - 디렉토리 토글형 트리 렌더
+  - (F29) 상단 파일 검색 입력 + Clear 버튼, query 200ms debounce 후 backend filename substring 검색 요청
+  - (F29) 검색 활성 시 트리 대신 검색 결과 목록/Searching/No files found/partial hint 상태 렌더
+  - (F29) 검색 결과 선택 시 상위 ancestor directory를 best-effort로 펼친 뒤 파일 선택, lazy-loaded tree 상태와 무관하게 결과 열기 지원
+  - (F31) 검색 입력 placeholder에 `(* supported)` discoverability 문구 추가, renderer는 wildcard query를 가공하지 않고 backend로 그대로 전달
   - 파일/디렉토리 우클릭 경로 복사
   - changed marker 표시(visible 파일 + collapse 버블링 상위 디렉토리 + lazy subtree changed path 힌트 버블링)
   - `not-loaded` 디렉토리 확장 시 on-demand 로드 트리거 + "Loading..." placeholder
@@ -102,10 +108,16 @@
 
 - `src/spec-viewer/spec-viewer-panel.tsx`
   - rendered markdown + TOC + 링크/소스 액션
+  - (F30) `isActive` prop 기반 `Cmd/Ctrl+F` 핫키 게이트, Spec 탭 활성 상태에서만 검색 바 open/focus/select
+  - (F30) raw markdown line scan → rendered `data-source-line` block 매핑으로 검색 결과 계산, 문단/heading/list/code/table 블록 단위 highlight/focus 클래스(`.is-spec-search-match`, `.is-spec-search-focus`) 토글
+  - (F30) 검색 결과 수(`0 / 0` 포함) 표시 + next/previous 순환 이동 + focused block `scrollIntoView({ block: 'nearest', inline: 'nearest' })`
+  - (F31) search placeholder에 `(* supported)` discoverability 문구 추가, wildcard matcher는 helper 모듈을 통해 ordered token semantics를 재사용
   - `Add Comment`/`Go to Source` source popover
   - same-document anchor(`#heading-id`) 클릭 시 패널 내부 heading scroll 처리(브라우저 기본 이동 차단)
   - comment marker 매핑 렌더 + hover popover
   - spec scroll position capture/restore(런타임)
+- `src/spec-viewer/spec-search.ts`
+  - (F31) raw markdown line wildcard matcher + block boundary 판정 + matched start line 계산 helper
 - `src/spec-viewer/spec-link-utils.ts`
   - 링크 해석 및 line-range 파싱
 - `src/spec-viewer/source-line-resolver.ts`
@@ -142,6 +154,7 @@
   - `workspace:writeFile` handler: 경로 검증(`isPathInsideWorkspace`), 크기 검사(2MB), atomic write (F24)
   - `workspace:getGitLineMarkers` 단건 diff 조회(`git diff --unified=0 HEAD -- <relativePath>`) + 실패 safe degrade
   - `MAX_WORKSPACE_INDEX_NODES=100000`, `WORKSPACE_INDEX_DIRECTORY_CHILD_CAP=500`, `workspace:indexDirectory` offset/limit 페이지네이션
+  - (F29) `workspace:searchFiles` routed handler: rootPath 기준 local/remote backend search 위임 + 공통 result contract 반환
   - `buildDirectoryChildren` + `handleWorkspaceIndexDirectory` (on-demand 디렉토리 IPC)
   - local polling watcher child cap 초과 디렉토리 자동 제외
   - (F25) `workspace:createFile`, `workspace:createDirectory`, `workspace:deleteFile`, `workspace:deleteDirectory` 핸들러: 경로 검증 + 존재 확인 + `beginWorkspaceWriteOperation`/`endWorkspaceWriteOperation`
@@ -155,8 +168,10 @@
   - local/remote 공통 `WorkspaceBackend` 인터페이스 정의
 - `electron/workspace-backend/local-workspace-backend.ts` (F27)
   - 기존 로컬 파일/디렉토리/코멘트/watch/git 동작 이관
+  - (F29) local handler로 `searchFiles` 노출
 - `electron/workspace-backend/remote-workspace-backend.ts` (F27)
   - remote agent RPC를 통한 index/read/write/CRUD/watch/git 경로 구현
+  - (F29) `workspace.searchFiles` RPC 브리지
 - `electron/workspace-backend/remote-watch-bridge.ts` (F27)
   - 원격 watcher 이벤트를 기존 `workspace:watchEvent` payload로 변환
 - `electron/remote-agent/protocol.ts` (F27)
@@ -174,6 +189,8 @@
 - `electron/remote-agent/runtime/*` (F27)
   - remote runtime CLI/요청 라우터/workspace ops/watch ops 구현 + payload 번들
   - watch ops: polling 1500ms, 파일 상한 100,000, symlink 추적 + realpath 순환 방지 집합 적용
+- `electron/workspace-search.ts`
+  - (F29/F31) 로컬 검색 엔진: depth limit, result cap, large directory skip, time budget, ignore rules, symlink skip 정책을 공통 결과 타입으로 정규화하고, filename substring/`*` wildcard ordered token match를 처리
 - `electron/git-line-markers.ts`
   - unified diff hunk 파싱으로 라인 마커(`added`/`modified`) 계산
 - `electron/git-file-statuses.ts` (F26)
@@ -184,12 +201,14 @@
   - (F25) `createFile`, `createDirectory`, `deleteFile`, `deleteDirectory` 브리지 추가
   - (F25b) `rename` 브리지 추가
   - (F26) `getGitFileStatuses` 브리지 추가
+  - (F29) `searchFiles(rootPath, query, options?)` 브리지 추가
 - `electron/electron-env.d.ts`
   - renderer 타입 계약(`writeFile` 포함)
   - (F25) CRUD 4개 result 타입 + `WorkspaceApi` 확장
   - (F25b) `WorkspaceRenameResult` + `rename` 메서드 시그니처
   - (F26) `GitFileStatusKind` + `WorkspaceGetGitFileStatusesResult` + `getGitFileStatuses` 메서드 시그니처
   - (F27) remote connection profile(state/error 포함) + connect/disconnect IPC 시그니처
+  - (F29) `WorkspaceSearchFileMatch` / `WorkspaceSearchFilesResult` + `searchFiles` 메서드 시그니처
 
 ## 2. 테스트 맵(핵심)
 

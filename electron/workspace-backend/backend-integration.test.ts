@@ -15,6 +15,7 @@ describe('workspace-backend/backend-integration', () => {
       deleteFile: async () => ({ ok: true }),
       deleteDirectory: async () => ({ ok: true }),
       rename: async () => ({ ok: true }),
+      searchFiles: async () => ({ ok: true, backend: 'local', results: [] }),
       getGitLineMarkers: async () => ({ ok: true }),
       getGitFileStatuses: async () => ({ ok: true }),
       readComments: async () => ({ ok: true }),
@@ -35,6 +36,9 @@ describe('workspace-backend/backend-integration', () => {
         if (method === 'workspace.index') {
           return { ok: true, backend: 'remote' }
         }
+        if (method === 'workspace.searchFiles') {
+          return { ok: true, backend: 'remote', results: [] }
+        }
         return { ok: true }
       },
       subscribeAgentEvents: () => () => undefined,
@@ -54,8 +58,16 @@ describe('workspace-backend/backend-integration', () => {
     const remoteResult = await router
       .resolveByRootPath('remote://workspace-a')
       .index({ rootPath: 'remote://workspace-a' })
+    const localSearchResult = await router
+      .resolveByRootPath('/Users/tester/project')
+      .searchFiles({ rootPath: '/Users/tester/project', query: 'guide*deep' })
+    const remoteSearchResult = await router
+      .resolveByRootPath('remote://workspace-a')
+      .searchFiles({ rootPath: 'remote://workspace-a', query: 'guide*deep' })
 
     expect(localResult).toEqual({ ok: true, backend: 'local' })
     expect(remoteResult).toEqual({ ok: true, backend: 'remote' })
+    expect(localSearchResult).toEqual({ ok: true, backend: 'local', results: [] })
+    expect(remoteSearchResult).toEqual({ ok: true, backend: 'remote', results: [] })
   })
 })

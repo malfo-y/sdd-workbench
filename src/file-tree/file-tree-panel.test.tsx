@@ -1146,6 +1146,152 @@ describe('FileTreePanel CRUD context menu', () => {
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
+
+  it('searches files and renders backend results', async () => {
+    vi.useFakeTimers()
+    const onSearchFiles = vi.fn(async () => ({
+      ok: true,
+      results: [
+        {
+          relativePath: 'docs/guide.md',
+          fileName: 'guide.md',
+          parentRelativePath: 'docs',
+        },
+      ],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    }))
+    const onSelectFile = vi.fn()
+    const onExpandedDirectoriesChange = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[
+          {
+            name: 'docs',
+            relativePath: 'docs',
+            kind: 'directory',
+            children: [],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onSearchFiles={onSearchFiles}
+        onSelectFile={onSelectFile}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    expect(screen.getByTestId('file-tree-search-input')).toHaveAttribute(
+      'placeholder',
+      'Search files (* supported)',
+    )
+
+    fireEvent.change(screen.getByTestId('file-tree-search-input'), {
+      target: { value: 'guide*test' },
+    })
+
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(onSearchFiles).toHaveBeenCalledWith('guide*test')
+    expect(screen.getByTestId('file-tree-search-results')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'guide.md docs/guide.md' }))
+
+    expect(onSelectFile).toHaveBeenCalledWith('docs/guide.md')
+    expect(onExpandedDirectoriesChange).toHaveBeenCalledWith(['docs'])
+    vi.useRealTimers()
+  })
+
+  it('shows empty and incomplete search states', async () => {
+    vi.useFakeTimers()
+    const onSearchFiles = vi.fn(async () => ({
+      ok: true,
+      results: [],
+      truncated: true,
+      skippedLargeDirectoryCount: 2,
+      depthLimitHit: true,
+      timedOut: false,
+    }))
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSearchFiles={onSearchFiles}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('file-tree-search-input'), {
+      target: { value: 'guide' },
+    })
+
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(screen.getByTestId('file-tree-search-empty')).toHaveTextContent(
+      'No files found',
+    )
+    expect(screen.getByTestId('file-tree-search-hint')).toHaveTextContent(
+      'Search results may be incomplete',
+    )
+    vi.useRealTimers()
+  })
+
+  it('treats wildcard-only query as a normal empty-result search state', async () => {
+    vi.useFakeTimers()
+    const onSearchFiles = vi.fn(async () => ({
+      ok: true,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    }))
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSearchFiles={onSearchFiles}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('file-tree-search-input'), {
+      target: { value: '**' },
+    })
+
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(onSearchFiles).toHaveBeenCalledWith('**')
+    expect(screen.getByTestId('file-tree-search-empty')).toHaveTextContent(
+      'No files found',
+    )
+    expect(screen.queryByTestId('file-tree-search-hint')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
 })
 
 describe('FileTreePanel git status badges', () => {

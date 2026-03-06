@@ -1,5 +1,38 @@
 # IMPLEMENTATION_INDEX
 
+## f31_search_star_wildcard_support
+
+### Sync Record - 2026-03-06T01:39:49Z
+
+- note: F31 구현 완료 스펙 동기화 (`*` wildcard ordered token match, wildcard-only query empty 처리, `(* supported)` discoverability) 반영
+- copied files:
+  - `_sdd/implementation/features/f31_search_star_wildcard_support/SYNC_20260306_103949_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- excluded root artifacts:
+  - `_sdd/implementation/IMPLEMENTATION_PLAN*.md`, `_sdd/implementation/IMPLEMENTATION_REVIEW.md`, `_sdd/implementation/IMPLEMENTATION_REPORT*.md`는 현재 루트 문서 헤더가 F31 전용 상태가 아니어서 이번 feature archive에서는 제외
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+
+## f29_f30_file_tree_and_spec_search
+
+### Sync Record - 2026-03-06T00:59:28Z
+
+- note: F29/F30 구현 완료 스펙 동기화 + implementation-review 후속 수정 반영(tsc 복구, table block search mapping 보강, App-level hotkey regression test 추가)
+- copied files:
+  - `_sdd/implementation/features/f29_f30_file_tree_and_spec_search/SYNC_20260306_095928_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f29_f30_file_tree_and_spec_search/SYNC_20260306_095928_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+- excluded root artifacts:
+  - `_sdd/implementation/IMPLEMENTATION_PLAN*.md`, `_sdd/implementation/IMPLEMENTATION_REPORT*.md`는 현재 루트 문서 헤더가 F29/F30 전용 상태가 아니어서 이번 feature archive에서는 제외
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+
 ## DRIFT_20260302
 
 ### Sync Record - 2026-03-02T06:23:48Z

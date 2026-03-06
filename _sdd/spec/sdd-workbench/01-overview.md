@@ -47,6 +47,9 @@
 - CodeMirror 6 기반 코드 에디터(read-only→editable), 다크 테마, CM6 검색, Cmd+S 저장 + dirty 상태 관리, unsaved changes guard, Git marker/Comment badge gutter extension
 - 파일 트리 CRUD: 파일/디렉토리 생성(우클릭 → 인라인 입력 → Enter 확정), 삭제(confirm dialog + active file 상태 초기화), Rename(코멘트 보호 방식), watcher 기반 트리 자동 갱신, orphaned comment 허용(MVP)
 - 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added)/M(Modified) 뱃지, 디렉토리 접힘 시 하위 상태 버블링(priority: modified > added/untracked)
+- 파일 브라우저 검색: local/remote 공통 `workspace:searchFiles` 계약 기반 파일명 검색 + partial 결과 힌트 + best-effort ancestor expand (F29)
+- 스펙 뷰어 검색: 현재 markdown 문서 내 block search(`Cmd/Ctrl+F`, `Enter`/`Shift+Enter`, `Escape`) + rendered block highlight (F30)
+- 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 공통 ordered token match, wildcard-only query empty 처리, 검색 입력 `(* supported)` discoverability (F31)
 - 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
 - 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
 - Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Port/Identity 입력 -> SSH 디렉토리 browse -> remoteRoot 선택(수동 입력 fallback) -> bootstrap/runtime 설치/검증, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27/F28)
@@ -136,6 +139,9 @@
 | CM6 코드 에디터(편집/저장/dirty) + gutter 확장 | Implemented | F24 |
 | 파일 트리 CRUD(생성/삭제/Rename) + 인라인 입력 + watcher 자동 갱신 | Implemented | F25/F25b |
 | 파일 트리 Git 파일 상태 마커(U/M badge + 디렉토리 버블링) | Implemented | F26 |
+| 파일 브라우저 파일명 검색(backend-assisted) | Implemented | F29 |
+| 스펙 뷰어 텍스트 검색(block highlight + hotkey gate) | Implemented | F30 |
+| 검색 `*` wildcard 지원(ordered token match + wildcard-only empty query) | Implemented | F31 |
 | 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
 | 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
 | Remote Agent Protocol 기반 원격 워크스페이스 실행 | Implemented | F27 |

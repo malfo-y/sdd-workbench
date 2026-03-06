@@ -9,6 +9,7 @@ import type {
   WorkspaceGetGitLineMarkersRequest,
   WorkspaceIndexDirectoryRequest,
   WorkspaceIndexRequest,
+  WorkspaceSearchFilesRequest,
   WorkspaceReadCommentsRequest,
   WorkspaceReadFileRequest,
   WorkspaceReadGlobalCommentsRequest,
@@ -23,6 +24,7 @@ import type {
 type LocalWorkspaceBackendHandlers = {
   index: (request: WorkspaceIndexRequest) => Promise<unknown>
   indexDirectory: (request: WorkspaceIndexDirectoryRequest) => Promise<unknown>
+  searchFiles: (request: WorkspaceSearchFilesRequest) => Promise<unknown>
   readFile: (request: WorkspaceReadFileRequest) => Promise<unknown>
   writeFile: (request: WorkspaceWriteFileRequest) => Promise<unknown>
   createFile: (request: WorkspaceCreateFileRequest) => Promise<unknown>
@@ -58,6 +60,7 @@ export function createLocalWorkspaceBackend(
     kind: 'local',
     index: handlers.index,
     indexDirectory: handlers.indexDirectory,
+    searchFiles: handlers.searchFiles,
     readFile: handlers.readFile,
     writeFile: handlers.writeFile,
     createFile: handlers.createFile,

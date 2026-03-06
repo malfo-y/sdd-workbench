@@ -9,7 +9,7 @@ import {
   type MouseEvent,
   type UIEvent,
 } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
@@ -35,11 +35,13 @@ import {
   resolveSourceLine,
 } from './source-line-resolver'
 import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
+import { buildSearchMatchStartLines } from './spec-search'
 
 type SpecViewerPanelProps = {
   workspaceRootPath: string | null
   activeSpecPath: string | null
   markdownContent: string | null
+  isActive?: boolean
   isLoading: boolean
   readError: string | null
   onOpenRelativePath: (
@@ -188,9 +190,12 @@ function renderBlockWithSourceLine(
     !shouldSuppressMarkerForNestedSameLineChild(tagName, node, sourceLine)
   const existingClassName =
     typeof restProps.className === 'string' ? restProps.className : ''
-  const mergedClassName = hasCommentMarker
-    ? `${existingClassName} spec-comment-marked`.trim()
-    : existingClassName
+  const mergedClassName = [
+    existingClassName,
+    hasCommentMarker ? 'spec-comment-marked' : '',
+  ]
+    .filter((value) => value.length > 0)
+    .join(' ')
   const baseProps = {
     ...restProps,
     className: mergedClassName.length > 0 ? mergedClassName : undefined,
@@ -263,6 +268,23 @@ function areLineCommentMapsEqual(
   return true
 }
 
+function areLineArraysEqual(
+  left: readonly number[],
+  right: readonly number[],
+) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function collectRenderedSourceLines(containerElement: HTMLElement): number[] {
   const values = new Set<number>()
   const sourceLineElements = Array.from(
@@ -324,6 +346,27 @@ function resolveMarkdownLanguage(tag: string): HighlightLanguage {
   return (MARKDOWN_LANGUAGE_ALIASES[normalized] ?? normalized) as HighlightLanguage
 }
 
+function mapSearchMatchLinesToRenderedSourceLines(
+  searchMatchLines: readonly number[],
+  renderedSourceLines: readonly number[],
+) {
+  if (searchMatchLines.length === 0 || renderedSourceLines.length === 0) {
+    return []
+  }
+
+  const rawMatchCounts = new Map<number, number>()
+  for (const lineNumber of searchMatchLines) {
+    rawMatchCounts.set(lineNumber, 1)
+  }
+
+  const mappedCounts = mapCommentCountsToRenderedSourceLines(
+    rawMatchCounts,
+    renderedSourceLines,
+  )
+
+  return Array.from(mappedCounts.keys()).sort((left, right) => left - right)
+}
+
 function HighlightedCodeBlock({
   code,
   language,
@@ -356,6 +399,7 @@ export function SpecViewerPanel({
   workspaceRootPath,
   activeSpecPath,
   markdownContent,
+  isActive = false,
   isLoading,
   readError,
   onOpenRelativePath,
@@ -389,12 +433,34 @@ export function SpecViewerPanel({
     useState<ReadonlyMap<number, number>>(new Map())
   const [resolvedCommentMarkerEntries, setResolvedCommentMarkerEntries] =
     useState<ReadonlyMap<number, readonly CodeComment[]>>(new Map())
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentSearchMatchIndex, setCurrentSearchMatchIndex] = useState(0)
+  const [resolvedSearchMatchLines, setResolvedSearchMatchLines] = useState<number[]>(
+    [],
+  )
   const lastAppliedScrollRestoreRef = useRef<{
     specPath: string
     contentLength: number
     scrollTop: number
   } | null>(null)
   const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const rawSearchMatchLines = useMemo(
+    () =>
+      markdownContent ? buildSearchMatchStartLines(markdownContent, searchQuery) : [],
+    [markdownContent, searchQuery],
+  )
+  const focusedSearchLine =
+    resolvedSearchMatchLines.length > 0
+      ? resolvedSearchMatchLines[
+          Math.min(currentSearchMatchIndex, resolvedSearchMatchLines.length - 1)
+        ] ?? null
+      : null
+  const searchMatchedLines = useMemo(
+    () => new Set(resolvedSearchMatchLines),
+    [resolvedSearchMatchLines],
+  )
 
   useEffect(() => {
     setIsTocExpanded(false)
@@ -403,6 +469,10 @@ export function SpecViewerPanel({
     setCommentHoverState(null)
     setResolvedCommentMarkerCounts(new Map())
     setResolvedCommentMarkerEntries(new Map())
+    setIsSearchOpen(false)
+    setSearchQuery('')
+    setCurrentSearchMatchIndex(0)
+    setResolvedSearchMatchLines([])
     lastAppliedScrollRestoreRef.current = null
     if (hoverCloseTimerRef.current) {
       clearTimeout(hoverCloseTimerRef.current)
@@ -418,6 +488,136 @@ export function SpecViewerPanel({
       }
     },
     [],
+  )
+
+  useEffect(() => {
+    if (!isSearchOpen) {
+      return
+    }
+
+    searchInputRef.current?.focus()
+    searchInputRef.current?.select()
+  }, [isSearchOpen])
+
+  useEffect(() => {
+    if (currentSearchMatchIndex < resolvedSearchMatchLines.length) {
+      return
+    }
+    setCurrentSearchMatchIndex(0)
+  }, [currentSearchMatchIndex, resolvedSearchMatchLines.length])
+
+  useEffect(() => {
+    if (!isSearchOpen || focusedSearchLine === null) {
+      return
+    }
+
+    const contentElement = contentRef.current
+    if (!contentElement) {
+      return
+    }
+
+    const targetBlock = contentElement.querySelector<HTMLElement>(
+      `[data-source-line="${focusedSearchLine}"]`,
+    )
+    if (!targetBlock || typeof targetBlock.scrollIntoView !== 'function') {
+      return
+    }
+
+    targetBlock.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    })
+  }, [focusedSearchLine, isSearchOpen])
+
+  useEffect(() => {
+    const contentElement = contentRef.current
+    if (!contentElement) {
+      return
+    }
+
+    const sourceLineElements = contentElement.querySelectorAll<HTMLElement>(
+      '[data-source-line]',
+    )
+    for (const element of sourceLineElements) {
+      const lineNumber = Number(element.getAttribute('data-source-line'))
+      const isMatch = Number.isFinite(lineNumber) && searchMatchedLines.has(lineNumber)
+      const isFocus = Number.isFinite(lineNumber) && focusedSearchLine === lineNumber
+      element.classList.toggle('is-spec-search-match', isMatch)
+      element.classList.toggle('is-spec-search-focus', isFocus)
+    }
+  }, [focusedSearchLine, searchMatchedLines])
+
+  useEffect(() => {
+    const contentElement = contentRef.current
+    if (
+      !contentElement ||
+      !activeSpecPath ||
+      !markdownContent ||
+      rawSearchMatchLines.length === 0
+    ) {
+      setResolvedSearchMatchLines((previous) =>
+        previous.length > 0 ? [] : previous,
+      )
+      return
+    }
+
+    const renderedSourceLines = collectRenderedSourceLines(contentElement)
+    const nextResolvedMatchLines = mapSearchMatchLinesToRenderedSourceLines(
+      rawSearchMatchLines,
+      renderedSourceLines,
+    )
+
+    setResolvedSearchMatchLines((previous) =>
+      areLineArraysEqual(previous, nextResolvedMatchLines)
+        ? previous
+        : nextResolvedMatchLines,
+    )
+  }, [activeSpecPath, markdownContent, rawSearchMatchLines])
+
+  useEffect(() => {
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      const isFindShortcut =
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'f'
+      if (!isFindShortcut || !isActive || !activeSpecPath || !markdownContent) {
+        return
+      }
+
+      event.preventDefault()
+      setIsSearchOpen(true)
+    }
+
+    window.addEventListener('keydown', handleWindowKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown)
+    }
+  }, [activeSpecPath, isActive, markdownContent])
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false)
+    setSearchQuery('')
+    setCurrentSearchMatchIndex(0)
+  }, [])
+
+  const moveSearchFocus = useCallback(
+    (direction: 1 | -1) => {
+      if (resolvedSearchMatchLines.length === 0) {
+        return
+      }
+      setCurrentSearchMatchIndex((previous) => {
+        const nextIndex = previous + direction
+        if (nextIndex < 0) {
+          return resolvedSearchMatchLines.length - 1
+        }
+        if (nextIndex >= resolvedSearchMatchLines.length) {
+          return 0
+        }
+        return nextIndex
+      })
+    },
+    [resolvedSearchMatchLines.length],
   )
 
   useEffect(() => {
@@ -763,6 +963,176 @@ export function SpecViewerPanel({
     [activeSpecPath, onScrollPositionChange],
   )
 
+  const markdownComponents = useMemo<Components>(
+    () => ({
+      a: (props) => {
+        const { node, href, children, ...anchorProps } = props
+        void node
+        return (
+          <a
+            {...anchorProps}
+            href={href}
+            onClick={(event) => handleMarkdownLinkClick(event, href)}
+          >
+            {children}
+          </a>
+        )
+      },
+      img: (props) => {
+        const { node, src, alt, ...imageProps } = props
+        void node
+        const resolvedImageSource = resolveMarkdownImageSource(
+          src,
+          activeSpecPath,
+          workspaceRootPath,
+        )
+        if (!resolvedImageSource) {
+          return (
+            <span
+              className="spec-viewer-blocked-resource"
+              data-testid="spec-viewer-blocked-resource"
+            >
+              {BLOCKED_RESOURCE_PLACEHOLDER_TEXT}
+            </span>
+          )
+        }
+
+        return (
+          <img
+            {...imageProps}
+            alt={alt ?? 'Markdown image'}
+            loading="lazy"
+            src={resolvedImageSource}
+          />
+        )
+      },
+      code: (props) => {
+        const { node, className, children, ...codeProps } = props
+        void node
+        const languageMatch =
+          typeof className === 'string' ? className.match(/language-(\w+)/) : null
+        if (!languageMatch) {
+          return (
+            <code className={className} {...codeProps}>
+              {children}
+            </code>
+          )
+        }
+        const language = resolveMarkdownLanguage(languageMatch[1])
+        const codeText = String(children).replace(/\n$/, '')
+        return <HighlightedCodeBlock code={codeText} language={language} />
+      },
+      p: (props) =>
+        renderBlockWithSourceLine(
+          'p',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      li: (props) =>
+        renderBlockWithSourceLine(
+          'li',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      blockquote: (props) =>
+        renderBlockWithSourceLine(
+          'blockquote',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      pre: (props) =>
+        renderBlockWithSourceLine(
+          'pre',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      table: (props) =>
+        renderBlockWithSourceLine(
+          'table',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      h1: (props) =>
+        renderBlockWithSourceLine(
+          'h1',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      h2: (props) =>
+        renderBlockWithSourceLine(
+          'h2',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      h3: (props) =>
+        renderBlockWithSourceLine(
+          'h3',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      h4: (props) =>
+        renderBlockWithSourceLine(
+          'h4',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      h5: (props) =>
+        renderBlockWithSourceLine(
+          'h5',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+      h6: (props) =>
+        renderBlockWithSourceLine(
+          'h6',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+        ),
+    }),
+    [
+      activeSpecPath,
+      handleCommentMarkerMouseEnter,
+      handleMarkdownLinkClick,
+      resolvedCommentMarkerCounts,
+      resolvedCommentMarkerEntries,
+      scheduleCommentHoverClose,
+      workspaceRootPath,
+    ],
+  )
+
   return (
     <section className="spec-viewer-panel" data-testid="spec-viewer-panel">
       <p className="label">Rendered Spec</p>
@@ -773,6 +1143,64 @@ export function SpecViewerPanel({
       >
         {activeSpecPath ?? 'No active spec'}
       </p>
+      {activeSpecPath && markdownContent && isSearchOpen && (
+        <div className="spec-viewer-search-bar">
+          <input
+            className="spec-viewer-search-input"
+            data-testid="spec-viewer-search-input"
+            onChange={(event) => {
+              setSearchQuery(event.target.value)
+              setCurrentSearchMatchIndex(0)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                closeSearch()
+                return
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                moveSearchFocus(event.shiftKey ? -1 : 1)
+              }
+            }}
+            placeholder="Find in spec (* supported)"
+            ref={searchInputRef}
+            type="search"
+            value={searchQuery}
+          />
+          <span
+            className="spec-viewer-search-count"
+            data-testid="spec-viewer-search-count"
+          >
+            {resolvedSearchMatchLines.length === 0
+              ? '0 / 0'
+              : `${currentSearchMatchIndex + 1} / ${resolvedSearchMatchLines.length}`}
+          </span>
+          <button
+            className="spec-viewer-search-button"
+            disabled={resolvedSearchMatchLines.length === 0}
+            onClick={() => moveSearchFocus(-1)}
+            type="button"
+          >
+            Prev
+          </button>
+          <button
+            className="spec-viewer-search-button"
+            disabled={resolvedSearchMatchLines.length === 0}
+            onClick={() => moveSearchFocus(1)}
+            type="button"
+          >
+            Next
+          </button>
+          <button
+            className="spec-viewer-search-close"
+            onClick={closeSearch}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+      )}
 
       {!activeSpecPath && (
         <p className="spec-viewer-empty" data-testid="spec-viewer-empty">
@@ -850,166 +1278,8 @@ export function SpecViewerPanel({
             ref={contentRef}
           >
             <ReactMarkdown
+              components={markdownComponents}
               urlTransform={(url) => sanitizeMarkdownUri(url)}
-              components={{
-                a: ({ node, href, children, ...anchorProps }) => {
-                  void node
-                  return (
-                    <a
-                      {...anchorProps}
-                      href={href}
-                      onClick={(event) => handleMarkdownLinkClick(event, href)}
-                    >
-                      {children}
-                    </a>
-                  )
-                },
-                img: ({ node, src, alt, ...imageProps }) => {
-                  void node
-                  const resolvedImageSource = resolveMarkdownImageSource(
-                    src,
-                    activeSpecPath,
-                    workspaceRootPath,
-                  )
-                  if (!resolvedImageSource) {
-                    return (
-                      <span
-                        className="spec-viewer-blocked-resource"
-                        data-testid="spec-viewer-blocked-resource"
-                      >
-                        {BLOCKED_RESOURCE_PLACEHOLDER_TEXT}
-                      </span>
-                    )
-                  }
-
-                  return (
-                    <img
-                      {...imageProps}
-                      alt={alt ?? 'Markdown image'}
-                      loading="lazy"
-                      src={resolvedImageSource}
-                    />
-                  )
-                },
-                code: ({ node, className, children, ...codeProps }) => {
-                  void node
-                  const languageMatch =
-                    typeof className === 'string'
-                      ? className.match(/language-(\w+)/)
-                      : null
-                  if (!languageMatch) {
-                    return (
-                      <code className={className} {...codeProps}>
-                        {children}
-                      </code>
-                    )
-                  }
-                  const language = resolveMarkdownLanguage(languageMatch[1])
-                  const codeText = String(children).replace(/\n$/, '')
-                  return (
-                    <HighlightedCodeBlock code={codeText} language={language} />
-                  )
-                },
-                p: (props) =>
-                  renderBlockWithSourceLine(
-                    'p',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                li: (props) =>
-                  renderBlockWithSourceLine(
-                    'li',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                blockquote: (props) =>
-                  renderBlockWithSourceLine(
-                    'blockquote',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                pre: (props) =>
-                  renderBlockWithSourceLine(
-                    'pre',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                table: (props) =>
-                  renderBlockWithSourceLine(
-                    'table',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                h1: (props) =>
-                  renderBlockWithSourceLine(
-                    'h1',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                h2: (props) =>
-                  renderBlockWithSourceLine(
-                    'h2',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                h3: (props) =>
-                  renderBlockWithSourceLine(
-                    'h3',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                h4: (props) =>
-                  renderBlockWithSourceLine(
-                    'h4',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                h5: (props) =>
-                  renderBlockWithSourceLine(
-                    'h5',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-                h6: (props) =>
-                  renderBlockWithSourceLine(
-                    'h6',
-                    props as Record<string, unknown>,
-                    resolvedCommentMarkerCounts,
-                    resolvedCommentMarkerEntries,
-                    handleCommentMarkerMouseEnter,
-                    scheduleCommentHoverClose,
-                  ),
-              }}
               rehypePlugins={[rehypeSlug, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
               remarkPlugins={[remarkGfm]}
             >

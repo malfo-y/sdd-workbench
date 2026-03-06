@@ -16,6 +16,7 @@ import {
   workspaceReadComments,
   workspaceReadFile,
   workspaceReadGlobalComments,
+  workspaceSearchFiles,
   workspaceRename,
   workspaceWriteComments,
   workspaceWriteFile,
@@ -133,6 +134,8 @@ export class RuntimeRequestRouter {
         return workspaceIndex({ rootPath: this.rootPath })
       case 'workspace.indexDirectory':
         return workspaceIndexDirectory({ rootPath: this.rootPath }, methodParams)
+      case 'workspace.searchFiles':
+        return workspaceSearchFiles({ rootPath: this.rootPath }, methodParams)
       case 'workspace.readFile':
         return workspaceReadFile({ rootPath: this.rootPath }, methodParams)
       case 'workspace.writeFile':

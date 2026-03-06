@@ -2,8 +2,8 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.44.0`
-- 마지막 업데이트: `2026-03-02`
+- 문서 버전: `0.46.0`
+- 마지막 업데이트: `2026-03-06`
 - 문서 상태: `Draft`
 - 기준 입력:
   - 사용자 요구사항: `/_sdd/spec/user_spec.md`
@@ -28,6 +28,8 @@
   - F26: git file-level status markers in file tree
   - F27 draft: `/_sdd/drafts/feature_draft_f27_remote_agent_protocol_mvp.md`
   - F28 draft: `/_sdd/drafts/feature_draft_f28_remote_root_browse_after_ssh.md`
+  - F29/F30 draft: `/_sdd/drafts/feature_draft_f29_f30_file_tree_and_spec_search.md`
+  - F31 draft: `/_sdd/drafts/feature_draft_f31_search_star_wildcard_support.md`
   - F24.1: code editor line wrap toggle button + default On
   - F07.2: code editor scroll position restore on history navigation
 - 리라이트:
@@ -38,8 +40,8 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F28` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
-- 신규 동기화 범위: post-F28 드리프트 동기화(동일 문서 anchor in-panel 이동, lazy subtree changed marker 버블링 보강, View Comments 내 global comments inline 편집/비우기)
+- 구현 완료 범위: `F01~F31` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 신규 동기화 범위: post-F31 드리프트 동기화(동일 문서 anchor in-panel 이동, lazy subtree changed marker 버블링 보강, View Comments 내 global comments inline 편집/비우기, 파일 브라우저 검색, 스펙 뷰어 검색, 검색 `*` wildcard 지원)
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump + same-document anchor(`#heading`) in-panel 이동
@@ -61,10 +63,12 @@
   18. (F26) 파일 트리 Git 파일 상태 마커: `git status --porcelain` 기반 U(Untracked/Added, 초록)/M(Modified, 주황) 뱃지 + 디렉토리 접힘 시 하위 상태 버블링
   19. (F24.1) 코드 에디터 line wrap 토글 버튼: 헤더 "Wrap On/Off" 버튼, `wrapCompartment` 기반 동적 전환, 기본 On(가로 스크롤 방지)
   20. (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 시 이전 픽셀 스크롤 위치를 복원(런타임, `codeScrollPositionsRef`)
-- 최신 품질 게이트(2026-03-02):
-  - `npm run build` -> pass
-  - `npm test` -> `49 files, 493 passed, 1 skipped`
-  - `npm run lint` -> pass
+  21. (F29) 파일 브라우저 검색: local/remote 공통 `workspace:searchFiles` 계약 기반 파일명 검색 + partial 결과 힌트
+  22. (F30) 스펙 뷰어 검색: raw markdown 기반 block search + `Cmd/Ctrl+F` hotkey gate + block highlight/navigation
+  23. (F31) 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 공통 ordered token match + wildcard-only query empty 처리 + `(* supported)` discoverability
+- 최신 품질 게이트(2026-03-06):
+  - `npx tsc --noEmit` -> pass
+  - `npm test` -> `54 files, 546 passed, 1 skipped`
 
 ---
 
@@ -81,7 +85,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F28), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F31), 상세 수용 기준, 리스크/백로그
 
 ---
 

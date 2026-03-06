@@ -171,6 +171,19 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
   const renameMock =
     vi.fn<(rootPath: string, oldRelativePath: string, newRelativePath: string) => Promise<{ ok: boolean; error?: string }>>()
+  const searchFilesMock =
+    vi.fn<
+      (
+        rootPath: string,
+        query: string,
+        options?: {
+          maxDepth?: number
+          maxResults?: number
+          maxDirectoryChildren?: number
+          timeBudgetMs?: number
+        },
+      ) => Promise<WorkspaceSearchFilesResult>
+    >()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
@@ -222,6 +235,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     deleteFileMock.mockReset()
     deleteDirectoryMock.mockReset()
     renameMock.mockReset()
+    searchFilesMock.mockReset()
     onWatchEventMock.mockReset()
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
@@ -286,6 +300,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     deleteFileMock.mockResolvedValue({ ok: true })
     deleteDirectoryMock.mockResolvedValue({ ok: true })
     renameMock.mockResolvedValue({ ok: true })
+    searchFilesMock.mockResolvedValue({
+      ok: true,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
     onWatchEventMock.mockImplementation((listener) => {
       watchListeners.add(listener)
       return () => {
@@ -319,6 +341,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       openDialog: openDialogMock,
       index: indexWorkspaceMock,
       indexDirectory: indexDirectoryMock,
+      searchFiles: searchFilesMock,
       readFile: readFileMock,
       writeFile: writeFileMock,
       getGitLineMarkers: getGitLineMarkersMock,
@@ -1820,6 +1843,67 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('reconnects persisted remote workspace sessions on app mount', async () => {
+    const remoteWorkspaceId = 'remote-restore-a'
+    const remoteRootPath = `remote://${remoteWorkspaceId}`
+
+    setWorkspaceSessionStorage({
+      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+      activeWorkspaceId: remoteWorkspaceId,
+      workspaceOrder: [remoteWorkspaceId],
+      workspacesById: {
+        [remoteWorkspaceId]: {
+          rootPath: remoteRootPath,
+          workspaceKind: 'remote',
+          remoteWorkspaceId,
+          remoteConnectionState: 'connected',
+          remoteProfile: {
+            workspaceId: remoteWorkspaceId,
+            host: 'restore.example.com',
+            remoteRoot: '/srv/restore-a',
+          },
+          activeFile: null,
+          expandedDirectories: [],
+          fileLastLineByPath: {},
+        },
+      },
+    })
+
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: remoteWorkspaceId,
+      sessionId: 'session-restore-a',
+      rootPath: remoteRootPath,
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: remoteWorkspaceId,
+          host: 'restore.example.com',
+          remoteRoot: '/srv/restore-a',
+        }),
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+  })
+
   it('restores image active file and expanded directories on app mount', async () => {
     const projectRoot = '/Users/tester/restore-image'
     const projectId = projectRoot
@@ -2769,6 +2853,97 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         .querySelector('.content-tab-button.is-active')
       expect(activeTab).toHaveTextContent('Code')
     })
+  })
+
+  it('opens spec search with Cmd+F only when the Spec tab is active', async () => {
+    const workspaceRoot = '/Users/tester/spec-search-hotkey'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+        { name: 'guide.md', relativePath: 'guide.md', kind: 'file' },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'guide.md') {
+        return {
+          ok: true,
+          content: '# Guide\n\nGuide intro',
+        }
+      }
+
+      return {
+        ok: true,
+        content: 'export const value = 1\n',
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'guide.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'guide.md' }))
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Spec')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Code')
+    })
+
+    const codeFindEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'f',
+      metaKey: true,
+    })
+    window.dispatchEvent(codeFindEvent)
+
+    expect(codeFindEvent.defaultPrevented).toBe(false)
+    expect(
+      screen.queryByTestId('spec-viewer-search-input'),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'guide.md' }))
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Spec')
+    })
+
+    const specFindEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'f',
+      metaKey: true,
+    })
+    window.dispatchEvent(specFindEvent)
+
+    expect(specFindEvent.defaultPrevented).toBe(true)
+    expect(
+      await screen.findByTestId('spec-viewer-search-input'),
+    ).toBeInTheDocument()
   })
 
   it('switches workspace with Cmd+Ctrl+Up/Down only', async () => {

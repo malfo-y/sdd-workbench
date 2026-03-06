@@ -21,6 +21,7 @@ import type {
   WorkspaceGetGitLineMarkersRequest,
   WorkspaceIndexDirectoryRequest,
   WorkspaceIndexRequest,
+  WorkspaceSearchFilesRequest,
   WorkspaceReadCommentsRequest,
   WorkspaceReadFileRequest,
   WorkspaceReadGlobalCommentsRequest,
@@ -105,6 +106,17 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
       relativePath: request.relativePath,
       offset: request.offset,
       limit: request.limit,
+    })
+  }
+
+  searchFiles(request: WorkspaceSearchFilesRequest): Promise<unknown> {
+    this.assertRootPath(request.rootPath)
+    return this.requestWorkspaceMethod('workspace.searchFiles', {
+      query: request.query,
+      maxDepth: request.maxDepth,
+      maxResults: request.maxResults,
+      maxDirectoryChildren: request.maxDirectoryChildren,
+      timeBudgetMs: request.timeBudgetMs,
     })
   }
 
