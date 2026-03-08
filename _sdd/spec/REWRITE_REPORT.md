@@ -27,8 +27,8 @@
 
 - 인덱스:
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/main.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/FEATURE_INDEX.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/CODE_MAP.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/FEATURE_INDEX.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/CODE_MAP.md`
 - 도메인:
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/workspace-and-file-tree.md`
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/code-editor.md`

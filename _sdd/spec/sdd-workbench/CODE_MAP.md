@@ -4,8 +4,8 @@
 
 이 문서는 구현 변경 시 어느 파일부터 읽어야 하는지 빠르게 좁히기 위한 코드 인덱스다.
 
-- 제품 설명은 [01-overview](./sdd-workbench/01-overview.md)와 [03-components](./sdd-workbench/03-components.md)를 본다.
-- 상태/IPC/계약은 [04-interfaces](./sdd-workbench/04-interfaces.md)와 하위 계약 문서를 본다.
+- 제품 설명은 [01-overview](./01-overview.md)와 [03-components](./03-components.md)를 본다.
+- 상태/IPC/계약은 [04-interfaces](./04-interfaces.md)와 하위 계약 문서를 본다.
 - 여기서는 “어디를 고칠 가능성이 높은가”만 빠르게 찾는다.
 
 ## 1. App Shell / Navigation

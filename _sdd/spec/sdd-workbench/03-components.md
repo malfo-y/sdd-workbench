@@ -4,8 +4,8 @@
 
 이 문서는 상세 구현 메모를 모두 담는 문서가 아니라, 도메인별 책임과 읽는 순서를 안내하는 허브다.
 
-- 기능 ID 기준 진입은 [FEATURE_INDEX](../FEATURE_INDEX.md)
-- 파일/테스트 기준 진입은 [CODE_MAP](../CODE_MAP.md)
+- 기능 ID 기준 진입은 [FEATURE_INDEX](./FEATURE_INDEX.md)
+- 파일/테스트 기준 진입은 [CODE_MAP](./CODE_MAP.md)
 - 세부 계약은 [04-interfaces](./04-interfaces.md)
 
 ## 1. 도메인 맵

@@ -27,8 +27,8 @@
 
 ### 구현 관점
 
-1. [FEATURE_INDEX](./FEATURE_INDEX.md)
-2. [CODE_MAP](./CODE_MAP.md)
+1. [FEATURE_INDEX](./sdd-workbench/FEATURE_INDEX.md)
+2. [CODE_MAP](./sdd-workbench/CODE_MAP.md)
 3. [04-interfaces](./sdd-workbench/04-interfaces.md)
 
 ### 운영 / 이력
@@ -55,9 +55,9 @@
 
 ### 인덱스층
 
-- [FEATURE_INDEX](./FEATURE_INDEX.md)
+- [FEATURE_INDEX](./sdd-workbench/FEATURE_INDEX.md)
   - `Fxx` 기준 기능 인덱스
-- [CODE_MAP](./CODE_MAP.md)
+- [CODE_MAP](./sdd-workbench/CODE_MAP.md)
   - 파일/테스트 영향 범위 인덱스
 
 ### 기록층

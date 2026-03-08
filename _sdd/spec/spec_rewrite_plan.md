@@ -86,8 +86,6 @@
 _sdd/spec/
 ├── main.md
 ├── DECISION_LOG.md
-├── FEATURE_INDEX.md
-├── CODE_MAP.md
 ├── REWRITE_REPORT.md
 ├── SPEC_REVIEW_REPORT.md
 ├── SUMMARY.md
@@ -96,6 +94,8 @@ _sdd/spec/
 ├── sdd-workbench/
 │   ├── 01-overview.md
 │   ├── 02-architecture.md
+│   ├── FEATURE_INDEX.md
+│   ├── CODE_MAP.md
 │   ├── 03-components.md
 │   ├── 03-domains/
 │   │   ├── workspace-and-file-tree.md
