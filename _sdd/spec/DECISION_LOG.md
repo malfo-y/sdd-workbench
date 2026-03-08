@@ -1,3 +1,75 @@
+## 2026-03-08 - 스펙 문서를 설명층/계약층/인덱스층/기록층으로 재분해
+
+- Context:
+  - 기존 스펙은 `main.md` 아래로 이미 분할되어 있었지만, `03-components.md`와 `04-interfaces.md`가 점점 “모든 것을 담는 문서”가 되어 탐색 비용이 다시 커지고 있었음.
+  - 사용자는 스펙이 사람에게는 읽기 쉬워야 하고, 사람/AI에게는 구현 인덱싱이 쉬워야 한다는 두 목적을 동시에 충족하길 원했음.
+- Decision:
+  - 스펙 구조를 설명층(`01`, `02`, `03-domains`), 계약층(`04-contracts`), 인덱스층(`FEATURE_INDEX`, `CODE_MAP`), 기록층(`appendix/*`, `DECISION_LOG`, `REWRITE_REPORT`)으로 재분해한다.
+  - `main.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`는 삭제하지 않고 얇은 허브 문서로 유지한다.
+  - 기능 ID 기준 진입점은 `FEATURE_INDEX.md`, 파일/테스트 영향 범위 진입점은 `CODE_MAP.md`로 고정한다.
+  - 기존 상세 규칙은 하위 domain/contract/appendix 문서로 이동하고, 허브 문서에는 요약과 링크만 남긴다.
+- Rationale:
+  - 사용자용 제품 설명과 구현 인덱스를 같은 문서에 섞으면 둘 다 읽기 어려워진다.
+  - 기존 허브 파일명을 보존해야 과거 리뷰/구현 문서의 링크를 깨지 않고 점진적으로 구조를 개선할 수 있다.
+  - feature-index/code-map을 분리하면 향후 기능 추가 시 영향 범위 탐색이 빨라진다.
+- Impact / follow-up:
+  - 이후 `spec-update-done`이나 `spec-update-todo`는 가능하면 hub 문서보다 해당 하위 domain/contract 문서를 먼저 수정한다.
+  - `FEATURE_INDEX.md`와 `CODE_MAP.md`의 최신성 유지가 새로운 운영 포인트가 된다.
+
+## 2026-03-08 - F38 구현 완료 반영 + theme primary control을 native menu로 고정
+
+- Context:
+  - F36/F37로 `dark-gray`/`light` theme와 persistence/token 구조는 구현되었지만, header의 `Theme` group이 실제 필요 대비 큰 폭을 차지하고 있었음.
+  - 후속 구현에서 Electron native application menu `View > Theme` radio submenu, renderer/main theme sync IPC, header large theme group 제거가 코드에 반영됨.
+- Decision:
+  - F38을 `Implemented/Done`으로 반영한다.
+  - appearance theme 전환의 primary entry point는 Electron application menu `View > Theme > Dark Gray | Light`로 고정한다.
+  - renderer `appearanceTheme` 상태와 localStorage persistence를 source of truth로 유지하고, main process는 renderer가 통지한 값으로 menu checked state를 mirror한다.
+  - `setApplicationMenu()`는 role-preserving template를 사용해 기본 `file/edit/view/window/help` 동작을 유지한다.
+  - header의 large `Theme` group은 제거하고, 별도 compact fallback button/settings/tray control은 후속 범위로 둔다.
+- Rationale:
+  - native menu는 데스크톱 앱 맥락에서 더 자연스럽고, header의 큰 select를 유지할 이유가 줄어든다.
+  - renderer authoritative sync를 명시해야 main process가 `localStorage`를 직접 읽지 않는 현재 구조와 충돌하지 않는다.
+  - role-preserving template를 쓰지 않으면 기본 copy/paste/window 메뉴가 사라질 수 있어 안전한 기본 구조를 문서에 남길 필요가 있다.
+- Impact / follow-up:
+  - `main.md`, split spec(`01`, `03`, `04`, `appendix`)에 F38 implemented 범위와 native menu sync contract를 동기화한다.
+  - `_sdd/implementation/features/f38_native_theme_menu_and_header_compaction` archive와 `IMPLEMENTATION_INDEX.md`에 이번 sync 기록을 추가한다.
+
+## 2026-03-08 - F36/F37 구현 완료 반영 + theme bootstrap/recovery 계약 확정
+
+- Context:
+  - F36/F37 phase 구현이 완료되어 `dark-gray` baseline, `light` theme, App shell/CM6/Shiki theme routing이 실제 코드에 반영됨.
+  - implementation-review에서 persisted `light` first-paint flash, storage exception path, Shiki highlighter transient failure recovery가 후속 보강 포인트로 확인되었고, 해당 수정도 구현/테스트로 닫힘.
+- Decision:
+  - F36/F37을 `Implemented/Done`으로 전환한다.
+  - appearance theme bootstrap은 React mount 전에 `document.documentElement[data-theme]`에 persisted theme를 반영하는 pre-paint 경로로 고정한다.
+  - appearance theme persistence는 storage access exception이 발생해도 throw하지 않고 `dark-gray` fallback 또는 in-memory state 유지로 degrade 한다.
+  - Shiki highlighter cache는 theme별로 분리하되, transient initialization failure 시 cache를 제거해 다음 요청에서 재시도 가능하도록 유지한다.
+  - `dark-gray`, `light` 두 가지 theme만 현재 구현 범위로 유지하고, `true dark`/`system` follow는 계속 후속 범위로 둔다.
+- Rationale:
+  - 단순 planned->implemented 전환만으로는 실제 런타임 UX와 failure recovery contract가 문서에 남지 않아 재도입 시 회귀 위험이 있다.
+  - pre-paint bootstrap과 retry-safe cache는 사용자 체감 품질과 디버깅 기준에 직접 영향을 주므로 결정 로그에 남길 가치가 있다.
+- Impact / follow-up:
+  - `main.md`, split spec(`01`, `03`, `04`, `appendix`)에 F36/F37 implemented 범위와 bootstrap/recovery contract를 동기화한다.
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light` archive와 `IMPLEMENTATION_INDEX.md`에 이번 sync 기록을 추가한다.
+
+## 2026-03-08 - F36/F37 planned 반영 + `dark-gray` baseline / `light` 우선 정책 고정
+
+- Context:
+  - 현재 앱은 다크 계열이지만 실질적으로는 순수 black보다 dark-gray에 가까운 look을 가지고 있고, App shell/CodeMirror/Shiki code block이 서로 다른 방식으로 색을 관리하고 있음.
+  - 사용자 요구는 기존 look을 크게 흔들지 않으면서 Code Editor를 조금 더 gray 쪽으로 맞추고, 실사용 가능한 `light` theme를 먼저 추가하는 방향이었음.
+- Decision:
+  - 현재 다크 계열 look을 공식 `dark-gray` baseline으로 간주하고, 향후 테마 확장을 위한 appearance state/token 구조를 F36 planned 범위로 스펙에 반영한다.
+  - 우선 도입 대상 theme는 `dark-gray`, `light` 두 가지로 제한한다.
+  - `true dark`, `system` follow, OS accent color 연동은 이번 범위에서 제외하고 후속 feature로 분리한다.
+  - VS Code theme system/marketplace 호환은 목표가 아니며, 현재 앱 구조에 맞는 token 기반 palette를 제공하는 방향으로 고정한다.
+- Rationale:
+  - 현재 UI 인상을 유지하면서 light theme를 추가하려면, 먼저 existing dark palette를 `dark-gray` baseline으로 정리하는 편이 회귀 위험이 낮다.
+  - 범위를 `dark-gray + light`로 제한해야 CSS tokenization, CM6 theme routing, Shiki theme routing을 한 단계에서 현실적으로 다룰 수 있다.
+- Impact / follow-up:
+  - `main.md`, split spec(`01`, `03`, `04`, `appendix`)에 F36/F37 planned 범위와 비범위를 반영한다.
+  - 구현은 spec-update-todo 이후 phase별(`theme contract -> tokenization -> CM6/Shiki routing -> light polish`)로 진행하는 것을 기본 전략으로 둔다.
+
 ## 2026-03-08 - F34/F35 구현 완료 반영 + markdown/spec 왕복 내비게이션 정책 고정
 
 - Context:

@@ -1,5 +1,44 @@
 # IMPLEMENTATION_INDEX
 
+## f38_native_theme_menu_and_header_compaction
+
+### Sync Record - 2026-03-08T14:12:37Z
+
+- note: F38 구현 완료 스펙 동기화 (Electron native `View > Theme`, renderer authoritative theme sync, header large theme group 제거) 반영
+- copied files:
+  - `_sdd/implementation/features/f38_native_theme_menu_and_header_compaction/SYNC_20260308_231242_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f38_native_theme_menu_and_header_compaction/SYNC_20260308_231242_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+- excluded root artifacts:
+  - `_sdd/implementation/IMPLEMENTATION_PLAN*.md`, `_sdd/implementation/IMPLEMENTATION_REVIEW.md`는 현재 루트 문서 헤더가 F38 전용 상태가 아니어서 이번 feature archive에서는 제외
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
+## f36_f37_theme_modes_dark_gray_and_light
+
+### Sync Record - 2026-03-08T11:59:27Z
+
+- note: F36/F37 구현 완료 스펙 동기화 (`dark-gray` baseline, `light` theme, pre-paint theme restore bootstrap, storage safe fallback, CM6/Shiki theme routing, retry-safe highlighter cache) 반영
+- copied files:
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_PLAN.md <- _sdd/implementation/IMPLEMENTATION_PLAN.md`
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_REPORT_PHASE_1.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_REPORT_PHASE_2.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_REPORT_PHASE_3.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_REPORT_PHASE_4.md <- _sdd/implementation/IMPLEMENTATION_REPORT_PHASE_4.md`
+  - `_sdd/implementation/features/f36_f37_theme_modes_dark_gray_and_light/SYNC_20260308_205927_IMPLEMENTATION_REVIEW.md <- _sdd/implementation/IMPLEMENTATION_REVIEW.md`
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
 ## f34_f35_md_source_to_spec_jump_and_navigation_highlight
 
 ### Sync Record - 2026-03-08T03:09:10Z

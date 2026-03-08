@@ -73,6 +73,9 @@ export function getOrCreateHighlighter(
     engine: createJavaScriptRegexEngine(),
     themes: [THEME_IMPORTS[appearanceTheme]],
     langs: [],
+  }).catch((error) => {
+    highlighterPromises.delete(appearanceTheme)
+    throw error
   })
   highlighterPromises.set(appearanceTheme, promise)
   return promise

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { Menu, app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile } from 'node:child_process'
 import type { Dirent } from 'node:fs'
@@ -37,6 +37,16 @@ import { createLocalWorkspaceBackend } from './workspace-backend/local-workspace
 import { createRemoteWorkspaceBackend } from './workspace-backend/remote-workspace-backend'
 import { WorkspaceBackendRouter } from './workspace-backend/backend-router'
 import { searchWorkspaceFilesByName } from './workspace-search'
+import {
+  APPEARANCE_THEME_CHANGED_CHANNEL,
+  buildApplicationMenuTemplate,
+  sendAppearanceThemeMenuRequest,
+} from './appearance-menu'
+import {
+  DEFAULT_APPEARANCE_THEME,
+  parseAppearanceTheme,
+  type AppearanceTheme,
+} from '../src/appearance-theme'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -59,6 +69,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let currentAppearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME
 
 type WorkspaceOpenDialogResult = {
   canceled: boolean
@@ -3328,6 +3339,48 @@ function registerIpcHandlers() {
   ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
   ipcMain.handle('system:openInVsCode', handleSystemOpenInVsCode)
   ipcMain.handle('system:openInFinder', handleSystemOpenInFinder)
+  ipcMain.removeAllListeners(APPEARANCE_THEME_CHANGED_CHANNEL)
+  ipcMain.on(APPEARANCE_THEME_CHANGED_CHANNEL, (_event, payload: { theme?: string }) => {
+    currentAppearanceTheme =
+      parseAppearanceTheme(payload?.theme ?? null) ?? DEFAULT_APPEARANCE_THEME
+    installApplicationMenu()
+  })
+}
+
+function getAppearanceThemeTargetWindow(
+  browserWindow?: BrowserWindow | null,
+): BrowserWindow | null {
+  if (browserWindow && !browserWindow.isDestroyed()) {
+    return browserWindow
+  }
+
+  const focusedWindow = BrowserWindow.getFocusedWindow()
+  if (focusedWindow && !focusedWindow.isDestroyed()) {
+    return focusedWindow
+  }
+
+  if (win && !win.isDestroyed()) {
+    return win
+  }
+
+  return null
+}
+
+function installApplicationMenu() {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      buildApplicationMenuTemplate({
+        currentTheme: currentAppearanceTheme,
+        onSelectTheme: (theme, browserWindow) => {
+          const targetWindow = getAppearanceThemeTargetWindow(browserWindow)
+          if (!targetWindow) {
+            return
+          }
+          sendAppearanceThemeMenuRequest(targetWindow, theme)
+        },
+      }),
+    ),
+  )
 }
 
 function createWindow() {
@@ -3458,5 +3511,6 @@ app.on('activate', () => {
 
 app.whenReady().then(() => {
   registerIpcHandlers()
+  installApplicationMenu()
   createWindow()
 })

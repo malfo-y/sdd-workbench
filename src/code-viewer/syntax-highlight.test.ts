@@ -152,4 +152,36 @@ describe('getOrCreateHighlighter', () => {
     expect(darkAgain).toBe(dark)
     expect(light).not.toBe(dark)
   })
+
+  it('retries highlighter creation after a transient failure', async () => {
+    vi.resetModules()
+    let createCalls = 0
+
+    vi.doMock('shiki/core', async () => {
+      const actual = await vi.importActual<typeof import('shiki/core')>('shiki/core')
+      return {
+        ...actual,
+        createHighlighterCore: ((options: Parameters<typeof actual.createHighlighterCore>[0]) => {
+          createCalls += 1
+          if (createCalls === 1) {
+            return Promise.reject(new Error('transient create failure'))
+          }
+          return actual.createHighlighterCore(options)
+        }) as typeof actual.createHighlighterCore,
+      }
+    })
+
+    const { getOrCreateHighlighter: getFreshHighlighter } = await import('./syntax-highlight')
+
+    await expect(getFreshHighlighter('light')).rejects.toThrow(
+      'transient create failure',
+    )
+
+    const recovered = await getFreshHighlighter('light')
+
+    expect(typeof recovered.codeToTokens).toBe('function')
+    expect(createCalls).toBe(2)
+
+    vi.doUnmock('shiki/core')
+  })
 })

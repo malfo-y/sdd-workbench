@@ -1,4 +1,12 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import {
+  APPEARANCE_THEME_CHANGED_CHANNEL,
+  APPEARANCE_THEME_MENU_REQUEST_CHANNEL,
+} from './appearance-menu'
+import {
+  parseAppearanceTheme,
+  type AppearanceTheme,
+} from '../src/appearance-theme'
 
 type WorkspaceOpenDialogResult = {
   canceled: boolean
@@ -474,6 +482,27 @@ const workspaceApi = {
     return () => {
       ipcRenderer.off('workspace:historyNavigate', handler)
     }
+  },
+  onAppearanceThemeMenuRequest(listener: (theme: AppearanceTheme) => void) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { theme?: string },
+    ) => {
+      const nextTheme = parseAppearanceTheme(payload?.theme ?? null)
+      if (!nextTheme) {
+        return
+      }
+      listener(nextTheme)
+    }
+    ipcRenderer.on(APPEARANCE_THEME_MENU_REQUEST_CHANNEL, handler)
+    return () => {
+      ipcRenderer.off(APPEARANCE_THEME_MENU_REQUEST_CHANNEL, handler)
+    }
+  },
+  notifyAppearanceThemeChanged(theme: AppearanceTheme) {
+    ipcRenderer.send(APPEARANCE_THEME_CHANGED_CHANNEL, {
+      theme,
+    })
   },
   openInIterm(rootPath: string) {
     return ipcRenderer.invoke('system:openInIterm', {

@@ -128,6 +128,8 @@ interface WorkspaceGetGitFileStatusesResult {
   error?: string
 }
 
+type AppearanceTheme = 'dark-gray' | 'light'
+
 interface CodeCommentRecord {
   id: string
   relativePath: string
@@ -399,6 +401,10 @@ interface Window {
     onHistoryNavigate: (
       listener: (event: WorkspaceHistoryNavigationEvent) => void,
     ) => () => void
+    onAppearanceThemeMenuRequest: (
+      listener: (theme: AppearanceTheme) => void,
+    ) => () => void
+    notifyAppearanceThemeChanged: (theme: AppearanceTheme) => void
     openInIterm: (rootPath: string) => Promise<SystemOpenInResult>
     openInVsCode: (rootPath: string) => Promise<SystemOpenInResult>
     openInFinder: (rootPath: string) => Promise<SystemOpenInResult>

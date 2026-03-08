@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -36,11 +37,13 @@ import {
 } from './code-editor/code-editor-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import {
-  saveAppearanceTheme,
+  applyAppearanceThemeToRoot,
   loadAppearanceTheme,
+  notifyAppearanceThemeChanged,
+  saveAppearanceTheme,
+  subscribeToAppearanceThemeMenuRequests,
   type AppearanceTheme,
 } from './appearance-theme'
-import { AppearanceThemeSelector } from './appearance-theme-selector'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
 import type { SourceOffsetRange } from './source-selection'
@@ -1801,17 +1804,24 @@ function App() {
     [renameFileOrDirectory],
   )
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', appearanceTheme)
-    return () => {
-      document.documentElement.removeAttribute('data-theme')
-    }
+  useLayoutEffect(() => {
+    applyAppearanceThemeToRoot(appearanceTheme)
   }, [appearanceTheme])
 
   const handleAppearanceThemeChange = useCallback((theme: AppearanceTheme) => {
     setAppearanceTheme(theme)
     saveAppearanceTheme(theme)
   }, [])
+
+  useEffect(() => {
+    return subscribeToAppearanceThemeMenuRequests((theme) => {
+      handleAppearanceThemeChange(theme)
+    })
+  }, [handleAppearanceThemeChange])
+
+  useEffect(() => {
+    notifyAppearanceThemeChanged(appearanceTheme)
+  }, [appearanceTheme])
 
   return (
     <main className="app-shell" data-appearance-theme={appearanceTheme}>
@@ -1861,15 +1871,6 @@ function App() {
           </div>
         </div>
         <div className="app-header-actions" data-testid="app-header-actions">
-          <div className="header-comments-group" data-testid="header-theme-group">
-            <span className="header-action-group-label">Theme</span>
-            <div className="header-comments-actions" data-testid="header-theme-actions">
-              <AppearanceThemeSelector
-                onChange={handleAppearanceThemeChange}
-                value={appearanceTheme}
-              />
-            </div>
-          </div>
           <div className="header-comments-group" data-testid="header-comments-group">
             <span className="header-action-group-label">Code comments</span>
             <div className="header-comments-actions" data-testid="header-comments-actions">

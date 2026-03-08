@@ -8,6 +8,7 @@ import App from './App'
 import {
   APPEARANCE_THEME_STORAGE_KEY,
   DEFAULT_APPEARANCE_THEME,
+  type AppearanceTheme,
 } from './appearance-theme'
 import { WorkspaceProvider } from './workspace/workspace-context'
 import { useWorkspace } from './workspace/use-workspace'
@@ -246,6 +247,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         listener: (event: WorkspaceRemoteConnectionEvent) => void,
       ) => () => void
     >()
+  const appearanceThemeMenuRequestListeners = new Set<
+    (theme: AppearanceTheme) => void
+  >()
+  const onAppearanceThemeMenuRequestMock =
+    vi.fn<(listener: (theme: AppearanceTheme) => void) => () => void>()
+  const notifyAppearanceThemeChangedMock =
+    vi.fn<(theme: AppearanceTheme) => void>()
 
   beforeEach(() => {
     openDialogMock.mockReset()
@@ -278,10 +286,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
     onRemoteConnectionEventMock.mockReset()
+    onAppearanceThemeMenuRequestMock.mockReset()
+    notifyAppearanceThemeChangedMock.mockReset()
     watchListeners.clear()
     watchFallbackListeners.clear()
     historyNavigateListeners.clear()
     remoteConnectionListeners.clear()
+    appearanceThemeMenuRequestListeners.clear()
     watchStartMock.mockResolvedValue({
       ok: true,
       watchMode: 'native',
@@ -370,6 +381,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         remoteConnectionListeners.delete(listener)
       }
     })
+    onAppearanceThemeMenuRequestMock.mockImplementation((listener) => {
+      appearanceThemeMenuRequestListeners.add(listener)
+      return () => {
+        appearanceThemeMenuRequestListeners.delete(listener)
+      }
+    })
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
       value: createTestStorage(),
@@ -399,6 +416,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       onWatchFallback: onWatchFallbackMock,
       onRemoteConnectionEvent: onRemoteConnectionEventMock,
       onHistoryNavigate: onHistoryNavigateMock,
+      onAppearanceThemeMenuRequest: onAppearanceThemeMenuRequestMock,
+      notifyAppearanceThemeChanged: notifyAppearanceThemeChangedMock,
       openInIterm: openInItermMock,
       openInVsCode: openInVsCodeMock,
       openInFinder: openInFinderMock,
@@ -419,6 +438,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   const emitHistoryNavigateEvent = (event: WorkspaceHistoryNavigationEvent) => {
     for (const listener of historyNavigateListeners) {
       listener(event)
+    }
+  }
+
+  const emitAppearanceThemeMenuRequest = (theme: AppearanceTheme) => {
+    for (const listener of appearanceThemeMenuRequestListeners) {
+      listener(theme)
     }
   }
 
@@ -631,21 +656,21 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       child.getAttribute('data-testid'),
     )
 
-    expect(childTestIds).toEqual(['header-theme-group', 'header-comments-group'])
+    expect(childTestIds).toEqual(['header-comments-group'])
     expect(screen.getByTestId('app-header-left')).toContainElement(
       screen.getByTestId('header-history-actions'),
     )
     expect(screen.getByTestId('app-header-left')).toContainElement(
       screen.getByTestId('content-tab-bar'),
     )
-    expect(screen.getByTestId('header-theme-group')).toHaveTextContent('Theme')
+    expect(screen.queryByTestId('header-theme-group')).not.toBeInTheDocument()
     expect(screen.getByTestId('header-comments-group')).toHaveTextContent(
       'Code comments',
     )
     expect(screen.getByTestId('sidebar-workspace-group')).toBeInTheDocument()
   })
 
-  it('restores the stored appearance theme and forwards it to both panels', async () => {
+  it('restores the stored appearance theme, syncs it to the host, and forwards it to both panels', async () => {
     setAppearanceThemeStorage('light')
 
     render(
@@ -658,7 +683,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     })
 
-    expect(screen.getByTestId('appearance-theme-select')).toHaveValue('light')
+    expect(screen.queryByTestId('appearance-theme-select')).not.toBeInTheDocument()
+    expect(notifyAppearanceThemeChangedMock).toHaveBeenCalledWith('light')
     expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
       'data-appearance-theme',
       'light',
@@ -669,7 +695,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
-  it('falls back to dark-gray for malformed storage and persists selector changes', async () => {
+  it('falls back to dark-gray for malformed storage and applies native menu theme requests', async () => {
     setAppearanceThemeStorage('neon')
 
     render(
@@ -678,22 +704,22 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       </WorkspaceProvider>,
     )
 
-    const themeSelect = screen.getByTestId('appearance-theme-select')
-
     await waitFor(() => {
-      expect(themeSelect).toHaveValue(DEFAULT_APPEARANCE_THEME)
+      expect(document.documentElement).toHaveAttribute(
+        'data-theme',
+        DEFAULT_APPEARANCE_THEME,
+      )
     })
-    expect(document.documentElement).toHaveAttribute(
-      'data-theme',
-      DEFAULT_APPEARANCE_THEME,
-    )
 
-    fireEvent.change(themeSelect, { target: { value: 'light' } })
+    act(() => {
+      emitAppearanceThemeMenuRequest('light')
+    })
 
     await waitFor(() => {
       expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     })
     expect(window.localStorage.getItem(APPEARANCE_THEME_STORAGE_KEY)).toBe('light')
+    expect(notifyAppearanceThemeChangedMock).toHaveBeenLastCalledWith('light')
     expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
       'data-appearance-theme',
       'light',
@@ -704,22 +730,24 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
-  it('switches back to dark-gray after selecting light without leaving stale theme state', async () => {
+  it('switches back to dark-gray after successive native menu requests without leaving stale theme state', async () => {
     render(
       <WorkspaceProvider>
         <App />
       </WorkspaceProvider>,
     )
 
-    const themeSelect = screen.getByTestId('appearance-theme-select')
-
-    fireEvent.change(themeSelect, { target: { value: 'light' } })
+    act(() => {
+      emitAppearanceThemeMenuRequest('light')
+    })
 
     await waitFor(() => {
       expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     })
 
-    fireEvent.change(themeSelect, { target: { value: 'dark-gray' } })
+    act(() => {
+      emitAppearanceThemeMenuRequest('dark-gray')
+    })
 
     await waitFor(() => {
       expect(document.documentElement).toHaveAttribute('data-theme', 'dark-gray')
@@ -727,6 +755,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(window.localStorage.getItem(APPEARANCE_THEME_STORAGE_KEY)).toBe(
       'dark-gray',
     )
+    expect(notifyAppearanceThemeChangedMock).toHaveBeenLastCalledWith('dark-gray')
     expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
       'data-appearance-theme',
       'dark-gray',

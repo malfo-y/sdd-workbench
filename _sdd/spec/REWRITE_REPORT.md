@@ -1,52 +1,69 @@
 ## Rewrite Summary
 
-- Target document: `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/main.md`
-- Execution timestamp: `2026-02-22`
-- Rewrite strategy: `Section Update + Split`
+- Target document:
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/`
+- Execution timestamp:
+  - `2026-03-08`
 - Key changes:
-  - `main.md`를 인덱스/요약 허브로 축소
-  - 상세 내용을 주제별 하위 문서 6개로 분리
-  - 대형 단일 문서에서 반복되던 설명/체크리스트를 appendix 중심으로 정리
-  - F11/F11.1 관련 중복 서술(인벤토리/큐/수용기준/결론)을 문맥별로 재배치
+  - `main.md`를 더 얇은 허브 문서로 축소
+  - `03-components.md`, `04-interfaces.md`, `appendix.md`를 링크 허브로 전환
+  - `FEATURE_INDEX.md`, `CODE_MAP.md`를 새로 추가
+  - `03-domains/*`, `04-contracts/*`, `appendix/*` 하위 구조를 추가
 
 ## What Was Pruned or Moved
 
-- `main.md`에서 이동:
-  - 목표/범위 상세 -> `01-overview.md`
-  - 아키텍처/플로우 상세 -> `02-architecture.md`
-  - 컴포넌트 책임 상세 -> `03-components.md`
-  - 상태/링크/IPC 계약 상세 -> `04-interfaces.md`
-  - 성능/보안/신뢰성/테스트 운영 상세 -> `05-operational-guides.md`
-  - 기능 이력/리스크 목록 -> `appendix.md`
-- 정리 항목:
-  - 인덱스 파일 내 대형 표 중심 기술 제거
-  - 동일 정책의 중복 표현(특히 F11/F11.1) 최소화
+- `03-components.md`
+  - 상세 파일 인벤토리 -> `CODE_MAP.md`
+  - 도메인별 상세 설명 -> `03-domains/*`
+- `04-interfaces.md`
+  - 타입/IPC/검색/내비게이션/코멘트/theme 규칙 -> `04-contracts/*`
+- `appendix.md`
+  - 기능 이력 -> `appendix/feature-history.md`
+  - 상세 수용 기준 -> `appendix/detailed-acceptance.md`
+  - 리스크/백로그 -> `appendix/backlog-and-risks.md`
+  - 용어 -> `appendix/glossary.md`
 
 ## File Split Map
 
 - 인덱스:
   - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/main.md`
-- 신규 하위 문서:
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/01-overview.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/02-architecture.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-components.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-interfaces.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/05-operational-guides.md`
-  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/appendix.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/FEATURE_INDEX.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/CODE_MAP.md`
+- 도메인:
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/workspace-and-file-tree.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/code-editor.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/spec-viewer.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/comments-and-export.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/remote-workspace.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/03-domains/appearance-and-navigation.md`
+- 계약:
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-contracts/state-model.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-contracts/ipc-contracts.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-contracts/navigation-rules.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-contracts/search-rules.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-contracts/comment-contracts.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/04-contracts/theme-and-menu-contracts.md`
+- 부록:
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/appendix/feature-history.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/appendix/detailed-acceptance.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/appendix/backlog-and-risks.md`
+  - `/Users/hyunjoonlee/github/sdd-workbench/_sdd/spec/sdd-workbench/appendix/glossary.md`
 
 ## Ambiguities and Issues
 
-- [P1] [Ambiguous Requirement] rendered markdown marker의 nearest fallback 시각화가 사용자 기대 라인과 다를 수 있음.
-  - Suggested resolution: marker tooltip/legend와 함께 exact/fallback 구분 표시 검토.
-- [P1] [Missing Acceptance Criteria] incremental export reset/re-export-all UX 기준이 부재.
-  - Suggested resolution: F12+에서 reset 정책(수동/자동)과 감사 로그 기준을 draft로 명시.
-- [P2] [Undefined Ownership] 스펙 분할 이후 문서 오너(overview/architecture/interfaces) 관리 규칙이 명시되지 않음.
-  - Suggested resolution: 문서별 owner 또는 update responsibility를 별도 운영 가이드로 추가.
-- [P2] [Outdated Claim Risk] Appendix 기반 이력은 지속 증가하므로 주기적 압축 없으면 다시 비대화 가능.
-  - Suggested resolution: 분기 단위 archive 섹션 이동 또는 릴리스 스냅샷 파일 분리.
+- [P1] [Undefined Ownership]
+  - 새로 생긴 `FEATURE_INDEX.md`와 `CODE_MAP.md`를 누가 얼마나 자주 갱신하는지 운영 규칙은 아직 약하다.
+  - Suggested resolution: `spec-update-done` 결과물에 두 문서 점검을 체크리스트로 추가한다.
+- [P2] [Outdated Claim Risk]
+  - `feature-history.md`는 계속 길어질 수 있다.
+  - Suggested resolution: 분기별 스냅샷 또는 release cut 단위 archive를 나중에 검토한다.
+- [P2] [Ambiguous Requirement]
+  - CODE_MAP의 granularity가 어느 수준까지 내려가야 하는지는 아직 고정되지 않았다.
+  - Suggested resolution: 당장은 도메인 단위 유지, 필요 시 hotspot 영역만 더 세분화한다.
 
 ## Decision Log Additions
 
-- Entry title: `2026-02-22 - 스펙 구조 리라이트(인덱스 + 하위 문서 분할)`
+- Entry title:
+  - `2026-03-08 - 스펙 문서를 설명층/계약층/인덱스층/기록층으로 재분해`
 - Why this was recorded:
-  - 단일 1300+ 라인 문서의 탐색/유지보수 비용을 낮추고, 향후 `spec-update-done` 변경 범위를 국소화하기 위해 구조 분할을 고정함.
+  - 긴 허브 문서 3개(`03-components`, `04-interfaces`, `appendix`)를 직접 수정하는 비용을 낮추고, 사용자용 읽기 흐름과 구현 인덱싱 흐름을 분리하기 위해 구조를 고정했다.

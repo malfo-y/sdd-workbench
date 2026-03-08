@@ -19,6 +19,8 @@
 11. 파일 트리에서 git 파일 상태(Untracked/Added/Modified)를 뱃지로 즉시 식별(F26)
 12. Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입해 원격 작업을 SSH agent 세션으로 처리하고, SSH 선접속 후 디렉토리 browse로 remote root 선택 UX를 제공한다(F27/F28, Implemented)
 13. markdown raw source와 rendered spec 사이를 same-file line 기준으로 왕복 이동하고, 도착 위치를 temporary highlight로 즉시 인지할 수 있게 한다(F34/F35)
+14. 현재 다크 계열 UI를 `dark-gray` baseline으로 정리하고, App shell/CodeMirror/Spec code block 전반에서 일관된 `light` theme와 pre-paint restore/failure-safe theme bootstrap을 제공한다(F36/F37, Implemented)
+15. appearance theme 전환의 primary entry point를 Electron native `View > Theme` 메뉴로 제공하고, header의 large theme control을 제거해 상단 공간을 회수한다(F38, Implemented)
 
 ## 3. 범위
 
@@ -55,6 +57,9 @@
 - 스펙 뷰어 exact source offset anchor MVP: paragraph/list/blockquote/link text/inline code/fenced code block selection을 same-file raw markdown exact offset으로 해석하고, `Go to Source`/`Add Comment`에 optional exact range를 전달한다(F33)
 - markdown source `Go to Spec`: `.md` Code 탭 context menu에서 현재 `selectionRange.startLine` 기준으로 같은 파일의 rendered spec block으로 이동한다(F34)
 - cross-panel navigation target highlight: spec/code explicit navigation 시 도착한 rendered block 또는 code line에 temporary highlight를 적용한다(F35)
+- appearance theme foundation: 현재 다크 계열 look을 `dark-gray` baseline으로 정리하고 theme state/persistence/token 구조 + pre-paint restore bootstrap을 도입한다(F36, Implemented)
+- `light` theme: App shell, panel, control, CodeMirror, Spec code block까지 일관된 밝은 palette를 제공하고, theme-specific highlight/search/navigation 대비를 유지한다(F37, Implemented)
+- native theme menu integration: Electron `View > Theme > Dark Gray | Light` radio submenu를 primary control로 사용하고, renderer authoritative state와 checked state를 동기화한다(F38, Implemented)
 - 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
 - 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
 - Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Port/Identity 입력 -> SSH 디렉토리 browse -> remoteRoot 선택(수동 입력 fallback) -> bootstrap/runtime 설치/검증, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27/F28)
@@ -118,6 +123,12 @@
 2. App은 Spec 탭으로 전환하고 같은 markdown 파일의 rendered block 중 해당 source line에 가장 잘 대응하는 `data-source-line` block으로 스크롤한다.
 3. spec-origin `Go to Source` 또는 F34 `Go to Spec`처럼 명시적인 navigation이 일어나면 도착한 code line/rendered block에 temporary highlight를 적용해 위치 인지성을 높인다.
 
+### 4.8 Appearance Theme 제어 흐름(F38)
+
+1. 사용자는 Electron application menu의 `View > Theme` submenu에서 `Dark Gray` 또는 `Light`를 선택한다.
+2. Main 프로세스는 선택된 theme를 renderer로 전달하고, renderer는 기존 `appearanceTheme` 상태/localStorage/root `data-theme` 경로를 그대로 사용해 authoritative하게 적용한다.
+3. renderer는 현재 theme를 다시 main process에 통지해 native menu checked state를 맞추고, header에는 별도 large theme control을 유지하지 않는다.
+
 ## 5. 현재 기능 커버리지 요약
 
 | 도메인 | 상태 | 비고 |
@@ -157,6 +168,9 @@
 | 스펙 뷰어 exact source offset anchor MVP | Implemented | F33 |
 | markdown source `Go to Spec` | Implemented | F34 |
 | cross-panel navigation target highlight | Implemented | F35 |
+| appearance theme foundation (`dark-gray` baseline + state/persistence/token + pre-paint restore) | Implemented | F36 |
+| `light` theme(App/CM6/Shiki) | Implemented | F37 |
+| Electron native `View > Theme` + header compaction | Implemented | F38 |
 | 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
 | 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
 | Remote Agent Protocol 기반 원격 워크스페이스 실행 | Implemented | F27 |
