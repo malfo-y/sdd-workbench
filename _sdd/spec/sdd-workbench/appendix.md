@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F33)
+## A. 기능 이력 (F01~F35)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -54,6 +54,8 @@
 | F31 | Done | 2026-03-06 | 검색 `*` wildcard 지원: ordered token match, wildcard-only query empty 처리, `(* supported)` discoverability, spec search helper 분리 |
 | F32 | Done | 2026-03-06 | 스펙 뷰어 코멘트/source action line anchor 정밀도 개선: source span metadata helper, multiline paragraph/table cell best-effort line 추정 |
 | F33 | Done | 2026-03-08 | 스펙 뷰어 exact source offset anchor MVP: same-file raw markdown exact offset mapping, CodeMirror exact range jump, optional comment offset persistence, collapsed selection line fallback |
+| F34 | Done | 2026-03-08 | markdown source `Go to Spec`: `.md` Code 탭 context menu에서 같은 파일의 rendered spec block으로 이동 |
+| F35 | Done | 2026-03-08 | cross-panel navigation target highlight: spec/code explicit navigation 시 temporary block/line highlight |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -94,6 +96,8 @@
 - (F31) 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 모두 `*`를 0개 이상의 임의 문자로 해석하는 ordered token match 적용, `*`/`**`는 empty query로 처리, 파일 브라우저는 `fileName` 기준만 확장, 스펙 검색은 같은 line 안에서만 확장, 두 검색 입력 모두 `(* supported)` placeholder로 discoverability 제공
 - (F32) 스펙 뷰어 코멘트/source action 정밀도 개선: `src/spec-viewer/source-line-metadata.ts`가 markdown node position의 start/end line을 정규화해 rendered metadata(`data-source-line-start/end`)를 제공하고, `source-line-resolver`는 fenced code block newline offset 계산을 유지하면서 일반 markdown paragraph/list/blockquote/table cell에서 span + rendered text offset 기반 line-level best-effort anchor를 계산한다. `Add Comment`/`Go to Source` payload shape는 유지하고, 해석 실패 시 기존 block-level 또는 nearest fallback으로 degrade 한다.
 - (F33) 스펙 뷰어 exact source offset anchor MVP: supported rendered selection(paragraph/list/blockquote/link text/inline code/fenced code block)은 same-file raw markdown `[startOffset, endOffset)`로 해석되고, `Go to Source`는 CodeMirror exact range selection으로 이동하며, spec-origin `Add Comment`는 기존 line range와 함께 optional `startOffset/endOffset`를 anchor metadata에 저장한다. collapsed selection과 unsupported structure는 클릭 line fallback을 유지하고, 원문 변경 후 stale offset recovery는 구현하지 않는다.
+- (F34) markdown source `Go to Spec`: Code 탭의 `.md` 일반 텍스트 편집 모드에서만 context menu `Go to Spec`가 노출되며, 현재 `selectionRange.startLine`을 anchor로 같은 파일의 rendered `data-source-line` block으로 이동한다. exact block이 없으면 nearest block으로 안전하게 degrade 하고, semantic code->spec linking은 범위 밖이다.
+- (F35) cross-panel navigation highlight: spec-origin `Go to Source`, F34 `Go to Spec`, App explicit line jump는 대상 code line/rendered block에 temporary highlight를 적용한다. highlight는 search/comment/exact offset selection과 분리된 additive 상태이며, `1600ms` 후 자동 해제되고 token 기반으로 재트리거 가능하다.
 - (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
 - (F24.1) 코드 에디터 line wrap 토글: 헤더에 "Wrap On/Off" 버튼, 기본 On, 클릭으로 동적 전환(`wrapCompartment.reconfigure`), `aria-pressed` 반영, 가로 스크롤 방지로 트랙패드 wheel 히스토리 내비게이션 안정화
 - (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 후 해당 파일의 마지막 픽셀 스크롤 위치를 복원; 저장: `view.scrollDOM` native scroll 이벤트 → `codeScrollPositionsRef[workspaceId::relativePath]`; 복원: 콘텐츠 재로드(`view.setState`) 직후 `requestAnimationFrame`으로 `scrollDOM.scrollTop` 적용; 첫 방문 시 복원 없음(scrollTop=0 유지)
@@ -128,6 +132,8 @@
 24. (F27) 원격 agent 자동화는 MVP 범위로 고정: runtime 배포/검증까지만 지원(자동 업그레이드/롤백 미지원)
 25. (F27) 원격 연결 입력 UX는 모달로 고정되어 있으며, 프로필 관리 패널/다중 저장소 관리 기능은 미지원
 26. (F27) 경로 경계 검증은 lexical path 기준이며 symlink를 통한 workspace 외부 접근은 의도적으로 허용
+27. (F34) `Go to Spec`는 same-file markdown source line -> rendered block 매핑만 지원하며, 일반 코드 파일의 semantic spec section 탐색은 미지원
+28. (F35) navigation highlight의 duration/persistence/user setting은 미지원(고정 temporary feedback만 지원)
 
 ## D. 이동/정리 내역 (이번 리라이트)
 

@@ -18,6 +18,7 @@
 10. 파일 트리에서 파일/디렉토리 직접 생성·삭제·이름변경으로 spec-code 편집 흐름을 워크스페이스 내에서 완결(F25/F25b)
 11. 파일 트리에서 git 파일 상태(Untracked/Added/Modified)를 뱃지로 즉시 식별(F26)
 12. Remote Agent Protocol 기반 원격 워크스페이스 실행 경로를 도입해 원격 작업을 SSH agent 세션으로 처리하고, SSH 선접속 후 디렉토리 browse로 remote root 선택 UX를 제공한다(F27/F28, Implemented)
+13. markdown raw source와 rendered spec 사이를 same-file line 기준으로 왕복 이동하고, 도착 위치를 temporary highlight로 즉시 인지할 수 있게 한다(F34/F35)
 
 ## 3. 범위
 
@@ -52,6 +53,8 @@
 - 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 공통 ordered token match, wildcard-only query empty 처리, 검색 입력 `(* supported)` discoverability (F31)
 - 스펙 뷰어 코멘트/source action 정밀도 개선: `data-source-line-start/end` 기반 line span metadata + multiline paragraph/table cell best-effort anchor 계산 (F32)
 - 스펙 뷰어 exact source offset anchor MVP: paragraph/list/blockquote/link text/inline code/fenced code block selection을 same-file raw markdown exact offset으로 해석하고, `Go to Source`/`Add Comment`에 optional exact range를 전달한다(F33)
+- markdown source `Go to Spec`: `.md` Code 탭 context menu에서 현재 `selectionRange.startLine` 기준으로 같은 파일의 rendered spec block으로 이동한다(F34)
+- cross-panel navigation target highlight: spec/code explicit navigation 시 도착한 rendered block 또는 code line에 temporary highlight를 적용한다(F35)
 - 코드 에디터 line wrap 토글 버튼(기본 On, 가로 스크롤 방지) + `wrapCompartment` 기반 동적 전환 (F24.1)
 - 파일 히스토리 Back/Forward 이동 시 코드 에디터 픽셀 스크롤 위치 복원(런타임, `codeScrollPositionsRef`) (F07.2)
 - Remote Agent Protocol 기반 원격 워크스페이스 연결(Host/User/Port/Identity 입력 -> SSH 디렉토리 browse -> remoteRoot 선택(수동 입력 fallback) -> bootstrap/runtime 설치/검증, 기존 `workspace:*` 계약 유지, 파일/감시/git 메타데이터 원격 실행) (F27/F28)
@@ -109,6 +112,12 @@
 4. 연결 성공 시 renderer는 remote workspace 세션을 생성하고 기존 `workspace:index/read/write/create/delete/rename/watch/git/comments` 플로우를 동일하게 사용한다.
 5. 연결 장애/타임아웃 시 상태를 `degraded` 또는 `disconnected`로 표기하고 자동 재시도(기본 3회) 후 수동 재시도 경로를 제공한다.
 
+### 4.7 markdown source <-> rendered spec 왕복 흐름(F34/F35)
+
+1. 사용자가 Code 탭에서 `.md` 파일을 열고 우클릭 `Go to Spec`를 실행하면, 현재 `selectionRange.startLine`이 navigation anchor가 된다.
+2. App은 Spec 탭으로 전환하고 같은 markdown 파일의 rendered block 중 해당 source line에 가장 잘 대응하는 `data-source-line` block으로 스크롤한다.
+3. spec-origin `Go to Source` 또는 F34 `Go to Spec`처럼 명시적인 navigation이 일어나면 도착한 code line/rendered block에 temporary highlight를 적용해 위치 인지성을 높인다.
+
 ## 5. 현재 기능 커버리지 요약
 
 | 도메인 | 상태 | 비고 |
@@ -146,6 +155,8 @@
 | 검색 `*` wildcard 지원(ordered token match + wildcard-only empty query) | Implemented | F31 |
 | 스펙 뷰어 코멘트/source action line anchor 정밀도 개선 | Implemented | F32 |
 | 스펙 뷰어 exact source offset anchor MVP | Implemented | F33 |
+| markdown source `Go to Spec` | Implemented | F34 |
+| cross-panel navigation target highlight | Implemented | F35 |
 | 코드 에디터 line wrap 토글(기본 On) | Implemented | F24.1 |
 | 코드 에디터 히스토리 스크롤 위치 복원 | Implemented | F07.2 |
 | Remote Agent Protocol 기반 원격 워크스페이스 실행 | Implemented | F27 |

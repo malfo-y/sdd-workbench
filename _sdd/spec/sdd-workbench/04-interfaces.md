@@ -75,6 +75,18 @@ type GitFileStatusKind = 'added' | 'modified' | 'untracked'
 type ContentTab = 'code' | 'spec'
 type PaneSizes = { left: number; content: number }
 type SourceOffsetRange = { startOffset: number; endOffset: number }
+type CodeViewerJumpRequest = {
+  targetRelativePath: string
+  lineNumber: number
+  sourceOffsetRange?: SourceOffsetRange
+  shouldHighlight?: boolean
+  token: number
+}
+type SpecViewerNavigationRequest = {
+  targetRelativePath: string
+  lineNumber: number
+  token: number
+}
 
 type CodeComment = {
   id: string
@@ -104,6 +116,9 @@ type CodeComment = {
 5. watcher 선호값(`watchModePreference`)은 workspace 세션 snapshot에 영속화된다.
 6. (F27) remote workspace는 `workspaceKind='remote'`와 `remoteProfile`을 갖고, 연결 상태는 `remoteConnectionState`로 관리한다.
 7. (F28) remote directory browse는 연결 전 단계에서 수행되며, `currentPath`/`entries`/`truncated`를 반환한다.
+8. (F33) exact source offset는 same-file raw markdown 기준 0-based half-open `[startOffset, endOffset)`로 정의한다.
+9. (F34/F35) 명시적 navigation request는 `token`을 포함해 같은 line/block으로 연속 이동해도 highlight를 재트리거할 수 있어야 한다.
+10. (F35) temporary navigation highlight는 기존 selection/search/comment 상태를 대체하지 않는 additive 시각 상태다.
 
 ## 2. 링크/경로 해석 규칙
 
@@ -124,6 +139,9 @@ type CodeComment = {
 6. rendered spec scroll position은 `workspace + activeSpecPath` 키로 런타임 저장/복원한다.
 7. (F32) rendered selection line 해석은 fenced code block에서는 newline offset 기반 exact line 계산을 유지하고, 일반 markdown에서는 `data-source-line-start/end` span + descendant metadata를 사용한 line-level best-effort anchor를 적용한다.
 8. (F33) exact source offset는 same-file raw markdown 기준 0-based half-open `[startOffset, endOffset)`로 정의하며, global selection 모델을 교체하지 않고 spec-origin action/comment payload에만 additive contract로 실린다.
+9. (F34) Code Viewer `Go to Spec`는 active `.md` 파일의 일반 텍스트 편집 모드에서만 노출되며, 현재 `selectionRange.startLine`을 navigation anchor로 사용한다.
+10. (F34) Code -> Spec 이동은 semantic linking이 아니라 같은 markdown 파일의 raw source line -> rendered `data-source-line` block best-effort 매핑만 다룬다. exact containing block이 없으면 nearest block으로 안전하게 degrade 한다.
+11. (F35) explicit navigation(`Go to Source`, `Go to Spec`, 동등한 App line jump`)만 temporary highlight를 발생시키며, 단순 파일 선택/탭 전환은 highlight를 유발하지 않는다.
 
 ## 3. IPC 계약
 
@@ -328,6 +346,9 @@ type CodeComment = {
 13. (F32) table row/cell, inline link/code 등 세밀 metadata가 있는 구조는 parent block(`table`, `blockquote`, `li`) 시작 line보다 child/source span line을 우선한다.
 14. (F33) exact mapping이 가능한 구조는 `data-source-offset-start/end`와 `data-source-text-leaf`를 우선 사용해 partial text selection의 local offset을 same-file raw markdown offset으로 환산한다.
 15. (F33) inline exact mapping 실패, unsupported markdown 구조, collapsed selection에서는 source action을 닫지 않고 클릭 지점 기준 line fallback을 우선 적용한다.
+16. (F34) Code `.md`에서 `Go to Spec`가 호출되면 rendered `data-source-line` 후보 중 source span distance -> span length -> anchor distance -> DOM depth 우선순위로 best-effort target block을 결정한다.
+17. (F35) Code navigation highlight는 line-level temporary state로 동작하며, exact source range selection이 있는 경우에도 coexist 해야 한다.
+18. (F35) navigation highlight는 짧은 고정값(`1600ms`) 후 자동 해제되며, `token` 변경 시 같은 line/block에도 다시 적용될 수 있다.
 
 ## 6. 대규모 워크스페이스 lazy indexing 규칙
 

@@ -2,7 +2,7 @@
 
 ## 메타데이터
 
-- 문서 버전: `0.48.0`
+- 문서 버전: `0.49.0`
 - 마지막 업데이트: `2026-03-08`
 - 문서 상태: `Draft`
 - 기준 입력:
@@ -32,6 +32,7 @@
   - F31 draft: `/_sdd/drafts/feature_draft_f31_search_star_wildcard_support.md`
   - F32 draft: `/_sdd/drafts/feature_draft_f32_spec_comment_anchor_precision.md`
   - F33 draft: `/_sdd/drafts/feature_draft_f33_spec_exact_source_offset_anchor.md`
+  - F34/F35 draft: `/_sdd/drafts/feature_draft_f34_f35_md_source_to_spec_jump_and_navigation_highlight.md`
   - F24.1: code editor line wrap toggle button + default On
   - F07.2: code editor scroll position restore on history navigation
 - 리라이트:
@@ -42,8 +43,8 @@
 
 ## 1. 현재 상태 요약
 
-- 구현 완료 범위: `F01~F33` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
-- 신규 동기화 범위: F33 스펙 뷰어 exact source offset anchor MVP 동기화(same-file raw markdown exact offset mapping, CodeMirror exact range jump, optional comment offset persistence)
+- 구현 완료 범위: `F01~F35` + `F25b` + `F24.1` + `F07.2` + 버그 수정 2건(BUG-01 Go to Source 탭 전환, BUG-02 Copy Relative Path 라인 번호)
+- 신규 동기화 범위: F34/F35 markdown source `Go to Spec` + cross-panel navigation highlight 동기화(same-file raw source line -> rendered spec block 매핑, explicit navigation 전용 임시 line/block highlight)
 - 핵심 사용자 가치:
   1. 멀티 워크스페이스 + 2패널 탭 레이아웃(사이드바 + Code/Spec 탭 전환) 탐색
   2. spec link/selection 기반 code line jump + same-document anchor(`#heading`) in-panel 이동
@@ -70,9 +71,11 @@
   23. (F31) 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 공통 ordered token match + wildcard-only query empty 처리 + `(* supported)` discoverability
   24. (F32) 스펙 뷰어 코멘트/source action line anchor 정밀도 개선: `data-source-line-start/end` 기반 source span metadata + multiline paragraph/table cell best-effort line 추정
   25. (F33) 스펙 뷰어 exact source offset anchor MVP: supported inline selection을 same-file raw markdown `[startOffset, endOffset)`로 해석, Code 탭 exact range jump, spec-origin comment optional offset persistence, collapsed selection point action은 line fallback 유지
+  26. (F34) markdown source `Go to Spec`: `.md` Code 탭 context menu에서 현재 `selectionRange.startLine` 기준으로 같은 파일의 rendered spec block으로 이동
+  27. (F35) cross-panel navigation highlight: spec/code explicit navigation 시 도착한 block/line을 1600ms 동안 임시 highlight
 - 최신 품질 게이트(2026-03-08):
   - `npx tsc --noEmit` -> pass
-  - `npm test` -> `55 files, 566 passed, 1 skipped`
+  - `npm test` -> `55 files, 574 passed, 1 skipped`
 
 ---
 
@@ -89,7 +92,7 @@
 - [05-operational-guides](./sdd-workbench/05-operational-guides.md)
   - 성능/보안/신뢰성 기준, 테스트/스모크 가이드, 개발 환경
 - [appendix](./sdd-workbench/appendix.md)
-  - 기능 이력(F01~F33), 상세 수용 기준, 리스크/백로그
+  - 기능 이력(F01~F35), 상세 수용 기준, 리스크/백로그
 
 ---
 

@@ -1,3 +1,20 @@
+## 2026-03-08 - F34/F35 구현 완료 반영 + markdown/spec 왕복 내비게이션 정책 고정
+
+- Context:
+  - F33까지는 rendered spec -> code 경로와 exact offset 기반 source jump가 정리되었지만, 반대 방향인 markdown raw source -> rendered spec 이동 경로는 없었음.
+  - 점프가 성공해도 도착 위치를 즉시 식별하기 어려워, search/comment state와 독립된 temporary navigation highlight 정책을 문서에 고정할 필요가 생김.
+- Decision:
+  - F34(`Go to Spec`)를 `Implemented/Done`으로 반영하고, 범위는 `.md` Code 탭 context menu에서 같은 markdown 파일의 `selectionRange.startLine`을 rendered spec block으로 매핑하는 경로로 제한한다.
+  - code -> spec 매핑은 semantic linking이 아니라 same-file raw source line -> rendered `data-source-line` block best-effort 매핑으로 고정한다.
+  - F35 navigation highlight는 explicit navigation(`Go to Source`, `Go to Spec`, 동등한 App line jump`)에서만 발동하고, search/comment/exact offset selection과 분리된 temporary 시각 상태로 유지한다.
+  - navigation highlight duration은 고정 `1600ms`로 두고, 같은 target 재이동은 `token` 기반 재트리거를 허용한다.
+- Rationale:
+  - same-file line 매핑으로 범위를 제한해야 semantic linking으로 기능이 팽창하지 않고, 기존 F32/F33 metadata를 재사용해 회귀 위험을 낮출 수 있다.
+  - temporary highlight를 additive state로 분리해야 기존 search/comment/selection UX를 흔들지 않으면서 도착 지점 인지성을 높일 수 있다.
+- Impact / follow-up:
+  - `main.md`, split spec(`01`, `03`, `04`, `appendix`)에 F34/F35 implemented 범위와 contract를 동기화한다.
+  - `_sdd/implementation/features/f34_f35_md_source_to_spec_jump_and_navigation_highlight` 아카이브와 `IMPLEMENTATION_INDEX.md`에 이번 sync 기록을 추가한다.
+
 ## 2026-03-01 - F28 구현 완료 반영 + 원격 browse/watch 운영 정책 동기화
 
 - Context:

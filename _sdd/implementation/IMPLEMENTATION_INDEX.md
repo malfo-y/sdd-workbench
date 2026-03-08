@@ -1,5 +1,23 @@
 # IMPLEMENTATION_INDEX
 
+## f34_f35_md_source_to_spec_jump_and_navigation_highlight
+
+### Sync Record - 2026-03-08T03:09:10Z
+
+- note: F34/F35 구현 완료 스펙 동기화 (markdown source `Go to Spec`, same-file raw source line -> rendered block 매핑, cross-panel temporary navigation highlight) 반영
+- copied files:
+  - `_sdd/implementation/features/f34_f35_md_source_to_spec_jump_and_navigation_highlight/SYNC_20260308_030910_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+  - `_sdd/implementation/features/f34_f35_md_source_to_spec_jump_and_navigation_highlight/SYNC_20260308_030910_IMPLEMENTATION_REPORT.md <- _sdd/implementation/IMPLEMENTATION_REPORT.md`
+- excluded root artifacts:
+  - `_sdd/implementation/IMPLEMENTATION_PLAN*.md`, `_sdd/implementation/IMPLEMENTATION_REVIEW.md`는 현재 루트 문서 헤더가 F34/F35 전용 상태가 아니어서 이번 feature archive에서는 제외
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+  - `_sdd/spec/DECISION_LOG.md`
+
 ## f33_spec_exact_source_offset_anchor
 
 ### Sync Record - 2026-03-08T11:16:42Z

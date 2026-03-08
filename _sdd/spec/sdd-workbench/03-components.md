@@ -13,6 +13,9 @@
   - `SpecViewerPanel`에 `isActive={activeTab === 'spec'}` 전달, Spec 탭 활성 상태에서만 `Cmd/Ctrl+F`가 스펙 검색 UI를 열도록 게이트
   - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서로 적용)
   - (F33) spec-origin `Go to Source`/`Add Comment` payload에 optional `sourceOffsetRange`를 실어 Code 탭 exact jump/comment persistence 경로로 전달
+  - (F34/F35) `specViewerNavigationRequest` 상태(`{ targetRelativePath, lineNumber, token }`)와 `queueSpecViewerNavigationRequest()`로 Code -> Spec explicit navigation을 오케스트레이션
+  - (F34) `handleRequestGoToSpec`는 `.md` relativePath guard + workspace 존재 여부 확인 후 Spec 탭 전환, 필요 시 파일 선택, same-file rendered block navigation 요청 enqueue를 수행
+  - (F35) `queueCodeViewerJumpRequest()`는 optional `shouldHighlight`를 받아 spec-origin explicit navigation에서 Code line highlight 재트리거를 허용한다.
   - 파일 트리 CRUD 콜백(`onRequestCreateFile/Directory`, `onRequestDeleteFile/Directory`, `onRequestRename`) 연결 + confirm dialog + dirty file 삭제 처리 (F25/F25b)
   - 코멘트 배너 + 원격 연결/폴백 배너 auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
@@ -28,6 +31,7 @@
   - `content-pane-wrapper`(`.is-hidden` 토글) 탭 콘텐츠 가시성
   - `sidebar-workspace-group`/`sidebar-workspace-controls` 사이드바 워크스페이스 관리 스타일
   - CM6 Git gutter/Comment badge 색상 스타일
+  - (F35) `.cm-navigation-line`, `.is-spec-navigation-target` temporary navigation highlight 스타일
 
 ### 1.2 Workspace State Layer
 
@@ -88,6 +92,8 @@
   - Image/binary/too-large fallback UI 유지
   - Jump-to-line via `EditorView.scrollIntoView`
   - (F33) `jumpRequest.sourceOffsetRange`가 있으면 line scroll 대신 exact source range selection + scroll을 우선 적용
+  - (F34) active `.md` 파일의 일반 텍스트 편집 모드에서만 context menu에 `Go to Spec` 액션을 노출하고, 현재 `selectionRange.startLine`을 App으로 전달
+  - (F35) `jumpRequest.shouldHighlight`가 true이면 exact range jump 유무와 별개로 대상 line에 temporary navigation highlight를 적용
   - 컨텍스트 메뉴(Copy/Add Comment) CM6 `domEventHandlers` 통합
   - `onScrollChange?: (scrollTop: number) => void` prop — `view.scrollDOM` native scroll 이벤트 감지 후 상위 전달 (F07.2)
   - `restoredScrollTop?: number | null` prop — 콘텐츠 로드(`view.setState`) 후 `requestAnimationFrame`으로 픽셀 스크롤 복원 (F07.2)
@@ -98,6 +104,8 @@
   - 빈 selection은 커서 라인 단일 range
 - `src/code-editor/cm6-git-gutter.ts`  - CM6 `gutter()` API로 added(green)/modified(blue) dot, `StateEffect`로 주입
 - `src/code-editor/cm6-comment-gutter.ts`  - `GutterMarker.toDOM()`에서 badge span + hover popover, 기존 `CommentHoverPopover` 재사용
+- `src/code-editor/cm6-navigation-highlight.ts`
+  - (F35) CM6 `Decoration.line` 기반 temporary navigation line highlight extension(`.cm-navigation-line`, `data-navigation-line`)
 
 #### Spec-Viewer 공용 유지 모듈
 
@@ -118,6 +126,8 @@
   - (F32) multiline paragraph/table cell selection에서 line span + rendered text offset 기반 best-effort line 추정으로 `Add Comment`/`Go to Source` selectionRange를 계산
   - (F33) visible selection이 있으면 `resolveSourceSelectionRangeFromSelection()` 결과의 optional exact offset range를 source popover state에 저장하고, inline structure가 지원되지 않거나 collapsed selection이면 클릭 line 기준 fallback source action을 유지
   - (F33) `span[data-source-text-leaf]` / inline code / link text / fenced code block 경로에서 same-file raw markdown exact offset을 계산해 `Go to Source`/`Add Comment`에 전달
+  - (F34/F35) `navigationRequest` prop(`{ targetRelativePath, lineNumber, token }`)이 현재 `activeSpecPath`와 일치하면 `resolveBestRenderedSourceBlockForLine()`으로 대응 block을 찾아 scroll + temporary highlight를 적용
+  - (F35) search/comment state와 분리된 `.is-spec-navigation-target` class를 1600ms 동안 적용하고, 동일 block 연속 navigation도 token 기반으로 재트리거한다.
   - `Add Comment`/`Go to Source` source popover
   - same-document anchor(`#heading-id`) 클릭 시 패널 내부 heading scroll 처리(브라우저 기본 이동 차단)
   - comment marker 매핑 렌더 + hover popover
@@ -134,6 +144,7 @@
   - selection target source line 해석
   - (F32) code fence newline offset 유지 + 일반 markdown line span/descendant-aware best-effort anchor 계산
   - (F33) line range 위에 optional `sourceOffsetRange`를 additive contract로 계산하고, unsupported structure/collapsed selection은 line fallback 또는 `null`로 degrade
+  - (F34) rendered `data-source-line` 후보 중 거리 -> span 길이 -> anchor distance -> DOM depth 우선순위로 best-effort block을 고르는 `resolveBestRenderedSourceBlockForLine()` 제공
 - `src/source-selection.ts`
   - (F33) same-file raw markdown exact range 정규화 helper(`{ startOffset, endOffset }`, 0-based half-open)
 - `src/spec-viewer/markdown-security.ts`
