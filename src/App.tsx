@@ -110,6 +110,12 @@ type CommentBannerState = {
   message: string
 }
 
+type SpecViewerNavigationRequest = {
+  targetRelativePath: string
+  lineNumber: number
+  token: number
+}
+
 function buildSpecScrollStateKey(
   workspaceId: string | null,
   relativePath: string,
@@ -502,8 +508,11 @@ function App() {
     [fileTree],
   )
   const jumpRequestTokenRef = useRef(0)
+  const specNavigationRequestTokenRef = useRef(0)
   const [codeViewerJumpRequest, setCodeViewerJumpRequest] =
     useState<CodeViewerJumpRequest | null>(null)
+  const [specViewerNavigationRequest, setSpecViewerNavigationRequest] =
+    useState<SpecViewerNavigationRequest | null>(null)
   const previousActiveFileRef = useRef<string | null>(null)
   const historyNavigationRef = useRef(false)
   const specScrollPositionsRef = useRef<Record<string, number>>({})
@@ -1281,6 +1290,39 @@ function App() {
     }
   }, [activeResizeHandle])
 
+  const queueCodeViewerJumpRequest = useCallback(
+    (input: {
+      targetRelativePath: string
+      lineNumber: number
+      sourceOffsetRange?: SourceOffsetRange
+      shouldHighlight?: boolean
+    }) => {
+      jumpRequestTokenRef.current += 1
+      setCodeViewerJumpRequest({
+        targetRelativePath: input.targetRelativePath,
+        lineNumber: input.lineNumber,
+        ...(input.sourceOffsetRange
+          ? { sourceOffsetRange: input.sourceOffsetRange }
+          : {}),
+        ...(input.shouldHighlight ? { shouldHighlight: true } : {}),
+        token: jumpRequestTokenRef.current,
+      })
+    },
+    [],
+  )
+
+  const queueSpecViewerNavigationRequest = useCallback(
+    (input: { targetRelativePath: string; lineNumber: number }) => {
+      specNavigationRequestTokenRef.current += 1
+      setSpecViewerNavigationRequest({
+        targetRelativePath: input.targetRelativePath,
+        lineNumber: input.lineNumber,
+        token: specNavigationRequestTokenRef.current,
+      })
+    },
+    [],
+  )
+
   const openSpecRelativePath = useCallback(
     (
       relativePath: string,
@@ -1291,28 +1333,34 @@ function App() {
       }
 
       setActiveTab(relativePath.endsWith('.md') ? 'spec' : 'code')
+      setSpecViewerNavigationRequest(null)
       selectFile(relativePath)
       if (lineRange) {
         setSelectionRange({
           startLine: lineRange.startLine,
           endLine: lineRange.endLine,
         })
-        jumpRequestTokenRef.current += 1
-        setCodeViewerJumpRequest({
+        queueCodeViewerJumpRequest({
           targetRelativePath: relativePath,
           lineNumber: lineRange.startLine,
-          token: jumpRequestTokenRef.current,
+          shouldHighlight: true,
         })
       } else {
         setCodeViewerJumpRequest(null)
       }
       return true
     },
-    [workspaceFilePathSet, selectFile, setSelectionRange],
+    [
+      queueCodeViewerJumpRequest,
+      selectFile,
+      setSelectionRange,
+      workspaceFilePathSet,
+    ],
   )
 
   const handleSelectFileFromTree = useCallback(
     (relativePath: string) => {
+      setSpecViewerNavigationRequest(null)
       selectFile(relativePath)
       setActiveTab(relativePath.endsWith('.md') ? 'spec' : 'code')
     },
@@ -1336,18 +1384,48 @@ function App() {
         )
       } else {
         if (sourceOffsetRange) {
-          jumpRequestTokenRef.current += 1
-          setCodeViewerJumpRequest({
+          queueCodeViewerJumpRequest({
             targetRelativePath: activeSpec,
             lineNumber,
             sourceOffsetRange,
-            token: jumpRequestTokenRef.current,
+            shouldHighlight: true,
           })
         }
         setActiveTab('code')
       }
     },
-    [activeSpec, openSpecRelativePath, showBanner],
+    [activeSpec, openSpecRelativePath, queueCodeViewerJumpRequest, showBanner],
+  )
+
+  const handleRequestGoToSpec = useCallback(
+    (input: { relativePath: string; lineNumber: number }) => {
+      if (!input.relativePath.toLowerCase().endsWith('.md')) {
+        return
+      }
+
+      if (!workspaceFilePathSet.has(input.relativePath)) {
+        showBanner(
+          'Cannot go to spec: the active markdown file is unavailable in this workspace.',
+        )
+        return
+      }
+
+      setActiveTab('spec')
+      if (activeFile !== input.relativePath) {
+        selectFile(input.relativePath)
+      }
+      queueSpecViewerNavigationRequest({
+        targetRelativePath: input.relativePath,
+        lineNumber: input.lineNumber,
+      })
+    },
+    [
+      activeFile,
+      queueSpecViewerNavigationRequest,
+      selectFile,
+      showBanner,
+      workspaceFilePathSet,
+    ],
   )
 
   const handleSpecScrollPositionChange = useCallback(
@@ -1429,6 +1507,16 @@ function App() {
       token: jumpRequestTokenRef.current,
     })
   }, [activeFile, codeViewerJumpRequest, selectionRange])
+
+  useEffect(() => {
+    if (
+      specViewerNavigationRequest &&
+      activeFile &&
+      activeFile !== specViewerNavigationRequest.targetRelativePath
+    ) {
+      setSpecViewerNavigationRequest(null)
+    }
+  }, [activeFile, specViewerNavigationRequest])
 
   useEffect(() => {
     if (!commentDraftState) {
@@ -2080,6 +2168,7 @@ function App() {
               onRequestCopyRelativePath={handleCopyRelativePath}
               onRequestCopySelectedContent={handleCopySelectedContent}
               onRequestAddComment={handleRequestAddComment}
+              onRequestGoToSpec={handleRequestGoToSpec}
               previewUnavailableReason={previewUnavailableReason}
               readFileError={readFileError}
               selectionRange={selectionRange}
@@ -2103,6 +2192,7 @@ function App() {
                 isActive={activeTab === 'spec'}
                 isLoading={isReadingSpec}
                 markdownContent={activeSpecContent}
+                navigationRequest={specViewerNavigationRequest}
                 onScrollPositionChange={handleSpecScrollPositionChange}
                 onRequestAddComment={handleRequestAddCommentFromSpec}
                 onGoToSourceLine={goToActiveSpecSourceLine}
@@ -2166,13 +2256,13 @@ function App() {
             return
           }
           setActiveTab('code')
+          setSpecViewerNavigationRequest(null)
           selectFile(relativePath)
           setSelectionRange({ startLine, endLine })
-          jumpRequestTokenRef.current += 1
-          setCodeViewerJumpRequest({
+          queueCodeViewerJumpRequest({
             targetRelativePath: relativePath,
             lineNumber: startLine,
-            token: jumpRequestTokenRef.current,
+            shouldHighlight: true,
           })
         }}
       />

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  resolveBestRenderedSourceBlockForLine,
   resolveNearestSourceLineFromPoint,
   resolveSourceLine,
   resolveSourceLineRangeFromSelection,
@@ -330,5 +331,38 @@ describe('source-line-resolver', () => {
     container.append(lineFour, lineTen)
 
     expect(resolveNearestSourceLineFromPoint(container, 130)).toBe(4)
+  })
+
+  it('resolves the rendered block whose source span contains the requested line', () => {
+    const container = document.createElement('div')
+    const paragraph = document.createElement('p')
+    paragraph.setAttribute('data-source-line', '3')
+    paragraph.setAttribute('data-source-line-start', '3')
+    paragraph.setAttribute('data-source-line-end', '5')
+    const heading = document.createElement('h2')
+    heading.setAttribute('data-source-line', '7')
+    heading.setAttribute('data-source-line-start', '7')
+    heading.setAttribute('data-source-line-end', '7')
+
+    container.append(paragraph, heading)
+
+    expect(resolveBestRenderedSourceBlockForLine(container, 4)).toBe(paragraph)
+    expect(resolveBestRenderedSourceBlockForLine(container, 7)).toBe(heading)
+  })
+
+  it('falls back to the nearest rendered block when no span contains the requested line', () => {
+    const container = document.createElement('div')
+    const firstBlock = document.createElement('p')
+    firstBlock.setAttribute('data-source-line', '3')
+    firstBlock.setAttribute('data-source-line-start', '3')
+    firstBlock.setAttribute('data-source-line-end', '5')
+    const secondBlock = document.createElement('p')
+    secondBlock.setAttribute('data-source-line', '10')
+    secondBlock.setAttribute('data-source-line-start', '10')
+    secondBlock.setAttribute('data-source-line-end', '10')
+
+    container.append(firstBlock, secondBlock)
+
+    expect(resolveBestRenderedSourceBlockForLine(container, 8)).toBe(secondBlock)
   })
 })

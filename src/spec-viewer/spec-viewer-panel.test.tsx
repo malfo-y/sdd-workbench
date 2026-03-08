@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -25,6 +26,9 @@ describe('SpecViewerPanel', () => {
     onGoToSourceLine = vi.fn<
       (lineNumber: number, sourceOffsetRange?: { startOffset: number; endOffset: number }) => void
     >(),
+    navigationRequest = null as
+      | { targetRelativePath: string; lineNumber: number; token: number }
+      | null,
     onRequestAddComment = vi.fn<
       (input: {
         relativePath: string
@@ -57,6 +61,11 @@ describe('SpecViewerPanel', () => {
       lineNumber: number,
       sourceOffsetRange?: { startOffset: number; endOffset: number },
     ) => void
+    navigationRequest?: {
+      targetRelativePath: string
+      lineNumber: number
+      token: number
+    } | null
     onRequestAddComment?: (input: {
       relativePath: string
       selectionRange: { startLine: number; endLine: number }
@@ -75,13 +84,14 @@ describe('SpecViewerPanel', () => {
     commentLineCounts?: ReadonlyMap<number, number>
     commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   } = {}) {
-    render(
+    const renderResult = render(
       <SpecViewerPanel
         activeSpecPath={activeSpecPath}
         commentLineEntries={commentLineEntries}
         commentLineCounts={commentLineCounts}
         isLoading={isLoading}
         markdownContent={markdownContent}
+        navigationRequest={navigationRequest}
         onScrollPositionChange={onScrollPositionChange}
         onRequestAddComment={onRequestAddComment}
         onGoToSourceLine={onGoToSourceLine}
@@ -98,6 +108,7 @@ describe('SpecViewerPanel', () => {
       onRequestAddComment,
       onOpenRelativePath,
       onScrollPositionChange,
+      rerender: renderResult.rerender,
     }
   }
 
@@ -1105,6 +1116,97 @@ describe('SpecViewerPanel', () => {
       expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('0 / 0')
     })
     expect(screen.getByText('Guide intro')).not.toHaveClass('is-spec-search-match')
+  })
+
+  it('scrolls to the rendered block for an external navigation request and highlights it temporarily', async () => {
+    const { rerender } = renderPanel({
+      markdownContent: '# Title\n\nalpha\nbeta\ngamma',
+    })
+
+    const initialParagraph = findParagraphByText('alpha\nbeta\ngamma')
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(initialParagraph, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+
+    rerender(
+      <SpecViewerPanel
+        activeSpecPath="docs/spec.md"
+        commentLineEntries={new Map()}
+        commentLineCounts={new Map()}
+        isLoading={false}
+        isActive
+        markdownContent={'# Title\n\nalpha\nbeta\ngamma'}
+        navigationRequest={{
+          targetRelativePath: 'docs/spec.md',
+          lineNumber: 5,
+          token: 1,
+        }}
+        onGoToSourceLine={vi.fn()}
+        onOpenRelativePath={vi.fn().mockReturnValue(true)}
+        onRequestAddComment={vi.fn()}
+        readError={null}
+        restoredScrollTop={null}
+        workspaceRootPath="/Users/tester/workspace"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(findParagraphByText('alpha\nbeta\ngamma')).toHaveClass(
+        'is-spec-navigation-target',
+      )
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700))
+    })
+
+    await waitFor(() => {
+      expect(findParagraphByText('alpha\nbeta\ngamma')).not.toHaveClass(
+        'is-spec-navigation-target',
+      )
+    })
+  })
+
+  it('falls back to the nearest rendered block when external navigation line has no exact span', async () => {
+    const { rerender } = renderPanel({
+      markdownContent: '# Title\n\nIntro paragraph\n\n## Ending',
+    })
+
+    const heading = screen.getByRole('heading', { name: 'Ending' })
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(heading, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+
+    rerender(
+      <SpecViewerPanel
+        activeSpecPath="docs/spec.md"
+        commentLineEntries={new Map()}
+        commentLineCounts={new Map()}
+        isLoading={false}
+        isActive
+        markdownContent={'# Title\n\nIntro paragraph\n\n## Ending'}
+        navigationRequest={{
+          targetRelativePath: 'docs/spec.md',
+          lineNumber: 6,
+          token: 2,
+        }}
+        onGoToSourceLine={vi.fn()}
+        onOpenRelativePath={vi.fn().mockReturnValue(true)}
+        onRequestAddComment={vi.fn()}
+        readError={null}
+        restoredScrollTop={null}
+        workspaceRootPath="/Users/tester/workspace"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Ending' })).toHaveClass(
+        'is-spec-navigation-target',
+      )
+    })
   })
 
   it('ignores search hotkey when spec tab is inactive', () => {

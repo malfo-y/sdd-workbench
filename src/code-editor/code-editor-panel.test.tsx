@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EditorView } from '@codemirror/view'
 import { CodeEditorPanel } from './code-editor-panel'
@@ -64,6 +64,7 @@ function makeDefaultProps() {
     onRequestCopySelectedContent: vi.fn(),
     onRequestCopyBoth: vi.fn(),
     onRequestAddComment: vi.fn(),
+    onRequestGoToSpec: vi.fn(),
     commentLineCounts: new Map<number, number>(),
     // T8: new props
     editable: false,
@@ -634,6 +635,39 @@ describe('CodeEditorPanel', () => {
     })
   })
 
+  it('applies a temporary line highlight when jumpRequest requests navigation highlight', async () => {
+    render(
+      <CodeEditorPanel
+        {...makeDefaultProps()}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha **beta** gamma'}
+        jumpRequest={{
+          targetRelativePath: 'docs/spec.md',
+          lineNumber: 3,
+          shouldHighlight: true,
+          token: 44,
+        }}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('.cm-navigation-line')).not.toBeNull()
+    })
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700))
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('.cm-navigation-line')).toBeNull()
+    })
+  })
+
   it('does NOT re-dispatch scrollIntoView for the same jump token on re-render', async () => {
     const props = makeDefaultProps()
     const jumpRequest = {
@@ -722,6 +756,75 @@ describe('CodeEditorPanel', () => {
     const callArg = props.onRequestAddComment.mock.calls[0][0]
     expect(callArg.relativePath).toBe('src/example.ts')
     expect(callArg.content).toBe('line1\nline2\nline3')
+  })
+
+  it('shows Go to Spec for markdown files and calls onRequestGoToSpec with the start line', async () => {
+    const props = makeDefaultProps()
+    render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={'line1\nline2\nline3'}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    let view: EditorView | null = null
+    await waitFor(() => {
+      view = getCM6View(container)
+      expect(view).not.toBeNull()
+    })
+    if (!view) {
+      throw new Error('Expected CodeMirror view')
+    }
+
+    act(() => {
+      view?.dispatch({
+        selection: {
+          anchor: 6,
+          head: 10,
+        },
+      })
+    })
+
+    fireEvent.contextMenu(container, { clientX: 50, clientY: 50 })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Copy actions' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Spec' }))
+
+    expect(props.onRequestGoToSpec).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      lineNumber: 2,
+    })
+  })
+
+  it('does not show Go to Spec for non-markdown files', async () => {
+    const props = makeDefaultProps()
+    render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    fireEvent.contextMenu(container, { clientX: 50, clientY: 50 })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Copy actions' })).toBeInTheDocument()
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'Go to Spec' }),
+    ).not.toBeInTheDocument()
   })
 
   it('CopyActionPopover Copy Relative Path button calls onRequestCopyRelativePath', async () => {

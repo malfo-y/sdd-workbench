@@ -104,3 +104,52 @@ READY — 모든 기능 구현 완료. 테스트/build 통과.
 ### Conclusion
 
 READY — F33 exact source offset anchor MVP 구현 완료. 스펙 동기화는 별도 `spec-update-done` 단계에서 반영 필요.
+
+---
+
+## F34/F35 Addendum (2026-03-08)
+
+### Progress Summary
+
+- Total Tasks: 7
+- Completed: 7
+- Tests Added/Updated: 5 files
+- All Passing: Yes
+
+### Completed
+
+- [x] Task 1: App spec/code navigation request contract 추가
+- [x] Task 2: Code Viewer markdown-only `Go to Spec` context menu 추가
+- [x] Task 3: Spec Viewer external line->block navigation 처리 추가
+- [x] Task 4: Spec Viewer temporary block navigation highlight 추가
+- [x] Task 5: Code Viewer temporary line navigation highlight 추가
+- [x] Task 6: App wiring 통합 및 explicit navigation gating 정리
+- [x] Task 7: panel/app regression test 보강
+
+### Files Modified
+
+- `src/code-editor/cm6-navigation-highlight.ts`
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/spec-viewer/source-line-resolver.ts`
+- `src/spec-viewer/source-line-resolver.test.ts`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `src/App.tsx`
+- `src/App.css`
+- `src/App.test.tsx`
+
+### Test Summary
+
+- `npx tsc --noEmit` -> pass
+- `npm test` -> pass (`55 files, 574 passed, 1 skipped`)
+
+### Quality Assessment
+
+- Integration: Code 탭의 markdown source line에서 Spec 탭 rendered block으로 이동하는 F34 경로와, spec->code/code->spec 양방향 temporary navigation highlight가 App orchestration 아래 일관되게 연결됨
+- Backward compatibility: 기존 search highlight, comment marker, exact source offset jump, passive selection sync 동작 유지
+- Residual scope boundary: 일반 코드 파일에서 semantic spec section 탐색, exact token highlight, persistence/custom duration은 제외
+
+### Conclusion
+
+READY — F34/F35 markdown source `Go to Spec` + cross-panel navigation highlight 구현 완료. 스펙 동기화는 별도 `spec-update-done` 단계에서 반영 필요.

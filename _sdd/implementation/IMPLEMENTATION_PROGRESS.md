@@ -1452,3 +1452,64 @@
   - plain text exact mapping은 rehype 단계에서 text leaf를 span wrapper로 감싸는 경량 plugin으로 해결한다.
   - code block exact jump는 highlighted DOM leaf 대신 `pre/code` source span + raw source substring 매핑으로 처리한다.
   - search/comment marker 대표 block은 기존 `data-source-line` 기준을 유지하고, inline exact mapping은 `data-source-offset-*`와 line span metadata만 추가한다.
+
+---
+
+## F34/F35 Addendum (2026-03-08)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f34_f35_md_source_to_spec_jump_and_navigation_highlight.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `1, 2` (completed)
+  - Phase 2: `3, 4` (completed)
+  - Phase 3: `5, 6` (completed)
+  - Phase 4: `7` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 1 | App navigation request/state contract 추가 | P0 | - | completed | `App.test.tsx` pass |
+| 2 | Code Viewer markdown-only `Go to Spec` 액션 추가 | P0 | 1 | completed | `code-editor-panel.test.tsx` pass |
+| 3 | Spec Viewer line->block navigation request 처리 | P0 | 1, 2 | completed | `source-line-resolver.test.ts`, `spec-viewer-panel.test.tsx` pass |
+| 4 | Spec Viewer temporary navigation highlight 추가 | P1 | 3 | completed | `spec-viewer-panel.test.tsx` pass |
+| 5 | Code Viewer line navigation highlight 추가 | P1 | 1 | completed | `code-editor-panel.test.tsx` pass |
+| 6 | App wiring 통합(spec->code + code->spec) | P0 | 2, 3, 4, 5 | completed | `App.test.tsx` pass |
+| 7 | panel/app regression test 보강 | P0 | 2, 3, 4, 5, 6 | completed | targeted vitest + `npm test` pass |
+
+### 2) Files Changed (F34/F35)
+
+- `src/code-editor/cm6-navigation-highlight.ts` (new)
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/spec-viewer/source-line-resolver.ts`
+- `src/spec-viewer/source-line-resolver.test.ts`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `src/App.tsx`
+- `src/App.css`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Test and Quality Gate Status (F34/F35)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`55 files, 574 passed, 1 skipped`)
+
+### 4) Parallel Groups Executed (F34/F35)
+
+- Group A: `1 -> 2` (App contract와 Code context menu가 같은 callback shape를 공유해 순차)
+- Group B: `3 -> 4` (Spec line mapping 후 block highlight 연결)
+- Group C: `5 -> 6` (Code CM6 highlight 추가 후 App 양방향 wiring 통합)
+- Group D: `7` (panel/app regression 고정)
+
+### 5) Blockers and Decisions (F34/F35)
+
+- Blockers: 없음
+- Applied decisions:
+  - `Go to Spec`는 MVP에서 Code Viewer context menu 진입점만 지원한다.
+  - Code->Spec mapping은 semantic linking이 아니라 same-file markdown `selectionRange.startLine` -> rendered block best-effort 매핑만 다룬다.
+  - navigation highlight는 search/comment/exact offset state와 분리된 temporary visual feedback로만 추가한다.
+  - Code Viewer highlight는 explicit navigation jump에서만 활성화하고, 일반 파일 선택/selection sync jump에는 적용하지 않는다.

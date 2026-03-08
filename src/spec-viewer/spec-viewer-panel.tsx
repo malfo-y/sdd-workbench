@@ -36,6 +36,7 @@ import {
 } from './source-line-metadata'
 import { SpecSourcePopover } from './spec-source-popover'
 import {
+  resolveBestRenderedSourceBlockForLine,
   resolveNearestSourceLineFromPoint,
   resolveSourceSelectionRangeFromSelection,
   resolveSourceLine,
@@ -49,6 +50,11 @@ type SpecViewerPanelProps = {
   workspaceRootPath: string | null
   activeSpecPath: string | null
   markdownContent: string | null
+  navigationRequest?: {
+    targetRelativePath: string
+    lineNumber: number
+    token: number
+  } | null
   isActive?: boolean
   isLoading: boolean
   readError: string | null
@@ -99,6 +105,7 @@ type CommentHoverState = {
 
 const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'blocked placeholder text'
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
+const NAVIGATION_HIGHLIGHT_DURATION_MS = 1600
 
 function isMarkerContainerTag(tagName: string) {
   return tagName === 'blockquote' || tagName === 'li'
@@ -415,6 +422,7 @@ export function SpecViewerPanel({
   workspaceRootPath,
   activeSpecPath,
   markdownContent,
+  navigationRequest = null,
   isActive = false,
   isLoading,
   readError,
@@ -462,6 +470,11 @@ export function SpecViewerPanel({
   } | null>(null)
   const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const highlightedNavigationBlockRef = useRef<HTMLElement | null>(null)
+  const navigationHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
+  const lastHandledNavigationTokenRef = useRef<number | null>(null)
   const rawSearchMatchLines = useMemo(
     () =>
       markdownContent ? buildSearchMatchStartLines(markdownContent, searchQuery) : [],
@@ -478,7 +491,20 @@ export function SpecViewerPanel({
     [resolvedSearchMatchLines],
   )
 
+  const clearNavigationHighlight = useCallback(() => {
+    if (navigationHighlightTimerRef.current) {
+      clearTimeout(navigationHighlightTimerRef.current)
+      navigationHighlightTimerRef.current = null
+    }
+    highlightedNavigationBlockRef.current?.classList.remove(
+      'is-spec-navigation-target',
+    )
+    highlightedNavigationBlockRef.current = null
+  }, [])
+
   useEffect(() => {
+    clearNavigationHighlight()
+    lastHandledNavigationTokenRef.current = null
     setIsTocExpanded(false)
     setLinkPopoverState(null)
     setSourcePopoverState(null)
@@ -494,16 +520,17 @@ export function SpecViewerPanel({
       clearTimeout(hoverCloseTimerRef.current)
       hoverCloseTimerRef.current = null
     }
-  }, [activeSpecPath])
+  }, [activeSpecPath, clearNavigationHighlight])
 
   useEffect(
     () => () => {
+      clearNavigationHighlight()
       if (hoverCloseTimerRef.current) {
         clearTimeout(hoverCloseTimerRef.current)
         hoverCloseTimerRef.current = null
       }
     },
-    [],
+    [clearNavigationHighlight],
   )
 
   useEffect(() => {
@@ -562,6 +589,48 @@ export function SpecViewerPanel({
       element.classList.toggle('is-spec-search-focus', isFocus)
     }
   }, [focusedSearchLine, searchMatchedLines])
+
+  useEffect(() => {
+    const contentElement = contentRef.current
+    if (
+      !contentElement ||
+      !activeSpecPath ||
+      !markdownContent ||
+      !navigationRequest ||
+      navigationRequest.targetRelativePath !== activeSpecPath
+    ) {
+      return
+    }
+
+    if (lastHandledNavigationTokenRef.current === navigationRequest.token) {
+      return
+    }
+
+    const targetBlock = resolveBestRenderedSourceBlockForLine(
+      contentElement,
+      navigationRequest.lineNumber,
+    )
+    if (!targetBlock) {
+      return
+    }
+
+    if (typeof targetBlock.scrollIntoView === 'function') {
+      targetBlock.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+      })
+    }
+
+    clearNavigationHighlight()
+    targetBlock.classList.remove('is-spec-navigation-target')
+    void targetBlock.getBoundingClientRect()
+    targetBlock.classList.add('is-spec-navigation-target')
+    highlightedNavigationBlockRef.current = targetBlock
+    navigationHighlightTimerRef.current = setTimeout(() => {
+      clearNavigationHighlight()
+    }, NAVIGATION_HIGHLIGHT_DURATION_MS)
+    lastHandledNavigationTokenRef.current = navigationRequest.token
+  }, [activeSpecPath, clearNavigationHighlight, markdownContent, navigationRequest])
 
   useEffect(() => {
     const contentElement = contentRef.current

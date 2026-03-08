@@ -4908,10 +4908,128 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         codeView.state.selection.main.to,
       ),
     ).toBe('source jump')
+    await waitFor(() => {
+      expect(
+        screen
+          .getByTestId('code-viewer-content')
+          .querySelector('.cm-navigation-line'),
+      ).not.toBeNull()
+    })
     expect(readFileMock).toHaveBeenCalledTimes(2)
     expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
       'source jump paragraph',
     )
+  })
+
+  it('navigates from markdown source line in Code tab to the rendered spec block and highlights it', async () => {
+    const workspaceRoot = '/Users/tester/projects/go-to-spec-workspace'
+    const markdownContent = '# Title\n\nalpha\nbeta\ngamma'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'README.md',
+              relativePath: 'docs/README.md',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: markdownContent,
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'alpha beta gamma',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('content-pane-code')).not.toHaveClass('is-hidden')
+    })
+
+    const codeContainer = screen.getByTestId('code-viewer-content')
+    const codeView = getCM6View(codeContainer)
+    if (!codeView) {
+      throw new Error('Expected CodeMirror view')
+    }
+    const gammaLine = codeView.state.doc.line(5)
+    act(() => {
+      codeView.dispatch({
+        selection: {
+          anchor: gammaLine.from,
+          head: gammaLine.from,
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+        'Selection: L5-L5',
+      )
+    })
+
+    fireEvent.contextMenu(codeContainer, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Spec' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-pane-spec')).not.toHaveClass('is-hidden')
+    })
+
+    const paragraph = screen.getByText(
+      (_content, element) =>
+        element?.tagName === 'P' &&
+        element.textContent?.includes('alpha') &&
+        element.textContent?.includes('beta') &&
+        element.textContent?.includes('gamma'),
+    )
+    await waitFor(() => {
+      expect(paragraph).toHaveClass('is-spec-navigation-target')
+    })
   })
 
   it('opens line links using the currently active workspace after switching', async () => {

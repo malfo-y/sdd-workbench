@@ -259,6 +259,26 @@ function resolveSourceLineFromNode(
   return null
 }
 
+function getSourceSpanDistance(span: SourceLineRange, lineNumber: number): number {
+  if (lineNumber < span.startLine) {
+    return span.startLine - lineNumber
+  }
+  if (lineNumber > span.endLine) {
+    return lineNumber - span.endLine
+  }
+  return 0
+}
+
+function getElementDepth(element: Element): number {
+  let depth = 0
+  let current: Element | null = element
+  while (current) {
+    depth += 1
+    current = current.parentElement
+  }
+  return depth
+}
+
 function resolveExactSourceOffsetFromElement(
   element: HTMLElement,
   targetNode: Node,
@@ -478,4 +498,63 @@ export function resolveNearestSourceLineFromPoint(
   }
 
   return nearestLine
+}
+
+export function resolveBestRenderedSourceBlockForLine(
+  containerElement: HTMLElement | null,
+  lineNumber: number,
+): HTMLElement | null {
+  if (!containerElement || !Number.isFinite(lineNumber)) {
+    return null
+  }
+
+  const normalizedLine = Math.max(1, Math.trunc(lineNumber))
+  const candidateElements = Array.from(
+    containerElement.querySelectorAll<HTMLElement>(`[${SOURCE_LINE_ATTRIBUTE}]`),
+  )
+
+  let bestElement: HTMLElement | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  let bestSpanLength = Number.POSITIVE_INFINITY
+  let bestAnchorDistance = Number.POSITIVE_INFINITY
+  let bestDepth = -1
+
+  for (const element of candidateElements) {
+    const span = resolveSourceLineSpanFromElement(element)
+    if (!span) {
+      continue
+    }
+
+    const distance = getSourceSpanDistance(span, normalizedLine)
+    const spanLength = span.endLine - span.startLine
+    const anchorLine = normalizeSourceLine(
+      element.getAttribute(SOURCE_LINE_ATTRIBUTE),
+    )
+    const anchorDistance =
+      anchorLine === null ? Number.POSITIVE_INFINITY : Math.abs(anchorLine - normalizedLine)
+    const depth = getElementDepth(element)
+
+    const isBetterCandidate =
+      distance < bestDistance ||
+      (distance === bestDistance && spanLength < bestSpanLength) ||
+      (distance === bestDistance &&
+        spanLength === bestSpanLength &&
+        anchorDistance < bestAnchorDistance) ||
+      (distance === bestDistance &&
+        spanLength === bestSpanLength &&
+        anchorDistance === bestAnchorDistance &&
+        depth > bestDepth)
+
+    if (!isBetterCandidate) {
+      continue
+    }
+
+    bestElement = element
+    bestDistance = distance
+    bestSpanLength = spanLength
+    bestAnchorDistance = anchorDistance
+    bestDepth = depth
+  }
+
+  return bestElement
 }

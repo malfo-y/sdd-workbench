@@ -19,11 +19,16 @@ import type { GitMarkerKind } from './cm6-git-gutter'
 import { createCommentGutterExtension, setCommentMarkers } from './cm6-comment-gutter'
 import type { CommentGutterEntry } from './cm6-comment-gutter'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
+import {
+  createNavigationHighlightExtension,
+  setNavigationLineHighlight,
+} from './cm6-navigation-highlight'
 
 export type CodeViewerJumpRequest = {
   targetRelativePath: string
   lineNumber: number
   sourceOffsetRange?: SourceOffsetRange
+  shouldHighlight?: boolean
   token: number
 }
 
@@ -53,6 +58,7 @@ type CodeEditorPanelProps = {
     content: string
     selectionRange: LineSelectionRange
   }) => void
+  onRequestGoToSpec: (input: { relativePath: string; lineNumber: number }) => void
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   gitLineMarkers?: ReadonlyMap<number, WorkspaceGitLineMarkerKind>
@@ -83,6 +89,7 @@ type CommentHoverState = {
 }
 
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
+const NAVIGATION_HIGHLIGHT_DURATION_MS = 1600
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -148,6 +155,10 @@ function getDisplayLanguage(filePath: string | null): string {
     zsh: 'shellscript',
   }
   return DISPLAY_MAP[extension] ?? 'plaintext'
+}
+
+function isMarkdownFile(filePath: string | null): boolean {
+  return typeof filePath === 'string' && filePath.toLowerCase().endsWith('.md')
 }
 
 function clampSelectionPosition(position: number, docLength: number): number {
@@ -259,6 +270,7 @@ function buildExtensions(
       (lineNum, rect) => onCommentHoverRef.current?.(lineNum, rect),
       () => onCommentLeaveRef.current?.(),
     ),
+    ...createNavigationHighlightExtension(),
     history(),
     readOnlyCompartment.of(EditorState.readOnly.of(!editable)),
     wrapCompartment.of(isLineWrapEnabled ? EditorView.lineWrapping : []),
@@ -326,6 +338,7 @@ export function CodeEditorPanel({
   onRequestCopySelectedContent,
   onRequestCopyBoth,
   onRequestAddComment,
+  onRequestGoToSpec,
   commentLineCounts,
   commentLineEntries,
   gitLineMarkers,
@@ -364,6 +377,12 @@ export function CodeEditorPanel({
   )
   const onCommentLeaveRef = useRef<(() => void) | undefined>(undefined)
   const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navigationHighlightApplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
+  const navigationHighlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
 
   // Comment hover state
   const [commentHoverState, setCommentHoverState] = useState<CommentHoverState | null>(null)
@@ -430,6 +449,60 @@ export function CodeEditorPanel({
     }, HOVER_POPOVER_CLOSE_DELAY_MS)
   }, [clearHoverCloseTimer])
 
+  const clearNavigationHighlightTimers = useCallback(() => {
+    if (navigationHighlightApplyTimerRef.current) {
+      clearTimeout(navigationHighlightApplyTimerRef.current)
+      navigationHighlightApplyTimerRef.current = null
+    }
+    if (navigationHighlightClearTimerRef.current) {
+      clearTimeout(navigationHighlightClearTimerRef.current)
+      navigationHighlightClearTimerRef.current = null
+    }
+  }, [])
+
+  const clearNavigationHighlight = useCallback(() => {
+    clearNavigationHighlightTimers()
+    viewRef.current?.dispatch({
+      effects: setNavigationLineHighlight.of(null),
+    })
+  }, [clearNavigationHighlightTimers])
+
+  const scheduleNavigationLineHighlight = useCallback(
+    (view: EditorView, lineNumber: number) => {
+      const normalizedLineNumber = Math.min(
+        Math.max(1, lineNumber),
+        view.state.doc.lines,
+      )
+
+      clearNavigationHighlight()
+      navigationHighlightApplyTimerRef.current = setTimeout(() => {
+        if (viewRef.current !== view) {
+          return
+        }
+        view.dispatch({
+          effects: setNavigationLineHighlight.of(normalizedLineNumber),
+        })
+        navigationHighlightApplyTimerRef.current = null
+        navigationHighlightClearTimerRef.current = setTimeout(() => {
+          if (viewRef.current === view) {
+            view.dispatch({
+              effects: setNavigationLineHighlight.of(null),
+            })
+          }
+          navigationHighlightClearTimerRef.current = null
+        }, NAVIGATION_HIGHLIGHT_DURATION_MS)
+      }, 0)
+    },
+    [clearNavigationHighlight],
+  )
+
+  useEffect(
+    () => () => {
+      clearNavigationHighlightTimers()
+    },
+    [clearNavigationHighlightTimers],
+  )
+
   // Bind comment hover refs each render so they always capture latest closures
   onCommentHoverRef.current = (lineNumber: number, rect: DOMRect) => {
     const entries = commentLineEntriesRef.current?.get(lineNumber) ?? []
@@ -443,6 +516,7 @@ export function CodeEditorPanel({
     ? activeFileImagePreview
     : null
   const isImagePreviewMode = Boolean(imagePreview)
+  const isMarkdownSourceFile = isMarkdownFile(activeFile)
   const displayLanguage = isImagePreviewMode
     ? 'image'
     : getDisplayLanguage(activeFile)
@@ -575,6 +649,9 @@ export function CodeEditorPanel({
         : false
       if (appliedPendingJump && pendingJumpRequest) {
         lastHandledJumpTokenRef.current = pendingJumpRequest.token
+        if (pendingJumpRequest.shouldHighlight) {
+          scheduleNavigationLineHighlight(view, pendingJumpRequest.lineNumber)
+        }
       }
 
       if (appliedPendingJump) {
@@ -650,8 +727,13 @@ export function CodeEditorPanel({
     if (!applyJumpRequestToView(view, jumpRequest)) {
       return
     }
+
+    if (jumpRequest.shouldHighlight) {
+      scheduleNavigationLineHighlight(view, jumpRequest.lineNumber)
+    }
+
     lastHandledJumpTokenRef.current = jumpRequest.token
-  }, [jumpRequest, activeFile])
+  }, [activeFile, jumpRequest, scheduleNavigationLineHighlight])
 
   // ---- Context menu handler on container (bubbles from EditorView) --------
   useEffect(() => {
@@ -699,10 +781,16 @@ export function CodeEditorPanel({
 
   // ---- Reset context menu on file change ---------------------------------
   useEffect(() => {
+    clearNavigationHighlight()
     setContextMenuState(null)
     setCommentHoverState(null)
     lastHandledJumpTokenRef.current = null
-  }, [activeFile, activeFileImagePreview, previewUnavailableReason])
+  }, [
+    activeFile,
+    activeFileImagePreview,
+    clearNavigationHighlight,
+    previewUnavailableReason,
+  ])
 
   const closeContextMenu = useCallback(() => {
     setContextMenuState(null)
@@ -836,6 +924,19 @@ export function CodeEditorPanel({
                 })
               },
             },
+            ...(isMarkdownSourceFile
+              ? [
+                  {
+                    label: 'Go to Spec',
+                    onSelect: () => {
+                      onRequestGoToSpec({
+                        relativePath: contextMenuState.relativePath,
+                        lineNumber: contextMenuState.selectionRange.startLine,
+                      })
+                    },
+                  },
+                ]
+              : []),
             {
               label: 'Copy Line Contents',
               onSelect: () => {
