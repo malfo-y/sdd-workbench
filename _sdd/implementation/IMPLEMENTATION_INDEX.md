@@ -1,5 +1,21 @@
 # IMPLEMENTATION_INDEX
 
+## f33_spec_exact_source_offset_anchor
+
+### Sync Record - 2026-03-08T11:16:42Z
+
+- note: F33 구현 완료 스펙 동기화 (same-file raw markdown exact offset mapping, CodeMirror exact range jump, optional comment offset persistence, collapsed selection line fallback) 반영
+- copied files:
+  - `_sdd/implementation/features/f33_spec_exact_source_offset_anchor/SYNC_20260308_111642_IMPLEMENTATION_PROGRESS.md <- _sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- excluded root artifacts:
+  - `_sdd/implementation/IMPLEMENTATION_PLAN*.md`, `_sdd/implementation/IMPLEMENTATION_REVIEW.md`, `_sdd/implementation/IMPLEMENTATION_REPORT*.md`는 현재 루트 문서 헤더가 F33 전용 상태가 아니어서 이번 feature archive에서는 제외
+- spec files updated:
+  - `_sdd/spec/main.md`
+  - `_sdd/spec/sdd-workbench/01-overview.md`
+  - `_sdd/spec/sdd-workbench/03-components.md`
+  - `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - `_sdd/spec/sdd-workbench/appendix.md`
+
 ## f32_spec_comment_anchor_precision
 
 ### Sync Record - 2026-03-06T06:17:12Z

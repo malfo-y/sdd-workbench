@@ -1,6 +1,6 @@
 # Appendix
 
-## A. 기능 이력 (F01~F32)
+## A. 기능 이력 (F01~F33)
 
 | Feature | 상태 | 완료일 | 핵심 산출 |
 |---|---|---|---|
@@ -53,6 +53,7 @@
 | F30 | Done | 2026-03-06 | 스펙 뷰어 텍스트 검색: raw markdown block search, `Cmd/Ctrl+F` hotkey gate, rendered block highlight/navigation |
 | F31 | Done | 2026-03-06 | 검색 `*` wildcard 지원: ordered token match, wildcard-only query empty 처리, `(* supported)` discoverability, spec search helper 분리 |
 | F32 | Done | 2026-03-06 | 스펙 뷰어 코멘트/source action line anchor 정밀도 개선: source span metadata helper, multiline paragraph/table cell best-effort line 추정 |
+| F33 | Done | 2026-03-08 | 스펙 뷰어 exact source offset anchor MVP: same-file raw markdown exact offset mapping, CodeMirror exact range jump, optional comment offset persistence, collapsed selection line fallback |
 
 ## B. 상세 수용 기준 (요약)
 
@@ -92,6 +93,7 @@
 - (F30) 스펙 뷰어 텍스트 검색: Spec 탭 활성 상태에서만 `Cmd/Ctrl+F`, raw markdown substring(case-insensitive), rendered `data-source-line` block에 `.is-spec-search-match` / `.is-spec-search-focus` 적용, 이전/다음 + `Enter`/`Shift+Enter` wrap-around, `0 / 0` 포함 카운트, `Escape`/닫기/activeSpecPath 변경 시 검색 상태 초기화
 - (F31) 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 모두 `*`를 0개 이상의 임의 문자로 해석하는 ordered token match 적용, `*`/`**`는 empty query로 처리, 파일 브라우저는 `fileName` 기준만 확장, 스펙 검색은 같은 line 안에서만 확장, 두 검색 입력 모두 `(* supported)` placeholder로 discoverability 제공
 - (F32) 스펙 뷰어 코멘트/source action 정밀도 개선: `src/spec-viewer/source-line-metadata.ts`가 markdown node position의 start/end line을 정규화해 rendered metadata(`data-source-line-start/end`)를 제공하고, `source-line-resolver`는 fenced code block newline offset 계산을 유지하면서 일반 markdown paragraph/list/blockquote/table cell에서 span + rendered text offset 기반 line-level best-effort anchor를 계산한다. `Add Comment`/`Go to Source` payload shape는 유지하고, 해석 실패 시 기존 block-level 또는 nearest fallback으로 degrade 한다.
+- (F33) 스펙 뷰어 exact source offset anchor MVP: supported rendered selection(paragraph/list/blockquote/link text/inline code/fenced code block)은 same-file raw markdown `[startOffset, endOffset)`로 해석되고, `Go to Source`는 CodeMirror exact range selection으로 이동하며, spec-origin `Add Comment`는 기존 line range와 함께 optional `startOffset/endOffset`를 anchor metadata에 저장한다. collapsed selection과 unsupported structure는 클릭 line fallback을 유지하고, 원문 변경 후 stale offset recovery는 구현하지 않는다.
 - (BUG-02) Copy Relative Path 라인 번호 포함: 코드 에디터 우클릭 컨텍스트 메뉴에서 `selectionRange` 전달 → 단일 라인 `path:LN`, 다중 선택 `path:LN-LM` 형식
 - (F24.1) 코드 에디터 line wrap 토글: 헤더에 "Wrap On/Off" 버튼, 기본 On, 클릭으로 동적 전환(`wrapCompartment.reconfigure`), `aria-pressed` 반영, 가로 스크롤 방지로 트랙패드 wheel 히스토리 내비게이션 안정화
 - (F07.2) 코드 에디터 히스토리 스크롤 위치 복원: Back/Forward 이동 후 해당 파일의 마지막 픽셀 스크롤 위치를 복원; 저장: `view.scrollDOM` native scroll 이벤트 → `codeScrollPositionsRef[workspaceId::relativePath]`; 복원: 콘텐츠 재로드(`view.setState`) 직후 `requestAnimationFrame`으로 `scrollDOM.scrollTop` 적용; 첫 방문 시 복원 없음(scrollTop=0 유지)
@@ -104,7 +106,7 @@
 2. non-line hash heading jump 정밀화는 backlog
 3. watcher 튜닝(대규모 repo 이벤트 편차) 여지
 4. **[Known Issue] 트랙패드 스와이프 파일 히스토리 내비게이션 미지원** — wheel 이벤트 기반 구현 시 CodeMirror `.cm-scroller`의 가로 스크롤과 제스처 공간 충돌로 신뢰 가능한 UX 달성 불가. Electron `win.on('swipe', ...)` (3-finger)는 3-finger drag를 다른 용도로 쓰는 경우 사용 불가. 현재 대안: **line wrap 기본 On**(가로 스크롤 제거), 키보드 단축키 / 헤더 버튼 / 마우스 사이드버튼(button 3/4)으로 내비게이션. 근본 해결은 macOS rubber-band overscroll API 또는 별도 제스처 영역 필요(백로그).
-5. source line mapping은 line-level best-effort 한계 존재
+5. source selection mapping은 supported structure 밖(raw HTML, 복잡한 GFM edge case, stale offset)에서 best-effort 또는 line fallback 한계가 존재
 6. 코멘트 relocation(AST/semantic)은 미지원
 7. marker 상세 패널/코멘트 스레드 UI 미지원
 8. incremental export reset/re-export-all UX 미지원

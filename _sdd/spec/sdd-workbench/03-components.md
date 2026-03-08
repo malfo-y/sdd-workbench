@@ -12,6 +12,7 @@
   - `.md` 파일 선택 시 Spec 탭 자동 전환, 그 외 파일은 Code 탭 자동 전환
   - `SpecViewerPanel`에 `isActive={activeTab === 'spec'}` 전달, Spec 탭 활성 상태에서만 `Cmd/Ctrl+F`가 스펙 검색 UI를 열도록 게이트
   - spec 점프/Go to Source/코멘트 점프 시 Code 탭 자동 전환 (`openSpecRelativePath` 후 `setActiveTab('code')` 순서로 적용)
+  - (F33) spec-origin `Go to Source`/`Add Comment` payload에 optional `sourceOffsetRange`를 실어 Code 탭 exact jump/comment persistence 경로로 전달
   - 파일 트리 CRUD 콜백(`onRequestCreateFile/Directory`, `onRequestDeleteFile/Directory`, `onRequestRename`) 연결 + confirm dialog + dirty file 삭제 처리 (F25/F25b)
   - 코멘트 배너 + 원격 연결/폴백 배너 auto-dismiss 타이머 제어
   - spec 점프/코멘트 요청/내보내기 흐름 연결
@@ -86,6 +87,7 @@
   - `Mod-s` keymap → `onSave(doc.toString())` + `updateListener`에서 `docChanged` → dirty
   - Image/binary/too-large fallback UI 유지
   - Jump-to-line via `EditorView.scrollIntoView`
+  - (F33) `jumpRequest.sourceOffsetRange`가 있으면 line scroll 대신 exact source range selection + scroll을 우선 적용
   - 컨텍스트 메뉴(Copy/Add Comment) CM6 `domEventHandlers` 통합
   - `onScrollChange?: (scrollTop: number) => void` prop — `view.scrollDOM` native scroll 이벤트 감지 후 상위 전달 (F07.2)
   - `restoredScrollTop?: number | null` prop — 콘텐츠 로드(`view.setState`) 후 `requestAnimationFrame`으로 픽셀 스크롤 복원 (F07.2)
@@ -114,12 +116,16 @@
   - (F31) search placeholder에 `(* supported)` discoverability 문구 추가, wildcard matcher는 helper 모듈을 통해 ordered token semantics를 재사용
   - (F32) `data-source-line` 대표 block anchor는 유지하고, resolver 전용 세밀 metadata(`data-source-line-start`, `data-source-line-end`)를 paragraph/table cell/link/code 등으로 확장
   - (F32) multiline paragraph/table cell selection에서 line span + rendered text offset 기반 best-effort line 추정으로 `Add Comment`/`Go to Source` selectionRange를 계산
+  - (F33) visible selection이 있으면 `resolveSourceSelectionRangeFromSelection()` 결과의 optional exact offset range를 source popover state에 저장하고, inline structure가 지원되지 않거나 collapsed selection이면 클릭 line 기준 fallback source action을 유지
+  - (F33) `span[data-source-text-leaf]` / inline code / link text / fenced code block 경로에서 same-file raw markdown exact offset을 계산해 `Go to Source`/`Add Comment`에 전달
   - `Add Comment`/`Go to Source` source popover
   - same-document anchor(`#heading-id`) 클릭 시 패널 내부 heading scroll 처리(브라우저 기본 이동 차단)
   - comment marker 매핑 렌더 + hover popover
   - spec scroll position capture/restore(런타임)
 - `src/spec-viewer/source-line-metadata.ts`
-  - (F32) markdown node position start/end line 정규화 + rendered source metadata attribute helper
+  - (F32/F33) markdown node position start/end line + start/end offset 정규화, rendered source metadata attribute helper(`data-source-line*`, `data-source-offset*`)
+- `src/spec-viewer/rehype-source-text-leaves.ts`
+  - (F33) supported inline text leaf를 `span[data-source-text-leaf]` wrapper로 감싸 exact offset mapping용 metadata를 받을 수 있게 함
 - `src/spec-viewer/spec-search.ts`
   - (F31) raw markdown line wildcard matcher + block boundary 판정 + matched start line 계산 helper
 - `src/spec-viewer/spec-link-utils.ts`
@@ -127,17 +133,20 @@
 - `src/spec-viewer/source-line-resolver.ts`
   - selection target source line 해석
   - (F32) code fence newline offset 유지 + 일반 markdown line span/descendant-aware best-effort anchor 계산
+  - (F33) line range 위에 optional `sourceOffsetRange`를 additive contract로 계산하고, unsupported structure/collapsed selection은 line fallback 또는 `null`로 degrade
+- `src/source-selection.ts`
+  - (F33) same-file raw markdown exact range 정규화 helper(`{ startOffset, endOffset }`, 0-based half-open)
 - `src/spec-viewer/markdown-security.ts`
   - sanitize/URI 정책
 
 ### 1.6 Comment Domain Layer
 
 - `src/code-comments/comment-types.ts`
-  - `CodeComment` 타입(`exportedAt` 포함)
+  - `CodeComment` 타입(`exportedAt` 포함) + `anchor.startOffset/endOffset` optional exact source metadata
 - `src/code-comments/comment-anchor.ts`
-  - anchor/hash 생성
+  - line-based anchor/hash 생성 + exact offset range 제공 시 raw markdown snippet/hash 생성
 - `src/code-comments/comment-persistence.ts`
-  - parse/serialize
+  - parse/serialize + old schema/backward compatibility + optional offset round-trip
 - `src/code-comments/comment-line-index.ts`
   - 파일/라인(startLine 기준) count index + entries index + nearest fallback mapping
 - `src/code-comments/comment-hover-popover.tsx`

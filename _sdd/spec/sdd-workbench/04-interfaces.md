@@ -74,6 +74,7 @@ type GitFileStatusKind = 'added' | 'modified' | 'untracked'
 
 type ContentTab = 'code' | 'spec'
 type PaneSizes = { left: number; content: number }
+type SourceOffsetRange = { startOffset: number; endOffset: number }
 
 type CodeComment = {
   id: string
@@ -86,6 +87,8 @@ type CodeComment = {
     hash: string
     before?: string
     after?: string
+    startOffset?: number
+    endOffset?: number
   }
   createdAt: string
   exportedAt?: string
@@ -120,6 +123,7 @@ type CodeComment = {
 5. same-spec source jump는 가능한 경우 `activeSpecContent`를 재사용해 rendered 패널 리셋을 피한다.
 6. rendered spec scroll position은 `workspace + activeSpecPath` 키로 런타임 저장/복원한다.
 7. (F32) rendered selection line 해석은 fenced code block에서는 newline offset 기반 exact line 계산을 유지하고, 일반 markdown에서는 `data-source-line-start/end` span + descendant metadata를 사용한 line-level best-effort anchor를 적용한다.
+8. (F33) exact source offset는 same-file raw markdown 기준 0-based half-open `[startOffset, endOffset)`로 정의하며, global selection 모델을 교체하지 않고 spec-origin action/comment payload에만 additive contract로 실린다.
 
 ## 3. IPC 계약
 
@@ -304,6 +308,8 @@ type CodeComment = {
 12. 코멘트 액션 배너와 remote 연결/폴백 배너는 5초 auto-dismiss를 적용하고, 기타 배너는 수동 dismiss를 유지한다.
 13. View Comments에서 코멘트의 target 텍스트(파일경로:라인)를 클릭하면, 해당 파일을 열고 코드 뷰어에서 해당 라인으로 스크롤한다. 모달은 자동으로 닫힌다. 점프 대상 파일이 현재 워크스페이스에 없으면 모달만 닫히고 점프는 무시한다.
 14. (F32) SpecViewer에서 저장되는 `selectionRange`는 payload shape를 유지하되, multiline paragraph/list/blockquote/table cell 선택에서 block 시작 line보다 더 세밀한 line range를 우선 사용한다. granular 해석 실패 시 기존 block-level 또는 nearest-from-point fallback으로 degrade 한다.
+15. (F33) spec-origin comment는 기존 `startLine/endLine`을 유지하면서, exact source selection이 가능한 경우 `CodeComment.anchor.startOffset/endOffset`를 함께 저장할 수 있다. old comment JSON은 offset field가 없어도 계속 유효하다.
+16. (F33) stored offset은 원문 변경 후 stale 될 수 있으며, 이번 범위에서는 re-anchor/recovery를 시도하지 않는다. 소비 측은 최대 line-level fallback까지만 허용한다.
 
 ## 5. 마커 매핑 규칙
 
@@ -320,6 +326,8 @@ type CodeComment = {
 11. (F32) rendered selection/source action anchor는 대표 block marker 규칙과 분리해 동작하며, 세밀한 interactive metadata는 `data-source-line-start/end` 또는 더 가까운 descendant metadata를 우선 사용한다.
 12. (F32) multiline paragraph는 rendered text offset 비율을 사용해 source span 안의 line을 best-effort로 추정한다.
 13. (F32) table row/cell, inline link/code 등 세밀 metadata가 있는 구조는 parent block(`table`, `blockquote`, `li`) 시작 line보다 child/source span line을 우선한다.
+14. (F33) exact mapping이 가능한 구조는 `data-source-offset-start/end`와 `data-source-text-leaf`를 우선 사용해 partial text selection의 local offset을 same-file raw markdown offset으로 환산한다.
+15. (F33) inline exact mapping 실패, unsupported markdown 구조, collapsed selection에서는 source action을 닫지 않고 클릭 지점 기준 line fallback을 우선 적용한다.
 
 ## 6. 대규모 워크스페이스 lazy indexing 규칙
 
