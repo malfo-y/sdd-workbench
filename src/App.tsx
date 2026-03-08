@@ -37,6 +37,7 @@ import {
 import { FileTreePanel } from './file-tree/file-tree-panel'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
+import type { SourceOffsetRange } from './source-selection'
 import {
   formatRemoteWorkspaceSummaryPath,
   formatRemoteWorkspaceTooltip,
@@ -96,6 +97,7 @@ type CommentDraftState = {
   workspaceId: string
   relativePath: string
   selectionRange: LineSelectionRange
+  sourceOffsetRange?: SourceOffsetRange
   fileContent: string
 }
 
@@ -716,6 +718,7 @@ function App() {
         const nextComment = buildCodeComment({
           relativePath: commentDraftState.relativePath,
           selectionRange: commentDraftState.selectionRange,
+          sourceOffsetRange: commentDraftState.sourceOffsetRange,
           body,
           fileContent: commentDraftState.fileContent,
         })
@@ -810,6 +813,7 @@ function App() {
     (input: {
       relativePath: string
       selectionRange: LineSelectionRange
+      sourceOffsetRange?: SourceOffsetRange
     }) => {
       if (!activeWorkspaceId) {
         showCommentBanner('Cannot add comment: no active workspace selected.')
@@ -829,6 +833,9 @@ function App() {
         workspaceId: activeWorkspaceId,
         relativePath: input.relativePath,
         selectionRange: input.selectionRange,
+        ...(input.sourceOffsetRange
+          ? { sourceOffsetRange: input.sourceOffsetRange }
+          : {}),
         fileContent: activeSpecContent,
       })
     },
@@ -1313,7 +1320,7 @@ function App() {
   )
 
   const goToActiveSpecSourceLine = useCallback(
-    (lineNumber: number) => {
+    (lineNumber: number, sourceOffsetRange?: SourceOffsetRange) => {
       if (!activeSpec) {
         showBanner('Cannot go to source: no active spec is selected.')
         return
@@ -1328,6 +1335,15 @@ function App() {
           'Cannot go to source: the active spec is unavailable in this workspace.',
         )
       } else {
+        if (sourceOffsetRange) {
+          jumpRequestTokenRef.current += 1
+          setCodeViewerJumpRequest({
+            targetRelativePath: activeSpec,
+            lineNumber,
+            sourceOffsetRange,
+            token: jumpRequestTokenRef.current,
+          })
+        }
         setActiveTab('code')
       }
     },
@@ -1398,13 +1414,21 @@ function App() {
       return
     }
 
+    if (
+      codeViewerJumpRequest?.targetRelativePath === activeFile &&
+      codeViewerJumpRequest.lineNumber === selectionRange.startLine &&
+      codeViewerJumpRequest.sourceOffsetRange
+    ) {
+      return
+    }
+
     jumpRequestTokenRef.current += 1
     setCodeViewerJumpRequest({
       targetRelativePath: activeFile,
       lineNumber: selectionRange.startLine,
       token: jumpRequestTokenRef.current,
     })
-  }, [activeFile, selectionRange])
+  }, [activeFile, codeViewerJumpRequest, selectionRange])
 
   useEffect(() => {
     if (!commentDraftState) {

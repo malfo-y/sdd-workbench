@@ -45,4 +45,29 @@ describe('comment-anchor', () => {
     expect(comment.id).toContain('src/app.ts:1-3:')
     expect(comment.id).toContain(':2026-02-22T09:00:00.000Z')
   })
+
+  it('stores exact offset metadata when provided', () => {
+    const content = 'alpha **beta** gamma'
+    const startOffset = content.indexOf('beta')
+    const endOffset = startOffset + 'beta'.length
+
+    const anchor = createCommentAnchor(
+      content,
+      {
+        startLine: 1,
+        endLine: 1,
+      },
+      {
+        startOffset,
+        endOffset,
+      },
+    )
+
+    expect(anchor).toMatchObject({
+      snippet: 'beta',
+      startOffset,
+      endOffset,
+    })
+    expect(anchor.hash).toHaveLength(8)
+  })
 })

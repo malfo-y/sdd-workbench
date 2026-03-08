@@ -1,5 +1,9 @@
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import {
+  normalizeSourceOffsetRange,
+  type SourceOffsetRange,
+} from '../source-selection'
+import {
   normalizeCommentSelection,
   sanitizeCommentBody,
   type CodeComment,
@@ -12,6 +16,7 @@ const MAX_CONTEXT_CHARS = 220
 export type BuildCodeCommentInput = {
   relativePath: string
   selectionRange: LineSelectionRange
+  sourceOffsetRange?: SourceOffsetRange
   body: string
   fileContent: string
   createdAt?: string
@@ -26,6 +31,13 @@ function trimContext(text: string, maxChars: number): string {
     return text
   }
   return text.slice(0, maxChars)
+}
+
+function trimTrailingContext(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text
+  }
+  return text.slice(text.length - maxChars)
 }
 
 function normalizeForHash(text: string): string {
@@ -49,11 +61,52 @@ function hashFnv1a(text: string): string {
 export function createCommentAnchor(
   fileContent: string,
   selectionRange: LineSelectionRange,
+  sourceOffsetRange?: SourceOffsetRange,
 ): CodeCommentAnchor {
   const lines = fileContent.replace(/\r\n?/g, '\n').split('\n')
   const normalizedSelection = normalizeCommentSelection(selectionRange)
   const startLine = clampLine(normalizedSelection.startLine, lines.length)
   const endLine = clampLine(normalizedSelection.endLine, lines.length)
+  const normalizedSourceOffsetRange = normalizeSourceOffsetRange(
+    sourceOffsetRange,
+    fileContent.length,
+  )
+
+  if (normalizedSourceOffsetRange) {
+    const snippet = fileContent
+      .slice(
+        normalizedSourceOffsetRange.startOffset,
+        normalizedSourceOffsetRange.endOffset,
+      )
+      .slice(0, MAX_ANCHOR_SNIPPET_CHARS)
+    const before = trimTrailingContext(
+      fileContent.slice(0, normalizedSourceOffsetRange.startOffset),
+      MAX_CONTEXT_CHARS,
+    )
+    const after = trimContext(
+      fileContent.slice(normalizedSourceOffsetRange.endOffset),
+      MAX_CONTEXT_CHARS,
+    )
+    const hashInput = [
+      startLine,
+      endLine,
+      normalizedSourceOffsetRange.startOffset,
+      normalizedSourceOffsetRange.endOffset,
+      before,
+      snippet,
+      after,
+    ].join('|')
+    const hash = hashFnv1a(normalizeForHash(hashInput))
+
+    return {
+      snippet,
+      hash,
+      startOffset: normalizedSourceOffsetRange.startOffset,
+      endOffset: normalizedSourceOffsetRange.endOffset,
+      ...(before ? { before } : {}),
+      ...(after ? { after } : {}),
+    }
+  }
 
   const snippet = lines.slice(startLine - 1, endLine).join('\n').slice(0, MAX_ANCHOR_SNIPPET_CHARS)
   const before =
@@ -83,7 +136,11 @@ export function buildCodeComment(input: BuildCodeCommentInput): CodeComment {
     throw new Error('Comment body is required.')
   }
 
-  const anchor = createCommentAnchor(input.fileContent, selection)
+  const anchor = createCommentAnchor(
+    input.fileContent,
+    selection,
+    input.sourceOffsetRange,
+  )
 
   return {
     id: `${input.relativePath}:${selection.startLine}-${selection.endLine}:${anchor.hash}:${createdAt}`,

@@ -18,6 +18,21 @@ const SAMPLE_COMMENT: CodeComment = {
   exportedAt: '2026-02-22T10:00:00.000Z',
 }
 
+const EXACT_OFFSET_COMMENT: CodeComment = {
+  id: 'docs/spec.md:3-3:beadbead:2026-03-08T10:00:00.000Z',
+  relativePath: 'docs/spec.md',
+  startLine: 3,
+  endLine: 3,
+  body: 'focus on exact token',
+  anchor: {
+    snippet: 'gamma',
+    hash: 'beadbead',
+    startOffset: 24,
+    endOffset: 29,
+  },
+  createdAt: '2026-03-08T10:00:00.000Z',
+}
+
 describe('comment-persistence', () => {
   it('serializes and parses comments as sorted list', () => {
     const serialized = serializeCodeComments([SAMPLE_COMMENT])
@@ -70,5 +85,13 @@ describe('comment-persistence', () => {
       createdAt: SAMPLE_COMMENT.createdAt,
     })
     expect(parsed.comments[0]).not.toHaveProperty('exportedAt')
+  })
+
+  it('round-trips optional exact offset metadata', () => {
+    const serialized = serializeCodeComments([EXACT_OFFSET_COMMENT])
+    const parsed = parseCodeComments(serialized)
+
+    expect(parsed.error).toBeNull()
+    expect(parsed.comments).toEqual([EXACT_OFFSET_COMMENT])
   })
 })

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { StrictMode } from 'react'
+import { EditorView } from '@codemirror/view'
 import App from './App'
 import { WorkspaceProvider } from './workspace/workspace-context'
 import { useWorkspace } from './workspace/use-workspace'
@@ -60,6 +61,23 @@ function setWorkspaceSessionStorage(rawValue: unknown) {
 
 function clearWorkspaceSessionStorage() {
   window.localStorage.removeItem(WORKSPACE_SESSION_STORAGE_KEY)
+}
+
+function getCM6View(container: HTMLElement): EditorView | null {
+  const cmEditor = container.querySelector('.cm-editor')
+  return cmEditor ? EditorView.findFromDOM(cmEditor as HTMLElement) : null
+}
+
+function findTextNodeContaining(root: Node, fragment: string): Text | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let currentNode = walker.nextNode()
+  while (currentNode) {
+    if (currentNode.textContent?.includes(fragment)) {
+      return currentNode as Text
+    }
+    currentNode = walker.nextNode()
+  }
+  return null
 }
 
 async function expandWorkspaceSummaryIfCollapsed() {
@@ -4852,11 +4870,17 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(readFileMock).toHaveBeenCalledTimes(2)
 
     const paragraph = screen.getByText('source jump paragraph')
-    const selectedNode = paragraph.firstChild
+    const selectedNode = findTextNodeContaining(paragraph, 'source jump')
+    if (!selectedNode) {
+      throw new Error('Expected text node containing source jump')
+    }
+    const anchorOffset = selectedNode.data.indexOf('source jump')
     vi.spyOn(window, 'getSelection').mockReturnValue({
       isCollapsed: false,
       anchorNode: selectedNode,
+      anchorOffset,
       focusNode: selectedNode,
+      focusOffset: anchorOffset + 'source jump'.length,
       toString: () => 'source jump',
     } as unknown as Selection)
 
@@ -4874,6 +4898,16 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
       'Selection: L3-L3',
     )
+    const codeView = getCM6View(screen.getByTestId('code-viewer-content'))
+    if (!codeView) {
+      throw new Error('Expected CodeMirror view')
+    }
+    expect(
+      codeView.state.sliceDoc(
+        codeView.state.selection.main.from,
+        codeView.state.selection.main.to,
+      ),
+    ).toBe('source jump')
     expect(readFileMock).toHaveBeenCalledTimes(2)
     expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
       'source jump paragraph',
@@ -5326,6 +5360,129 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       startLine: 1,
       endLine: 1,
       body: 'Handle null input before assignment',
+    })
+  })
+
+  it('persists exact source offsets when adding a comment from rendered markdown', async () => {
+    const workspaceRoot = '/Users/tester/projects/spec-comment-workspace'
+    const markdownContent = '# Title\n\nalpha **beta** gamma'
+    const expectedStartOffset = markdownContent.indexOf('gamma')
+    const expectedEndOffset = expectedStartOffset + 'gamma'.length
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'README.md',
+              relativePath: 'docs/README.md',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: markdownContent,
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'alpha beta gamma',
+      )
+    })
+
+    const paragraph = screen.getByText(
+      (_content, element) => element?.textContent === 'alpha beta gamma',
+    )
+    const selectedNode = findTextNodeContaining(paragraph, 'gamma')
+    if (!selectedNode) {
+      throw new Error('Expected text node containing gamma')
+    }
+    const anchorOffset = selectedNode.data.indexOf('gamma')
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectedNode,
+      anchorOffset,
+      focusNode: selectedNode,
+      focusOffset: anchorOffset + 'gamma'.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 220,
+      clientY: 260,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Add comment' })).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Comment'), {
+      target: {
+        value: 'Focus on gamma token',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Comment' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+
+    const [writtenRootPath, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenRootPath).toBe(workspaceRoot)
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      relativePath: 'docs/README.md',
+      startLine: 3,
+      endLine: 3,
+      body: 'Focus on gamma token',
+      anchor: {
+        snippet: 'gamma',
+        startOffset: expectedStartOffset,
+        endOffset: expectedEndOffset,
+      },
     })
   })
 

@@ -2,11 +2,22 @@ import {
   SOURCE_LINE_ATTRIBUTE,
   SOURCE_LINE_END_ATTRIBUTE,
   SOURCE_LINE_START_ATTRIBUTE,
+  SOURCE_OFFSET_END_ATTRIBUTE,
+  SOURCE_OFFSET_START_ATTRIBUTE,
+  SOURCE_TEXT_LEAF_ATTRIBUTE,
 } from './source-line-metadata'
+import {
+  normalizeSourceOffsetRange,
+  type SourceOffsetRange,
+} from '../source-selection'
 
 export type SourceLineRange = {
   startLine: number
   endLine: number
+}
+
+export type SourceSelectionRange = SourceLineRange & {
+  sourceOffsetRange?: SourceOffsetRange
 }
 
 function normalizeSourceLine(value: unknown): number | null {
@@ -29,6 +40,31 @@ function normalizeSourceLine(value: unknown): number | null {
     }
     const normalized = Math.trunc(parsed)
     return normalized >= 1 ? normalized : null
+  }
+
+  return null
+}
+
+function normalizeSourceOffset(value: unknown): number | null {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return null
+    }
+    const normalized = Math.trunc(value)
+    return normalized >= 0 ? normalized : null
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return null
+    }
+    const parsed = Number(trimmed)
+    if (!Number.isFinite(parsed)) {
+      return null
+    }
+    const normalized = Math.trunc(parsed)
+    return normalized >= 0 ? normalized : null
   }
 
   return null
@@ -92,6 +128,23 @@ function resolveSourceLineSpanFromElement(
     startLine: Math.min(normalizedStartLine, normalizedEndLine),
     endLine: Math.max(normalizedStartLine, normalizedEndLine),
   }
+}
+
+function resolveSourceOffsetSpanFromElement(
+  element: Element | null,
+): SourceOffsetRange | null {
+  if (!element) {
+    return null
+  }
+
+  return normalizeSourceOffsetRange({
+    startOffset: normalizeSourceOffset(
+      element.getAttribute(SOURCE_OFFSET_START_ATTRIBUTE),
+    ) ?? Number.NaN,
+    endOffset: normalizeSourceOffset(
+      element.getAttribute(SOURCE_OFFSET_END_ATTRIBUTE),
+    ) ?? Number.NaN,
+  })
 }
 
 function resolveNodeTextOffsetWithinElement(
@@ -206,6 +259,83 @@ function resolveSourceLineFromNode(
   return null
 }
 
+function resolveExactSourceOffsetFromElement(
+  element: HTMLElement,
+  targetNode: Node,
+  targetOffset: number | undefined,
+  sourceText: string,
+): number | null {
+  const sourceOffsetSpan = resolveSourceOffsetSpanFromElement(element)
+  if (!sourceOffsetSpan) {
+    return null
+  }
+
+  const textOffset = resolveNodeTextOffsetWithinElement(
+    element,
+    targetNode,
+    targetOffset,
+  )
+  if (textOffset === null) {
+    return null
+  }
+
+  const renderedText = element.textContent ?? ''
+  if (renderedText.length === 0) {
+    return null
+  }
+
+  if (element.getAttribute(SOURCE_TEXT_LEAF_ATTRIBUTE) === 'true') {
+    return Math.min(
+      sourceOffsetSpan.endOffset,
+      sourceOffsetSpan.startOffset + textOffset,
+    )
+  }
+
+  const rawSlice = sourceText.slice(
+    sourceOffsetSpan.startOffset,
+    sourceOffsetSpan.endOffset,
+  )
+  const contentIndex = rawSlice.indexOf(renderedText)
+  if (contentIndex < 0) {
+    return null
+  }
+
+  const contentStartOffset = sourceOffsetSpan.startOffset + contentIndex
+  const contentEndOffset = contentStartOffset + renderedText.length
+
+  return Math.min(contentEndOffset, contentStartOffset + textOffset)
+}
+
+function resolveSourceOffsetFromNode(
+  node: Node | null,
+  nodeOffset: number | undefined,
+  sourceText: string,
+): number | null {
+  const element = toElement(node)
+  if (!element) {
+    return null
+  }
+
+  const targetNode = node ?? element
+  let current: Element | null = element
+  while (current) {
+    if (current instanceof HTMLElement) {
+      const resolvedOffset = resolveExactSourceOffsetFromElement(
+        current,
+        targetNode,
+        nodeOffset,
+        sourceText,
+      )
+      if (resolvedOffset !== null) {
+        return resolvedOffset
+      }
+    }
+    current = current.parentElement
+  }
+
+  return null
+}
+
 export function resolveSourceLineFromTarget(target: EventTarget | null): number | null {
   if (!(target instanceof Node)) {
     return null
@@ -254,6 +384,48 @@ export function resolveSourceLineRangeFromSelection(
   return {
     startLine: Math.min(startCandidate, endCandidate),
     endLine: Math.max(startCandidate, endCandidate),
+  }
+}
+
+export function resolveSourceSelectionRangeFromSelection(
+  selection: Selection | null,
+  sourceText: string | null,
+): SourceSelectionRange | null {
+  const lineRange = resolveSourceLineRangeFromSelection(selection)
+  if (!selection || !lineRange) {
+    return lineRange
+  }
+
+  if (!sourceText || selection.isCollapsed) {
+    return lineRange
+  }
+
+  const anchorOffset = resolveSourceOffsetFromNode(
+    selection.anchorNode,
+    selection.anchorOffset,
+    sourceText,
+  )
+  const focusOffset = resolveSourceOffsetFromNode(
+    selection.focusNode,
+    selection.focusOffset,
+    sourceText,
+  )
+  if (anchorOffset === null || focusOffset === null) {
+    return lineRange
+  }
+
+  const sourceOffsetRange = normalizeSourceOffsetRange({
+    startOffset: Math.min(anchorOffset, focusOffset),
+    endOffset: Math.max(anchorOffset, focusOffset),
+  })
+
+  if (!sourceOffsetRange) {
+    return lineRange
+  }
+
+  return {
+    ...lineRange,
+    sourceOffsetRange,
   }
 }
 

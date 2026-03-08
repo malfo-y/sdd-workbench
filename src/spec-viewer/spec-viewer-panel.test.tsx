@@ -22,11 +22,14 @@ describe('SpecViewerPanel', () => {
     markdownContent = '# Title\n\n## Intro\ntext',
     isLoading = false,
     readError = null,
-    onGoToSourceLine = vi.fn<(lineNumber: number) => void>(),
+    onGoToSourceLine = vi.fn<
+      (lineNumber: number, sourceOffsetRange?: { startOffset: number; endOffset: number }) => void
+    >(),
     onRequestAddComment = vi.fn<
       (input: {
         relativePath: string
         selectionRange: { startLine: number; endLine: number }
+        sourceOffsetRange?: { startOffset: number; endOffset: number }
       }) => void
     >(),
     onScrollPositionChange = vi.fn<
@@ -50,10 +53,14 @@ describe('SpecViewerPanel', () => {
     markdownContent?: string | null
     isLoading?: boolean
     readError?: string | null
-    onGoToSourceLine?: (lineNumber: number) => void
+    onGoToSourceLine?: (
+      lineNumber: number,
+      sourceOffsetRange?: { startOffset: number; endOffset: number },
+    ) => void
     onRequestAddComment?: (input: {
       relativePath: string
       selectionRange: { startLine: number; endLine: number }
+      sourceOffsetRange?: { startOffset: number; endOffset: number }
     }) => void
     onScrollPositionChange?: (input: {
       relativePath: string
@@ -104,6 +111,17 @@ describe('SpecViewerPanel', () => {
       currentNode = walker.nextNode()
     }
     return null
+  }
+
+  function findParagraphByText(text: string): HTMLElement {
+    const paragraph = screen.getByText(
+      (_content, element) =>
+        element?.tagName === 'P' && element.textContent === text,
+    )
+    if (!paragraph) {
+      throw new Error(`Expected paragraph containing "${text}"`)
+    }
+    return paragraph
   }
 
   it('renders markdown and keeps toc collapsed by default', () => {
@@ -415,13 +433,15 @@ describe('SpecViewerPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
 
-    expect(onRequestAddComment).toHaveBeenCalledWith({
-      relativePath: 'docs/spec.md',
-      selectionRange: {
-        startLine: 3,
-        endLine: 3,
-      },
-    })
+    expect(onRequestAddComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relativePath: 'docs/spec.md',
+        selectionRange: {
+          startLine: 3,
+          endLine: 3,
+        },
+      }),
+    )
 
     const secondParagraph = screen.getByText('target paragraph')
     mockVisibleSelection(secondParagraph)
@@ -437,7 +457,9 @@ describe('SpecViewerPanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
 
-    expect(onGoToSourceLine).toHaveBeenCalledWith(3)
+    expect(
+      (onGoToSourceLine as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0],
+    ).toBe(3)
     expect(
       screen.queryByRole('dialog', { name: 'Source actions' }),
     ).not.toBeInTheDocument()
@@ -469,19 +491,24 @@ describe('SpecViewerPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
 
-    expect(onRequestAddComment).toHaveBeenCalledWith({
-      relativePath: 'docs/spec.md',
-      selectionRange: {
-        startLine: 5,
-        endLine: 5,
-      },
-    })
+    expect(onRequestAddComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relativePath: 'docs/spec.md',
+        selectionRange: {
+          startLine: 5,
+          endLine: 5,
+        },
+      }),
+    )
   })
 
-  it('resolves source line inside fenced code block based on selection offset', async () => {
-    const { onRequestAddComment } = renderPanel({
-      markdownContent:
-        '# Title\n\n```json\n{\n  "first": 1,\n  "second": 2,\n  "third": 3\n}\n```',
+  it('resolves exact source range inside fenced code blocks when available', async () => {
+    const markdownContent =
+      '# Title\n\n```json\n{\n  "first": 1,\n  "second": 2,\n  "third": 3\n}\n```'
+    const expectedStartOffset = markdownContent.indexOf('"third"')
+    const expectedEndOffset = expectedStartOffset + '"third"'.length
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
+      markdownContent,
     })
 
     const contentElement = screen.getByTestId('spec-viewer-content')
@@ -532,12 +559,29 @@ describe('SpecViewerPanel', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
-    expect(onRequestAddComment).toHaveBeenCalledWith({
-      relativePath: 'docs/spec.md',
-      selectionRange: {
-        startLine: expectedLine,
-        endLine: expectedLine,
-      },
+    expect(onRequestAddComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relativePath: 'docs/spec.md',
+        selectionRange: {
+          startLine: expectedLine,
+          endLine: expectedLine,
+        },
+        sourceOffsetRange: {
+          startOffset: expectedStartOffset,
+          endOffset: expectedEndOffset,
+        },
+      }),
+    )
+
+    fireEvent.contextMenu(contextMenuTarget, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(expectedLine, {
+      startOffset: expectedStartOffset,
+      endOffset: expectedEndOffset,
     })
   })
 
@@ -571,13 +615,15 @@ describe('SpecViewerPanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
 
-    expect(onRequestAddComment).toHaveBeenCalledWith({
-      relativePath: 'docs/spec.md',
-      selectionRange: {
-        startLine: 5,
-        endLine: 5,
-      },
-    })
+    expect(onRequestAddComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relativePath: 'docs/spec.md',
+        selectionRange: {
+          startLine: 5,
+          endLine: 5,
+        },
+      }),
+    )
   })
 
   it('uses the table cell source line instead of the table block line', () => {
@@ -619,13 +665,15 @@ describe('SpecViewerPanel', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
 
-    expect(onRequestAddComment).toHaveBeenCalledWith({
-      relativePath: 'docs/spec.md',
-      selectionRange: {
-        startLine: cellSourceLine,
-        endLine: cellSourceLine,
-      },
-    })
+    expect(onRequestAddComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relativePath: 'docs/spec.md',
+        selectionRange: {
+          startLine: cellSourceLine,
+          endLine: cellSourceLine,
+        },
+      }),
+    )
 
     fireEvent.contextMenu(cell, {
       clientX: 180,
@@ -633,7 +681,171 @@ describe('SpecViewerPanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
 
-    expect(onGoToSourceLine).toHaveBeenCalledWith(cellSourceLine)
+    expect(
+      (onGoToSourceLine as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0],
+    ).toBe(cellSourceLine)
+  })
+
+  it('emits exact offset ranges for mixed paragraph selections when available', () => {
+    const markdownContent = '# Title\n\nalpha **beta** gamma'
+    const expectedStartOffset = markdownContent.indexOf('gamma')
+    const expectedEndOffset = expectedStartOffset + 'gamma'.length
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
+      markdownContent,
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const paragraph = findParagraphByText('alpha beta gamma')
+    const selectionTextNode = findTextNodeContaining(paragraph, 'gamma')
+    if (!selectionTextNode) {
+      throw new Error('Expected text node containing gamma')
+    }
+
+    const anchorOffset = selectionTextNode.data.indexOf('gamma')
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset,
+      focusNode: selectionTextNode,
+      focusOffset: anchorOffset + 'gamma'.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 3,
+        endLine: 3,
+      },
+      sourceOffsetRange: {
+        startOffset: expectedStartOffset,
+        endOffset: expectedEndOffset,
+      },
+    })
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(3, {
+      startOffset: expectedStartOffset,
+      endOffset: expectedEndOffset,
+    })
+  })
+
+  it('emits exact offset ranges for inline code selections when available', () => {
+    const markdownContent = '# Title\n\nUse `gamma` token.'
+    const expectedStartOffset = markdownContent.indexOf('gamma')
+    const expectedEndOffset = expectedStartOffset + 'gamma'.length
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
+      markdownContent,
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const codeElement = screen.getByText(
+      (_content, element) => element?.tagName === 'CODE' && element.textContent === 'gamma',
+    )
+    const selectionTextNode = findTextNodeContaining(codeElement, 'gamma')
+    if (!selectionTextNode) {
+      throw new Error('Expected inline code text node containing gamma')
+    }
+
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset: 0,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(codeElement, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 3,
+        endLine: 3,
+      },
+      sourceOffsetRange: {
+        startOffset: expectedStartOffset,
+        endOffset: expectedEndOffset,
+      },
+    })
+
+    fireEvent.contextMenu(codeElement, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(3, {
+      startOffset: expectedStartOffset,
+      endOffset: expectedEndOffset,
+    })
+  })
+
+  it('emits exact offset ranges for link text selections when available', () => {
+    const markdownContent = '# Title\n\nSee [Guide Link](./guide.md) now.'
+    const expectedStartOffset = markdownContent.indexOf('Guide Link')
+    const expectedEndOffset = expectedStartOffset + 'Guide Link'.length
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
+      markdownContent,
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const linkElement = screen.getByRole('link', { name: 'Guide Link' })
+    const selectionTextNode = findTextNodeContaining(linkElement, 'Guide Link')
+    if (!selectionTextNode) {
+      throw new Error('Expected link text node containing Guide Link')
+    }
+
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset: 0,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => 'Guide Link',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(linkElement, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 3,
+        endLine: 3,
+      },
+      sourceOffsetRange: {
+        startOffset: expectedStartOffset,
+        endOffset: expectedEndOffset,
+      },
+    })
+
+    fireEvent.contextMenu(linkElement, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(3, {
+      startOffset: expectedStartOffset,
+      endOffset: expectedEndOffset,
+    })
   })
 
   it('renders comment count marker on nearest markdown block', async () => {
@@ -738,8 +950,8 @@ describe('SpecViewerPanel', () => {
     })
   })
 
-  it('ignores context menu when selection is collapsed', () => {
-    renderPanel({
+  it('falls back to the clicked source line when selection is collapsed', () => {
+    const { onRequestAddComment } = renderPanel({
       markdownContent: '# Title\n\ntarget paragraph',
     })
     const paragraph = screen.getByText('target paragraph')
@@ -757,9 +969,19 @@ describe('SpecViewerPanel', () => {
       clientY: 220,
     })
 
-    expect(
-      screen.queryByRole('dialog', { name: 'Source actions' }),
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
+      'Line 3',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: 3,
+        endLine: 3,
+      },
+    })
   })
 
   it('opens search bar on Cmd+F when spec tab is active and highlights matching blocks', async () => {
@@ -777,8 +999,9 @@ describe('SpecViewerPanel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('1 / 1')
     })
-    expect(screen.getByText('Guide intro')).toHaveClass('is-spec-search-match')
-    expect(screen.getByText('Guide intro')).toHaveClass('is-spec-search-focus')
+    const guideParagraph = findParagraphByText('Guide intro')
+    expect(guideParagraph).toHaveClass('is-spec-search-match')
+    expect(guideParagraph).toHaveClass('is-spec-search-focus')
   })
 
   it('supports wildcard queries within a single markdown line', async () => {
@@ -795,10 +1018,11 @@ describe('SpecViewerPanel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('1 / 1')
     })
-    expect(screen.getByText('Guide intro for API errors')).toHaveClass(
+    const wildcardParagraph = findParagraphByText('Guide intro for API errors')
+    expect(wildcardParagraph).toHaveClass(
       'is-spec-search-match',
     )
-    expect(screen.getByText('Guide intro for API errors')).toHaveClass(
+    expect(wildcardParagraph).toHaveClass(
       'is-spec-search-focus',
     )
   })
@@ -839,8 +1063,8 @@ describe('SpecViewerPanel', () => {
     fireEvent.keyDown(window, { key: 'f', metaKey: true })
 
     const input = await screen.findByTestId('spec-viewer-search-input')
-    const firstMatch = screen.getByText('Guide intro') as HTMLElement
-    const secondMatch = screen.getByText('Another guide') as HTMLElement
+    const firstMatch = findParagraphByText('Guide intro')
+    const secondMatch = findParagraphByText('Another guide')
     const firstScrollIntoView = vi.fn()
     const secondScrollIntoView = vi.fn()
     Object.defineProperty(firstMatch, 'scrollIntoView', {

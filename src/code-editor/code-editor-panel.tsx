@@ -6,6 +6,10 @@ import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
 import type { CodeComment } from '../code-comments/comment-types'
+import {
+  normalizeSourceOffsetRange,
+  type SourceOffsetRange,
+} from '../source-selection'
 import { darkTheme } from './cm6-dark-theme'
 import { getCM6Language } from './cm6-language-map'
 import { selectionToLineRange } from './cm6-selection-bridge'
@@ -19,6 +23,7 @@ import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 export type CodeViewerJumpRequest = {
   targetRelativePath: string
   lineNumber: number
+  sourceOffsetRange?: SourceOffsetRange
   token: number
 }
 
@@ -150,6 +155,43 @@ function clampSelectionPosition(position: number, docLength: number): number {
     return 0
   }
   return Math.max(0, Math.min(position, docLength))
+}
+
+function applyJumpRequestToView(
+  view: EditorView,
+  jumpRequest: CodeViewerJumpRequest | null,
+): boolean {
+  if (!jumpRequest) {
+    return false
+  }
+
+  const lineCount = view.state.doc.lines
+  if (lineCount === 0) {
+    return false
+  }
+
+  const lineNumber = Math.min(Math.max(1, jumpRequest.lineNumber), lineCount)
+  const line = view.state.doc.line(lineNumber)
+  const exactRange = normalizeSourceOffsetRange(
+    jumpRequest.sourceOffsetRange,
+    view.state.doc.length,
+  )
+
+  if (exactRange) {
+    view.dispatch({
+      selection: {
+        anchor: exactRange.startOffset,
+        head: exactRange.endOffset,
+      },
+      effects: EditorView.scrollIntoView(exactRange.startOffset, { y: 'center' }),
+    })
+    return true
+  }
+
+  view.dispatch({
+    effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+  })
+  return true
 }
 
 function CopyPathIcon() {
@@ -296,6 +338,7 @@ export function CodeEditorPanel({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const lastHandledJumpTokenRef = useRef<number | null>(null)
+  const jumpRequestRef = useRef(jumpRequest)
   const onSelectRangeRef = useRef(onSelectRange)
   const onSaveRef = useRef(onSave)
   const onDirtyChangeRef = useRef(onDirtyChange)
@@ -341,6 +384,10 @@ export function CodeEditorPanel({
   useEffect(() => {
     onScrollChangeRef.current = onScrollChange
   }, [onScrollChange])
+
+  useEffect(() => {
+    jumpRequestRef.current = jumpRequest
+  }, [jumpRequest])
 
   useEffect(() => {
     restoredScrollTopRef.current = restoredScrollTop ?? null
@@ -517,7 +564,22 @@ export function CodeEditorPanel({
       })
       view.setState(newState)
 
-      if (shouldPreserveViewportState) {
+      const pendingJumpRequest = jumpRequestRef.current
+      const shouldApplyPendingJump =
+        pendingJumpRequest !== null &&
+        activeFile !== null &&
+        pendingJumpRequest.targetRelativePath === activeFile &&
+        lastHandledJumpTokenRef.current !== pendingJumpRequest.token
+      const appliedPendingJump = shouldApplyPendingJump
+        ? applyJumpRequestToView(view, pendingJumpRequest)
+        : false
+      if (appliedPendingJump && pendingJumpRequest) {
+        lastHandledJumpTokenRef.current = pendingJumpRequest.token
+      }
+
+      if (appliedPendingJump) {
+        // Jump requests intentionally override previous viewport restoration.
+      } else if (shouldPreserveViewportState) {
         const docLength = view.state.doc.length
         const nextAnchor = clampSelectionPosition(previousSelection.anchor, docLength)
         const nextHead = clampSelectionPosition(previousSelection.head, docLength)
@@ -585,17 +647,9 @@ export function CodeEditorPanel({
     }
 
     const view = viewRef.current
-    const lineCount = view.state.doc.lines
-    if (lineCount === 0) {
+    if (!applyJumpRequestToView(view, jumpRequest)) {
       return
     }
-
-    const lineNumber = Math.min(Math.max(1, jumpRequest.lineNumber), lineCount)
-    const line = view.state.doc.line(lineNumber)
-
-    view.dispatch({
-      effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
-    })
     lastHandledJumpTokenRef.current = jumpRequest.token
   }, [jumpRequest, activeFile])
 

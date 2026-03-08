@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSourceLineAttributes,
   getMarkdownNodeSourceLine,
+  getMarkdownNodeSourceOffsetSpan,
   getMarkdownNodeSourceLineSpan,
   SOURCE_LINE_ATTRIBUTE,
   SOURCE_LINE_END_ATTRIBUTE,
   SOURCE_LINE_START_ATTRIBUTE,
+  SOURCE_OFFSET_END_ATTRIBUTE,
+  SOURCE_OFFSET_START_ATTRIBUTE,
   type MarkdownNodeWithPosition,
 } from './source-line-metadata'
 
@@ -51,6 +54,7 @@ describe('source-line-metadata', () => {
 
   it('returns undefined for invalid or missing node positions', () => {
     expect(getMarkdownNodeSourceLineSpan(undefined)).toBeUndefined()
+    expect(getMarkdownNodeSourceOffsetSpan(undefined)).toBeUndefined()
     expect(
       getMarkdownNodeSourceLineSpan({
         position: {
@@ -61,26 +65,42 @@ describe('source-line-metadata', () => {
     ).toBeUndefined()
   })
 
+  it('normalizes markdown node start/end offset span', () => {
+    const node = {
+      position: {
+        start: { offset: 8.9 },
+        end: { offset: 14.4 },
+      },
+    } satisfies MarkdownNodeWithPosition
+
+    expect(getMarkdownNodeSourceOffsetSpan(node)).toEqual({
+      startOffset: 8,
+      endOffset: 14,
+    })
+  })
+
   it('builds anchor and span attributes for rendered nodes', () => {
     expect(
       buildSourceLineAttributes({
         position: {
-          start: { line: 4 },
-          end: { line: 7 },
+          start: { line: 4, offset: 10 },
+          end: { line: 7, offset: 28 },
         },
       }),
     ).toEqual({
       [SOURCE_LINE_ATTRIBUTE]: 4,
       [SOURCE_LINE_START_ATTRIBUTE]: 4,
       [SOURCE_LINE_END_ATTRIBUTE]: 7,
+      [SOURCE_OFFSET_START_ATTRIBUTE]: 10,
+      [SOURCE_OFFSET_END_ATTRIBUTE]: 28,
     })
 
     expect(
       buildSourceLineAttributes(
         {
           position: {
-            start: { line: 11 },
-            end: { line: 12 },
+            start: { line: 11, offset: 32 },
+            end: { line: 12, offset: 41 },
           },
         },
         {
@@ -91,6 +111,8 @@ describe('source-line-metadata', () => {
       [SOURCE_LINE_ATTRIBUTE]: undefined,
       [SOURCE_LINE_START_ATTRIBUTE]: 11,
       [SOURCE_LINE_END_ATTRIBUTE]: 12,
+      [SOURCE_OFFSET_START_ATTRIBUTE]: 32,
+      [SOURCE_OFFSET_END_ATTRIBUTE]: 41,
     })
   })
 })

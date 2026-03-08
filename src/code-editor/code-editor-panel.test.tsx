@@ -598,6 +598,42 @@ describe('CodeEditorPanel', () => {
     })
   })
 
+  it('selects the exact source range when jumpRequest carries offsets', async () => {
+    render(
+      <CodeEditorPanel
+        {...makeDefaultProps()}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha **beta** gamma'}
+        jumpRequest={{
+          targetRelativePath: 'docs/spec.md',
+          lineNumber: 3,
+          sourceOffsetRange: {
+            startOffset: 24,
+            endOffset: 29,
+          },
+          token: 43,
+        }}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    const view = getCM6View(container)
+    if (!view) {
+      throw new Error('Expected CodeMirror view')
+    }
+
+    await waitFor(() => {
+      const selection = view.state.selection.main
+      expect(selection.from).toBe(24)
+      expect(selection.to).toBe(29)
+      expect(view.state.sliceDoc(selection.from, selection.to)).toBe('gamma')
+    })
+  })
+
   it('does NOT re-dispatch scrollIntoView for the same jump token on re-render', async () => {
     const props = makeDefaultProps()
     const jumpRequest = {

@@ -1385,3 +1385,70 @@
   - search/comment marker 대표 block anchor는 기존 `data-source-line`을 유지하고, resolver 전용 세밀 metadata는 `data-source-line-start/end`로 확장했다.
   - multiline paragraph는 rendered text offset 비율을 이용해 source span 안의 line을 추정한다.
   - table row/cell과 inline link/code는 세밀 metadata를 추가하되, search highlight 대표 block은 기존 table/block 경로를 유지했다.
+
+---
+
+## F33 Addendum (2026-03-08)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f33_spec_exact_source_offset_anchor.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `1, 2` (completed)
+  - Phase 2: `3, 4` (completed)
+  - Phase 3: `5, 6` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 1 | source offset metadata helper 추가 | P0 | - | completed | `source-line-metadata.test.ts` pass |
+| 2 | comment/jump exact range 계약 확장 | P0 | 1 | completed | `comment-anchor.test.ts`, `comment-persistence.test.ts`, `code-editor-panel.test.tsx` pass |
+| 3 | Spec Viewer renderer exact metadata 확장 | P0 | 1 | completed | `spec-viewer-panel.test.tsx` pass |
+| 4 | offset-aware selection resolver 추가 | P0 | 1,3 | completed | `source-line-resolver.test.ts` pass |
+| 5 | App/Code Viewer exact jump + comment wiring 통합 | P1 | 2,4 | completed | `App.test.tsx`, `code-editor-panel.test.tsx` pass |
+| 6 | persistence/integration regression test 확장 | P0 | 2,4,5 | completed | targeted vitest + `npm test` pass |
+
+### 2) Files Changed (F33)
+
+- `src/source-selection.ts` (new)
+- `src/spec-viewer/rehype-source-text-leaves.ts` (new)
+- `src/spec-viewer/source-line-metadata.ts`
+- `src/spec-viewer/source-line-metadata.test.ts`
+- `src/spec-viewer/source-line-resolver.ts`
+- `src/spec-viewer/source-line-resolver.test.ts`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `src/code-comments/comment-types.ts`
+- `src/code-comments/comment-anchor.ts`
+- `src/code-comments/comment-anchor.test.ts`
+- `src/code-comments/comment-persistence.ts`
+- `src/code-comments/comment-persistence.test.ts`
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/App.tsx`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Test and Quality Gate Status (F33)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npx vitest run src/spec-viewer/source-line-metadata.test.ts src/code-comments/comment-anchor.test.ts src/code-comments/comment-persistence.test.ts src/spec-viewer/source-line-resolver.test.ts src/spec-viewer/spec-viewer-panel.test.tsx src/code-editor/code-editor-panel.test.tsx src/App.test.tsx`: pass (`7 files, 206 passed, 1 skipped`)
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`55 files, 564 passed, 1 skipped`)
+
+### 4) Parallel Groups Executed (F33)
+
+- Group A: `1 -> 2` (metadata/helper와 comment/jump 계약이 같은 selection contract를 공유해 순차)
+- Group B: `3 -> 4` (renderer leaf annotation 후 resolver exact range 계산 연결)
+- Group C: `5 -> 6` (App/CodeMirror integration 후 persistence/integration regression 고정)
+
+### 5) Blockers and Decisions (F33)
+
+- Blockers: 없음
+- Applied decisions:
+  - exact anchor는 same-file markdown source 기준 0-based half-open `[startOffset, endOffset)` contract로 저장한다.
+  - markdown 원문 변경 후 re-anchor/recovery는 구현하지 않고 stale offset은 허용한다.
+  - plain text exact mapping은 rehype 단계에서 text leaf를 span wrapper로 감싸는 경량 plugin으로 해결한다.
+  - code block exact jump는 highlighted DOM leaf 대신 `pre/code` source span + raw source substring 매핑으로 처리한다.
+  - search/comment marker 대표 block은 기존 `data-source-line` 기준을 유지하고, inline exact mapping은 `data-source-offset-*`와 line span metadata만 추가한다.

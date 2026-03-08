@@ -31,16 +31,19 @@ import { SpecLinkPopover } from './spec-link-popover'
 import {
   buildSourceLineAttributes,
   getMarkdownNodeSourceLine,
+  SOURCE_TEXT_LEAF_ATTRIBUTE,
   type MarkdownNodeWithPosition,
 } from './source-line-metadata'
 import { SpecSourcePopover } from './spec-source-popover'
 import {
   resolveNearestSourceLineFromPoint,
-  resolveSourceLineRangeFromSelection,
+  resolveSourceSelectionRangeFromSelection,
   resolveSourceLine,
 } from './source-line-resolver'
 import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 import { buildSearchMatchStartLines } from './spec-search'
+import { rehypeWrapSourceTextLeaves } from './rehype-source-text-leaves'
+import type { SourceOffsetRange } from '../source-selection'
 
 type SpecViewerPanelProps = {
   workspaceRootPath: string | null
@@ -53,10 +56,14 @@ type SpecViewerPanelProps = {
     relativePath: string,
     lineRange: SpecLinkLineRange | null,
   ) => boolean
-  onGoToSourceLine: (lineNumber: number) => void
+  onGoToSourceLine: (
+    lineNumber: number,
+    sourceOffsetRange?: SourceOffsetRange,
+  ) => void
   onRequestAddComment: (input: {
     relativePath: string
     selectionRange: { startLine: number; endLine: number }
+    sourceOffsetRange?: SourceOffsetRange
   }) => void
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
@@ -78,6 +85,7 @@ type SourcePopoverState = {
     startLine: number
     endLine: number
   }
+  sourceOffsetRange?: SourceOffsetRange
   x: number
   y: number
 }
@@ -861,16 +869,25 @@ export function SpecViewerPanel({
         return
       }
 
-      if (!hasVisibleSelectionInElement(selection, contentElement)) {
-        setSourcePopoverState(null)
-        return
-      }
+      const hasVisibleSelection = hasVisibleSelectionInElement(
+        selection,
+        contentElement,
+      )
 
-      const selectionLineRange = resolveSourceLineRangeFromSelection(selection)
+      const resolvedSelection =
+        hasVisibleSelection && markdownContent !== null
+          ? resolveSourceSelectionRangeFromSelection(selection, markdownContent)
+          : null
+      const selectionLineRange = resolvedSelection
+        ? {
+            startLine: resolvedSelection.startLine,
+            endLine: resolvedSelection.endLine,
+          }
+        : null
       const fallbackSourceLine =
         resolveSourceLine({
           target: event.target,
-          selection,
+          selection: hasVisibleSelection ? selection : null,
         }) ?? resolveNearestSourceLineFromPoint(contentElement, event.clientY)
       const resolvedSelectionRange =
         selectionLineRange ??
@@ -890,11 +907,14 @@ export function SpecViewerPanel({
       setLinkPopoverState(null)
       setSourcePopoverState({
         selectionRange: resolvedSelectionRange,
+        ...(resolvedSelection?.sourceOffsetRange
+          ? { sourceOffsetRange: resolvedSelection.sourceOffsetRange }
+          : {}),
         x: event.clientX,
         y: event.clientY,
       })
     },
-    [closeCommentHover],
+    [closeCommentHover, markdownContent],
   )
 
   const handleAddComment = useCallback(() => {
@@ -905,6 +925,9 @@ export function SpecViewerPanel({
     onRequestAddComment({
       relativePath: activeSpecPath,
       selectionRange: sourcePopoverState.selectionRange,
+      ...(sourcePopoverState.sourceOffsetRange
+        ? { sourceOffsetRange: sourcePopoverState.sourceOffsetRange }
+        : {}),
     })
     setSourcePopoverState(null)
   }, [activeSpecPath, onRequestAddComment, sourcePopoverState])
@@ -914,7 +937,14 @@ export function SpecViewerPanel({
       return
     }
 
-    onGoToSourceLine(sourcePopoverState.selectionRange.startLine)
+    if (sourcePopoverState.sourceOffsetRange) {
+      onGoToSourceLine(
+        sourcePopoverState.selectionRange.startLine,
+        sourcePopoverState.sourceOffsetRange,
+      )
+    } else {
+      onGoToSourceLine(sourcePopoverState.selectionRange.startLine)
+    }
     setSourcePopoverState(null)
   }, [onGoToSourceLine, sourcePopoverState])
 
@@ -986,6 +1016,28 @@ export function SpecViewerPanel({
           >
             {children}
           </a>
+        )
+      },
+      span: (props) => {
+        const { node, children, ...spanProps } = props as {
+          node?: MarkdownNodeWithPosition
+          children?: ReactNode
+        }
+        const isSourceTextLeaf =
+          node?.properties?.[SOURCE_TEXT_LEAF_ATTRIBUTE] === 'true'
+        if (!isSourceTextLeaf) {
+          return <span {...spanProps}>{children}</span>
+        }
+
+        return (
+          <span
+            {...spanProps}
+            {...buildSourceLineAttributes(node, {
+              includeAnchorLine: false,
+            })}
+          >
+            {children}
+          </span>
         )
       },
       img: (props) => {
@@ -1308,7 +1360,11 @@ export function SpecViewerPanel({
             <ReactMarkdown
               components={markdownComponents}
               urlTransform={(url) => sanitizeMarkdownUri(url)}
-              rehypePlugins={[rehypeSlug, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
+              rehypePlugins={[
+                rehypeSlug,
+                [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA],
+                rehypeWrapSourceTextLeaves,
+              ]}
               remarkPlugins={[remarkGfm]}
             >
               {markdownContent}

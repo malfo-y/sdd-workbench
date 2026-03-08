@@ -3,6 +3,7 @@ import {
   resolveNearestSourceLineFromPoint,
   resolveSourceLine,
   resolveSourceLineRangeFromSelection,
+  resolveSourceSelectionRangeFromSelection,
   resolveSourceLineFromSelection,
   resolveSourceLineFromTarget,
 } from './source-line-resolver'
@@ -143,6 +144,65 @@ describe('source-line-resolver', () => {
     table.append(row)
 
     expect(resolveSourceLineFromTarget(textNode)).toBe(5)
+  })
+
+  it('resolves exact source offsets from annotated text leaf selection', () => {
+    const paragraph = document.createElement('p')
+    paragraph.setAttribute('data-source-line', '3')
+    paragraph.setAttribute('data-source-line-start', '3')
+    paragraph.setAttribute('data-source-line-end', '3')
+    const leaf = document.createElement('span')
+    leaf.setAttribute('data-source-line-start', '3')
+    leaf.setAttribute('data-source-line-end', '3')
+    leaf.setAttribute('data-source-offset-start', '24')
+    leaf.setAttribute('data-source-offset-end', '29')
+    const textNode = document.createTextNode('gamma')
+    leaf.append(textNode)
+    paragraph.append(leaf)
+
+    const selection = {
+      anchorNode: textNode,
+      anchorOffset: 1,
+      focusNode: textNode,
+      focusOffset: 4,
+    } as unknown as Selection
+
+    expect(
+      resolveSourceSelectionRangeFromSelection(
+        selection,
+        '# Title\n\nalpha **beta** gamma',
+      ),
+    ).toEqual({
+      startLine: 3,
+      endLine: 3,
+      sourceOffsetRange: {
+        startOffset: 25,
+        endOffset: 28,
+      },
+    })
+  })
+
+  it('falls back to line-only range when exact offset metadata is unavailable', () => {
+    const paragraph = document.createElement('p')
+    paragraph.setAttribute('data-source-line', '3')
+    paragraph.setAttribute('data-source-line-start', '3')
+    paragraph.setAttribute('data-source-line-end', '3')
+    const textNode = document.createTextNode('plain text')
+    paragraph.append(textNode)
+
+    const selection = {
+      anchorNode: textNode,
+      anchorOffset: 0,
+      focusNode: textNode,
+      focusOffset: 5,
+    } as unknown as Selection
+
+    expect(
+      resolveSourceSelectionRangeFromSelection(selection, '# Title\n\nplain text'),
+    ).toEqual({
+      startLine: 3,
+      endLine: 3,
+    })
   })
 
   it('normalizes range across two nodes with different source spans', () => {

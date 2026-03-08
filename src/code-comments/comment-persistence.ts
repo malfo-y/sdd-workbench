@@ -5,6 +5,7 @@ import {
   type CodeComment,
   type CodeCommentAnchor,
 } from './comment-types'
+import { normalizeSourceOffsetRange } from '../source-selection'
 
 type ParsedCommentsResult = {
   comments: CodeComment[]
@@ -25,6 +26,17 @@ function parseAnchor(rawAnchor: unknown): CodeCommentAnchor | null {
     return null
   }
 
+  const sourceOffsetRange = normalizeSourceOffsetRange({
+    startOffset:
+      typeof anchorRecord.startOffset === 'number'
+        ? anchorRecord.startOffset
+        : Number(anchorRecord.startOffset),
+    endOffset:
+      typeof anchorRecord.endOffset === 'number'
+        ? anchorRecord.endOffset
+        : Number(anchorRecord.endOffset),
+  })
+
   return {
     snippet,
     hash,
@@ -33,6 +45,12 @@ function parseAnchor(rawAnchor: unknown): CodeCommentAnchor | null {
       : {}),
     ...(typeof anchorRecord.after === 'string'
       ? { after: anchorRecord.after }
+      : {}),
+    ...(sourceOffsetRange
+      ? {
+          startOffset: sourceOffsetRange.startOffset,
+          endOffset: sourceOffsetRange.endOffset,
+        }
       : {}),
   }
 }

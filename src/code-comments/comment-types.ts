@@ -3,6 +3,8 @@ export type CodeCommentAnchor = {
   hash: string
   before?: string
   after?: string
+  startOffset?: number
+  endOffset?: number
 }
 
 export type CodeComment = {
