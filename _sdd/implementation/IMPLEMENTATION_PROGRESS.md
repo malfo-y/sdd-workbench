@@ -1513,3 +1513,199 @@
   - Code->Spec mapping은 semantic linking이 아니라 same-file markdown `selectionRange.startLine` -> rendered block best-effort 매핑만 다룬다.
   - navigation highlight는 search/comment/exact offset state와 분리된 temporary visual feedback로만 추가한다.
   - Code Viewer highlight는 explicit navigation jump에서만 활성화하고, 일반 파일 선택/selection sync jump에는 적용하지 않는다.
+
+---
+
+## F36/F37 Phase 1 Addendum (2026-03-08)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/implementation/IMPLEMENTATION_PLAN.md` (F36/F37)
+- Covered tasks:
+  - Phase 1: `1, 2` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 1 | appearance theme 계약 및 persistence helper 추가 | P0 | - | completed | `appearance-theme.test.ts` pass |
+| 2 | App selector, root attribute, panel prop wiring 추가 | P0 | 1 | completed | `App.test.tsx` pass |
+
+### 2) Files Changed (F36/F37 Phase 1)
+
+- `src/appearance-theme.ts` (new)
+- `src/appearance-theme.test.ts` (new)
+- `src/appearance-theme-selector.tsx` (new)
+- `src/App.tsx`
+- `src/App.test.tsx`
+- `src/code-editor/code-editor-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_1.md`
+
+### 3) Test and Quality Gate Status (F36/F37 Phase 1)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm install`: skipped (package manifest unchanged)
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`56 files, 579 passed, 1 skipped`)
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F36/F37 Phase 1)
+
+- Group A: `1 -> 2`
+  - Reason: `src/App.tsx` lazy hydrate state와 header/root wiring이 같은 state contract를 공유하므로 순차 실행
+
+### 5) Blockers and Decisions (F36/F37 Phase 1)
+
+- Blockers: 없음
+- Applied decisions:
+  - root theme source of truth는 `document.documentElement[data-theme]`로 고정했다.
+  - selector styling은 기존 select 스타일(`workspace-switcher-select`)을 재사용해 Phase 1에서 CSS scope를 늘리지 않았다.
+  - panel prop wiring은 Phase 1에서 먼저 고정하고, 실제 theme-aware 렌더링(CM6/Shiki)은 Phase 2 이후 task로 넘긴다.
+
+---
+
+## F36/F37 Phase 2 Addendum (2026-03-08)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/implementation/IMPLEMENTATION_PLAN.md` (F36/F37)
+- Covered tasks:
+  - Phase 2: `3, 4, 5` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 3 | global CSS token layer 도입 및 explicit theme root 정리 | P0 | 2 | completed | `npm test`, `npm run build` pass |
+| 4 | CodeMirror `dark-gray` retune + `light` theme routing 추가 | P0 | 2 | completed | `code-editor-panel.test.tsx` pass |
+| 5 | Shiki/spec code block theme-aware routing 추가 | P0 | 2 | completed | `syntax-highlight.test.ts`, `spec-viewer-panel.test.tsx` pass |
+
+### 2) Files Changed (F36/F37 Phase 2)
+
+- `src/index.css`
+- `src/App.css`
+- `src/code-editor/cm6-dark-theme.ts`
+- `src/code-editor/cm6-light-theme.ts` (new)
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/code-viewer/syntax-highlight.ts`
+- `src/code-viewer/syntax-highlight.test.ts`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_2.md`
+
+### 3) Test and Quality Gate Status (F36/F37 Phase 2)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm install`: skipped (package manifest unchanged)
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`56 files, 583 passed, 1 skipped`)
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F36/F37 Phase 2)
+
+- Group A: `3`, `4`, `5`
+  - Parallel-eligible by Target Files, but single-session execution was kept to tune shared `dark-gray`/`light` palette changes coherently across CSS, CM6, and Shiki before final verification.
+
+### 5) Blockers and Decisions (F36/F37 Phase 2)
+
+- Blockers: 없음
+- Applied decisions:
+  - global shell/token foundation은 `src/index.css` semantic token으로 정의하고, `src/App.css`에는 token consumption만 남기도록 정리했다.
+  - current app palette는 공식 `dark-gray` baseline으로 간주하고, major shell surfaces의 raw hex/rgba 값은 `src/App.css`에서 제거했다.
+  - CodeMirror theme routing은 editor recreate 대신 compartment reconfigure로 처리해 theme switch 비용을 낮췄다.
+  - Shiki theme cache는 appearance theme별로 분리하고, `github-dark-dimmed` / `github-light`를 dark-gray/light baseline으로 채택했다.
+  - Shiki dynamic import는 `ThemeInput` / `LanguageInput` lazy getter contract를 직접 사용하도록 맞춰 `tsc` 오류를 해소했다.
+
+---
+
+## F36/F37 Phase 3 Addendum (2026-03-08)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/implementation/IMPLEMENTATION_PLAN.md` (F36/F37)
+- Covered tasks:
+  - Phase 3: `6` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 6 | light palette를 App shell/panel/control 전반에 완성 | P1 | 3, 4, 5 | completed | `App.test.tsx`, `npm test`, `npm run build` pass |
+
+### 2) Files Changed (F36/F37 Phase 3)
+
+- `src/index.css`
+- `src/App.css`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_3.md`
+
+### 3) Test and Quality Gate Status (F36/F37 Phase 3)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm install`: skipped (package manifest unchanged)
+- `npx tsc --noEmit`: pass
+- `npm test -- --run src/App.test.tsx`: pass (`1 file, 108 passed, 1 skipped`)
+- `npm test`: pass (`56 files, 584 passed, 1 skipped`)
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F36/F37 Phase 3)
+
+- Group A: `6`
+  - Reason: light palette tuning is a single CSS surface-polish task spanning shared token values and App shell selectors, so sequential execution was the safe/default path.
+
+### 5) Blockers and Decisions (F36/F37 Phase 3)
+
+- Blockers: 없음
+- Applied decisions:
+  - light palette polish는 새 theme mode를 늘리지 않고 `index.css`의 light token values와 `App.css`의 surface/shadow/hover 사용 방식만 조정했다.
+  - sidebar/card/panel/modal 계열 주요 surface는 `background + box-shadow`를 명시해 light mode에서 표면 분리가 유지되도록 했다.
+  - file tree/remote step tab에는 hover 배경을 추가해 light theme에서 interaction affordance를 보강했다.
+  - JSDOM이 imported CSS custom property computed value를 안정적으로 제공하지 않아, `App.test.tsx`는 CSS source contract(`index.css`, `App.css`)를 읽어 light palette tokens/selectors를 회귀 고정하도록 했다.
+
+---
+
+## F36/F37 Phase 4 Addendum (2026-03-08)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/implementation/IMPLEMENTATION_PLAN.md` (F36/F37)
+- Covered tasks:
+  - Phase 4: `7` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| 7 | persistence/theme switching 회귀 테스트 및 품질 게이트 보강 | P0 | 4, 5, 6 | completed | `appearance-theme.test.ts`, `App.test.tsx`, `code-editor-panel.test.tsx`, `npm test`, `npm run build` pass |
+
+### 2) Files Changed (F36/F37 Phase 4)
+
+- `src/appearance-theme.test.ts`
+- `src/App.test.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT_PHASE_4.md` (new)
+
+### 3) Test and Quality Gate Status (F36/F37 Phase 4)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.7.0`
+- `npm install`: skipped (package manifest unchanged)
+- `npm test -- --run src/appearance-theme.test.ts src/App.test.tsx src/code-editor/code-editor-panel.test.tsx`: pass (`3 files, 162 passed, 1 skipped`)
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`56 files, 587 passed, 1 skipped`)
+- `npm run build`: pass
+
+### 4) Parallel Groups Executed (F36/F37 Phase 4)
+
+- Group A: `7`
+  - Reason: regression tightening, full-gate verification, and report synchronization were centered on overlapping integration surfaces, so single-session execution was the stable path.
+
+### 5) Blockers and Decisions (F36/F37 Phase 4)
+
+- Blockers: 없음
+- Applied decisions:
+  - `appearance-theme.test.ts`는 storage unavailable/null 경로와 `dark-gray` overwrite 경로를 고정했다.
+  - `App.test.tsx`는 `light -> dark-gray` 왕복 전환 시 root dataset, storage, child panel prop이 stale state 없이 함께 되돌아오는지를 고정했다.
+  - `code-editor-panel.test.tsx`는 jsdom에서 `.cm-searchMatch` decoration을 직접 안정적으로 관찰하기 어려워, navigation marker visibility는 DOM으로 검증하고 search/selection color visibility는 `cm6-dark-theme.ts` / `cm6-light-theme.ts` source contract로 고정했다.
+  - full `tsc` / `npm test` / `npm run build`를 다시 실행해 F36/F37 전체 기능 묶음의 종료 기준을 같은 시점 기준으로 재확인했다.

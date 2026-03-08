@@ -1,9 +1,20 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EditorView } from '@codemirror/view'
 import { CodeEditorPanel } from './code-editor-panel'
 import { gitMarkersField } from './cm6-git-gutter'
 import { commentMarkersField } from './cm6-comment-gutter'
+
+const cm6DarkThemeSource = readFileSync(
+  resolve(process.cwd(), 'src/code-editor/cm6-dark-theme.ts'),
+  'utf8',
+)
+const cm6LightThemeSource = readFileSync(
+  resolve(process.cwd(), 'src/code-editor/cm6-light-theme.ts'),
+  'utf8',
+)
 
 // ---------------------------------------------------------------------------
 // Helpers for CM6 editor interaction in jsdom
@@ -666,6 +677,106 @@ describe('CodeEditorPanel', () => {
     await waitFor(() => {
       expect(container.querySelector('.cm-navigation-line')).toBeNull()
     })
+  })
+
+  it('switches CodeMirror theme when appearanceTheme changes', async () => {
+    const props = makeDefaultProps()
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha **beta** gamma'}
+        appearanceTheme="dark-gray"
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    const getView = () => getCM6View(container)
+    expect(getView()?.state.facet(EditorView.darkTheme)).toBe(true)
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha **beta** gamma'}
+        appearanceTheme="light"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getView()?.state.facet(EditorView.darkTheme)).toBe(false)
+    })
+  })
+
+  it('keeps navigation markers visible across appearance theme changes and defines search colors in both theme routes', async () => {
+    const props = makeDefaultProps()
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha beta alpha gamma'}
+        appearanceTheme="dark-gray"
+        jumpRequest={{
+          targetRelativePath: 'docs/spec.md',
+          lineNumber: 3,
+          shouldHighlight: true,
+          token: 71,
+        }}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    const getView = () => getCM6View(container)
+    const view = getView()
+    if (!view) {
+      throw new Error('Expected CodeMirror view')
+    }
+
+    await waitFor(() => {
+      expect(container.querySelector('.cm-navigation-line')).not.toBeNull()
+      expect(getView()?.state.facet(EditorView.darkTheme)).toBe(true)
+    })
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha beta alpha gamma'}
+        appearanceTheme="light"
+        jumpRequest={{
+          targetRelativePath: 'docs/spec.md',
+          lineNumber: 3,
+          shouldHighlight: true,
+          token: 71,
+        }}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getView()?.state.facet(EditorView.darkTheme)).toBe(false)
+      expect(container.querySelector('.cm-navigation-line')).not.toBeNull()
+    })
+
+    expect(cm6DarkThemeSource).toMatch(
+      /\.cm-searchMatch[\s\S]*backgroundColor:\s*'rgba\(214,177,65,0\.22\)'/,
+    )
+    expect(cm6DarkThemeSource).toMatch(
+      /\.cm-selectionMatch[\s\S]*backgroundColor:\s*'rgba\(123,182,232,0\.14\)'/,
+    )
+    expect(cm6LightThemeSource).toMatch(
+      /\.cm-searchMatch[\s\S]*backgroundColor:\s*'rgba\(214,177,65,0\.24\)'/,
+    )
+    expect(cm6LightThemeSource).toMatch(
+      /\.cm-selectionMatch[\s\S]*backgroundColor:\s*'rgba\(52,120,185,0\.12\)'/,
+    )
   })
 
   it('does NOT re-dispatch scrollIntoView for the same jump token on re-render', async () => {

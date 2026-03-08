@@ -1,102 +1,91 @@
-# F24 Phase 1 Implementation Report — CM6 Read-Only Replacement
+# F36/F37 Phase 1 Implementation Report — Theme Foundation & App Wiring
 
 ## Progress Summary
 
-- **Total Tasks**: 5 (T1–T5)
-- **Completed**: 5/5
-- **Tests Added**: 57 (30 + 9 + 18)
-- **All Passing**: Yes (342 passed, 1 skipped)
-- **Build**: Clean (`tsc && vite build && electron-builder`)
+- **Total Tasks**: 2 (`1`, `2`)
+- **Completed**: 2/2
+- **Tests Added**: 5 (`appearance-theme.test.ts` 3 + `App.test.tsx` 2)
+- **All Passing**: Yes (`579 passed, 1 skipped`)
+- **Build**: Clean (`npx tsc --noEmit`, `npm test`, `npm run build`)
 
 ## Parallel Execution Stats
 
 | Metric | Value |
 |--------|-------|
-| Total Groups Dispatched | 3 |
-| Tasks Run in Parallel | 3 (T1∥T2∥T3 in Group 1) |
-| Sequential Tasks | 2 (T4 in Group 2, T5 in Group 3) |
+| Total Groups Dispatched | 1 |
+| Tasks Run in Parallel | 0 |
+| Sequential Tasks | 2 (`1 -> 2`) |
 | Sub-agent Failures | 0 |
-| Test Fix Round | 1 (15 App.test.tsx adaptations after T5 swap) |
+| Sequential Fallback Reason | `src/App.tsx` state contract / root wiring 공유 |
 
 ## Completed Tasks
 
 | ID | Task | Tests | Execution |
 |----|------|-------|-----------|
-| T1 | CM6 Dark Theme (`cm6-dark-theme.ts`) | 0 (visual) | Group 1 ∥ |
-| T2 | CM6 Language Map (`cm6-language-map.ts`) | 30 | Group 1 ∥ |
-| T3 | CM6 Selection Bridge (`cm6-selection-bridge.ts`) | 9 | Group 1 ∥ |
-| T4 | CodeEditorPanel (`code-editor-panel.tsx`) | 18 | Group 2 (sequential) |
-| T5 | App.tsx Swap + CSS + Test Fix | 0 new (15 adapted) | Group 3 (sequential) |
+| 1 | appearance theme 계약 및 persistence helper 추가 | 3 | Group A (sequential) |
+| 2 | App selector, root attribute, panel prop wiring 추가 | 2 | Group A (sequential) |
 
 ## Files Created
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `src/code-editor/cm6-dark-theme.ts` | ~50 | CM6 dark theme (github-dark matching) |
-| `src/code-editor/cm6-language-map.ts` | ~99 | Async language loader for 13 languages |
-| `src/code-editor/cm6-language-map.test.ts` | ~180 | 30 tests for language mapping |
-| `src/code-editor/cm6-selection-bridge.ts` | ~22 | CM6 selection → LineSelectionRange |
-| `src/code-editor/cm6-selection-bridge.test.ts` | ~80 | 9 tests using real EditorState |
-| `src/code-editor/code-editor-panel.tsx` | ~502 | CM6-based read-only editor panel |
-| `src/code-editor/code-editor-panel.test.tsx` | ~200 | 18 tests for panel UI states |
+| File | Description |
+|------|-------------|
+| `src/appearance-theme.ts` | appearance theme 타입, storage key, load/save helper |
+| `src/appearance-theme.test.ts` | helper unit tests |
+| `src/appearance-theme-selector.tsx` | header theme selector UI |
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/App.tsx` | Import swap: `CodeViewerPanel` → `CodeEditorPanel` |
-| `src/App.css` | Added `.cm-editor` height/overflow styles |
-| `src/App.test.tsx` | 15 tests adapted for CM6 DOM differences |
+| `src/App.tsx` | lazy hydrate + root `data-theme` + header selector + panel prop wiring |
+| `src/App.test.tsx` | theme restore/fallback/selector integration regression |
+| `src/code-editor/code-editor-panel.tsx` | optional `appearanceTheme` prop + root data attribute |
+| `src/spec-viewer/spec-viewer-panel.tsx` | optional `appearanceTheme` prop + root data attribute |
 
 ## Test Summary
 
-- **New unit tests**: 57
-- **Adapted integration tests**: 15 (in App.test.tsx)
-- **Skipped**: 1 (git line markers — deferred to Phase 3)
-- **Final result**: 342 passed, 1 skipped, 0 failed
-- **Type check**: Clean (`tsc --noEmit`)
+- **New tests**: 5
+- **Final result**: `56 files, 579 passed, 1 skipped`
+- **Type check**: Clean (`npx tsc --noEmit`)
+- **Build**: Clean (`npm run build`)
 
 ## Quality Assessment
 
 ### Security
-- No new IPC channels or permission boundaries introduced
-- Read-only mode enforced via `EditorState.readOnly.of(true)`
+- 새로운 IPC 채널이나 권한 경계 변경 없음
+- renderer localStorage만 사용하고, theme 값은 허용된 유니온으로만 파싱
 
 ### Error Handling
-- All existing fallback UI paths preserved (empty, loading, error, preview unavailable, image preview)
-- CM6 jsdom `getClientRects` warnings are expected and non-blocking
+- malformed 저장값은 `dark-gray`로 안전하게 fallback
+- unmount 시 root `data-theme`를 제거해 테스트/재마운트 오염 방지
 
 ### Code Patterns
-- Props interface matches existing `CodeViewerPanelProps` exactly for seamless swap
-- Same `data-testid` attributes retained for test compatibility
-- Language support loaded lazily via dynamic `import()` for code splitting
-- CM6 lifecycle managed via `useRef<EditorView>` + `useEffect` cleanup
+- theme 계약을 `src/appearance-theme.ts`로 분리해 App에서 재사용
+- selector는 최소 UI 컴포넌트로 분리하고 기존 select 스타일을 재사용
+- Code/Spec panel에는 additive prop만 추가해 Phase 2 theme routing 준비 완료
 
 ### Performance
-- Language packages are lazily imported (13 separate chunks in build output)
-- CM6 theme and extensions rebuilt only on file/content change
-- No regressions observed in build size or test execution time
+- theme hydrate는 lazy `useState` initializer로 1회만 수행
+- root attribute 전환만 추가되어 Phase 1 렌더 비용 증가는 미미함
 
 ### Test Quality
-- CM6 modules tested with real `EditorState.create()` (not mocks)
-- Language map tests verify actual `LanguageSupport` instances
-- Panel tests verify DOM structure and callback wiring
+- helper는 순수 unit test로 고정
+- App integration test는 restore, malformed fallback, persistence, panel prop forwarding을 함께 검증
 
 ## Issues Encountered & Resolved
 
 | Issue | Resolution |
 |-------|------------|
-| EditorView not created when `showEditor` false on mount | Changed effect dependency from `[]` to `[showEditor]` |
-| Context menu not firing in jsdom | Changed from `view.dom` to `container` element listener |
-| 15 App.test.tsx failures after swap | Adapted tests for CM6 DOM (no `code-line-*` testids) |
-| Git marker test incompatible with CM6 | Skipped with TODO for Phase 3 gutter implementation |
+| theme restore 로직은 추가됐지만 root attribute/source of truth가 없었음 | `document.documentElement[data-theme]` effect로 고정 |
+| selector UI 추가를 위해 App.css를 건드리면 Phase 1 scope가 넓어질 수 있었음 | 기존 `workspace-switcher-select` 스타일을 재사용 |
+| panel theme wiring을 지금 안 잡으면 Phase 2 task가 App 계약 변경까지 다시 건드려야 함 | Phase 1에서 optional `appearanceTheme` prop과 root data attribute를 먼저 고정 |
 
 ## Phase Verdict
 
-**READY** — All acceptance criteria met, all tests passing, build clean.
+**READY** — Phase 1 acceptance criteria 충족, 타입 체크/전체 테스트/빌드 모두 통과.
 
 ## Next Steps
 
-- **Phase 2**: Edit + Save + Dirty State (T6–T10)
-- **Phase 3**: Gutter Extensions — git markers, comment badges (T11–T13)
-- **Phase 4**: Legacy Cleanup — delete old code-viewer files (T14–T15)
+- **Phase 2 / Task 3**: `src/index.css`, `src/App.css` token foundation + explicit theme root 정리
+- **Phase 2 / Task 4**: CM6 `dark-gray` retune + `light` theme routing
+- **Phase 2 / Task 5**: Shiki/spec code block theme-aware routing

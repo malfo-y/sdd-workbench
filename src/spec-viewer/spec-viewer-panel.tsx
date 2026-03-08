@@ -13,6 +13,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
+import type { AppearanceTheme } from '../appearance-theme'
 import {
   mapCommentCountsToRenderedSourceLines,
   mapCommentEntriesToRenderedSourceLines,
@@ -50,6 +51,7 @@ type SpecViewerPanelProps = {
   workspaceRootPath: string | null
   activeSpecPath: string | null
   markdownContent: string | null
+  appearanceTheme?: AppearanceTheme
   navigationRequest?: {
     targetRelativePath: string
     lineNumber: number
@@ -393,15 +395,17 @@ function mapSearchMatchLinesToRenderedSourceLines(
 function HighlightedCodeBlock({
   code,
   language,
+  appearanceTheme,
 }: {
   code: string
   language: HighlightLanguage
+  appearanceTheme: AppearanceTheme
 }) {
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    highlightLines(code, language).then((lines) => {
+    highlightLines(code, language, appearanceTheme).then((lines) => {
       if (!cancelled) {
         setHighlightedHtml(lines.join('\n'))
       }
@@ -409,7 +413,7 @@ function HighlightedCodeBlock({
     return () => {
       cancelled = true
     }
-  }, [code, language])
+  }, [appearanceTheme, code, language])
 
   if (highlightedHtml === null) {
     return <code>{code}</code>
@@ -422,6 +426,7 @@ export function SpecViewerPanel({
   workspaceRootPath,
   activeSpecPath,
   markdownContent,
+  appearanceTheme = 'dark-gray',
   navigationRequest = null,
   isActive = false,
   isLoading,
@@ -1157,7 +1162,13 @@ export function SpecViewerPanel({
         }
         const language = resolveMarkdownLanguage(languageMatch[1])
         const codeText = String(children).replace(/\n$/, '')
-        return <HighlightedCodeBlock code={codeText} language={language} />
+        return (
+          <HighlightedCodeBlock
+            appearanceTheme={appearanceTheme}
+            code={codeText}
+            language={language}
+          />
+        )
       },
       p: (props) =>
         renderBlockWithSourceLine(
@@ -1283,7 +1294,11 @@ export function SpecViewerPanel({
   )
 
   return (
-    <section className="spec-viewer-panel" data-testid="spec-viewer-panel">
+    <section
+      className="spec-viewer-panel"
+      data-appearance-theme={appearanceTheme}
+      data-testid="spec-viewer-panel"
+    >
       <p className="label">Rendered Spec</p>
       <p
         className="path spec-viewer-active-spec"

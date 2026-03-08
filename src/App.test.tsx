@@ -1,14 +1,26 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { StrictMode } from 'react'
 import { EditorView } from '@codemirror/view'
 import App from './App'
+import {
+  APPEARANCE_THEME_STORAGE_KEY,
+  DEFAULT_APPEARANCE_THEME,
+} from './appearance-theme'
 import { WorkspaceProvider } from './workspace/workspace-context'
 import { useWorkspace } from './workspace/use-workspace'
 import {
   WORKSPACE_SESSION_SCHEMA_VERSION,
   WORKSPACE_SESSION_STORAGE_KEY,
 } from './workspace/workspace-persistence'
+
+const indexCssSource = readFileSync(
+  resolve(process.cwd(), 'src/index.css'),
+  'utf8',
+)
+const appCssSource = readFileSync(resolve(process.cwd(), 'src/App.css'), 'utf8')
 
 function MarkDirtyButton() {
   const { markFileDirty } = useWorkspace()
@@ -61,6 +73,14 @@ function setWorkspaceSessionStorage(rawValue: unknown) {
 
 function clearWorkspaceSessionStorage() {
   window.localStorage.removeItem(WORKSPACE_SESSION_STORAGE_KEY)
+}
+
+function setAppearanceThemeStorage(value: string) {
+  window.localStorage.setItem(APPEARANCE_THEME_STORAGE_KEY, value)
+}
+
+function clearAppearanceThemeStorage() {
+  window.localStorage.removeItem(APPEARANCE_THEME_STORAGE_KEY)
 }
 
 function getCM6View(container: HTMLElement): EditorView | null {
@@ -355,6 +375,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       value: createTestStorage(),
     })
     clearWorkspaceSessionStorage()
+    clearAppearanceThemeStorage()
     window.workspace = {
       openDialog: openDialogMock,
       index: indexWorkspaceMock,
@@ -606,23 +627,173 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
 
     const headerActions = screen.getByTestId('app-header-actions')
-    const childClassNames = Array.from(headerActions.children).map((child) =>
-      child.className.toString(),
+    const childTestIds = Array.from(headerActions.children).map((child) =>
+      child.getAttribute('data-testid'),
     )
 
-    expect(childClassNames).toEqual([
-      'header-comments-group',
-    ])
+    expect(childTestIds).toEqual(['header-theme-group', 'header-comments-group'])
     expect(screen.getByTestId('app-header-left')).toContainElement(
       screen.getByTestId('header-history-actions'),
     )
     expect(screen.getByTestId('app-header-left')).toContainElement(
       screen.getByTestId('content-tab-bar'),
     )
+    expect(screen.getByTestId('header-theme-group')).toHaveTextContent('Theme')
     expect(screen.getByTestId('header-comments-group')).toHaveTextContent(
       'Code comments',
     )
     expect(screen.getByTestId('sidebar-workspace-group')).toBeInTheDocument()
+  })
+
+  it('restores the stored appearance theme and forwards it to both panels', async () => {
+    setAppearanceThemeStorage('light')
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    })
+
+    expect(screen.getByTestId('appearance-theme-select')).toHaveValue('light')
+    expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'light',
+    )
+    expect(screen.getByTestId('spec-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'light',
+    )
+  })
+
+  it('falls back to dark-gray for malformed storage and persists selector changes', async () => {
+    setAppearanceThemeStorage('neon')
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    const themeSelect = screen.getByTestId('appearance-theme-select')
+
+    await waitFor(() => {
+      expect(themeSelect).toHaveValue(DEFAULT_APPEARANCE_THEME)
+    })
+    expect(document.documentElement).toHaveAttribute(
+      'data-theme',
+      DEFAULT_APPEARANCE_THEME,
+    )
+
+    fireEvent.change(themeSelect, { target: { value: 'light' } })
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    })
+    expect(window.localStorage.getItem(APPEARANCE_THEME_STORAGE_KEY)).toBe('light')
+    expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'light',
+    )
+    expect(screen.getByTestId('spec-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'light',
+    )
+  })
+
+  it('switches back to dark-gray after selecting light without leaving stale theme state', async () => {
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    const themeSelect = screen.getByTestId('appearance-theme-select')
+
+    fireEvent.change(themeSelect, { target: { value: 'light' } })
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    })
+
+    fireEvent.change(themeSelect, { target: { value: 'dark-gray' } })
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute('data-theme', 'dark-gray')
+    })
+    expect(window.localStorage.getItem(APPEARANCE_THEME_STORAGE_KEY)).toBe(
+      'dark-gray',
+    )
+    expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'dark-gray',
+    )
+    expect(screen.getByTestId('spec-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'dark-gray',
+    )
+  })
+
+  it('applies the light palette contract to root theme tokens and major shell surfaces', async () => {
+    setAppearanceThemeStorage('light')
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    })
+
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-bg-app:\s*#e5e9ee;/,
+    )
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-bg-surface:\s*#edf1f5;/,
+    )
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-border:\s*#c8d0d8;/,
+    )
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-surface-shadow:\s*0 6px 18px rgba\(31, 35, 40, 0\.06\);/,
+    )
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-warning-text:\s*#745c0f;/,
+    )
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-git-added-border:\s*#57ab5a;/,
+    )
+    expect(indexCssSource).toMatch(
+      /:root\[data-theme='light'\][\s\S]*--theme-navigation-ring:\s*rgba\(9, 105, 218, 0\.3\);/,
+    )
+
+    expect(appCssSource).toMatch(
+      /\.sidebar-workspace-group\s*\{[\s\S]*background:\s*var\(--theme-bg-surface-alt\);[\s\S]*box-shadow:\s*var\(--theme-surface-shadow\);/,
+    )
+    expect(appCssSource).toMatch(
+      /\.file-tree-panel\s*\{[\s\S]*background:\s*var\(--theme-bg-surface-alt\);[\s\S]*box-shadow:\s*var\(--theme-surface-shadow\);/,
+    )
+    expect(appCssSource).toMatch(
+      /\.code-viewer-panel\s*\{[\s\S]*background:\s*var\(--theme-bg-surface-alt\);[\s\S]*box-shadow:\s*var\(--theme-surface-shadow\);/,
+    )
+    expect(appCssSource).toMatch(
+      /\.spec-viewer-content\s*\{[\s\S]*background:\s*var\(--theme-bg-surface-alt\);[\s\S]*box-shadow:\s*var\(--theme-surface-shadow\);/,
+    )
+    expect(appCssSource).toMatch(
+      /\.comment-modal\s*\{[\s\S]*box-shadow:\s*var\(--theme-modal-shadow\);/,
+    )
+
+    expect(screen.getByTestId('sidebar-workspace-group')).toBeInTheDocument()
+    expect(screen.getByTestId('file-tree-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('code-viewer-panel')).toHaveAttribute(
+      'data-appearance-theme',
+      'light',
+    )
   })
 
   it('uses compact comment/workspace action buttons with accessible labels', () => {

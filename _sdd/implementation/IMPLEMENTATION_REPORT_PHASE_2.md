@@ -1,248 +1,103 @@
-# IMPLEMENTATION_REPORT_PHASE_2
+# F36/F37 Phase 2 Implementation Report — `dark-gray` Baseline + Theme-Aware CM6/Shiki
 
-## 1) Files Touched in Phase
+## Progress Summary
 
-- `src/spec-viewer/spec-viewer-panel.tsx` (new)
-- `src/App.tsx`
-- `src/App.css`
+- **Total Tasks**: 3 (`3`, `4`, `5`)
+- **Completed**: 3/3
+- **Tests Added**: 4 (`code-editor-panel.test.tsx` 1 + `syntax-highlight.test.ts` 2 + `spec-viewer-panel.test.tsx` 1)
+- **All Passing**: Yes (`583 passed, 1 skipped`)
+- **Build**: Clean (`npx tsc --noEmit`, `npm test`, `npm run build`)
 
-## 2) Review Checklist Summary by Category
+## Parallel Execution Stats
 
-- Security: pass
-  - renderer 렌더링 레이어 변경으로 신규 시스템 권한 추가 없음.
-- Error handling: pass
-  - active spec 없음/로딩/오류/unavailable 상태를 명시적으로 분리 표기.
-- Code patterns: pass
-  - `SpecViewerPanel` 분리로 App shell과 렌더 로직 책임 분리.
-- Performance: pass
-  - TOC depth를 `h1~h3`으로 제한해 우측 패널 초기 비용 제어.
-- Test quality: pass
-  - 컴포넌트 단위 테스트로 TOC/empty 상태 검증 준비 완료.
-- Cross-task integration: pass
-  - 기존 center `CodeViewerPanel` 흐름(raw preview)을 유지한 채 right rendered panel을 추가.
+| Metric | Value |
+|--------|-------|
+| Total Groups Dispatched | 1 |
+| Tasks Run in Parallel | 3 (parallel-eligible) |
+| Sequential Tasks | 0 |
+| Sub-agent Failures | 0 |
+| Single-session reason | shared palette tuning across CSS, CM6, and Shiki was easier to stabilize together |
 
-## 3) Phase Verdict
+## Completed Tasks
 
-- `proceed`
+| ID | Task | Tests | Execution |
+|----|------|-------|-----------|
+| 3 | global CSS token layer 도입 및 explicit theme root 정리 | full regression | Group A |
+| 4 | CodeMirror `dark-gray` retune + `light` theme routing 추가 | 1 | Group A |
+| 5 | Shiki/spec code block theme-aware routing 추가 | 3 | Group A |
 
----
+## Files Created
 
-## F04.1 Phase 2 Addendum (Tasks 3,4,5)
+| File | Description |
+|------|-------------|
+| `src/code-editor/cm6-light-theme.ts` | `light` appearance용 CM6 theme extension |
 
-### 1) Files Touched
+## Files Modified
 
-- `src/spec-viewer/spec-link-popover.tsx` (new)
-- `src/spec-viewer/spec-viewer-panel.tsx`
-- `src/App.tsx`
-- `src/App.css`
+| File | Change |
+|------|--------|
+| `src/index.css` | semantic theme token layer, explicit `data-theme` palette values, global control defaults |
+| `src/App.css` | shell/panel/control/token consumption 정리, raw color hardcode 제거 |
+| `src/code-editor/cm6-dark-theme.ts` | current dark palette를 graphite `dark-gray` baseline으로 retune |
+| `src/code-editor/code-editor-panel.tsx` | compartment-based CM6 theme routing |
+| `src/code-editor/code-editor-panel.test.tsx` | CM6 dark/light switching regression |
+| `src/code-viewer/syntax-highlight.ts` | appearance-aware Shiki routing/cache + typed lazy theme/language loader |
+| `src/code-viewer/syntax-highlight.test.ts` | light/dark-gray highlight output/cache regression |
+| `src/spec-viewer/spec-viewer-panel.tsx` | fenced code block highlight에 appearance theme 전달 |
+| `src/spec-viewer/spec-viewer-panel.test.tsx` | fenced code block theme rerender regression |
 
-### 2) Review Checklist Summary
+## Test Summary
 
-- Security: pass
-  - external/unresolved 링크를 자동 탐색하지 않고 명시 액션(복사)으로 제한.
-- Error handling: pass
-  - 클립보드 API 실패 시 banner 메시지 fallback 제공.
-- Code patterns: pass
-  - popover 컴포넌트 분리 + App에서 파일 열기/메시지 책임 분리.
-- Performance: pass
-  - popover는 클릭 시에만 렌더되며 viewport clamp 계산 비용이 작음.
-- Test quality: pass
-  - panel/app 테스트에서 링크 인터셉트와 상태 유지 경로 검증.
-- Cross-task integration: pass
-  - active workspace 파일 집합 기반 선택 로직과 충돌 없음.
+- **New tests**: 4
+- **Final result**: `56 files, 583 passed, 1 skipped`
+- **Type check**: Clean (`npx tsc --noEmit`)
+- **Build**: Clean (`npm run build`)
 
-### 3) Phase Verdict (F04.1 Phase 2)
+## Quality Assessment
 
-- `proceed`
+### Security
+- 새로운 IPC 채널, preload API, 권한 경계 변경 없음
+- theme switching은 renderer-local appearance state와 CSS/CM6/Shiki presentation만 변경
 
----
+### Error Handling
+- Shiki theme/language load 실패 시 기존 plaintext escape fallback 유지
+- initial implementation에서 발생한 `ThemeInput`/`LanguageInput` 타입 불일치는 lazy getter contract로 정리해 build gate를 복구
 
-## F05 Phase 2 Addendum (Tasks T3, T4, T5)
+### Code Patterns
+- semantic token source는 `src/index.css`, token consumption은 `src/App.css`로 분리
+- CM6는 editor recreate 대신 compartment reconfigure로 theme를 교체
+- Shiki cache를 appearance theme별로 분리해 dark-gray/light 전환 시 cache pollution을 방지
 
-### 1) Files Touched
+### Performance
+- theme switch는 root dataset 변경 + CM6 compartment reconfigure + 필요 시 fenced code block rerender만 수행
+- Shiki highlighter는 theme variant별 singleton cache를 재사용
+- `App.css`의 tokenization으로 explicit theme switch 시 `prefers-color-scheme` 경로와 충돌하지 않음
 
-- `src/spec-viewer/spec-viewer-panel.tsx`
-- `src/App.tsx`
-- `src/code-viewer/code-viewer-panel.tsx`
+### Test Quality
+- CM6 facet-based theme assertions으로 visual class 의존 없이 전환 경로를 고정
+- syntax highlight tests가 output change와 cache separation을 함께 고정
+- Spec Viewer integration test가 fenced code block rerender를 실제 panel 경로에서 검증
 
-### 2) Review Checklist Summary
+## Issues Encountered & Resolved
 
-- Security: pass
-  - 링크 인터셉트 정책은 유지되고 external 이동은 여전히 차단.
-- Error handling: pass
-  - active workspace에 파일이 없으면 기존처럼 open 실패(`false`) 처리.
-- Code patterns: pass
-  - parser 결과(`lineRange`)를 panel -> app -> viewer로 명시 전달.
-- Performance: pass
-  - jump는 token 기반 요청 시점에만 실행, 평시 비용 없음.
-- Test quality: pass
-  - Phase 3에서 panel/viewer/app 계층 테스트로 동작 검증.
-- Cross-task integration: pass
-  - F03 selection click과 공존하며 line jump만 추가됨.
+| Issue | Resolution |
+|-------|------------|
+| `App.css`에 남아 있던 surface/state hardcoded colors가 light theme 준비를 방해 | semantic token으로 이동하고 잔여 hex/rgba를 제거 |
+| Shiki dynamic import를 `Promise<unknown>`로 감싸면서 `tsc`가 `ThemeInput`/`LanguageInput` 불일치로 실패 | lazy getter 자체를 `ThemeInput`/`LanguageInput`으로 선언해 contract를 직접 맞춤 |
+| CM6 theme switch를 recreate effect에 묶으면 editor state churn이 커질 수 있었음 | 별도 `themeCompartment.reconfigure(...)` effect로 분리 |
+| build 단계에서 Shiki theme asset이 추가되며 bundle 구성이 변함 | `github-dark-dimmed` / `github-light` chunk가 정상적으로 분리 생성되는 것까지 확인 |
 
-### 3) Phase Verdict (F05 Phase 2)
+## Non-Blocking Build Notes
 
-- `proceed`
+- `vite` chunk size warning 존재 (`cpp`, main bundle 등), 이번 Phase 범위 밖
+- `electron-builder`가 `package.json`의 `description`/`author` 누락과 macOS signing 제약을 경고, 기존 상태와 동일
 
----
+## Phase Verdict
 
-## F06 Phase 2 Addendum (Task T4)
+**READY** — Phase 2 acceptance criteria 충족, 타입 체크/전체 테스트/빌드 모두 통과.
 
-### 1) Files Touched
+## Next Steps
 
-- `src/App.tsx`
-
-### 2) Review Checklist Summary
-
-- Security: pass
-  - 외부 링크/파일 시스템 권한 확대 없이 기존 API 경계 내에서 clipboard 호출만 수행.
-- Error handling: pass
-  - clipboard 미지원/실패 시 배너 메시지를 명시 처리.
-- Code patterns: pass
-  - `writeToClipboard` helper로 실패 분기 중복 제거.
-- Performance: pass
-  - 버튼 클릭 이벤트 기반 실행으로 지속 연산 없음.
-- Test quality: pass
-  - Phase 3 통합 테스트에서 성공/실패/멀티 워크스페이스 경로 검증.
-- Cross-task integration: pass
-  - F04/F05 링크 탐색과 selection 상태 전이 규칙을 유지.
-
-### 3) Phase Verdict (F06 Phase 2)
-
-- `proceed`
-
----
-
-## F06.1 Phase 2 Addendum (Tasks T3, T4)
-
-### 1) Files Touched
-
-- `src/code-viewer/code-viewer-panel.tsx`
-- `src/code-viewer/code-viewer-panel.test.tsx`
-- `src/file-tree/file-tree-panel.tsx`
-- `src/file-tree/file-tree-panel.test.tsx` (new)
-
-### 2) Review Checklist Summary
-
-- Security: pass
-  - 우클릭 이벤트 처리만 추가되며 외부 이동/권한 경로 없음.
-- Error handling: pass
-  - 우클릭 시 selection 정책(범위 내 유지/범위 밖 단일 선택)으로 상태 전이를 명시 고정.
-- Code patterns: pass
-  - 패널은 복사 실행 대신 App 콜백 요청만 수행하도록 책임 분리.
-- Performance: pass
-  - 컨텍스트 메뉴 상태는 로컬 state 기반으로 최소 범위 렌더링.
-- Test quality: pass
-  - CodeViewer 우클릭 정책/콜백, FileTree 파일/디렉터리 분기 테스트 추가.
-- Cross-task integration: pass
-  - 기존 파일 선택/디렉터리 토글/라인 클릭 흐름과 회귀 충돌 없음.
-
-### 3) Phase Verdict (F06.1 Phase 2)
-
-- `proceed`
-
----
-
-## F06.2 Phase 2 Addendum (Tasks T3, T4)
-
-### 1) Files Touched
-
-- `src/App.tsx`
-- `src/App.css`
-- `src/App.test.tsx`
-- `src/toolbar/context-toolbar.tsx` (deleted)
-- `src/toolbar/context-toolbar.test.tsx` (deleted)
-
-### 2) Review Checklist Summary
-
-- Security: pass
-  - 복사 경로 재배선과 툴바 제거만 포함되며 권한 경계 확장 없음.
-- Error handling: pass
-  - `Copy Both` 경로에서도 기존 clipboard 실패 배너 처리를 재사용.
-- Code patterns: pass
-  - 복사 실행 책임을 App에 유지하고, 패널은 요청 이벤트만 발행.
-- Performance: pass
-  - 상단 툴바 렌더 경로 제거로 상시 UI 복잡도가 감소.
-- Test quality: pass
-  - App 통합 테스트에서 툴바 제거와 컨텍스트 복사 경로를 검증.
-- Cross-task integration: pass
-  - F06.1 우클릭 UX 및 F05 line jump 흐름과 충돌 없음.
-
-### 3) Phase Verdict (F06.2 Phase 2)
-
-- `proceed`
-
----
-
-## F07 Phase 2 Addendum (Tasks T3, T4, T5)
-
-### 1) Files Touched
-
-- `src/workspace/workspace-model.ts`
-- `src/workspace/workspace-context.tsx`
-- `src/file-tree/file-tree-panel.tsx`
-- `src/App.tsx`
-- `src/App.css`
-
-### 2) Review Checklist Summary
-
-- Security: pass
-  - renderer 상태 계층 변경만 포함, 권한 경계 확장 없음.
-- Error handling: pass
-  - watch start 실패는 banner로 노출하고 close/unmount stop은 best-effort cleanup 유지.
-- Code patterns: pass
-  - `changedFiles`를 session 모델에 추가해 멀티 워크스페이스 상태 분리를 보장.
-- Performance: pass
-  - watch 이벤트 수신 시 set-union 업데이트만 수행하고 파일 읽기 흐름과 분리.
-- Test quality: pass
-  - Phase 3에서 model/file-tree/app 테스트로 상태/렌더 연동 검증.
-- Cross-task integration: pass
-  - F06.2 우클릭 복사/selection 흐름과 충돌 없이 파일 트리 마커 UI 공존.
-
-### 3) Phase Verdict (F07 Phase 2)
-
-- `proceed`
-
----
-
-## F07 Follow-up Phase 2 Addendum
-
-### 1) Files Touched
-
-- `src/App.test.tsx`
-
-### 2) Review Checklist Summary
-
-- Test quality: pass
-  - changed file 수동 열람 시 마커 제거 시나리오 추가.
-  - active file watcher 자동 리로드 + 본문 갱신 + marker 제거 시나리오 추가.
-- Cross-task integration: pass
-  - 기존 F07 watcher 테스트와 충돌 없이 함께 통과.
-
----
-
-## F07.1 Phase 2 Addendum (Tasks T3, T4)
-
-### 1) Files Touched
-
-- `src/App.tsx`
-- `src/workspace/workspace-context.tsx`
-
-### 2) Review Checklist Summary
-
-- Security: pass
-  - UI 액션(`Back`/`Forward`) 및 renderer 상태 연결만 포함.
-- Error handling: pass
-  - 이동 불가 시 버튼 disabled + no-op 이중 가드 적용.
-- Code patterns: pass
-  - App은 액션 트리거/disabled 렌더만 담당하고 히스토리 정책은 context/model 계층 유지.
-- Performance: pass
-  - 버튼 상태 계산은 active workspace session 기준 boolean 계산으로 비용이 작음.
-- Test quality: pass
-  - 통합 테스트에서 단일 워크스페이스 back/forward/truncate 흐름 검증.
-- Cross-task integration: pass
-  - spec 링크 파일 열기 및 기존 header 흐름(WorkspaceSwitcher/Open/Close) 회귀 없음.
-
-### 3) Phase Verdict (F07.1 Phase 2)
-
-- `proceed`
+- **Phase 3 / Task 6**: light palette를 shell/tree/modal/banner 상태색까지 시각적으로 polish
+- `App.test.tsx`에 shell-level light contract 회귀를 더 고정
+- 필요 시 `implementation-review`로 light theme 품질과 regression surface를 점검

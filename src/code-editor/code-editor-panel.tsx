@@ -3,6 +3,7 @@ import { EditorView, lineNumbers, drawSelection, keymap } from '@codemirror/view
 import { EditorState, Compartment } from '@codemirror/state'
 import { search, searchKeymap } from '@codemirror/search'
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
+import type { AppearanceTheme } from '../appearance-theme'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
 import type { CodeComment } from '../code-comments/comment-types'
@@ -10,7 +11,8 @@ import {
   normalizeSourceOffsetRange,
   type SourceOffsetRange,
 } from '../source-selection'
-import { darkTheme } from './cm6-dark-theme'
+import { darkGrayTheme } from './cm6-dark-theme'
+import { lightTheme } from './cm6-light-theme'
 import { getCM6Language } from './cm6-language-map'
 import { selectionToLineRange } from './cm6-selection-bridge'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
@@ -36,6 +38,7 @@ type CodeEditorPanelProps = {
   activeFile: string | null
   activeFileContent: string | null
   activeFileImagePreview: WorkspaceImagePreview | null
+  appearanceTheme?: AppearanceTheme
   isReadingFile: boolean
   readFileError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
@@ -238,7 +241,9 @@ function CopyPathIcon() {
 
 type ExtensionBuilderParams = {
   readOnlyCompartment: Compartment
+  themeCompartment: Compartment
   wrapCompartment: Compartment
+  appearanceTheme: AppearanceTheme
   editable: boolean
   isLineWrapEnabled: boolean
   onSaveRef: MutableRefObject<((content: string) => void) | undefined>
@@ -254,7 +259,9 @@ function buildExtensions(
 ) {
   const {
     readOnlyCompartment,
+    themeCompartment,
     wrapCompartment,
+    appearanceTheme,
     editable,
     isLineWrapEnabled,
     onSaveRef,
@@ -264,7 +271,9 @@ function buildExtensions(
     onCommentLeaveRef,
   } = params
   const exts = [
-    ...darkTheme,
+    themeCompartment.of(
+      appearanceTheme === 'light' ? lightTheme : darkGrayTheme,
+    ),
     ...createGitMarkersExtension(),
     ...createCommentGutterExtension(
       (lineNum, rect) => onCommentHoverRef.current?.(lineNum, rect),
@@ -328,6 +337,7 @@ export function CodeEditorPanel({
   activeFile,
   activeFileContent,
   activeFileImagePreview,
+  appearanceTheme = 'dark-gray',
   isReadingFile,
   readFileError,
   previewUnavailableReason,
@@ -359,6 +369,7 @@ export function CodeEditorPanel({
   const restoredScrollTopRef = useRef<number | null>(restoredScrollTop ?? null)
   const lastRenderedFileRef = useRef<string | null>(null)
   const readOnlyCompartment = useRef(new Compartment())
+  const themeCompartment = useRef(new Compartment())
   const wrapCompartment = useRef(new Compartment())
   const [isLineWrapEnabled, setIsLineWrapEnabled] = useState(true)
   const isLineWrapEnabledRef = useRef(isLineWrapEnabled)
@@ -539,7 +550,9 @@ export function CodeEditorPanel({
         doc: '',
         extensions: buildExtensions({
           readOnlyCompartment: readOnlyCompartment.current,
+          themeCompartment: themeCompartment.current,
           wrapCompartment: wrapCompartment.current,
+          appearanceTheme,
           editable,
           isLineWrapEnabled,
           onSaveRef,
@@ -593,6 +606,18 @@ export function CodeEditorPanel({
     })
   }, [isLineWrapEnabled])
 
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) {
+      return
+    }
+    view.dispatch({
+      effects: themeCompartment.current.reconfigure(
+        appearanceTheme === 'light' ? lightTheme : darkGrayTheme,
+      ),
+    })
+  }, [appearanceTheme])
+
   // ---- Update document when file content or file changes -----------------
   useEffect(() => {
     const view = viewRef.current
@@ -620,7 +645,9 @@ export function CodeEditorPanel({
       const extensions = buildExtensions(
         {
           readOnlyCompartment: readOnlyCompartment.current,
+          themeCompartment: themeCompartment.current,
           wrapCompartment: wrapCompartment.current,
+          appearanceTheme,
           editable,
           isLineWrapEnabled: isLineWrapEnabledRef.current,
           onSaveRef,
@@ -709,7 +736,7 @@ export function CodeEditorPanel({
     return () => {
       cancelled = true
     }
-  }, [activeFileContent, activeFile, editable])
+  }, [activeFileContent, activeFile, appearanceTheme, editable])
 
   // ---- Jump to line ------------------------------------------------------
   useEffect(() => {
@@ -797,7 +824,11 @@ export function CodeEditorPanel({
   }, [])
 
   return (
-    <section className="code-viewer-panel" data-testid="code-viewer-panel">
+    <section
+      className="code-viewer-panel"
+      data-appearance-theme={appearanceTheme}
+      data-testid="code-viewer-panel"
+    >
       <header className="code-viewer-header">
         <div className="code-viewer-title-row">
           <p className="label">Code Preview</p>

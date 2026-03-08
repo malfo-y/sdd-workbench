@@ -35,6 +35,12 @@ import {
   type CodeViewerJumpRequest,
 } from './code-editor/code-editor-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
+import {
+  saveAppearanceTheme,
+  loadAppearanceTheme,
+  type AppearanceTheme,
+} from './appearance-theme'
+import { AppearanceThemeSelector } from './appearance-theme-selector'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
 import type { SourceOffsetRange } from './source-selection'
@@ -501,6 +507,8 @@ function App() {
   })
   const [activeResizeHandle, setActiveResizeHandle] = useState(false)
   const [activeTab, setActiveTab] = useState<ContentTab>('code')
+  const [appearanceTheme, setAppearanceTheme] =
+    useState<AppearanceTheme>(() => loadAppearanceTheme())
   const workspaceLayoutRef = useRef<HTMLElement | null>(null)
   const resizeSessionRef = useRef<ResizeSession | null>(null)
   const workspaceFilePathSet = useMemo(
@@ -1793,8 +1801,20 @@ function App() {
     [renameFileOrDirectory],
   )
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', appearanceTheme)
+    return () => {
+      document.documentElement.removeAttribute('data-theme')
+    }
+  }, [appearanceTheme])
+
+  const handleAppearanceThemeChange = useCallback((theme: AppearanceTheme) => {
+    setAppearanceTheme(theme)
+    saveAppearanceTheme(theme)
+  }, [])
+
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-appearance-theme={appearanceTheme}>
       <header className="app-header">
         <div className="app-header-left" data-testid="app-header-left">
           <h1>SDD Workbench</h1>
@@ -1841,6 +1861,15 @@ function App() {
           </div>
         </div>
         <div className="app-header-actions" data-testid="app-header-actions">
+          <div className="header-comments-group" data-testid="header-theme-group">
+            <span className="header-action-group-label">Theme</span>
+            <div className="header-comments-actions" data-testid="header-theme-actions">
+              <AppearanceThemeSelector
+                onChange={handleAppearanceThemeChange}
+                value={appearanceTheme}
+              />
+            </div>
+          </div>
           <div className="header-comments-group" data-testid="header-comments-group">
             <span className="header-action-group-label">Code comments</span>
             <div className="header-comments-actions" data-testid="header-comments-actions">
@@ -2158,6 +2187,7 @@ function App() {
               activeFile={activeFile}
               activeFileContent={activeFileContent}
               activeFileImagePreview={activeFileImagePreview}
+              appearanceTheme={appearanceTheme}
               commentLineEntries={activeFileCommentLineEntries}
               commentLineCounts={activeFileCommentLineCounts}
               gitLineMarkers={activeFileGitLineMarkerMap}
@@ -2187,6 +2217,7 @@ function App() {
             <section className="workspace-card spec-panel" data-testid="spec-panel">
               <SpecViewerPanel
                 activeSpecPath={activeSpec}
+                appearanceTheme={appearanceTheme}
                 commentLineEntries={activeSpecCommentLineEntries}
                 commentLineCounts={activeSpecCommentLineCounts}
                 isActive={activeTab === 'spec'}

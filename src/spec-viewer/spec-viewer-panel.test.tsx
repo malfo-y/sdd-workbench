@@ -21,6 +21,7 @@ describe('SpecViewerPanel', () => {
     workspaceRootPath = '/Users/tester/workspace',
     activeSpecPath = 'docs/spec.md',
     markdownContent = '# Title\n\n## Intro\ntext',
+    appearanceTheme = 'dark-gray' as const,
     isLoading = false,
     readError = null,
     onGoToSourceLine = vi.fn<
@@ -55,6 +56,7 @@ describe('SpecViewerPanel', () => {
     workspaceRootPath?: string | null
     activeSpecPath?: string | null
     markdownContent?: string | null
+    appearanceTheme?: 'dark-gray' | 'light'
     isLoading?: boolean
     readError?: string | null
     onGoToSourceLine?: (
@@ -87,6 +89,7 @@ describe('SpecViewerPanel', () => {
     const renderResult = render(
       <SpecViewerPanel
         activeSpecPath={activeSpecPath}
+        appearanceTheme={appearanceTheme}
         commentLineEntries={commentLineEntries}
         commentLineCounts={commentLineCounts}
         isLoading={isLoading}
@@ -214,6 +217,51 @@ describe('SpecViewerPanel', () => {
         'scrollTop',
         92,
       )
+    })
+  })
+
+  it('rerenders fenced code blocks when appearance theme changes', async () => {
+    const markdownContent = '# Title\n\n```ts\nconst value: number = 42\n```'
+    const { rerender } = renderPanel({
+      markdownContent,
+      appearanceTheme: 'dark-gray',
+    })
+
+    const findCodeHtml = async () => {
+      const codeElement = await screen.findByText(
+        (_content, element) =>
+          element?.tagName === 'CODE' &&
+          element.textContent?.includes('const value: number = 42') === true,
+      )
+      await waitFor(() => {
+        expect(codeElement.innerHTML).toContain('<span style="color:')
+      })
+      return codeElement.innerHTML
+    }
+
+    const darkHtml = await findCodeHtml()
+
+    rerender(
+      <SpecViewerPanel
+        activeSpecPath="docs/spec.md"
+        appearanceTheme="light"
+        commentLineEntries={new Map<number, readonly CodeComment[]>()}
+        commentLineCounts={new Map<number, number>()}
+        isActive={true}
+        isLoading={false}
+        markdownContent={markdownContent}
+        navigationRequest={null}
+        onGoToSourceLine={vi.fn()}
+        onOpenRelativePath={vi.fn().mockReturnValue(true)}
+        onRequestAddComment={vi.fn()}
+        readError={null}
+        workspaceRootPath="/Users/tester/workspace"
+      />,
+    )
+
+    await waitFor(async () => {
+      const lightHtml = await findCodeHtml()
+      expect(lightHtml).not.toBe(darkHtml)
     })
   })
 

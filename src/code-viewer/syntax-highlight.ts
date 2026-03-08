@@ -1,8 +1,17 @@
-import { createHighlighterCore, type HighlighterCore } from 'shiki/core'
+import {
+  createHighlighterCore,
+  type HighlighterCore,
+  type LanguageInput,
+  type ThemeInput,
+} from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
+import {
+  DEFAULT_APPEARANCE_THEME,
+  type AppearanceTheme,
+} from '../appearance-theme'
 import type { HighlightLanguage } from './language-map'
 
-const LANG_IMPORTS: Record<string, () => Promise<unknown>> = {
+const LANG_IMPORTS: Record<string, LanguageInput> = {
   typescript: () => import('shiki/langs/typescript.mjs'),
   tsx: () => import('shiki/langs/tsx.mjs'),
   javascript: () => import('shiki/langs/javascript.mjs'),
@@ -40,17 +49,33 @@ const LANG_IMPORTS: Record<string, () => Promise<unknown>> = {
   zig: () => import('shiki/langs/zig.mjs'),
 }
 
-let highlighterPromise: Promise<HighlighterCore> | null = null
+const THEME_IMPORTS: Record<AppearanceTheme, ThemeInput> = {
+  'dark-gray': () => import('shiki/themes/github-dark-dimmed.mjs'),
+  light: () => import('shiki/themes/github-light.mjs'),
+}
 
-export function getOrCreateHighlighter(): Promise<HighlighterCore> {
-  if (!highlighterPromise) {
-    highlighterPromise = createHighlighterCore({
-      engine: createJavaScriptRegexEngine(),
-      themes: [import('shiki/themes/github-dark.mjs')],
-      langs: [],
-    })
+const THEME_NAMES: Record<AppearanceTheme, string> = {
+  'dark-gray': 'github-dark-dimmed',
+  light: 'github-light',
+}
+
+const highlighterPromises = new Map<AppearanceTheme, Promise<HighlighterCore>>()
+
+export function getOrCreateHighlighter(
+  appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
+): Promise<HighlighterCore> {
+  const existing = highlighterPromises.get(appearanceTheme)
+  if (existing) {
+    return existing
   }
-  return highlighterPromise
+
+  const promise = createHighlighterCore({
+    engine: createJavaScriptRegexEngine(),
+    themes: [THEME_IMPORTS[appearanceTheme]],
+    langs: [],
+  })
+  highlighterPromises.set(appearanceTheme, promise)
+  return promise
 }
 
 export function escapeHtml(value: string): string {
@@ -71,6 +96,7 @@ function splitToEscapedLines(code: string): string[] {
 export async function highlightLines(
   code: string,
   language: HighlightLanguage,
+  appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
 ): Promise<string[]> {
   if (language === 'plaintext' || !code) {
     return splitToEscapedLines(code)
@@ -78,7 +104,7 @@ export async function highlightLines(
 
   let highlighter: HighlighterCore
   try {
-    highlighter = await getOrCreateHighlighter()
+    highlighter = await getOrCreateHighlighter(appearanceTheme)
   } catch {
     return splitToEscapedLines(code)
   }
@@ -90,7 +116,7 @@ export async function highlightLines(
       return splitToEscapedLines(code)
     }
     try {
-      await highlighter.loadLanguage(langImporter() as Parameters<HighlighterCore['loadLanguage']>[0])
+      await highlighter.loadLanguage(langImporter)
     } catch {
       return splitToEscapedLines(code)
     }
@@ -98,7 +124,7 @@ export async function highlightLines(
 
   const { tokens } = highlighter.codeToTokens(code, {
     lang: language,
-    theme: 'github-dark',
+    theme: THEME_NAMES[appearanceTheme],
   })
 
   return tokens.map((lineTokens) => {
@@ -126,11 +152,12 @@ export async function highlightLines(
 export async function highlightPreviewLines(
   previewLines: string[],
   language: HighlightLanguage,
+  appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
 ): Promise<string[]> {
   if (language === 'plaintext' || previewLines.length === 0) {
     return escapeHtmlForLines(previewLines)
   }
 
   const code = previewLines.join('\n')
-  return highlightLines(code, language)
+  return highlightLines(code, language, appearanceTheme)
 }

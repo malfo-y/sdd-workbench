@@ -43,6 +43,14 @@ describe('highlightLines', () => {
     expect(hasColorSpan).toBe(true)
   })
 
+  it('changes highlighted output when the appearance theme changes', async () => {
+    const code = 'const x: number = 42'
+    const darkResult = await highlightLines(code, 'typescript', 'dark-gray')
+    const lightResult = await highlightLines(code, 'typescript', 'light')
+
+    expect(lightResult).not.toEqual(darkResult)
+  })
+
   it('returns HTML-escaped lines for plaintext language', async () => {
     const code = 'hello <world> & friends'
     const result = await highlightLines(code, 'plaintext')
@@ -134,5 +142,14 @@ describe('getOrCreateHighlighter', () => {
     const second = await getOrCreateHighlighter()
 
     expect(first).toBe(second)
+  })
+
+  it('keeps separate cached instances per appearance theme', async () => {
+    const dark = await getOrCreateHighlighter('dark-gray')
+    const darkAgain = await getOrCreateHighlighter('dark-gray')
+    const light = await getOrCreateHighlighter('light')
+
+    expect(darkAgain).toBe(dark)
+    expect(light).not.toBe(dark)
   })
 })
