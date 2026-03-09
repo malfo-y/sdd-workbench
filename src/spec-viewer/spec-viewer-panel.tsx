@@ -20,6 +20,8 @@ import {
 } from '../code-comments/comment-line-index'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import type { CodeComment } from '../code-comments/comment-types'
+import { CopyActionPopover } from '../context-menu/copy-action-popover'
+import { buildCopyActiveFilePathPayload } from '../context-copy/copy-payload'
 import { highlightLines } from '../code-viewer/syntax-highlight'
 import type { HighlightLanguage } from '../code-viewer/language-map'
 import { extractMarkdownHeadings } from './markdown-utils'
@@ -35,7 +37,6 @@ import {
   SOURCE_TEXT_LEAF_ATTRIBUTE,
   type MarkdownNodeWithPosition,
 } from './source-line-metadata'
-import { SpecSourcePopover } from './spec-source-popover'
 import {
   resolveBestRenderedSourceBlockForLine,
   resolveNearestSourceLineFromPoint,
@@ -73,6 +74,20 @@ type SpecViewerPanelProps = {
     selectionRange: { startLine: number; endLine: number }
     sourceOffsetRange?: SourceOffsetRange
   }) => void
+  onRequestCopySelectedContent: (input: {
+    relativePath: string
+    content: string
+    selectionRange: { startLine: number; endLine: number }
+  }) => void
+  onRequestCopyBoth: (input: {
+    relativePath: string
+    content: string
+    selectionRange: { startLine: number; endLine: number }
+  }) => void
+  onRequestCopyRelativePath: (
+    relativePath: string,
+    selectionRange?: { startLine: number; endLine: number },
+  ) => void
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   restoredScrollTop?: number | null
@@ -434,6 +449,9 @@ export function SpecViewerPanel({
   onOpenRelativePath,
   onGoToSourceLine,
   onRequestAddComment,
+  onRequestCopySelectedContent,
+  onRequestCopyBoth,
+  onRequestCopyRelativePath,
   commentLineCounts,
   commentLineEntries = EMPTY_COMMENT_LINE_ENTRIES,
   restoredScrollTop = null,
@@ -1022,6 +1040,49 @@ export function SpecViewerPanel({
     setSourcePopoverState(null)
   }, [onGoToSourceLine, sourcePopoverState])
 
+  const handleCopySelectedContent = useCallback(() => {
+    if (!sourcePopoverState || !activeSpecPath || markdownContent === null) {
+      return
+    }
+
+    onRequestCopySelectedContent({
+      relativePath: activeSpecPath,
+      content: markdownContent,
+      selectionRange: sourcePopoverState.selectionRange,
+    })
+    setSourcePopoverState(null)
+  }, [
+    activeSpecPath,
+    markdownContent,
+    onRequestCopySelectedContent,
+    sourcePopoverState,
+  ])
+
+  const handleCopyBoth = useCallback(() => {
+    if (!sourcePopoverState || !activeSpecPath || markdownContent === null) {
+      return
+    }
+
+    onRequestCopyBoth({
+      relativePath: activeSpecPath,
+      content: markdownContent,
+      selectionRange: sourcePopoverState.selectionRange,
+    })
+    setSourcePopoverState(null)
+  }, [activeSpecPath, markdownContent, onRequestCopyBoth, sourcePopoverState])
+
+  const handleCopyRelativePath = useCallback(() => {
+    if (!sourcePopoverState || !activeSpecPath) {
+      return
+    }
+
+    onRequestCopyRelativePath(
+      activeSpecPath,
+      sourcePopoverState.selectionRange,
+    )
+    setSourcePopoverState(null)
+  }, [activeSpecPath, onRequestCopyRelativePath, sourcePopoverState])
+
   const handleTocLinkClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>, headingId: string, headingText: string) => {
       event.preventDefault()
@@ -1456,13 +1517,41 @@ export function SpecViewerPanel({
           </article>
         </div>
       )}
-      {sourcePopoverState && (
-        <SpecSourcePopover
-          endLine={sourcePopoverState.selectionRange.endLine}
-          onAddComment={handleAddComment}
+      {sourcePopoverState && activeSpecPath && markdownContent !== null && (
+        <CopyActionPopover
+          actions={[
+            {
+              label: 'Add Comment',
+              onSelect: handleAddComment,
+            },
+            {
+              label: 'Go to Source',
+              onSelect: handleGoToSource,
+            },
+            {
+              label: 'Copy Line Contents',
+              onSelect: handleCopySelectedContent,
+            },
+            {
+              label: 'Copy Contents and Path',
+              onSelect: handleCopyBoth,
+            },
+            {
+              label: 'Copy Relative Path',
+              onSelect: handleCopyRelativePath,
+            },
+            {
+              label: 'Close',
+              onSelect: () => undefined,
+            },
+          ]}
+          ariaLabel="Source actions"
+          description={buildCopyActiveFilePathPayload(
+            activeSpecPath,
+            sourcePopoverState.selectionRange,
+          )}
           onClose={closeSourcePopover}
-          onGoToSource={handleGoToSource}
-          startLine={sourcePopoverState.selectionRange.startLine}
+          title="Source Actions"
           x={sourcePopoverState.x}
           y={sourcePopoverState.y}
         />

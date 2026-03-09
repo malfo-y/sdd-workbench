@@ -5750,9 +5750,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       )
     })
 
-    const paragraph = screen.getByText(
-      (_content, element) => element?.textContent === 'alpha beta gamma',
-    )
+    const paragraph =
+      screen.getByTestId('spec-viewer-content').querySelector('p')
+    if (!paragraph) {
+      throw new Error('Expected rendered paragraph')
+    }
     const selectedNode = findTextNodeContaining(paragraph, 'gamma')
     if (!selectedNode) {
       throw new Error('Expected text node containing gamma')
@@ -5801,6 +5803,128 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         startOffset: expectedStartOffset,
         endOffset: expectedEndOffset,
       },
+    })
+  })
+
+  it('copies rendered spec selection via source actions using raw markdown line mapping', async () => {
+    const workspaceRoot = '/Users/tester/projects/spec-copy-workspace'
+    const markdownContent = '# Title\n\nalpha\nbeta\ngamma'
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'README.md',
+              relativePath: 'docs/README.md',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: markdownContent,
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'alpha beta gamma',
+      )
+    })
+
+    const paragraph =
+      screen.getByTestId('spec-viewer-content').querySelector('p')
+    if (!paragraph) {
+      throw new Error('Expected rendered paragraph')
+    }
+    const selectedNode = findTextNodeContaining(paragraph, 'gamma')
+    if (!selectedNode) {
+      throw new Error('Expected text node containing gamma')
+    }
+    const anchorOffset = selectedNode.data.indexOf('gamma')
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectedNode,
+      anchorOffset,
+      focusNode: selectedNode,
+      focusOffset: selectedNode.data.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 220,
+      clientY: 260,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Line Contents' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('gamma')
+    })
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 220,
+      clientY: 260,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Contents and Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        'docs/README.md:L5-L5\ngamma',
+      )
+    })
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 220,
+      clientY: 260,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('docs/README.md:L5')
     })
   })
 

@@ -2227,6 +2227,9 @@ function App() {
                 navigationRequest={specViewerNavigationRequest}
                 onScrollPositionChange={handleSpecScrollPositionChange}
                 onRequestAddComment={handleRequestAddCommentFromSpec}
+                onRequestCopyBoth={handleCopyBoth}
+                onRequestCopyRelativePath={handleCopyRelativePath}
+                onRequestCopySelectedContent={handleCopySelectedContent}
                 onGoToSourceLine={goToActiveSpecSourceLine}
                 onOpenRelativePath={openSpecRelativePath}
                 readError={activeSpecReadError}

@@ -8,7 +8,7 @@
 
 - markdown 파일을 rendered spec으로 읽을 수 있다.
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
-- rendered selection에서 `Go to Source`, `Add Comment`를 호출할 수 있다.
+- rendered selection에서 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`, `Go to Source`, `Add Comment`를 호출할 수 있다.
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
 
 ## 3. 핵심 상태와 source of truth
@@ -32,6 +32,8 @@
 - 기본 selection 모델은 line range를 유지한다.
 - supported inline structure에서는 same-file raw markdown exact offset을 additive payload로 계산한다.
 - collapsed selection이나 unsupported structure는 line fallback으로 degrade 한다.
+- rendered selection copy action payload와 popover 설명 문자열은 same-file raw markdown line range를 source of truth로 사용한다.
+- `Copy Relative Path`는 `relativePath:Lx` 또는 `relativePath:Lx-Ly` 형식으로 line anchor를 포함한다.
 
 ### 4.2 검색과 navigation
 
@@ -73,4 +75,4 @@
 ## 8. 변경 시 주의점
 
 - rendered block anchor와 interactive source metadata는 의도적으로 분리되어 있다.
-- source mapping을 바꾸면 comment anchor, `Go to Source`, `Go to Spec`, navigation highlight 회귀를 같이 확인해야 한다.
+- source mapping을 바꾸면 comment anchor, copy payload, `Go to Source`, `Go to Spec`, navigation highlight 회귀를 같이 확인해야 한다.

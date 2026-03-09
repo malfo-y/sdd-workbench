@@ -55,6 +55,7 @@
 - 검색 `*` wildcard 지원: 파일 브라우저/스펙 뷰어 공통 ordered token match, wildcard-only query empty 처리, 검색 입력 `(* supported)` discoverability (F31)
 - 스펙 뷰어 코멘트/source action 정밀도 개선: `data-source-line-start/end` 기반 line span metadata + multiline paragraph/table cell best-effort anchor 계산 (F32)
 - 스펙 뷰어 exact source offset anchor MVP: paragraph/list/blockquote/link text/inline code/fenced code block selection을 same-file raw markdown exact offset으로 해석하고, `Go to Source`/`Add Comment`에 optional exact range를 전달한다(F33)
+- 스펙 뷰어 rendered selection copy action: same-file raw markdown `selectionRange`를 재사용해 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`를 제공한다.
 - markdown source `Go to Spec`: `.md` Code 탭 context menu에서 현재 `selectionRange.startLine` 기준으로 같은 파일의 rendered spec block으로 이동한다(F34)
 - cross-panel navigation target highlight: spec/code explicit navigation 시 도착한 rendered block 또는 code line에 temporary highlight를 적용한다(F35)
 - appearance theme foundation: 현재 다크 계열 look을 `dark-gray` baseline으로 정리하고 theme state/persistence/token 구조 + pre-paint restore bootstrap을 도입한다(F36, Implemented)
@@ -121,7 +122,8 @@
 
 1. 사용자가 Code 탭에서 `.md` 파일을 열고 우클릭 `Go to Spec`를 실행하면, 현재 `selectionRange.startLine`이 navigation anchor가 된다.
 2. App은 Spec 탭으로 전환하고 같은 markdown 파일의 rendered block 중 해당 source line에 가장 잘 대응하는 `data-source-line` block으로 스크롤한다.
-3. spec-origin `Go to Source` 또는 F34 `Go to Spec`처럼 명시적인 navigation이 일어나면 도착한 code line/rendered block에 temporary highlight를 적용해 위치 인지성을 높인다.
+3. rendered spec selection 우클릭 메뉴는 `Add Comment`, `Go to Source`, `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`를 같은 popover로 제공하고, copy payload는 raw markdown `selectionRange`를 기준으로 계산한다.
+4. spec-origin `Go to Source` 또는 F34 `Go to Spec`처럼 명시적인 navigation이 일어나면 도착한 code line/rendered block에 temporary highlight를 적용해 위치 인지성을 높인다.
 
 ### 4.8 Appearance Theme 제어 흐름(F38)
 

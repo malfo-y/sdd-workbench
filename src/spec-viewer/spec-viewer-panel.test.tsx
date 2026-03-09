@@ -37,6 +37,26 @@ describe('SpecViewerPanel', () => {
         sourceOffsetRange?: { startOffset: number; endOffset: number }
       }) => void
     >(),
+    onRequestCopySelectedContent = vi.fn<
+      (input: {
+        relativePath: string
+        content: string
+        selectionRange: { startLine: number; endLine: number }
+      }) => void
+    >(),
+    onRequestCopyBoth = vi.fn<
+      (input: {
+        relativePath: string
+        content: string
+        selectionRange: { startLine: number; endLine: number }
+      }) => void
+    >(),
+    onRequestCopyRelativePath = vi.fn<
+      (
+        relativePath: string,
+        selectionRange?: { startLine: number; endLine: number },
+      ) => void
+    >(),
     onScrollPositionChange = vi.fn<
       (input: { relativePath: string; scrollTop: number }) => void
     >(),
@@ -73,6 +93,20 @@ describe('SpecViewerPanel', () => {
       selectionRange: { startLine: number; endLine: number }
       sourceOffsetRange?: { startOffset: number; endOffset: number }
     }) => void
+    onRequestCopySelectedContent?: (input: {
+      relativePath: string
+      content: string
+      selectionRange: { startLine: number; endLine: number }
+    }) => void
+    onRequestCopyBoth?: (input: {
+      relativePath: string
+      content: string
+      selectionRange: { startLine: number; endLine: number }
+    }) => void
+    onRequestCopyRelativePath?: (
+      relativePath: string,
+      selectionRange?: { startLine: number; endLine: number },
+    ) => void
     onScrollPositionChange?: (input: {
       relativePath: string
       scrollTop: number
@@ -97,6 +131,9 @@ describe('SpecViewerPanel', () => {
         navigationRequest={navigationRequest}
         onScrollPositionChange={onScrollPositionChange}
         onRequestAddComment={onRequestAddComment}
+        onRequestCopyBoth={onRequestCopyBoth}
+        onRequestCopyRelativePath={onRequestCopyRelativePath}
+        onRequestCopySelectedContent={onRequestCopySelectedContent}
         onGoToSourceLine={onGoToSourceLine}
         onOpenRelativePath={onOpenRelativePath}
         readError={readError}
@@ -109,6 +146,9 @@ describe('SpecViewerPanel', () => {
     return {
       onGoToSourceLine,
       onRequestAddComment,
+      onRequestCopyBoth,
+      onRequestCopyRelativePath,
+      onRequestCopySelectedContent,
       onOpenRelativePath,
       onScrollPositionChange,
       rerender: renderResult.rerender,
@@ -460,7 +500,7 @@ describe('SpecViewerPanel', () => {
     expect(screen.queryByRole('img', { name: 'External' })).not.toBeInTheDocument()
   })
 
-  it('shows Add Comment + Go to Source popover on selected text context menu', async () => {
+  it('shows source actions popover with copy actions on selected text context menu', async () => {
     const { onGoToSourceLine, onRequestAddComment } = renderPanel({
       markdownContent: '# Title\n\ntarget paragraph',
     })
@@ -483,12 +523,16 @@ describe('SpecViewerPanel', () => {
     })
 
     expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
-      'Line 3',
+      'docs/spec.md:L3',
     )
     const sourceActions = screen.getByRole('dialog', { name: 'Source actions' })
     const sourceActionButtons = within(sourceActions).getAllByRole('button')
     expect(sourceActionButtons[0]).toHaveTextContent('Add Comment')
     expect(sourceActionButtons[1]).toHaveTextContent('Go to Source')
+    expect(sourceActionButtons[2]).toHaveTextContent('Copy Line Contents')
+    expect(sourceActionButtons[3]).toHaveTextContent('Copy Contents and Path')
+    expect(sourceActionButtons[4]).toHaveTextContent('Copy Relative Path')
+    expect(sourceActionButtons[5]).toHaveTextContent('Close')
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
 
@@ -524,6 +568,71 @@ describe('SpecViewerPanel', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('calls copy action callbacks with raw markdown selection data', () => {
+    const markdownContent = '# Title\n\nalpha\nbeta\ngamma'
+    const {
+      onRequestCopySelectedContent,
+      onRequestCopyBoth,
+      onRequestCopyRelativePath,
+    } = renderPanel({
+      markdownContent,
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const paragraph = screen.getByText('alpha beta gamma')
+    const selectionTextNode = findTextNodeContaining(paragraph, 'gamma')
+    if (!selectionTextNode) {
+      throw new Error('Expected paragraph text node containing gamma')
+    }
+
+    const anchorOffset = selectionTextNode.data.indexOf('gamma')
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Line Contents' }))
+    expect(onRequestCopySelectedContent).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      content: markdownContent,
+      selectionRange: {
+        startLine: 5,
+        endLine: 5,
+      },
+    })
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Contents and Path' }))
+    expect(onRequestCopyBoth).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      content: markdownContent,
+      selectionRange: {
+        startLine: 5,
+        endLine: 5,
+      },
+    })
+
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Relative Path' }))
+    expect(onRequestCopyRelativePath).toHaveBeenCalledWith('docs/spec.md', {
+      startLine: 5,
+      endLine: 5,
+    })
+  })
+
   it('uses selected text source line instead of context-menu target line', () => {
     const { onRequestAddComment } = renderPanel({
       markdownContent: '# Title\n\nfirst paragraph\n\nsecond paragraph',
@@ -545,7 +654,7 @@ describe('SpecViewerPanel', () => {
     })
 
     expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
-      'Line 5',
+      'docs/spec.md:L5',
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
@@ -614,7 +723,7 @@ describe('SpecViewerPanel', () => {
     })
 
     expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
-      `Line ${expectedLine}`,
+      `docs/spec.md:L${expectedLine}`,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
@@ -720,7 +829,7 @@ describe('SpecViewerPanel', () => {
     })
 
     expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
-      `Line ${cellSourceLine}`,
+      `docs/spec.md:L${cellSourceLine}`,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
 
@@ -1029,7 +1138,7 @@ describe('SpecViewerPanel', () => {
     })
 
     expect(screen.getByRole('dialog', { name: 'Source actions' })).toHaveTextContent(
-      'Line 3',
+      'docs/spec.md:L3',
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))

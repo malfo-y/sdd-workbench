@@ -102,14 +102,15 @@
 34. CM6 `Cmd+F` 내장 검색이 정상 동작하고 match 이동/wrap-around가 되는지 확인
 35. CM6 gutter에 Git added(초록)/modified(파랑) dot 마커가 표시되는지 확인
 36. CM6 gutter에 코멘트 badge가 표시되고 hover popover가 동작하는지 확인
-37. 우클릭 컨텍스트 메뉴에서 Copy Line Contents / Copy Contents and Path / Copy Relative Path / Add Comment 동작 확인
-38. (F27) `Connect Remote Workspace`로 host/user/port/remoteRoot/identityFile 입력 후 remote workspace가 열리는지 확인
-39. (F27) remote 연결 직후 `workspace:index/read/write/create/delete/rename`이 기존 로컬 계약과 동일하게 동작하는지 확인
-40. (F27) remote watch 이벤트가 `changedRelativePaths`, `hasStructureChanges` 형식으로 반영되는지 확인
-41. (F27) remote 연결 단절 시 상태가 `degraded` 또는 `disconnected`로 반영되고 재시도 UI가 표시되는지 확인
-42. (F27) remote root 경계 밖 접근 시 `PATH_DENIED` 오류로 거부되는지 확인
-43. (F28) remote connect 모달에서 `Browse Directories` -> `Use Current Directory`로 `remoteRoot`를 선택해 연결 가능한지 확인
-44. (F27) remote polling watcher에서 symlink 디렉토리 내부 파일 변경이 `changedRelativePaths`에 반영되는지 확인
+37. CodeViewer 우클릭 메뉴와 SpecViewer rendered selection 우클릭 메뉴에서 Copy Line Contents / Copy Contents and Path / Copy Relative Path / Add Comment 동작 확인
+38. SpecViewer `Copy Relative Path`가 raw markdown line anchor(`:Lx`, `:Lx-Ly`)를 유지하는지 확인
+39. (F27) `Connect Remote Workspace`로 host/user/port/remoteRoot/identityFile 입력 후 remote workspace가 열리는지 확인
+40. (F27) remote 연결 직후 `workspace:index/read/write/create/delete/rename`이 기존 로컬 계약과 동일하게 동작하는지 확인
+41. (F27) remote watch 이벤트가 `changedRelativePaths`, `hasStructureChanges` 형식으로 반영되는지 확인
+42. (F27) remote 연결 단절 시 상태가 `degraded` 또는 `disconnected`로 반영되고 재시도 UI가 표시되는지 확인
+43. (F27) remote root 경계 밖 접근 시 `PATH_DENIED` 오류로 거부되는지 확인
+44. (F28) remote connect 모달에서 `Browse Directories` -> `Use Current Directory`로 `remoteRoot`를 선택해 연결 가능한지 확인
+45. (F27) remote polling watcher에서 symlink 디렉토리 내부 파일 변경이 `changedRelativePaths`에 반영되는지 확인
 
 ## 5. 개발 환경
 
