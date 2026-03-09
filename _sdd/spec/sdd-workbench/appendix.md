@@ -18,5 +18,5 @@
 ## 사용 원칙
 
 1. 허브 문서에는 긴 이력표를 두지 않는다.
-2. 기능 현황은 `FEATURE_INDEX.md`, 역사적 기록은 `feature-history.md`에 둔다.
+2. 기능 현황은 `feature-index.md`, 역사적 기록은 `feature-history.md`에 둔다.
 3. 새로운 리스크를 추가할 때는 가능하면 대응 도메인/계약 문서와 함께 갱신한다.

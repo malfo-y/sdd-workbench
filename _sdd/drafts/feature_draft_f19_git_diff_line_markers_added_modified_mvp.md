@@ -24,7 +24,7 @@
 **Priority**: Medium  
 **Category**: UI/UX  
 **Target Component**: `electron/main.ts`, `electron/preload.ts`, `electron/electron-env.d.ts`, `src/workspace/workspace-context.tsx`, `src/App.tsx`, `src/code-viewer/code-viewer-panel.tsx`, `src/App.css`  
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `4. 상태 모델`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.5 Code/Spec View Layer`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `4. 상태 모델`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.5 Code/Spec View Layer`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`
 
 **Description**:  
 코드 뷰어에서 active file 기준 Git 변경 라인 마커를 표시한다. MVP 범위는 다음과 같다.
@@ -57,7 +57,7 @@
 
 ### Improvement: 파일 변경 상태 가시성 강화(라인 수준)
 **Priority**: Medium  
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`  
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`  
 **Current State**: 파일 트리 레벨 changed marker(`●`)만 존재하고, 코드 라인 단위 변경 위치는 확인할 수 없다.  
 **Proposed**: active file 라인 단위 Git marker를 추가해 변경 위치를 즉시 식별 가능하게 한다.  
 **Reason**: 리뷰/점검 시 diff 뷰를 별도로 열지 않아도 변경 밀집 구간을 빠르게 스캔할 수 있다.
@@ -65,7 +65,7 @@
 ## Component Changes
 
 ### New IPC Contract: `workspace:getGitLineMarkers`
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`  
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`  
 **Change Type**: New API
 
 **Changes**:
@@ -74,7 +74,7 @@
 - response: `{ ok: boolean; markers?: Array<{ line: number; kind: 'added' | 'modified' }>; error?: string }`
 
 ### Update Component: `electron/main.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`  
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`  
 **Change Type**: Enhancement
 
 **Changes**:
@@ -83,14 +83,14 @@
 - 실패 경로는 non-throw 결과(`ok: false`)로 반환
 
 ### Update Component: `electron/preload.ts`, `electron/electron-env.d.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`  
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`  
 **Change Type**: Enhancement
 
 **Changes**:
 - `window.workspace.getGitLineMarkers(...)` 브리지/타입 추가
 
 ### Update Component: `src/workspace/workspace-context.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `4. 상태 모델`  
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `4. 상태 모델`  
 **Change Type**: Enhancement
 
 **Changes**:
@@ -99,7 +99,7 @@
 - 실패 시 배너 노출 없이 빈 marker로 안전 degrade
 
 ### Update Component: `src/code-viewer/code-viewer-panel.tsx`, `src/App.css`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.5 Code/Spec View Layer`  
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.5 Code/Spec View Layer`  
 **Change Type**: Enhancement
 
 **Changes**:

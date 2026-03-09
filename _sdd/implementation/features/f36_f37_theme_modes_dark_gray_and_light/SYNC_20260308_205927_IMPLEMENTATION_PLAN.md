@@ -17,7 +17,7 @@
 - 기준 문서:
   - Draft: `_sdd/drafts/feature_draft_f36_f37_theme_modes_dark_gray_and_light.md`
   - Spec: `_sdd/spec/main.md` v`0.49.1`
-  - Spec detail: `_sdd/spec/sdd-workbench/03-components.md`, `_sdd/spec/sdd-workbench/04-interfaces.md`
+  - Spec detail: `_sdd/spec/sdd-workbench/component-map.md`, `_sdd/spec/sdd-workbench/contract-map.md`
 - 전략 선택 근거:
   - `risk_ratio`: 약 `0.29` (Shiki/CM6 theme routing, 전역 token migration이 상대적 고위험)
   - `dep_depth`: `4` (theme contract -> App wiring -> token/theme routing -> light polish -> regression)

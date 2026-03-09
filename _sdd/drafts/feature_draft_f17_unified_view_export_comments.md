@@ -19,7 +19,7 @@
 **Priority**: High
 **Category**: Comment UX
 **Target Component**: Comment Domain Layer + App Shell
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 
 **Description**:
 기존에 분리되어 있던 `View Comments`와 `Export Comments`를 통합한다.
@@ -52,7 +52,7 @@
 
 ### Improvement: 헤더 Export Comments 버튼 제거
 **Priority**: High
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Current State**: 헤더 Code comments 그룹에 `+ Global`, `View`, `Export` 3개 버튼이 존재한다.
 **Proposed**: `Export` 버튼을 제거하고 `+ Global`, `View` 2개만 유지한다.
 **Reason**: Export 기능이 View Comments 모달에 통합되므로 헤더 단축 버튼이 불필요해진다.
@@ -62,7 +62,7 @@
 ## Component Changes
 
 ### Update Component: `src/code-comments/comment-list-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -72,7 +72,7 @@
 - `Export Selected (N)` 하단 버튼 + 콜백
 
 ### Update Component: `src/code-comments/export-comments-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -80,7 +80,7 @@
 - `commentCount`/`pendingCommentCount`를 선택 기반 값으로 표시
 
 ### Update Component: `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:

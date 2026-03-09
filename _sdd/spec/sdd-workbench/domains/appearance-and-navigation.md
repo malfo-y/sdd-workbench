@@ -61,10 +61,10 @@
 
 ## 6. 관련 계약 문서
 
-- [state-model](../04-contracts/state-model.md)
-- [navigation-rules](../04-contracts/navigation-rules.md)
-- [theme-and-menu-contracts](../04-contracts/theme-and-menu-contracts.md)
-- [ipc-contracts](../04-contracts/ipc-contracts.md)
+- [state-model](../contracts/state-model.md)
+- [navigation-rules](../contracts/navigation-rules.md)
+- [theme-and-menu-contracts](../contracts/theme-and-menu-contracts.md)
+- [ipc-contracts](../contracts/ipc-contracts.md)
 
 ## 7. 핵심 테스트
 

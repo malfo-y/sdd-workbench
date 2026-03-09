@@ -5,13 +5,13 @@
 **Scope**: Spec+Code
 **Spec Files**:
 - `_sdd/spec/main.md`
-- `_sdd/spec/sdd-workbench/01-overview.md`
-- `_sdd/spec/sdd-workbench/02-architecture.md`
-- `_sdd/spec/sdd-workbench/03-components.md`
-- `_sdd/spec/sdd-workbench/04-interfaces.md`
-- `_sdd/spec/sdd-workbench/05-operational-guides.md`
+- `_sdd/spec/sdd-workbench/product-overview.md`
+- `_sdd/spec/sdd-workbench/system-architecture.md`
+- `_sdd/spec/sdd-workbench/component-map.md`
+- `_sdd/spec/sdd-workbench/contract-map.md`
+- `_sdd/spec/sdd-workbench/operations-and-validation.md`
 - `_sdd/spec/sdd-workbench/appendix.md`
-- `_sdd/spec/DECISION_LOG.md`
+- `_sdd/spec/decision-log.md`
 **Code State**: `b67423e` + dirty workspace (`electron/remote-agent/runtime/*` modified, temp/untracked files present)
 **Decision**: SYNC_REQUIRED
 
@@ -27,7 +27,7 @@
 1. 품질 게이트 상태가 현재 검증 결과와 불일치
    - Evidence:
      - `_sdd/spec/main.md:65` ("최신 품질 게이트 ... `npm run lint` -> pass")
-     - `_sdd/spec/sdd-workbench/05-operational-guides.md:54-58` ("`npm run lint` -> pass")
+     - `_sdd/spec/sdd-workbench/operations-and-validation.md:54-58` ("`npm run lint` -> pass")
      - 실제 실행: `npm run lint` 실패, 43 errors
      - 예시 에러: `electron/remote-agent/framing.ts:58` (`no-constant-condition`), `electron/workspace-backend/types.ts:67` (`no-explicit-any`), `src/code-editor/code-editor-panel.test.tsx:27` (`no-explicit-any`)
    - Impact:
@@ -37,7 +37,7 @@
 
 2. 자동 테스트 베이스라인 수치가 최신 상태와 불일치
    - Evidence:
-     - `_sdd/spec/sdd-workbench/05-operational-guides.md:56` = `26 files, 360 passed, 1 skipped`
+     - `_sdd/spec/sdd-workbench/operations-and-validation.md:56` = `26 files, 360 passed, 1 skipped`
      - 실제 실행: `npm test` = `49 files, 490 passed, 1 skipped`
    - Impact:
      - 테스트 커버리지/회귀 신뢰도에 대한 문서 신뢰도 하락.
@@ -97,7 +97,7 @@
 2. lint 정책은 현재처럼 strict 유지 후 점진적 정리할지, 테스트 파일 일부 규칙 완화로 전환할지?
 
 ## Suggested Next Actions
-1. `spec-update-done`로 `_sdd/spec/main.md`, `_sdd/spec/sdd-workbench/05-operational-guides.md`의 품질 게이트 상태를 최신 실행 결과로 동기화.
+1. `spec-update-done`로 `_sdd/spec/main.md`, `_sdd/spec/sdd-workbench/operations-and-validation.md`의 품질 게이트 상태를 최신 실행 결과로 동기화.
 2. lint 오류(43건) 정리 계획을 수립하고, 완료 전에는 스펙에 lint pass를 고정 문구로 표기하지 않도록 정책화.
 3. clean working tree 기준으로 최종 게이트(`npm test`, `npm run lint`, 필요시 `npm run build`)를 재실행해 릴리즈 기준선 확정.
 
@@ -117,6 +117,6 @@
 ## Handoff for Spec Updates (if SYNC_REQUIRED)
 - Recommended command: `spec-update-done`
 - Update priorities:
-  - P1: 품질 게이트 pass/fail 상태 최신화(`main.md`, `05-operational-guides.md`)
+  - P1: 품질 게이트 pass/fail 상태 최신화(`main.md`, `operations-and-validation.md`)
   - P2: 자동 게이트 수치(파일/테스트 건수) 최신화
   - P3: 품질 게이트 표기 정책(로컬/CI 기준) 명문화

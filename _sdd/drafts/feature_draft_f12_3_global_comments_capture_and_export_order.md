@@ -24,7 +24,7 @@
 **Priority**: High
 **Category**: Enhancement
 **Target Component**: `src/App.tsx`, `src/code-comments/*`, `src/workspace/workspace-context.tsx`, `electron/*`
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`, `4.3 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.2 Workspace State Layer`, `1.6 Comment Domain Layer`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`, `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`, `4.3 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.2 Workspace State Layer`, `1.6 Comment Domain Layer`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`, `4. 코멘트/Export 정책 계약`
 
 **Description**:
 헤더에 `Add Global Comments` 버튼을 추가해 파일/라인과 무관한 전역 코멘트를 작성/수정한다. 전역 코멘트는 워크스페이스별로 저장되며, 코멘트 export 시 line comment보다 먼저 bundle 상단에 포함되어야 한다.
@@ -49,14 +49,14 @@
 
 ### Improvement: Export 렌더 계약에 `globalComments` 입력 추가
 **Priority**: High
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 **Current State**: export 텍스트는 line comment 기반으로만 생성된다.
 **Proposed**: `renderCommentsMarkdown`/`renderLlmBundle`에 optional `globalComments` 입력을 추가하고, 렌더 시 전역 섹션을 선행 배치한다.
 **Reason**: LLM 입력에서 전체 작업 의도(전역 맥락)를 먼저 전달하기 위함.
 
 ### Improvement: 전역 코멘트 전용 IPC 채널 도입
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`
 **Current State**: `comments.json` read/write 채널만 존재한다.
 **Proposed**: `workspace:readGlobalComments`, `workspace:writeGlobalComments` 채널을 추가한다.
 **Reason**: 기존 comment 스키마를 건드리지 않고 데이터 책임을 분리하기 위함.
@@ -64,7 +64,7 @@
 ## Component Changes
 
 ### New Component: `src/code-comments/global-comments-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Purpose**: 전역 코멘트 작성/수정 UI
 **Input**: `initialValue`, `isSaving`, `onSave`, `onCancel`
 **Output**: 전역 코멘트 문자열 저장 요청
@@ -73,7 +73,7 @@
 - `GlobalCommentsModal()` - textarea 기반 입력 모달
 
 ### Update Component: `src/code-comments/comment-export.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -81,7 +81,7 @@
 - `renderLlmBundle` 출력에 `## Global Comments` 섹션 선행 추가
 
 ### Update Component: `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -90,7 +90,7 @@
 - export 입력 생성 시 global comments prepend 반영
 
 ### Update Component: `src/workspace/workspace-context.tsx`, `src/workspace/workspace-model.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.2 Workspace State Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.2 Workspace State Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -98,7 +98,7 @@
 - 워크스페이스 전환 시 active 상태 동기화
 
 ### Update Component: `electron/main.ts`, `electron/preload.ts`, `electron/electron-env.d.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`
 **Change Type**: Enhancement
 
 **Changes**:

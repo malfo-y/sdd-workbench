@@ -1,12 +1,46 @@
+## 2026-03-09 - 번호형/대문자 스펙 이름을 책임 기반 소문자 이름으로 정리
+
+- Context:
+  - 메인 엔트리 포인트를 재작성한 뒤에도 `01-overview.md`, `03-components.md`, `FEATURE_INDEX.md`, `DECISION_LOG.md` 같은 번호형/대문자 파일명이 계속 남아 있어 탐색 흐름이 한 번 더 번역을 요구했음.
+  - 특히 `domains`, `contracts`, `feature-index`, `code-map`처럼 역할이 드러나는 이름이 이미 본문에 자리잡기 시작했는데, 실제 파일명은 그 방향과 어긋나 있었음.
+- Decision:
+  - 번호형 허브 파일은 `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`로 rename한다.
+  - 대문자 파일명은 `feature-index.md`, `code-map.md`, `decision-log.md`, `rewrite-report.md`, `spec-review-report.md`, `summary.md`, `rewrite-plan.md`, `user-spec.md`로 정규화한다.
+  - 번호형 디렉터리 `03-domains/`, `04-contracts/`는 각각 `domains/`, `contracts/`로 rename한다.
+  - `_sdd/spec`, `_sdd/implementation`, `_sdd/drafts` 안의 경로 참조는 새 이름 체계로 함께 갱신한다.
+- Rationale:
+  - 파일명을 읽는 순간 역할이 보여야 탐색 비용이 낮아지고, 사람과 LLM 모두 링크를 머릿속에서 다시 해석할 필요가 줄어든다.
+  - 대문자/번호형 이름은 초기 구조화에는 편하지만, 장기적으로는 검색성과 유지보수성보다 문서 생성 이력을 더 강하게 드러낸다.
+- Impact / follow-up:
+  - 이후 새 스펙 파일은 번호 접두사와 대문자 screaming-case를 피하고, 책임이 드러나는 lowercase kebab-case를 기본 규칙으로 사용한다.
+  - 과거 구현 기록 문서에서 section 이름까지 현재 문서와 완전히 일치하지 않을 수 있으므로, path 기준 탐색을 우선하고 section anchor는 필요한 시점에만 후속 정리한다.
+
+## 2026-03-09 - 메인 스펙을 5분 엔트리 포인트로 재작성
+
+- Context:
+  - 기존 분할 구조(`01~05`, `03-domains`, `04-contracts`)는 이미 유효했지만, `main.md`가 문서 계층과 리라이트 기록 링크 중심이라 저장소 목적/경계/변경 시작점이 바로 보이지 않았음.
+  - 구현 변경 시에도 번호형 허브를 먼저 기억해야 해서, 사람과 LLM 모두 “어디를 먼저 읽고 고칠지”를 한 번 더 추론해야 했음.
+- Decision:
+  - `main.md`를 `Goal`, `Architecture Overview`, `Component Details`, `Environment & Dependencies`, `Usage Examples`, `Open Questions` 중심의 엔트리 포인트로 재작성한다.
+  - 기존 `sdd-workbench/` 분할 문서와 번호형 파일명은 링크 호환성을 위해 유지하되, 메인 문서에서는 책임 기반 문서와 실제 코드 경로를 바로 노출한다.
+  - `component-map.md`에는 도메인별 핵심 코드 경로, 검증 시작점, 흔한 변경 레시피를 추가한다.
+  - `rewrite-report.md`, `rewrite-plan.md` 같은 작업 산출물은 빠른 진입 링크에서 내리고 기록성 문서로만 남긴다.
+- Rationale:
+  - 메인 스펙의 1차 목적은 문서 분류 설명이 아니라 프로젝트 이해와 안전한 변경 진입점을 제공하는 것이다.
+  - 기존 파일명을 유지하면 과거 구현 문서와 리뷰 링크를 깨지 않으면서도 탐색성을 개선할 수 있다.
+- Impact / follow-up:
+  - 이후 스펙 갱신은 가능하면 `main.md`보다 해당 책임 문서(`domains/*`, `contracts/*`)를 먼저 수정한다.
+  - 번호형 파일명이 탐색 비용을 다시 키우기 시작하면, 그때만 링크 마이그레이션 계획과 함께 rename을 검토한다.
+
 ## 2026-03-08 - 스펙 문서를 설명층/계약층/인덱스층/기록층으로 재분해
 
 - Context:
-  - 기존 스펙은 `main.md` 아래로 이미 분할되어 있었지만, `03-components.md`와 `04-interfaces.md`가 점점 “모든 것을 담는 문서”가 되어 탐색 비용이 다시 커지고 있었음.
+  - 기존 스펙은 `main.md` 아래로 이미 분할되어 있었지만, `component-map.md`와 `contract-map.md`가 점점 “모든 것을 담는 문서”가 되어 탐색 비용이 다시 커지고 있었음.
   - 사용자는 스펙이 사람에게는 읽기 쉬워야 하고, 사람/AI에게는 구현 인덱싱이 쉬워야 한다는 두 목적을 동시에 충족하길 원했음.
 - Decision:
   - 스펙 구조를 설명층(`01`, `02`, `03-domains`), 계약층(`04-contracts`), 인덱스층(`FEATURE_INDEX`, `CODE_MAP`), 기록층(`appendix/*`, `DECISION_LOG`, `REWRITE_REPORT`)으로 재분해한다.
-  - `main.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`는 삭제하지 않고 얇은 허브 문서로 유지한다.
-  - 기능 ID 기준 진입점은 `FEATURE_INDEX.md`, 파일/테스트 영향 범위 진입점은 `CODE_MAP.md`로 고정한다.
+  - `main.md`, `component-map.md`, `contract-map.md`, `appendix.md`는 삭제하지 않고 얇은 허브 문서로 유지한다.
+  - 기능 ID 기준 진입점은 `feature-index.md`, 파일/테스트 영향 범위 진입점은 `code-map.md`로 고정한다.
   - 기존 상세 규칙은 하위 domain/contract/appendix 문서로 이동하고, 허브 문서에는 요약과 링크만 남긴다.
 - Rationale:
   - 사용자용 제품 설명과 구현 인덱스를 같은 문서에 섞으면 둘 다 읽기 어려워진다.
@@ -14,7 +48,7 @@
   - feature-index/code-map을 분리하면 향후 기능 추가 시 영향 범위 탐색이 빨라진다.
 - Impact / follow-up:
   - 이후 `spec-update-done`이나 `spec-update-todo`는 가능하면 hub 문서보다 해당 하위 domain/contract 문서를 먼저 수정한다.
-  - `FEATURE_INDEX.md`와 `CODE_MAP.md`의 최신성 유지가 새로운 운영 포인트가 된다.
+  - `feature-index.md`와 `code-map.md`의 최신성 유지가 새로운 운영 포인트가 된다.
 
 ## 2026-03-08 - F38 구현 완료 반영 + theme primary control을 native menu로 고정
 
@@ -210,14 +244,14 @@
 ## 2026-02-20 - 기본 스펙 베이스라인 문서화 방식
 
 - Context:
-  - 프로젝트는 Electron + React 템플릿 초기 상태이며, `/_sdd/spec/user_spec.md`에는 MVP 요구사항이 상세 정의되어 있음.
+  - 프로젝트는 Electron + React 템플릿 초기 상태이며, `/_sdd/spec/user-spec.md`에는 MVP 요구사항이 상세 정의되어 있음.
   - 현재 코드에는 제품 기능이 거의 없고 앱 골격만 존재함.
 - Decision:
   - 기본 스펙을 `/_sdd/spec/main.md`로 생성하고, 모든 핵심 요구사항을 `As-Is (Implemented/Partial)` vs `To-Be (Planned)`로 구분해 명시한다.
 - Rationale:
   - 현재 구현 대비 목표 기능 간 간극을 한눈에 파악해야 이후 `feature-draft` 단계에서 우선순위 선정을 빠르게 진행할 수 있다.
 - Alternatives considered:
-  - `user_spec.md`를 직접 수정해 통합 문서로 운영
+  - `user-spec.md`를 직접 수정해 통합 문서로 운영
   - 컴포넌트별 다중 스펙 파일로 즉시 분할
 - Impact / follow-up:
   - 다음 단계에서 기능 단위(`feature-draft`)로 스펙 패치와 구현 계획을 생성하기 쉬운 기준점이 마련됨.
@@ -839,7 +873,7 @@
 - Decision:
   - `main.md`는 인덱스/요약 허브로 축소하고, 상세는 `/_sdd/spec/sdd-workbench/` 하위 주제 문서로 분할한다.
   - 분할 구조는 `01-overview`, `02-architecture`, `03-components`, `04-interfaces`, `05-operational-guides`, `appendix`로 고정한다.
-  - 상세 기능 이력과 리스크/백로그는 appendix로 이동하고, 구현/정책 결정의 source of truth는 계속 `DECISION_LOG.md`로 유지한다.
+  - 상세 기능 이력과 리스크/백로그는 appendix로 이동하고, 구현/정책 결정의 source of truth는 계속 `decision-log.md`로 유지한다.
 - Rationale:
   - 구현 반영(`spec-update-done`) 시 변경 범위를 주제 문서 단위로 줄이면 드리프트 위험과 리뷰 비용을 낮출 수 있다.
   - 인덱스-하위문서 구조는 읽기 경로를 단순화하고, 신규 기능(F12+) 추가 시 문서 충돌을 완화한다.
@@ -872,7 +906,7 @@
   - changed marker를 파일 노드에만 고정(버블링 미지원)
   - scroll 복원을 앱 재시작 영속 복원까지 한 번에 확장
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`에 F11.2 완료 상태와 계약을 반영한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`에 F11.2 완료 상태와 계약을 반영한다.
   - 후속으로 앱 재시작 후 rendered spec scroll 복원, TOC active tracking은 별도 backlog로 유지한다.
 
 ## 2026-02-22 - F12.1 구현 완료 반영(code/rendered 코멘트 marker hover preview)
@@ -895,7 +929,7 @@
   - preview에 전체 코멘트를 모두 노출
   - preview에 편집/삭제 액션까지 포함
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`를 F12.1 완료 상태로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `appendix.md`를 F12.1 완료 상태로 동기화한다.
   - preview 지연값/표시 개수 사용자 설정과 상세 편집/삭제 패널은 backlog로 유지한다.
 
 ## 2026-02-22 - F12.2/F12.3/F12.4 구현 완료 반영(comment 관리 + global comments + header 액션 재배치)
@@ -918,7 +952,7 @@
   - global comments를 `comments.json` 스키마에 혼합 저장
   - 헤더 버튼을 기존 단일 그룹으로 유지
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F12.4 기준 구현 상태로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F12.4 기준 구현 상태로 동기화한다.
   - backlog는 코멘트 스레드/원격 동기화, re-export-all/reset UX, global comments 버전 이력 등으로 재정리한다.
 
 ## 2026-02-23 - F15 구현 완료 반영(SSHFS 원격 워크스페이스 watch mode auto/override + fallback)
@@ -943,7 +977,7 @@
   - native 실패 시 watchStart를 즉시 실패 처리
   - remote 판정을 별도 프로토콜 탐지/마운트 테이블 파싱으로 확장
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F15 완료 기준으로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F15 완료 기준으로 동기화한다.
   - 후속 backlog로 remote 판정 고도화(플랫폼별 mount metadata)와 polling 최적화(open/recent/expanded 범위 축소)를 유지한다.
 
 ## 2026-02-23 - F16 구현 완료 반영(대규모/원격 워크스페이스 lazy indexing + on-demand 디렉토리 확장)
@@ -967,7 +1001,7 @@
   - watching에도 깊이 제한 적용(로컬 deep 디렉토리의 변경 감지가 누락됨)
   - `/Volumes/*` 패턴만 유지(FUSE 마운트 포인트가 `/Volumes` 외부일 때 감지 실패)
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F16 완료 기준으로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F16 완료 기준으로 동기화한다.
   - 후속 backlog로 Windows/Linux remote mount 감지, lazy-loaded 디렉토리 watching 확장, on-demand re-index 최적화를 유지한다.
 
 ## 2026-02-23 - F12.5 구현 완료 반영(comment feedback auto-dismiss + global 가시성 + header action clarity)
@@ -990,7 +1024,7 @@
   - global comments를 View/Export에 노출하지 않고 기존 `Add Global Comments` 모달에서만 확인
   - 헤더 액션을 단일 버튼열로 유지
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F12.5 기준으로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F12.5 기준으로 동기화한다.
   - 향후 backlog에서 배너 duration 사용자 설정, global comments 고급 편집 경험은 별도 기능으로 다룬다.
 
 ## 2026-02-23 - F17 구현 완료 반영(Global 포함 체크박스 + Delete Exported 하단 이동)
@@ -1011,7 +1045,7 @@
   - Export 모달에서 체크박스를 제공하는 방안(View Comments에서 미리 결정하는 것이 흐름에 자연스러움)
   - Delete Exported를 별도 섹션에 유지하는 방안(하단 통합이 공간 효율적)
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `03-components.md`, `04-interfaces.md`, `appendix.md`를 F17 기준으로 동기화한다.
+  - `main.md`, `product-overview.md`, `component-map.md`, `contract-map.md`, `appendix.md`를 F17 기준으로 동기화한다.
 
 ## 2026-02-23 - F18 구현 완료 반영(PrismJS → Shiki 코드 하이라이팅 마이그레이션)
 
@@ -1060,7 +1094,7 @@
   - 파일 트리 전체 diff 인덱스를 선계산해 모든 파일 marker를 미리 표시
   - Git 실패 시 사용자 배너를 매번 노출
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F19 완료 기준으로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F19 완료 기준으로 동기화한다.
   - deleted-only 라인(red) marker, diff 상세 뷰/툴팁은 후속 backlog로 유지한다.
 
 ## 2026-02-24 - F22 구현 완료 반영(Cmd+Shift+Up/Down 워크스페이스 키보드 전환)
@@ -1081,7 +1115,7 @@
   - `setActiveWorkspace`에 MRU 재배열 여부 플래그를 추가
   - `workspaceOrder`를 항상 고정하고 MRU를 별도 필드로 관리
 - Impact / follow-up:
-  - `main.md`, `01-overview.md`, `02-architecture.md`, `03-components.md`, `05-operational-guides.md`, `appendix.md`를 F22 완료 기준으로 동기화한다.
+  - `main.md`, `product-overview.md`, `system-architecture.md`, `component-map.md`, `operations-and-validation.md`, `appendix.md`를 F22 완료 기준으로 동기화한다.
   - 품질 게이트: `npm test`(`23 files, 285 passed`), `npm run lint`, `npx tsc --noEmit` 모두 통과.
 
 ## 2026-02-24 - F23 2패널 탭 레이아웃(3패널→2패널 전환)
@@ -1110,5 +1144,5 @@
   - 3패널 유지 + 반응형 접기: 구현 복잡도 대비 이점 미미
   - 탭 상태를 워크스페이스별로 관리: 전환 시 혼란 가능성 + 불필요한 복잡도
 - Impact / follow-up:
-  - `main.md`(v0.35.0), `01-overview.md`, `02-architecture.md`, `03-components.md`, `04-interfaces.md`, `05-operational-guides.md`, `appendix.md`를 F23 완료 기준으로 동기화한다.
+  - `main.md`(v0.35.0), `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F23 완료 기준으로 동기화한다.
   - 품질 게이트: `npm test`(`23 files, 285 passed`), `npm run lint`, `npm run build` 모두 통과.

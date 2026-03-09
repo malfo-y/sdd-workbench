@@ -24,7 +24,7 @@
 **Priority**: Medium  
 **Category**: File Tree UX / Search  
 **Target Component**: `FileTreePanel`, `WorkspaceProvider`, `WorkspaceBackend(local/remote)`, `Electron IPC`, `Remote Agent Runtime`  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.2 Workspace State Layer`, `1.3 File Tree Layer`, `1.7 Electron Boundary`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `IPC 계약`; `_sdd/spec/sdd-workbench/01-overview.md` > 기능 커버리지
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.2 Workspace State Layer`, `1.3 File Tree Layer`, `1.7 Electron Boundary`; `_sdd/spec/sdd-workbench/contract-map.md` > `IPC 계약`; `_sdd/spec/sdd-workbench/product-overview.md` > 기능 커버리지
 
 **Description**:  
 좌측 파일 브라우저 상단에 파일명 검색 입력 UI를 추가한다. 검색은 현재 렌더된 트리 상태에 의존하지 않고 workspace backend가 직접 파일 시스템을 탐색해 수행한다. 로컬/리모트 모두 동일한 계약을 사용하며, 검색 범위는 **파일명 substring match(case-insensitive)** 로 제한한다. 탐색은 depth limit와 대형 디렉토리 skip 정책을 적용해 대규모 저장소에서도 UI 정지 없이 동작해야 한다.
@@ -62,7 +62,7 @@
 **Priority**: Medium  
 **Category**: Spec Viewer UX / Search  
 **Target Component**: `SpecViewerPanel`, `App Shell`  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/01-overview.md` > 기능 커버리지; `_sdd/spec/sdd-workbench/appendix.md` > 상세 수용 기준
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/product-overview.md` > 기능 커버리지; `_sdd/spec/sdd-workbench/appendix.md` > 상세 수용 기준
 
 **Description**:  
 렌더된 markdown spec 패널에 문서 내 텍스트 검색 UI를 추가한다. 검색은 현재 열린 `markdownContent` 원문을 기준으로 case-insensitive substring 매칭을 수행하고, 매치된 source line에 대응되는 **렌더 블록 단위**(`h*`, `p`, `li`, `blockquote`, `pre`, `table`)에 강조 표시를 적용한다. 사용자는 검색 입력, 이전/다음 이동, 카운트 표시, `Cmd/Ctrl+F` 단축키로 현재 문서 내 결과를 빠르게 탐색할 수 있다.
@@ -98,14 +98,14 @@
 
 ### Improvement: 워크스페이스 검색 IPC/RPC 계약 추가
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `IPC 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `IPC 계약`  
 **Current State**: `workspace:index`와 `workspace:indexDirectory`는 트리 인덱싱/페이지 로드만 제공하고, 검색 계약은 없다.  
 **Proposed**: `workspace:searchFiles` 계약을 추가해 파일명 검색을 backend abstraction 경유로 통일한다.  
 **Reason**: 리모트 workspace는 초기 트리 인덱스가 얕기 때문에, renderer-local 트리 필터링만으로는 실사용 가능한 검색을 제공할 수 없다.
 
 ### Improvement: 검색 결과 partial 상태/skip 메타데이터 표준화
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `IPC 계약`, `_sdd/spec/sdd-workbench/05-operational-guides.md` > 성능/신뢰성 기준  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `IPC 계약`, `_sdd/spec/sdd-workbench/operations-and-validation.md` > 성능/신뢰성 기준  
 **Current State**: 인덱싱에는 `truncated`가 있으나 검색은 아직 정의되지 않았다.  
 **Proposed**: 검색 응답에 `truncated`, `skippedLargeDirectoryCount`, `depthLimitHit`, `timedOut`를 포함한다.  
 **Reason**: 성능 보호 정책이 조용히 결과를 누락시키지 않도록 UI와 테스트가 partial 상태를 명시적으로 다룰 수 있어야 한다.
@@ -113,7 +113,7 @@
 ## Component Changes
 
 ### Component Change: File Tree Layer 검색 모드 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.3 File Tree Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.3 File Tree Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -122,7 +122,7 @@
 - 결과 선택 시 기존 `onSelectFile(relativePath)` 흐름 재사용
 
 ### Component Change: Workspace State / Backend 검색 액션 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.2 Workspace State Layer`, `1.7 Electron Boundary`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.2 Workspace State Layer`, `1.7 Electron Boundary`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -131,7 +131,7 @@
 - preload / renderer 타입 / IPC 핸들러 / remote runtime에 검색 계약 연결
 
 ### Component Change: Spec Viewer 검색 상태 및 hotkey 게이트 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -142,7 +142,7 @@
 
 ### API Change: `workspace:searchFiles`
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `IPC 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `IPC 계약`  
 **Current State**: 검색 전용 IPC/RPC가 없음  
 **Proposed**:
 

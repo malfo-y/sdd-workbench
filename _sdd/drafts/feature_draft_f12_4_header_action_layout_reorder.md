@@ -24,7 +24,7 @@
 **Priority**: Medium
 **Category**: UI/UX
 **Target Component**: `src/App.tsx`, `src/App.css`
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`; `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`; `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`
 
 **Description**:
 헤더 버튼을 기능 그룹으로 재배치한다. comments 관련 액션(`Add Global Comments`, `View Comments`, `Export Comments`)은 우측 영역의 왼쪽 그룹으로 묶고, workspace 제어 액션(`Close Workspace`, `Open Workspace`)은 맨 오른쪽 그룹으로 고정한다.
@@ -54,14 +54,14 @@
 
 ### Improvement: 헤더 액션 의미별 시각 계층 명확화
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **Current State**: 액션 버튼이 단일 행에 혼합되어 기능 군집이 약하다.
 **Proposed**: comments/workspace 액션을 그룹화하고 spacing/정렬 규칙을 분리한다.
 **Reason**: 작업 맥락 전환 시 버튼 탐색 시간을 줄이고 실수 클릭 확률을 낮추기 위함.
 
 ### Improvement: 헤더 액션 밀도 축소(icon+label -> icon-only responsive)
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **Current State**: 액션 텍스트 길이 증가로 헤더가 공간을 과점유한다.
 **Proposed**: 기본은 `icon + short label`, 협소 폭에서는 `icon-only`로 전환한다.
 **Reason**: 기능 접근성을 유지하면서 상단 레이아웃 점유 면적을 줄이기 위함.
@@ -69,7 +69,7 @@
 ## Component Changes
 
 ### Update Component: `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -80,7 +80,7 @@
 - 반응형용 `icon-only` 전환을 위한 label span 분리 및 접근성 속성(`aria-label`, `title`) 명시
 
 ### Update Component: `src/App.css`
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -90,7 +90,7 @@
 - 협소 폭에서 label 숨김 + icon-only 레이아웃 전환 규칙 정의
 
 ### Update Component: `src/App.test.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `4. 테스트 운영`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `4. 테스트 운영`
 **Change Type**: Enhancement
 
 **Changes**:

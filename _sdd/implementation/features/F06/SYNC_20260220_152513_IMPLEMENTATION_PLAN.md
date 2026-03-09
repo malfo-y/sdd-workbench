@@ -11,7 +11,7 @@ F06의 목표는 상단 컨텍스트 툴바에서 `Copy Active File Path`와 `Co
 
 기준 스펙:
 - `/_sdd/spec/main.md` 섹션 `12.2(F06)`, `13.1`
-- `/_sdd/spec/user_spec.md` 섹션 `4.6.3`, `4.6.4`, `E2`
+- `/_sdd/spec/user-spec.md` 섹션 `4.6.3`, `4.6.4`, `E2`
 
 ## 2. Scope (In/Out)
 

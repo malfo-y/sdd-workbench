@@ -58,9 +58,9 @@
 
 ## 6. 관련 계약 문서
 
-- [navigation-rules](../04-contracts/navigation-rules.md)
-- [search-rules](../04-contracts/search-rules.md)
-- [comment-contracts](../04-contracts/comment-contracts.md)
+- [navigation-rules](../contracts/navigation-rules.md)
+- [search-rules](../contracts/search-rules.md)
+- [comment-contracts](../contracts/comment-contracts.md)
 
 ## 7. 핵심 테스트
 

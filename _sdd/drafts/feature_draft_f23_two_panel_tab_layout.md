@@ -16,7 +16,7 @@
 **Priority**: High
 **Category**: UI/Layout
 **Target Component**: App Shell, Workspace Layout
-**Target Section**: `_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 
 **Description**:
 기존 3패널 레이아웃(파일 트리 | 코드 | 스펙)을 2패널 탭 레이아웃(사이드바 | 탭 콘텐츠)으로 변경한다.
@@ -52,7 +52,7 @@
 ## Component Changes
 
 ### Modified Component: App Shell (`src/App.tsx`)
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Purpose**: 3패널 → 2패널 탭 레이아웃 전환
 **변경 사항**:
 - 헤더: 워크스페이스 그룹 제거, 탭 바 추가
@@ -62,8 +62,8 @@
 - 리사이즈: 핸들 1개로 축소
 - spec 점프/Go to Source 시 탭 자동 전환
 
-### Modified Component: Architecture Layout (`02-architecture.md` 3절)
-**Target Section**: `_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+### Modified Component: Architecture Layout (`system-architecture.md` 3절)
+**Target Section**: `_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **변경 사항**:
 ```text
 Header Left: Title + Back/Forward + [Code|Spec] Tab

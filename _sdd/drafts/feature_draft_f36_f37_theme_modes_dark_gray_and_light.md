@@ -24,7 +24,7 @@
 **Priority**: High  
 **Category**: Appearance / Theme Architecture  
 **Target Component**: `App`, `App CSS`, `CodeEditorPanel`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.4 Code Editor Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `2. 링크/경로 해석 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.4 Code Editor Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `2. 링크/경로 해석 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 앱의 현재 다크 계열 시각 스타일을 공식 `dark-gray` 테마 기준선으로 정리하고, appearance theme 선택/영속화의 기본 구조를 도입한다. MVP에서는 기존 look을 최대한 유지하되, 특히 Code Editor는 전체 앱 톤과 더 잘 맞도록 약간 더 gray 쪽으로 조정한다. 이 기능은 “완전한 true dark”를 추가하는 것이 아니라, 현재 팔레트를 `dark-gray`로 명시하고 이후 추가 테마를 얹을 수 있는 기반을 만드는 작업이다.
@@ -53,7 +53,7 @@
 **Priority**: High  
 **Category**: Appearance / Theme Variant  
 **Target Component**: `App`, `CodeEditorPanel`, `SpecViewerPanel`, `syntax-highlight`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 `dark-gray` 기준선 위에 별도의 `light` theme를 추가한다. light theme는 앱 shell, 각 패널, 버튼/탭, banner/modal, CodeMirror, rendered spec code block(Shiki)까지 포함해 일관된 밝은 팔레트를 제공해야 한다. 목표는 VS Code/GitHub 계열의 익숙한 light 인상을 참고하되, 테마 시스템 전체를 복제하는 것이 아니라 현재 앱 구조에 맞는 토큰형 light palette를 제공하는 것이다.
@@ -82,14 +82,14 @@
 
 ### Improvement: 하드코딩 색상값을 theme token 중심으로 정리
 **Priority**: High  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`  
 **Current State**: `index.css`, `App.css`, CM6 theme, Shiki highlight 경로에 색상값이 직접 박혀 있어 새로운 theme variant 추가 비용이 높다.  
 **Proposed**: 앱 공통 색을 semantic token(background/surface/text/border/accent/state)으로 모으고, `dark-gray`/`light` palette가 같은 token 표면을 공유하도록 바꾼다.  
 **Reason**: light theme를 넣으려면 palette 추가보다 먼저 하드코딩 정리가 선행되어야 회귀 비용을 통제할 수 있다.
 
 ### Improvement: CodeMirror/Shiki를 theme-aware routing으로 확장
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`  
 **Current State**: Code Editor는 dark CM6 theme만 있고, Shiki도 `github-dark` 하나만 사용한다.  
 **Proposed**: active appearance theme에 따라 CM6 extension과 Shiki theme를 선택하는 공통 라우팅을 추가한다.  
 **Reason**: 앱 shell만 light가 되고 코드 영역이 dark로 남으면 제품 완성도가 크게 떨어진다.
@@ -97,7 +97,7 @@
 ## Component Changes
 
 ### Component Change: App Shell appearance state + theme selector 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -106,7 +106,7 @@
 - theme 변경 시 root-level dataset/class 또는 동등한 방식으로 전역 CSS token을 전환한다.
 
 ### Component Change: Global CSS token layer 도입
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`  
 **Type**: Existing Styling Refactor  
 **Change Summary**:
 
@@ -115,7 +115,7 @@
 - banner, tab, modal, popover, file tree, button hover/active, divider까지 포함해 주요 표면을 token 기반으로 맞춘다.
 
 ### Component Change: Code Editor theme routing 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Editor Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Editor Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -124,7 +124,7 @@
 - active appearance theme에 따라 Code Editor가 적절한 theme extension을 사용하도록 routing을 추가한다.
 
 ### Component Change: Spec code block theme routing 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 

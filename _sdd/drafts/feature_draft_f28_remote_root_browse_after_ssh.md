@@ -24,7 +24,7 @@
 **Priority**: High
 **Category**: Core Feature
 **Target Component**: `src/workspace/remote-connect-modal.tsx`, `src/App.tsx`, `electron/preload.ts`, `electron/electron-env.d.ts`, `electron/main.ts`, `electron/remote-agent/directory-browser.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`, `4.6 원격 에이전트 워크스페이스 연결 흐름(F27, Implemented)`; `/_sdd/spec/sdd-workbench/02-architecture.md` > `5.9 Remote Agent Protocol 원격 워크스페이스 플로우(F27, Implemented)`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `3. IPC 계약`; `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`, `4. 테스트 운영`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`, `4.6 원격 에이전트 워크스페이스 연결 흐름(F27, Implemented)`; `/_sdd/spec/sdd-workbench/system-architecture.md` > `5.9 Remote Agent Protocol 원격 워크스페이스 플로우(F27, Implemented)`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `3. IPC 계약`; `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`, `4. 테스트 운영`
 
 **Description**:
 현재는 연결 전에 `remoteRoot`를 정확히 입력해야 해서 실사용 진입 장벽이 높다. F28은 SSH 인증 정보(host/user/port/identityFile)를 먼저 확인한 뒤, 원격 디렉토리 목록을 탐색해 워크스페이스 루트를 선택하도록 연결 UX를 2단계로 확장한다.
@@ -52,14 +52,14 @@
 
 ### Improvement: `remoteRoot` 선입력 의존 완화
 **Priority**: High
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `4.6 원격 에이전트 워크스페이스 연결 흐름(F27, Implemented)`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `4.6 원격 에이전트 워크스페이스 연결 흐름(F27, Implemented)`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Current State**: 모달 제출 전에 `remoteRoot`를 반드시 직접 입력해야 한다.
 **Proposed**: 접속 프로필 검증 후 원격 디렉토리 브라우징으로 경로를 선택하는 흐름을 기본 제공한다.
 **Reason**: 사용자가 원격 경로를 정확히 기억하지 못해도 SSH 접속 후 탐색 방식으로 진입할 수 있게 하기 위함.
 
 ### Improvement: 원격 경로 탐색 실패 가시성 강화
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`, `4. 테스트 운영`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`, `4. 테스트 운영`
 **Current State**: 연결 실패는 로깅되지만, 탐색 전용 실패 맥락은 별도 표준이 없다.
 **Proposed**: 탐색 요청/응답 로깅(`remoteBrowse.request/result`)과 모달 내 고정 에러 노출을 추가한다.
 **Reason**: 접속 실패와 경로 탐색 실패를 구분해 디버깅 시간을 줄이기 위함.
@@ -71,7 +71,7 @@
 ## Component Changes
 
 ### New Component: `electron/remote-agent/directory-browser.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`
 **Purpose**: 원격 agent 연결 이전 단계에서 SSH 단발 호출로 디렉토리 목록을 조회
 **Input**: SSH 프로필(host/user/port/identityFile), 조회 기준 경로
 **Output**: 현재 경로, 디렉토리 엔트리 목록, truncation 여부, 오류 코드
@@ -81,7 +81,7 @@
 - `normalizeBrowsePath(input, fallbackHome)` - 경로 표준화 및 기본 경로 결정
 
 ### Update Component: `src/workspace/remote-connect-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -90,7 +90,7 @@
 - 최종 `onSubmit` payload는 기존 `WorkspaceRemoteProfile` 형식을 유지
 
 ### Update Component: `electron/preload.ts`, `electron/electron-env.d.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `3. IPC 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `3. IPC 계약`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -98,7 +98,7 @@
 - 요청/응답 계약(`WorkspaceRemoteDirectoryBrowseRequest/Result`) 노출
 
 ### Update Component: `electron/main.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -109,14 +109,14 @@
 ## Configuration Changes
 
 ### New Config: `REMOTE_DIRECTORY_BROWSE_LIMIT`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `1. 성능 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `1. 성능 기준`
 **Type**: Environment Variable
 **Required**: No
 **Default**: `500`
 **Description**: 원격 디렉토리 탐색 1회 응답의 최대 엔트리 수
 
 ### New Config: `REMOTE_DIRECTORY_BROWSE_TIMEOUT_MS`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Type**: Environment Variable
 **Required**: No
 **Default**: `7000`
@@ -134,7 +134,7 @@
 
 ### References
 - `/_sdd/drafts/feature_draft_f27_remote_agent_protocol_mvp.md`
-- `/_sdd/spec/DECISION_LOG.md` (2026-03-01 원격 연결 정책)
+- `/_sdd/spec/decision-log.md` (2026-03-01 원격 연결 정책)
 
 ---
 

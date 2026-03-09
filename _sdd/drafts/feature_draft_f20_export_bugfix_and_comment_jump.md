@@ -9,7 +9,7 @@
 
 **Date**: 2026-02-24
 **Author**: user
-**Target Spec**: `/_sdd/spec/sdd-workbench/04-interfaces.md`, `/_sdd/spec/sdd-workbench/03-components.md`
+**Target Spec**: `/_sdd/spec/sdd-workbench/contract-map.md`, `/_sdd/spec/sdd-workbench/component-map.md`
 
 ---
 
@@ -17,7 +17,7 @@
 
 ### Bug: Export에서 pending-only 제한이 선택 export 시에도 적용됨
 **Severity**: High
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 **Location**: `src/App.tsx:1633`, `src/code-comments/export-comments-modal.tsx:67-68`
 **Description**: View Comments에서 사용자가 명시적으로 코멘트를 선택한 후 export하는 경우에도, export modal에서 `pendingCommentCount > 0` 또는 `allowExportWithoutPendingComments(=global comments 포함)` 조건을 만족하지 않으면 Export 버튼이 비활성화됨. 이미 exported된 코멘트만 선택한 경우 export 불가.
 **Reproduction**:
@@ -36,7 +36,7 @@
 
 ### Bug: Export 코멘트 갯수에 global comments 미반영
 **Severity**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 **Location**: `src/App.tsx:1630`, `src/code-comments/export-comments-modal.tsx:93`, `src/code-comments/comment-export.ts:56`
 **Description**: Export modal의 `{commentCount} comment(s) included` 카운트가 코드 코멘트만 포함하고 global comments를 반영하지 않음. 또한 export된 markdown의 `Total comments:` 라인도 마찬가지.
 **Reproduction**:
@@ -56,17 +56,17 @@
 
 ### Improvement: 코멘트 뷰어에서 해당 코드 라인으로 이동
 **Priority**: High
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Current State**: View Comments 모달에서 코멘트의 파일경로:라인 정보가 텍스트로만 표시되며 클릭 불가.
 **Proposed**: 코멘트의 target 텍스트(`relativePath:L{start}-L{end}`)를 클릭하면 해당 파일을 열고 코드 뷰어에서 해당 라인으로 스크롤 이동. View Comments 모달은 이동 시 자동으로 닫힘.
 **Reason**: 코멘트 작성 맥락을 빠르게 확인하기 위해 코드 위치를 직접 확인할 수 있어야 함. 기존 `CodeViewerJumpRequest` 메커니즘을 재활용 가능.
 
 **스펙 변경 내용**:
-`03-components.md` > `1.6 Comment Domain Layer` > `comment-list-modal.tsx` 설명 보완:
+`component-map.md` > `1.6 Comment Domain Layer` > `comment-list-modal.tsx` 설명 보완:
 - 기존: `코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm, 하단 좌측 배치) + global comments 상단 read-only 섹션 + "Include in export" 체크박스`
 - 변경: `코멘트 조회/편집/개별삭제/Delete Exported(2-step confirm, 하단 좌측 배치) + global comments 상단 read-only 섹션 + "Include in export" 체크박스 + 코멘트 target 클릭 시 해당 파일/라인으로 점프(모달 닫힘)`
 
-`04-interfaces.md` > `4. 코멘트/Export 정책 계약`에 신규 항목 추가:
+`contract-map.md` > `4. 코멘트/Export 정책 계약`에 신규 항목 추가:
 - `13. View Comments에서 코멘트의 target 텍스트(파일경로:라인)를 클릭하면, 해당 파일을 열고 코드 뷰어에서 해당 라인으로 스크롤한다. 모달은 자동으로 닫힌다. 점프 대상 파일이 현재 워크스페이스에 없으면 무시한다.`
 
 ---

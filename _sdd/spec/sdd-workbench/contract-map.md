@@ -1,4 +1,4 @@
-# 04. Interfaces
+# Contract Map
 
 ## 목적
 
@@ -18,19 +18,19 @@
 
 | 계약 문서 | 다루는 범위 |
 |---|---|
-| [state-model](./04-contracts/state-model.md) | 핵심 타입과 전역 상태 불변식 |
-| [ipc-contracts](./04-contracts/ipc-contracts.md) | `workspace:*`, `system:*`, `appearance-theme:*` 채널 |
-| [navigation-rules](./04-contracts/navigation-rules.md) | 링크 해석, source action, code/spec 왕복 이동, highlight |
-| [search-rules](./04-contracts/search-rules.md) | Code/File/Spec 검색, wildcard, cap, partial hint |
-| [comment-contracts](./04-contracts/comment-contracts.md) | comment schema, persistence, export, marker, hover preview |
-| [theme-and-menu-contracts](./04-contracts/theme-and-menu-contracts.md) | theme mode, bootstrap, storage fallback, native menu sync |
+| [state-model](./contracts/state-model.md) | 핵심 타입과 전역 상태 불변식 |
+| [ipc-contracts](./contracts/ipc-contracts.md) | `workspace:*`, `system:*`, `appearance-theme:*` 채널 |
+| [navigation-rules](./contracts/navigation-rules.md) | 링크 해석, source action, code/spec 왕복 이동, highlight |
+| [search-rules](./contracts/search-rules.md) | Code/File/Spec 검색, wildcard, cap, partial hint |
+| [comment-contracts](./contracts/comment-contracts.md) | comment schema, persistence, export, marker, hover preview |
+| [theme-and-menu-contracts](./contracts/theme-and-menu-contracts.md) | theme mode, bootstrap, storage fallback, native menu sync |
 
 ## 3. 읽는 순서
 
 - 타입부터 파악할 때:
   - `state-model` -> 필요한 domain doc
 - IPC를 바꿀 때:
-  - `ipc-contracts` -> `CODE_MAP.md`의 Electron/Main 영역
+  - `ipc-contracts` -> `code-map.md`의 Electron/Main 영역
 - source jump/search/comment를 바꿀 때:
   - `navigation-rules`
   - `search-rules`
@@ -40,4 +40,4 @@
 
 1. 새 규칙을 추가할 때는 가장 가까운 하위 계약 문서 1곳에만 canonical하게 적는다.
 2. 이 허브 문서에는 요약과 링크만 유지한다.
-3. 구현 세부 파일 목록은 `CODE_MAP.md`에 둔다.
+3. 구현 세부 파일 목록은 `code-map.md`에 둔다.

@@ -19,7 +19,7 @@
 **Priority**: Medium
 **Category**: Code Viewer Enhancement
 **Target Component**: Code Viewer Layer
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`
 
 **Description**:
 기존 PrismJS(`prismjs ^1.30.0`) 기반의 per-line 동기 하이라이팅을 Shiki 기반으로 교체한다.
@@ -63,7 +63,7 @@ Electron 환경이므로 WASM 로딩이 안정적이며, 비동기 초기화를 
 
 ### Improvement: 확장 가능한 언어 매핑
 **Priority**: Low
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`
 **Current State**: 9개 언어(ts, tsx, js, jsx, json, css, md, py)만 하이라이팅 지원
 **Proposed**: Shiki 번들에 포함된 모든 언어를 `HighlightLanguage` 타입으로 사용 가능하게 하고, `language-map.ts`에 추가 확장자 매핑(html, yaml, toml, sh, rs, go, java, c, cpp, swift, rb, sql 등)을 포함
 **Reason**: Shiki가 200+ TextMate 문법을 지원하므로, 추가 설정 없이 폭넓은 코드 프리뷰가 가능해짐
@@ -73,7 +73,7 @@ Electron 환경이므로 WASM 로딩이 안정적이며, 비동기 초기화를 
 ## Component Changes
 
 ### Modified Component: syntax-highlight.ts
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`
 **Purpose**: PrismJS → Shiki 기반 비동기 하이라이팅 제공
 **Input**: 전체 파일 텍스트 + 언어 식별자
 **Output**: 라인별 HTML string 배열 (Promise)
@@ -83,12 +83,12 @@ Electron 환경이므로 WASM 로딩이 안정적이며, 비동기 초기화를 
 - `highlightPreviewLines(lines: string[], language: string): Promise<string[]>` - hover preview용 라인별 하이라이팅
 
 ### Modified Component: language-map.ts
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`
 **Purpose**: 확장자 → Shiki 언어 ID 매핑 확장
 **Changes**: `HighlightLanguage` 타입을 Shiki의 `BundledLanguage | 'plaintext'`로 교체, 추가 확장자 매핑
 
 ### Modified Component: code-viewer-panel.tsx
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`
 **Purpose**: 비동기 하이라이팅 결과 소비
 **Changes**: `useMemo` 동기 하이라이팅 → `useEffect`+`useState` 비동기 패턴으로 전환, fallback plaintext 표시
 

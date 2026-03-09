@@ -24,7 +24,7 @@
 **Priority**: Medium
 **Category**: UI/UX
 **Target Component**: `src/code-viewer/code-viewer-panel.tsx`, `src/spec-viewer/spec-viewer-panel.tsx`, `src/code-comments/comment-line-index.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`, `4.3 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`, `1.5 Spec Viewer Layer`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `5. 마커 매핑 규칙`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`, `4.3 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`, `1.5 Spec Viewer Layer`; `/_sdd/spec/sdd-workbench/contract-map.md` > `5. 마커 매핑 규칙`
 
 **Description**:
 코드 뷰어와 rendered markdown 뷰어에서 코멘트 count badge에 마우스를 올리면 해당 라인의 코멘트 본문 요약을 popover로 보여준다. 사용자는 클릭 없이 코멘트 맥락을 빠르게 확인할 수 있어야 한다.
@@ -48,7 +48,7 @@
 
 ### Improvement: 라인별 코멘트 detail lookup 유틸 확장
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `5. 마커 매핑 규칙`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`; `/_sdd/spec/sdd-workbench/contract-map.md` > `5. 마커 매핑 규칙`
 **Current State**: 현재는 라인별 코멘트 count만 계산하며 본문 목록 조회는 별도 계산이 필요하다.
 **Proposed**: `comment-line-index`에 `line -> comments[]` 조회 유틸을 추가하고 CodeViewer/SpecViewer에서 공용 사용한다.
 **Reason**: hover popover 렌더 시 중복 계산을 줄이고 일관된 정렬/필터 규칙을 보장하기 위함.
@@ -56,7 +56,7 @@
 ## Component Changes
 
 ### New Component: `src/code-comments/comment-hover-popover.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Purpose**: 코멘트 목록 hover popover UI 렌더
 **Input**: `lineNumber`, `comments[]`, `position`, `onClose`
 **Output**: readonly comment preview popover
@@ -65,7 +65,7 @@
 - `CommentHoverPopover()` - 코멘트 프리뷰 목록 렌더
 
 ### Update Component: `src/code-comments/comment-line-index.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -73,7 +73,7 @@
 - 코드/문서 양쪽에서 동일한 sort 순서 재사용
 
 ### Update Component: `src/code-viewer/code-viewer-panel.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -82,7 +82,7 @@
 - selection/우클릭 액션과 충돌 없는 이벤트 처리
 
 ### Update Component: `src/spec-viewer/spec-viewer-panel.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -91,7 +91,7 @@
 - 기존 link/source popover와 상호 배타 상태 관리
 
 ### Update Component: `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:

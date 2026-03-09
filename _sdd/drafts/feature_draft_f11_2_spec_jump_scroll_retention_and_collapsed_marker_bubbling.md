@@ -22,7 +22,7 @@
 
 ### Improvement: Spec -> Code 점프 시 rendered markdown 위치 유지
 **Priority**: High
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로 해석 규칙`
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로 해석 규칙`
 **Current State**:
 - rendered markdown에서 `Go to Source` 또는 spec 링크로 코드 점프할 때, 같은 spec 파일 재로드가 발생하며 오른쪽 패널이 상단으로 리셋될 수 있음.
 - 사용자 관점에서 읽던 문맥이 사라져 탐색 효율이 저하됨.
@@ -37,7 +37,7 @@
 
 ### Improvement: collapse 상태에서도 변경 마커 가시화
 **Priority**: High
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.3 File Tree Layer`
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.3 File Tree Layer`
 **Current State**:
 - 변경 마커(`●`)는 변경된 파일(또는 노출된 노드)에만 표시된다.
 - 변경 파일이 collapse된 디렉토리 하위에 있으면 마커가 사용자에게 보이지 않는다.
@@ -53,7 +53,7 @@
 ## Component Changes
 
 ### Update Component: workspace-context
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.2 Workspace State Layer`
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.2 Workspace State Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -61,7 +61,7 @@
 - spec scroll position 저장/복원 상태 연결(App/SpecViewer 인터페이스 포함)
 
 ### Update Component: SpecViewerPanel
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -70,7 +70,7 @@
 - 스펙 점프 시 위치 보존 회귀 테스트 추가
 
 ### Update Component: FileTreePanel
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.3 File Tree Layer`
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.3 File Tree Layer`
 **Change Type**: Enhancement
 
 **Changes**:

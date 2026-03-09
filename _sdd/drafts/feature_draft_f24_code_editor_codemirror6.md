@@ -20,7 +20,7 @@
 **Priority**: High
 **Category**: Core Feature
 **Target Component**: `src/code-editor/*` (신규), App Shell, Electron Boundary
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer` (대체)
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer` (대체)
 
 **Description**:
 기존 custom line-rendering + Shiki 기반 read-only CodeViewerPanel을 CodeMirror 6 기반 CodeEditorPanel로 교체한다. Phase 1에서 read-only 뷰어 동등성을 확보하고, Phase 2에서 편집 + 저장 + dirty 상태 관리를 추가하며, Phase 3에서 gutter extension(Git 마커, 코멘트 배지)을 복원하고, Phase 4에서 레거시 코드를 정리한다.

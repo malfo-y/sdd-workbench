@@ -2,7 +2,7 @@
 
 **Review Date**: 2026-03-06  
 **Plan Location**: `/_sdd/drafts/feature_draft_f29_f30_file_tree_and_spec_search.md` (Part 2)  
-**Spec Baseline**: `/_sdd/spec/main.md`, `/_sdd/spec/sdd-workbench/03-components.md`, `/_sdd/spec/sdd-workbench/04-interfaces.md`  
+**Spec Baseline**: `/_sdd/spec/main.md`, `/_sdd/spec/sdd-workbench/component-map.md`, `/_sdd/spec/sdd-workbench/contract-map.md`  
 **Reviewer**: Codex
 
 ---
@@ -47,7 +47,7 @@
 4. **Spec 문서에는 아직 F29/F30 구현이 반영되지 않았다.**
    - 근거:
      - spec index는 아직 `F01~F28`까지만 완료 범위로 적고 있다: `/_sdd/spec/main.md:41-67`
-     - Spec Viewer Layer / Electron Boundary / IPC 계약에는 `spec search`와 `workspace:searchFiles`가 없다: `/_sdd/spec/sdd-workbench/03-components.md:101-109`, `:138-192`, `/_sdd/spec/sdd-workbench/04-interfaces.md:123-152`
+     - Spec Viewer Layer / Electron Boundary / IPC 계약에는 `spec search`와 `workspace:searchFiles`가 없다: `/_sdd/spec/sdd-workbench/component-map.md:101-109`, `:138-192`, `/_sdd/spec/sdd-workbench/contract-map.md:123-152`
    - 영향:
      - 현재 구현과 spec baseline 사이에 drift가 생겼다.
      - 코드 리뷰/온보딩 시 최신 기능 존재를 spec만으로는 알 수 없다.

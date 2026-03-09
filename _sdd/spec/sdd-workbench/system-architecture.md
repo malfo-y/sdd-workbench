@@ -1,4 +1,4 @@
-# 02. Architecture
+# System Architecture
 
 ## 1. 아키텍처 원칙
 

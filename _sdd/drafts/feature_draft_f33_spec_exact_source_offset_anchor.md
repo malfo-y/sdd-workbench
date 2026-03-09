@@ -24,7 +24,7 @@
 **Priority**: Medium  
 **Category**: Comment UX / Source Mapping / Markdown Precision  
 **Target Component**: `SpecViewerPanel`, `source-line-resolver`, `CodeEditorPanel`, `comment-anchor`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.3 Code Viewer Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.3 Code Viewer Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 Rendered markdown에서 선택한 텍스트를 같은 markdown 원문의 **exact source offset range**로 해석하는 MVP를 추가한다. 기존 F32의 line-level best-effort anchor 위에, 지원되는 inline 구조에서는 선택 시점 기준으로 raw markdown source의 정확한 `[startOffset, endOffset)` 범위를 계산해 `Go to Source`와 `Add Comment`에 사용한다. `Go to Source`는 Code Viewer에서 line 스크롤만이 아니라 해당 source range를 선택/강조할 수 있어야 하며, `Add Comment`는 기존 `startLine/endLine`을 유지하면서 optional offset metadata를 함께 저장할 수 있어야 한다. 단, 원문이 이후 수정되면 stored offset은 stale 될 수 있으며, 이번 MVP는 재정렬(re-anchor)이나 복구를 시도하지 않는다.
@@ -58,21 +58,21 @@ Rendered markdown에서 선택한 텍스트를 같은 markdown 원문의 **exact
 
 ### Improvement: Spec Viewer source metadata 계약을 line span에서 exact offset span까지 확장
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `5. 마커 매핑 규칙`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `5. 마커 매핑 규칙`  
 **Current State**: 현재 renderer/resolver는 `data-source-line`, `data-source-line-start/end` 기반으로 line-level best-effort 해석만 제공한다.  
 **Proposed**: renderer가 지원되는 inline leaf 또는 동등한 wrapper에 `sourceOffsetStart/sourceOffsetEnd` metadata를 제공하고, resolver가 selection DOM range를 exact source offset range로 계산하도록 확장한다.  
 **Reason**: 스펙 뷰어에서 선택한 단어/토큰이 code view의 실제 raw markdown 위치와 더 정확하게 대응되게 하기 위함이다.
 
 ### Improvement: Code Viewer jump 계약을 line scroll에서 exact range selection까지 확장
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.3 Code Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로/선택 액션 규칙`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.3 Code Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로/선택 액션 규칙`  
 **Current State**: `CodeViewerJumpRequest`는 `lineNumber`만 전달해 line scroll만 수행한다.  
 **Proposed**: jump request가 optional exact offset range를 전달할 수 있게 하고, CodeMirror가 해당 source range를 실제 selection 또는 동등한 시각 강조로 반영하도록 확장한다.  
 **Reason**: spec viewer에서 선택한 텍스트를 code tab에서 정확히 확인할 수 있어야 하기 때문이다.
 
 ### Improvement: Comment anchor persistence에 optional source offset metadata 추가
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`  
 **Current State**: comment anchor는 snippet/hash/before/after와 `startLine/endLine`만 저장한다.  
 **Proposed**: exact selection이 가능한 경우 `CodeCommentAnchor`에 optional `startOffset/endOffset`를 저장하고, parser/serializer는 backward-compatible하게 이를 처리한다.  
 **Reason**: 스펙 뷰어 origin comment가 line 범위를 넘어 raw markdown의 더 정확한 위치를 보존할 수 있어야 하기 때문이다.
@@ -80,7 +80,7 @@ Rendered markdown에서 선택한 텍스트를 같은 markdown 원문의 **exact
 ## Component Changes
 
 ### Component Change: Spec Viewer exact source metadata layer 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -89,7 +89,7 @@ Rendered markdown에서 선택한 텍스트를 같은 markdown 원문의 **exact
 - marker/search용 대표 block metadata와 interactive exact metadata의 책임을 분리한다.
 
 ### Component Change: `source-line-resolver`를 offset-aware source resolver로 확장
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -98,7 +98,7 @@ Rendered markdown에서 선택한 텍스트를 같은 markdown 원문의 **exact
 - code fence 전용 경로와 일반 markdown inline 경로를 함께 유지한다.
 
 ### Component Change: Code Viewer / Comment subsystem exact range 지원
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.3 Code Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.3 Code Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 

@@ -62,9 +62,9 @@
 
 ## 6. 관련 계약 문서
 
-- [ipc-contracts](../04-contracts/ipc-contracts.md)
-- [state-model](../04-contracts/state-model.md)
-- [search-rules](../04-contracts/search-rules.md)
+- [ipc-contracts](../contracts/ipc-contracts.md)
+- [state-model](../contracts/state-model.md)
+- [search-rules](../contracts/search-rules.md)
 
 ## 7. 핵심 테스트
 

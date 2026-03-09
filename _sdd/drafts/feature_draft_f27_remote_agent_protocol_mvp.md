@@ -24,7 +24,7 @@
 **Priority**: High
 **Category**: Core Feature
 **Target Component**: `electron/main.ts`, `electron/preload.ts`, `electron/electron-env.d.ts`, `src/workspace/workspace-context.tsx`, `src/workspace/workspace-model.ts`, `src/workspace/workspace-persistence.ts`, `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`, `3.2 MVP 제외 범위`, `4. 주요 사용자 흐름`; `/_sdd/spec/sdd-workbench/02-architecture.md` > `2. 런타임 경계`, `5. 핵심 데이터 플로우`, `6. 워크스페이스 경계 규칙`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.2 Workspace State Layer`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `3. IPC 계약`; `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `2. 보안 기준`, `3. 신뢰성 기준`, `4. 테스트 운영`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`, `3.2 MVP 제외 범위`, `4. 주요 사용자 흐름`; `/_sdd/spec/sdd-workbench/system-architecture.md` > `2. 런타임 경계`, `5. 핵심 데이터 플로우`, `6. 워크스페이스 경계 규칙`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.2 Workspace State Layer`, `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `3. IPC 계약`; `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `2. 보안 기준`, `3. 신뢰성 기준`, `4. 테스트 운영`
 
 **Description**:
 SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고, 로컬 앱이 RPC 프로토콜로 파일/디렉토리/감시/git 메타데이터 작업을 수행한다. 목표는 현재 로컬 워크스페이스 기능을 원격에서도 동일 계약(`workspace:*` IPC)으로 제공하는 것이다.
@@ -54,14 +54,14 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 
 ### Improvement: Local FS 의존 경계를 Workspace Backend 추상화로 분리
 **Priority**: High
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `2. 런타임 경계`, `5. 핵심 데이터 플로우`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `2. 런타임 경계`, `5. 핵심 데이터 플로우`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`
 **Current State**: `electron/main.ts`가 로컬 파일시스템/프로세스 명령을 직접 수행한다.
 **Proposed**: `WorkspaceBackend` 인터페이스를 도입해 `local`/`remote` 구현을 분리하고 IPC handler는 backend만 호출한다.
 **Reason**: 원격 기능 추가 시 로컬 경로 가정이 섞여 회귀 리스크가 커지는 문제를 줄이고 기능 확장을 단계화하기 위함.
 
 ### Improvement: 원격 연결 상태/오류 표준화
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `3. IPC 계약`; `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `3. IPC 계약`; `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Current State**: watcher fallback 중심 상태만 존재하고 원격 연결 상태 머신은 없다.
 **Proposed**: `connecting/connected/degraded/disconnected` 상태와 공통 오류 코드(`AUTH_FAILED`, `TIMEOUT`, `AGENT_PROTOCOL_MISMATCH`, `PATH_DENIED`)를 정의한다.
 **Reason**: 장애 대응/재연결 정책/테스트 케이스를 일관된 계약으로 검증하기 위함.
@@ -73,7 +73,7 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 ## Component Changes
 
 ### New Component: `electron/remote-agent/protocol.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `3. IPC 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/contract-map.md` > `3. IPC 계약`
 **Purpose**: 원격 에이전트 요청/응답/이벤트 메시지 타입 및 버전 계약 정의
 **Input**: RPC 요청(`method`, `params`, `id`)
 **Output**: RPC 응답(`result`/`error`) 및 서버 이벤트(`watchEvent`, `connectionStatus`)
@@ -84,7 +84,7 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 - `isSupportedProtocolVersion(...)` - 버전 호환성 검사
 
 ### New Component: `electron/remote-agent/transport-ssh.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`; `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Purpose**: SSH 프로세스 실행, 에이전트 부팅, 표준입출력 스트림 연결 관리
 **Input**: 연결 프로필(host/user/port/auth/remoteRoot)
 **Output**: 연결 세션 핸들, 상태 이벤트, 종료 원인
@@ -95,7 +95,7 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 - `stopRemoteAgentSession(sessionId)` - 세션 종료/정리
 
 ### New Component: `electron/workspace-backend/types.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`
 **Purpose**: local/remote 공통 `WorkspaceBackend` 인터페이스 정의
 **Input**: workspace 식별자/상대경로/요청 타입
 **Output**: 기존 IPC result와 정합된 backend 결과
@@ -108,7 +108,7 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 - `getGitLineMarkers(...)`
 
 ### Update Component: `src/workspace/workspace-model.ts`, `src/workspace/workspace-context.tsx`, `src/workspace/workspace-persistence.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.2 Workspace State Layer`; `/_sdd/spec/sdd-workbench/02-architecture.md` > `4.1 Workspace 세션 상태`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.2 Workspace State Layer`; `/_sdd/spec/sdd-workbench/system-architecture.md` > `4.1 Workspace 세션 상태`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -117,7 +117,7 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 - 세션 스냅샷 저장/복원 대상에 원격 메타데이터 포함
 
 ### Update Component: `src/App.tsx`, `src/App.css`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`; `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`; `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -128,21 +128,21 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 ## Configuration Changes
 
 ### New Config: `REMOTE_AGENT_CONNECT_TIMEOUT_MS`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Type**: Environment Variable
 **Required**: No
 **Default**: `8000`
 **Description**: SSH/agent 초기 연결 타임아웃(ms)
 
 ### New Config: `REMOTE_AGENT_REQUEST_TIMEOUT_MS`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Type**: Environment Variable
 **Required**: No
 **Default**: `15000`
 **Description**: 원격 RPC 단건 요청 타임아웃(ms)
 
 ### New Config: `REMOTE_AGENT_RECONNECT_ATTEMPTS`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `3. 신뢰성 기준`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `3. 신뢰성 기준`
 **Type**: Environment Variable
 **Required**: No
 **Default**: `3`
@@ -160,7 +160,7 @@ SSHFS 마운트 의존 대신 SSH를 통해 원격 에이전트를 실행하고,
 
 ### References
 - 기존 F15 draft: `/_sdd/drafts/feature_draft_f15_remote_workspace_via_sshfs.md`
-- 현재 watcher 운영 기준: `/_sdd/spec/sdd-workbench/05-operational-guides.md`
+- 현재 watcher 운영 기준: `/_sdd/spec/sdd-workbench/operations-and-validation.md`
 
 ---
 

@@ -24,7 +24,7 @@
 **Priority**: Medium  
 **Category**: Comment UX / Source Mapping  
 **Target Component**: `SpecViewerPanel`, `source-line-resolver`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 Rendered markdown에서 `Add Comment`와 `Go to Source`가 사용하는 source line 해석을 block 시작 line 중심에서 더 정밀한 **line-level best-effort anchor**로 확장한다. fenced code block의 기존 newline offset 계산은 유지하고, 일반 paragraph/list/blockquote/table에서는 더 세밀한 rendered node source metadata와 resolver 규칙을 사용해 선택/우클릭 지점에 가까운 source line을 계산한다. 목표는 comment 저장 포맷을 바꾸지 않고도 스펙 뷰어에서 달리는 코멘트가 원문상 더 정확한 line range를 가리키게 하는 것이다.
@@ -57,14 +57,14 @@ Rendered markdown에서 `Add Comment`와 `Go to Source`가 사용하는 source l
 
 ### Improvement: `source-line-resolver` 계약을 block start line에서 best-effort line span 해석으로 확장
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로/선택 액션 규칙`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로/선택 액션 규칙`  
 **Current State**: 일반 markdown 블록은 가장 가까운 `data-source-line` 조상만 사용하므로 paragraph/table/list 내부에서 block 시작 line으로 쏠린다.  
 **Proposed**: resolver가 더 세밀한 rendered node metadata와 line span 정보를 읽어 selection/target에 가까운 source line 또는 line range를 계산하도록 확장한다.  
 **Reason**: 스펙 뷰어 코멘트와 source jump가 문서 구조상 더 자연스러운 위치를 가리키게 하기 위함이다.
 
 ### Improvement: Spec Viewer rendered metadata granularity 보강
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`, `_sdd/spec/sdd-workbench/04-interfaces.md` > `5. 마커 매핑 규칙`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`, `_sdd/spec/sdd-workbench/contract-map.md` > `5. 마커 매핑 규칙`  
 **Current State**: `data-source-line`은 주요 block에만 부여되어 row/cell/child paragraph 수준의 분해능이 부족하다.  
 **Proposed**: `tr`, `th`, `td`, nested paragraph, inline code/link 등 comment/source 액션에 의미 있는 rendered node까지 source metadata를 확장하고, 필요 시 line span metadata를 함께 제공한다.  
 **Reason**: table/list/blockquote와 긴 문단에서 block 시작 line bias를 줄이기 위함이다.
@@ -79,7 +79,7 @@ Rendered markdown에서 `Add Comment`와 `Go to Source`가 사용하는 source l
 ## Component Changes
 
 ### Component Change: Spec Viewer Layer line metadata helper 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -88,7 +88,7 @@ Rendered markdown에서 `Add Comment`와 `Go to Source`가 사용하는 source l
 - metadata shape는 resolver와 search/comment marker가 재사용 가능한 방향으로 맞춘다.
 
 ### Component Change: `source-line-resolver` 정밀도 향상
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -97,7 +97,7 @@ Rendered markdown에서 `Add Comment`와 `Go to Source`가 사용하는 source l
 - line 해석 실패 시 기존 null/fallback 안전성을 유지한다.
 
 ### Component Change: Spec Viewer source action wiring 유지 + anchor 계산만 개선
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로/선택 액션 규칙`, `4. 코멘트/Export 정책 계약`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 

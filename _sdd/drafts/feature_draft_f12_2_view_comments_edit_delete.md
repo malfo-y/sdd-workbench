@@ -24,7 +24,7 @@
 **Priority**: High
 **Category**: Core Feature
 **Target Component**: `src/App.tsx`, `src/code-comments/*`, `src/workspace/workspace-context.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`, `4.3 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.6 Comment Domain Layer`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`, `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`, `4.3 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.6 Comment Domain Layer`; `/_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`, `4. 코멘트/Export 정책 계약`
 
 **Description**:
 헤더에 `View Comments` 버튼을 추가하고, 현재 워크스페이스의 코멘트를 목록으로 조회/편집/삭제할 수 있는 모달을 제공한다. 변경 사항은 기존 source of truth(`comments.json`)에 즉시 반영되어 코드/문서 마커와 동기화되어야 한다.
@@ -50,7 +50,7 @@
 
 ### Improvement: 코멘트 관리 UI 분리 컴포넌트 도입
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Current State**: 코멘트 생성/내보내기 모달은 존재하지만 코멘트 관리 전용 UI가 없다.
 **Proposed**: 조회/편집/삭제를 담당하는 `comment-list-modal`을 별도 컴포넌트로 분리한다.
 **Reason**: App 컴포넌트 복잡도 상승을 막고 테스트 범위를 국소화하기 위함.
@@ -58,7 +58,7 @@
 ## Component Changes
 
 ### New Component: `src/code-comments/comment-list-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Purpose**: 코멘트 목록 조회/편집/삭제 UI
 **Input**: `comments`, `isSaving`, `onUpdate`, `onDelete`, `onClose`
 **Output**: 사용자 편집 액션 이벤트
@@ -67,7 +67,7 @@
 - `CommentListModal()` - 목록/편집 상태/삭제 확인 UI
 
 ### Update Component: `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -76,14 +76,14 @@
 - 기존 `saveComments` 흐름 재사용
 
 ### Update Component: `src/code-comments/comment-types.ts`
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`
 **Change Type**: Enhancement
 
 **Changes**:
 - 편집 시 body sanitize 규칙을 재사용하기 위한 helper 공개/정리
 
 ### Update Component: `src/App.css`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:

@@ -13,7 +13,7 @@ UI는 헤더가 아니라 좌측 `Current Workspace` 블록 바로 아래에 배
 
 기준 문서:
 - `/_sdd/spec/main.md` 섹션 `6`, `9.2`, `12.2 (F08)`, `13.1`
-- `/_sdd/spec/DECISION_LOG.md` (2026-02-21 F08 범위/위치/UI 형태 결정)
+- `/_sdd/spec/decision-log.md` (2026-02-21 F08 범위/위치/UI 형태 결정)
 
 ## 2. Scope (In/Out)
 

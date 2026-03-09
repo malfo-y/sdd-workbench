@@ -24,7 +24,7 @@
 **Priority**: High  
 **Category**: Appearance / Desktop Menu Integration  
 **Target Component**: `Electron Main`, `preload`, `App`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 테마 전환의 주 진입점을 App header의 넓은 `Theme` select에서 Electron native application menu의 `View > Theme` submenu로 옮긴다. 메뉴에는 `Dark Gray`, `Light` radio item을 제공하고, 선택 결과는 기존 appearance theme 계약(`dark-gray | light`)과 persistence를 그대로 사용한다. 이 변경과 함께 App header는 넓은 theme group을 제거하거나 동등한 수준으로 축소해 상단 공간을 더 효율적으로 사용한다.
@@ -54,14 +54,14 @@
 
 ### Improvement: Appearance theme 변경 경로를 renderer/main IPC bridge로 명시화
 **Priority**: High  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`  
 **Current State**: appearance theme 변경은 현재 renderer 내부 select control과 localStorage persistence에 묶여 있고, main process는 현재 theme 상태를 알지 못한다.  
 **Proposed**: main menu 요청(`set theme`)과 renderer authoritative state sync(`current theme changed`)를 위한 preload IPC bridge를 추가한다.  
 **Reason**: native menu checked state와 renderer theme persistence를 동시에 유지하려면 양방향 동기화 표면이 필요하다.
 
 ### Improvement: Header action 영역의 폭 회수
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`  
 **Current State**: `Theme` label + select group이 header right 영역에서 비교적 큰 폭을 차지한다.  
 **Proposed**: native menu를 primary entry point로 승격하고, header에서는 해당 group을 제거하거나 동등한 수준으로 더 작은 footprint로 축소한다.  
 **Reason**: 사용자는 theme selector가 너무 크게 느껴졌고, 이 공간은 comments 등 다른 header action과 content 가시성에 더 유용하게 쓸 수 있다.
@@ -69,7 +69,7 @@
 ## Component Changes
 
 ### Component Change: Electron main menu에 `View > Theme` 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -78,7 +78,7 @@
 - menu item 선택은 renderer에 theme 변경 요청을 보내고, renderer가 적용한 authoritative state를 기준으로 checked state를 갱신한다.
 
 ### Component Change: preload/theme bridge 추가
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `1. 핵심 타입 계약`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `1. 핵심 타입 계약`  
 **Type**: Existing Interface Extension  
 **Change Summary**:
 
@@ -87,7 +87,7 @@
 - renderer 쪽 타입 선언은 새 bridge를 반영한다.
 
 ### Component Change: Header theme control footprint 축소
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`  
 **Type**: Existing Component Simplification  
 **Change Summary**:
 

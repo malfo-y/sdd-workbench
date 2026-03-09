@@ -17,7 +17,7 @@ F27의 Phase 2 목표는 Phase 1에서 만든 원격 세션 계층을
 - Phase 1 계획/결과:
   - `/_sdd/implementation/features/F27/SYNC_20260228_112741_IMPLEMENTATION_PLAN_PHASE_1.md`
   - `/_sdd/implementation/features/F27/SYNC_20260228_112741_IMPLEMENTATION_PROGRESS_PHASE_1.md`
-- Spec (read-only): `/_sdd/spec/main.md`, `/_sdd/spec/sdd-workbench/02-architecture.md`, `04-interfaces.md`, `05-operational-guides.md`
+- Spec (read-only): `/_sdd/spec/main.md`, `/_sdd/spec/sdd-workbench/system-architecture.md`, `contract-map.md`, `operations-and-validation.md`
 
 ---
 

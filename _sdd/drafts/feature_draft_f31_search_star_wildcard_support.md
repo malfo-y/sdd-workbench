@@ -24,7 +24,7 @@
 **Priority**: Medium  
 **Category**: Search UX / Matcher Semantics  
 **Target Component**: `workspace-search`, `FileTreePanel`, `SpecViewerPanel`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.3 File Tree Layer`, `1.5 Spec Viewer Layer`, `1.7 Electron Boundary`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `8.1 파일 브라우저 파일명 검색 규칙 (F29)`, `8.2 스펙 뷰어 텍스트 검색 규칙 (F30)`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.3 File Tree Layer`, `1.5 Spec Viewer Layer`, `1.7 Electron Boundary`; `_sdd/spec/sdd-workbench/contract-map.md` > `8.1 파일 브라우저 파일명 검색 규칙 (F29)`, `8.2 스펙 뷰어 텍스트 검색 규칙 (F30)`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 기존 substring 기반 검색에 단일 wildcard 문자 `*` 지원을 추가한다. `*`는 **0개 이상의 임의 문자**를 의미하며, 전체 매칭은 strict glob anchor가 아니라 **non-empty token들의 순서 보존 ordered match**로 해석한다. 즉 `foo*bar`는 후보 문자열 안에 `foo`가 먼저 나오고 그 뒤에 `bar`가 나오면 매치된다. 파일 브라우저 검색은 `fileName` 기준, 스펙 뷰어 검색은 raw markdown의 **단일 line 기준**으로 이 규칙을 적용한다.
@@ -59,14 +59,14 @@
 
 ### Improvement: `workspace:searchFiles` query semantics 확장
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `workspace:searchFiles 계약 요약 (F29)`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `workspace:searchFiles 계약 요약 (F29)`  
 **Current State**: 검색어는 파일명 substring(case-insensitive)으로만 해석된다.  
 **Proposed**: `query`는 기존 substring을 기본값으로 유지하되, `*`가 포함된 경우 ordered token wildcard match로 해석한다. non-wildcard 문자가 없는 query는 empty query로 취급한다.  
 **Reason**: IPC shape 변경 없이 검색 표현력을 높이면서도 전체 저장소 dump나 고비용 regex 처리를 피하기 위함이다.
 
 ### Improvement: 스펙 뷰어 검색 규칙의 wildcard semantics 명시
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `8.2 스펙 뷰어 텍스트 검색 규칙 (F30)`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `8.2 스펙 뷰어 텍스트 검색 규칙 (F30)`  
 **Current State**: 스펙 검색은 raw markdown substring(case-insensitive) 기준으로만 정의되어 있다.  
 **Proposed**: `*`가 포함된 query는 같은 line 안에서 ordered token wildcard match로 해석하고, 줄바꿈을 넘는 wildcard는 지원하지 않는다고 명시한다.  
 **Reason**: block highlight 모델과 search cost를 유지하면서 가장 자주 쓰는 패턴 검색 수요를 충족시키기 위함이다.
@@ -74,7 +74,7 @@
 ## Component Changes
 
 ### Component Change: File Tree Layer에 wildcard discoverability 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.3 File Tree Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.3 File Tree Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -83,7 +83,7 @@
 - `*`만 있는 query는 backend empty result를 그대로 표시하며 전체 트리를 강제로 나열하지 않는다.
 
 ### Component Change: Spec Viewer Layer wildcard matcher 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -92,7 +92,7 @@
 - 검색 입력 discoverability 문구에 `*` 사용 가능성이 드러난다.
 
 ### Component Change: Electron Boundary matcher semantics 확장
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.7 Electron Boundary`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.7 Electron Boundary`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -104,7 +104,7 @@
 
 ### API Change: `workspace:searchFiles` request 해석 규칙 업데이트
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/04-interfaces.md` > `workspace:searchFiles 계약 요약 (F29)`  
+**Target Section**: `_sdd/spec/sdd-workbench/contract-map.md` > `workspace:searchFiles 계약 요약 (F29)`  
 **Current State**: request shape는 `{ rootPath, query, ... }`이며 query semantics는 substring으로만 설명된다.  
 **Proposed**:
 

@@ -16,7 +16,7 @@ SDD Workbench는 코드와 스펙을 하나의 워크벤치에서 탐색·편집
 
 ### Status (현재 상태)
 - **마커 기반 진행률**: `status unknown` (`✅/🚧/📋` 마커가 현재 스펙에서 체계적으로 사용되지 않음)
-- **도메인 커버리지(01-overview 기준)**: Implemented 31, Retired 1(F15)
+- **도메인 커버리지(product-overview 기준)**: Implemented 31, Retired 1(F15)
 - **기능 이력(appendix 기준)**: Done 43, Fixed 2
 - **현재 원격 전략**: F15(SSHFS) 폐기, F27(remote-protocol) 단일 경로
 
@@ -157,13 +157,13 @@ Main (IPC handlers, local/remote backend router)
 ### Key Files
 - **Spec Index**: `_sdd/spec/main.md`
 - **UI Sketch**: `docs/ui_sketch.jpg`
-- **Overview**: `_sdd/spec/sdd-workbench/01-overview.md`
-- **Architecture**: `_sdd/spec/sdd-workbench/02-architecture.md`
-- **Components**: `_sdd/spec/sdd-workbench/03-components.md`
-- **Interfaces**: `_sdd/spec/sdd-workbench/04-interfaces.md`
-- **Operational Guides**: `_sdd/spec/sdd-workbench/05-operational-guides.md`
+- **Overview**: `_sdd/spec/sdd-workbench/product-overview.md`
+- **Architecture**: `_sdd/spec/sdd-workbench/system-architecture.md`
+- **Components**: `_sdd/spec/sdd-workbench/component-map.md`
+- **Interfaces**: `_sdd/spec/sdd-workbench/contract-map.md`
+- **Operational Guides**: `_sdd/spec/sdd-workbench/operations-and-validation.md`
 - **Appendix (Feature History/Backlog)**: `_sdd/spec/sdd-workbench/appendix.md`
-- **Decision Log**: `_sdd/spec/DECISION_LOG.md`
+- **Decision Log**: `_sdd/spec/decision-log.md`
 - **Implementation Index**: `_sdd/implementation/IMPLEMENTATION_INDEX.md`
 - **Implementation Review (latest remote MVP)**: `_sdd/implementation/IMPLEMENTATION_REVIEW.md`
 

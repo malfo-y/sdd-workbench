@@ -19,7 +19,7 @@
 **Priority**: Medium
 **Category**: Code Viewer UX
 **Target Component**: `code-viewer-panel`
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Viewer Layer`, `_sdd/spec/sdd-workbench/04-interfaces.md` > 신규 섹션 or 기존 규칙 추가
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Viewer Layer`, `_sdd/spec/sdd-workbench/contract-map.md` > 신규 섹션 or 기존 규칙 추가
 
 **Description**:
 Code Viewer 헤더 영역에 텍스트 검색 UI를 추가한다. 사용자가 검색어를 입력하면 현재 파일의 모든 라인에서 **substring 매칭**으로 검색하고, 매치가 있는 라인을 하이라이트 표시한다. 이전/다음 버튼(또는 Enter/Shift+Enter)으로 매치 라인 사이를 **라인 단위로 이동**(scrollIntoView)할 수 있다.

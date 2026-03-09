@@ -24,7 +24,7 @@
 **Priority**: Medium
 **Category**: UI/UX
 **Target Component**: `src/App.tsx`, `src/App.css`, `src/code-comments/comment-list-modal.tsx`, `src/code-comments/export-comments-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/01-overview.md` > `3.1 MVP 포함 범위`, `4.4 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`, `5.5 코멘트/내보내기`; `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.6 Comment Domain Layer`; `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/product-overview.md` > `3.1 MVP 포함 범위`, `4.4 코멘트-LLM 흐름`; `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`, `5.5 코멘트/내보내기`; `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.6 Comment Domain Layer`; `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 
 **Description**:
 코멘트 작업 피드백/진입 UI를 정리한다.  
@@ -55,21 +55,21 @@
 
 ### Improvement: 코멘트 작업 완료 피드백 노이즈 감소
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `5.5 코멘트/내보내기`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `5.5 코멘트/내보내기`
 **Current State**: 코멘트 작업 배너는 수동 dismiss 전까지 상단을 점유한다.
 **Proposed**: 코멘트 관련 배너만 5초 auto-dismiss를 적용한다.
 **Reason**: 반복 코멘트 작업 시 상단 배너 누적 인지 부하를 줄이기 위함.
 
 ### Improvement: 코멘트/워크스페이스 액션 인지 구조 강화
 **Priority**: Medium
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **Current State**: 상단 액션이 동일 밀도로 나열되어 기능 그룹 인지가 약하다.
 **Proposed**: `Code comments` / `Workspace` 라벨 그룹과 순서를 고정한다.
 **Reason**: 코멘트 액션과 워크스페이스 제어 액션의 문맥 충돌을 줄이기 위함.
 
 ### Improvement: Export 구성 가시성 강화(global 포함 상태)
 **Priority**: Low
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 **Current State**: export 모달에서 global comments 포함 여부가 직접적으로 표시되지 않는다.
 **Proposed**: export 모달에 포함 상태 라인을 노출한다.
 **Reason**: 사용자가 bundle 결과를 export 전에 예측 가능하게 만들기 위함.
@@ -77,7 +77,7 @@
 ## Component Changes
 
 ### Update Component: `src/App.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -87,7 +87,7 @@
 - 헤더 액션 그룹 라벨/배치(`Code comments`, `Workspace`) 조정
 
 ### Update Component: `src/code-comments/comment-list-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/03-components.md` > `1.6 Comment Domain Layer`
+**Target Section**: `/_sdd/spec/sdd-workbench/component-map.md` > `1.6 Comment Domain Layer`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -95,14 +95,14 @@
 - global empty 상태 문구 추가
 
 ### Update Component: `src/code-comments/export-comments-modal.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/04-interfaces.md` > `4. 코멘트/Export 정책 계약`
+**Target Section**: `/_sdd/spec/sdd-workbench/contract-map.md` > `4. 코멘트/Export 정책 계약`
 **Change Type**: Enhancement
 
 **Changes**:
 - global comments 포함 여부 표시 UI 추가
 
 ### Update Component: `src/App.css`
-**Target Section**: `/_sdd/spec/sdd-workbench/02-architecture.md` > `3. UI 레이아웃`
+**Target Section**: `/_sdd/spec/sdd-workbench/system-architecture.md` > `3. UI 레이아웃`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -110,7 +110,7 @@
 - `View Comments` global 섹션 스타일 추가
 
 ### Update Component: `src/App.test.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `4. 테스트 운영`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `4. 테스트 운영`
 **Change Type**: Enhancement
 
 **Changes**:
@@ -119,7 +119,7 @@
 - export 모달 global 포함 여부 표시 테스트 추가
 
 ### Update Component: `src/code-comments/comment-list-modal.test.tsx`
-**Target Section**: `/_sdd/spec/sdd-workbench/05-operational-guides.md` > `4. 테스트 운영`
+**Target Section**: `/_sdd/spec/sdd-workbench/operations-and-validation.md` > `4. 테스트 운영`
 **Change Type**: Enhancement
 
 **Changes**:

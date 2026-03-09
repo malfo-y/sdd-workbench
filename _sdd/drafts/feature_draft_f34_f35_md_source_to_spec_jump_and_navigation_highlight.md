@@ -24,7 +24,7 @@
 **Priority**: Medium  
 **Category**: Navigation UX / Markdown Mapping  
 **Target Component**: `CodeEditorPanel`, `SpecViewerPanel`, `App`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로 해석 규칙`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로 해석 규칙`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 `.md` 파일을 Code 탭에서 보고 있을 때, 현재 커서/선택 line에서 rendered spec의 대응 block으로 이동하는 `Go to Spec` 액션을 추가한다. 사용자는 code viewer context menu에서 `Go to Spec`를 실행할 수 있고, App은 Spec 탭으로 전환한 뒤 해당 markdown source line에 대응되는 rendered block을 best-effort로 찾아 스크롤한다. 이 기능은 semantic spec linking이 아니라 **같은 markdown 파일의 raw source line -> rendered spec block** 매핑만 다룬다.
@@ -54,7 +54,7 @@
 **Priority**: Medium  
 **Category**: Navigation UX / Visual Feedback  
 **Target Component**: `App`, `CodeEditorPanel`, `SpecViewerPanel`  
-**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/01-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`, `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로 해석 규칙`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
+**Target Section**: `_sdd/spec/main.md` > `현재 상태 요약`; `_sdd/spec/sdd-workbench/product-overview.md` > `MVP 범위`, `기능 커버리지`; `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`, `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로 해석 규칙`, `5. 마커 매핑 규칙`; `_sdd/spec/sdd-workbench/appendix.md` > `기능 이력`, `상세 수용 기준`
 
 **Description**:  
 스펙이나 코드로 line/block navigation이 일어났을 때, 사용자가 도착 위치를 즉시 인지할 수 있도록 임시 highlight를 추가한다. spec-origin `Go to Source`, F34 `Go to Spec`, 그리고 App이 명시적으로 line jump를 수행하는 코드 이동 경로는 line/block-based temporary highlight를 사용한다. highlight는 search highlight나 comment marker와 분리된 별도 시각 상태로 동작해야 한다.
@@ -84,14 +84,14 @@
 
 ### Improvement: cross-panel navigation state를 App 공용 contract로 승격
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `2. 링크/경로 해석 규칙`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.1 App Shell`; `_sdd/spec/sdd-workbench/contract-map.md` > `2. 링크/경로 해석 규칙`  
 **Current State**: App은 code jump request는 가지고 있지만 spec-side navigation request/highlight state는 없다.  
 **Proposed**: App이 code/spec 각각에 대해 line/block navigation token을 전달하는 additive request contract를 관리하도록 확장한다.  
 **Reason**: F34/F35가 panel-local 상태가 아니라 cross-panel navigation orchestration에 속하기 때문이다.
 
 ### Improvement: navigation highlight와 search highlight를 분리
 **Priority**: Medium  
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/04-interfaces.md` > `5. 마커 매핑 규칙`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Editor Layer`, `1.5 Spec Viewer Layer`; `_sdd/spec/sdd-workbench/contract-map.md` > `5. 마커 매핑 규칙`  
 **Current State**: Spec Viewer에는 search block highlight가 있지만 navigation highlight는 없다. Code Viewer는 jump selection만 있고 line highlight contract가 없다.  
 **Proposed**: navigation 전용 temporary highlight state/class를 별도로 추가한다.  
 **Reason**: 검색/코멘트/selection과 navigation feedback를 분리해야 회귀 위험이 낮다.
@@ -99,7 +99,7 @@
 ## Component Changes
 
 ### Component Change: Code Editor context menu에 markdown-only `Go to Spec` 추가
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Editor Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Editor Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -108,7 +108,7 @@
 - non-markdown / image preview / unavailable preview 상태에서는 노출하지 않거나 비활성화한다.
 
 ### Component Change: Spec Viewer block navigation/highlight request 지원
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.5 Spec Viewer Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.5 Spec Viewer Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
@@ -117,7 +117,7 @@
 - mapping은 existing rendered source line collection + nearest fallback 규칙을 재사용한다.
 
 ### Component Change: Code Viewer line navigation highlight 지원
-**Target Section**: `_sdd/spec/sdd-workbench/03-components.md` > `1.4 Code Editor Layer`  
+**Target Section**: `_sdd/spec/sdd-workbench/component-map.md` > `1.4 Code Editor Layer`  
 **Type**: Existing Component Extension  
 **Change Summary**:
 
