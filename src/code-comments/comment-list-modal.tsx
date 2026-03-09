@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 import {
   sanitizeCommentBody,
   sortCodeComments,
@@ -58,6 +59,8 @@ export function CommentListModal({
   onRequestExport,
   onJumpToComment,
 }: CommentListModalProps) {
+  const { backdropRef, dialogRef, handleWheelCapture } =
+    useModalBackgroundWheelPassthrough<HTMLDivElement>()
   const sortedComments = useMemo(() => sortCodeComments([...comments]), [comments])
   const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
     () => new Set(),
@@ -283,8 +286,18 @@ export function CommentListModal({
   const selectedCount = selectedCommentIds.size
 
   return (
-    <div className="comment-modal-backdrop" role="presentation">
-      <div aria-label="View comments" className="comment-modal comment-list-modal" role="dialog">
+    <div
+      className="comment-modal-backdrop"
+      onWheelCapture={handleWheelCapture}
+      ref={backdropRef}
+      role="presentation"
+    >
+      <div
+        aria-label="View comments"
+        className="comment-modal comment-list-modal"
+        ref={dialogRef}
+        role="dialog"
+      >
         <div className="comment-list-modal-header">
           <h2>View Comments</h2>
           <p className="comment-modal-meta">

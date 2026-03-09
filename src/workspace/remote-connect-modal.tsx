@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 import type { WorkspaceRemoteProfile } from './workspace-model'
 
 type RemoteConnectStep = 'profile' | 'directory'
@@ -173,6 +174,8 @@ export function RemoteConnectModal({
   )
   const [browseTruncated, setBrowseTruncated] = useState(false)
   const [browseError, setBrowseError] = useState<string | null>(null)
+  const { backdropRef, dialogRef, handleWheelCapture } =
+    useModalBackgroundWheelPassthrough<HTMLFormElement>()
 
   useEffect(() => {
     if (!isOpen) {
@@ -321,7 +324,12 @@ export function RemoteConnectModal({
   const canEnterDirectoryStep = hasBrowsePath
 
   return (
-    <div className="comment-modal-backdrop" role="presentation">
+    <div
+      className="comment-modal-backdrop"
+      onWheelCapture={handleWheelCapture}
+      ref={backdropRef}
+      role="presentation"
+    >
       <form
         aria-label="Connect Remote Workspace"
         className="comment-modal remote-connect-modal"
@@ -329,6 +337,7 @@ export function RemoteConnectModal({
           event.preventDefault()
           handleSubmit()
         }}
+        ref={dialogRef}
         role="dialog"
       >
         <h2>Connect Remote Workspace</h2>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 
 type GlobalCommentsModalProps = {
   isOpen: boolean
@@ -16,6 +17,8 @@ export function GlobalCommentsModal({
   onSave,
 }: GlobalCommentsModalProps) {
   const [body, setBody] = useState(initialValue)
+  const { backdropRef, dialogRef, handleWheelCapture } =
+    useModalBackgroundWheelPassthrough<HTMLFormElement>()
 
   useEffect(() => {
     if (!isOpen) {
@@ -48,7 +51,12 @@ export function GlobalCommentsModal({
   }
 
   return (
-    <div className="comment-modal-backdrop" role="presentation">
+    <div
+      className="comment-modal-backdrop"
+      onWheelCapture={handleWheelCapture}
+      ref={backdropRef}
+      role="presentation"
+    >
       <form
         aria-label="Add global comments"
         className="comment-modal global-comments-modal"
@@ -59,6 +67,7 @@ export function GlobalCommentsModal({
           }
           void onSave(body)
         }}
+        ref={dialogRef}
         role="dialog"
       >
         <h2>Add Global Comments</h2>

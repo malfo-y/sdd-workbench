@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 
 export type ExportCommentsModalInput = {
   instruction: string
@@ -38,6 +39,8 @@ export function ExportCommentsModal({
   const [writeCommentsFile, setWriteCommentsFile] = useState(true)
   const [writeBundleFile, setWriteBundleFile] = useState(true)
   const [deleteExportedComments, setDeleteExportedComments] = useState(true)
+  const { backdropRef, dialogRef, handleWheelCapture } =
+    useModalBackgroundWheelPassthrough<HTMLFormElement>()
 
   useEffect(() => {
     if (!isOpen) {
@@ -93,7 +96,12 @@ export function ExportCommentsModal({
   const canSubmit = hasAnyTarget && hasExportableComments
 
   return (
-    <div className="comment-modal-backdrop" role="presentation">
+    <div
+      className="comment-modal-backdrop"
+      onWheelCapture={handleWheelCapture}
+      ref={backdropRef}
+      role="presentation"
+    >
       <form
         aria-label="Export comments"
         className="comment-modal export-comments-modal"
@@ -110,6 +118,7 @@ export function ExportCommentsModal({
             deleteExportedComments,
           })
         }}
+        ref={dialogRef}
         role="dialog"
       >
         <h2>Export Comments</h2>

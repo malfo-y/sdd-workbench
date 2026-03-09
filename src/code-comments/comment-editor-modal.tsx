@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 
 type CommentEditorModalProps = {
@@ -19,6 +20,8 @@ export function CommentEditorModal({
   onSave,
 }: CommentEditorModalProps) {
   const [body, setBody] = useState('')
+  const { backdropRef, dialogRef, handleWheelCapture } =
+    useModalBackgroundWheelPassthrough<HTMLFormElement>()
 
   useEffect(() => {
     if (!isOpen) {
@@ -54,7 +57,12 @@ export function CommentEditorModal({
   const canSave = trimmedBody.length > 0 && !isSaving
 
   return (
-    <div className="comment-modal-backdrop" role="presentation">
+    <div
+      className="comment-modal-backdrop"
+      onWheelCapture={handleWheelCapture}
+      ref={backdropRef}
+      role="presentation"
+    >
       <form
         aria-label="Add comment"
         className="comment-modal"
@@ -65,6 +73,7 @@ export function CommentEditorModal({
           }
           void onSave(trimmedBody)
         }}
+        ref={dialogRef}
         role="dialog"
       >
         <h2>Add Comment</h2>
