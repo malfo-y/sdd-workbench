@@ -9,6 +9,7 @@
 - 여러 워크스페이스를 열고 전환할 수 있다.
 - 파일 트리를 펼치고 접고, lazy-loaded 디렉토리를 필요할 때만 확장한다.
 - 파일/디렉토리를 생성, 삭제, 이름 변경할 수 있다.
+- 파일/디렉토리를 트리에서 복사(Cmd+C / 컨텍스트 메뉴)하고 붙여넣기(Cmd+V / 컨텍스트 메뉴)할 수 있다. macOS Finder 클립보드도 로컬 워크스페이스에서 지원한다.
 - 파일 브라우저 검색으로 로컬/원격 워크스페이스 전체에서 파일명을 찾을 수 있다.
 - changed marker(`●`)와 git file status badge(`U`, `M`)를 통해 트리 상태를 빠르게 파악한다.
 
@@ -57,6 +58,14 @@
 - rename은 코멘트 존재 경로와 dirty active file에 대해 차단 규칙이 있다.
 - git file status는 `git status --porcelain` 결과를 `added|modified|untracked`로 정규화해 U/M badge로 보여준다.
 
+### 4.5 파일 클립보드 Copy / Paste
+
+- 내부 클립보드: 파일 트리에서 Cmd+C 또는 컨텍스트 메뉴 "Copy"로 항목을 선택하면 main process 모듈 상태에 저장한다. Cmd+V 또는 "Paste"로 대상 디렉토리에 복사한다.
+- macOS Finder 클립보드: `NSFilenamesPboardType` binary plist를 `bplist-parser`로 해석해 Finder에서 복사한 파일도 붙여넣기 할 수 있다. **로컬 워크스페이스 전용** — 원격 워크스페이스에서 Finder 소스 paste를 시도하면 안내 배너를 보여준다.
+- 이름 충돌 해결: 대상 디렉토리에 동명 파일이 있으면 `name (1).ext` 형태로 자동 넘버링한다 (`incrementFileName`).
+- 파일 복사 백엔드: `WorkspaceBackend.copyEntries()`가 local/remote 공통으로 재귀 복사를 수행한다. `BackendRouter`가 `rootPath` 기준으로 올바른 백엔드에 라우팅한다.
+- 트리 갱신: paste 후 새 파일은 기존 watch 이벤트를 통해 파일 트리에 반영된다.
+
 ## 5. 주요 코드
 
 - 상태
@@ -70,6 +79,9 @@
   - `electron/main.ts`
   - `electron/workspace-search.ts`
   - `electron/git-file-statuses.ts`
+  - `electron/file-clipboard.ts`: 클립보드 상태, Finder 읽기, IPC 핸들러
+  - `electron/increment-file-name.ts`: 이름 충돌 자동 넘버링
+  - `electron/workspace-backend/copy-entries.ts`: 로컬 재귀 복사
   - `electron/workspace-backend/local-workspace-backend.ts`
   - `electron/workspace-backend/remote-workspace-backend.ts`
 
@@ -86,6 +98,9 @@
 - `src/file-tree/file-tree-panel.test.tsx`
 - `electron/workspace-search.test.ts`
 - `electron/git-file-statuses.test.ts`
+- `electron/file-clipboard.test.ts`
+- `electron/increment-file-name.test.ts`
+- `electron/workspace-backend/copy-entries.test.ts`
 - `src/App.test.tsx`
 
 ## 8. 변경 시 주의점

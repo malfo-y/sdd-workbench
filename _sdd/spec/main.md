@@ -5,14 +5,14 @@
 ### Project Snapshot
 
 - SDD Workbench는 로컬/원격 워크스페이스를 열고, 코드와 Markdown 스펙을 한 앱에서 왕복 탐색·편집·리뷰하는 Electron 데스크톱 워크벤치다.
-- 현재 기준선은 `F01~F39` 구현 완료 상태이며, 원격 경로는 `F27` Remote Agent Protocol이 canonical path이고 `F15` SSHFS 경로는 이력으로만 남긴다.
+- 현재 기준선은 `F01~F40` 구현 완료 상태이며, 원격 경로는 `F27` Remote Agent Protocol이 canonical path이고 `F15` SSHFS 경로는 이력으로만 남긴다.
 - 이 문서는 “이 저장소가 무엇을 하고 어디를 먼저 봐야 하는가”를 5분 안에 파악하게 만드는 엔트리 포인트다.
 
 ### Key Features
 
 - Code/Spec 탭 전환과 line-level code/spec 왕복 내비게이션
 - CM6 기반 코드 편집/저장/검색/wrap/gutter 확장
-- 멀티 워크스페이스, 파일 트리 CRUD, lazy indexing, 파일 검색, Git 상태/라인 마커
+- 멀티 워크스페이스, 파일 트리 CRUD, 파일 클립보드 Copy/Paste, lazy indexing, 파일 검색, Git 상태/라인 마커
 - line comments / global comments / hover preview / export bundle
 - Remote Agent Protocol 기반 원격 워크스페이스 연결과 SSH browse
 - 원격 워크스페이스에서 SSH 기반 iTerm/VSCode 외부 도구 열기와 VSCode SSH config 자동 동기화

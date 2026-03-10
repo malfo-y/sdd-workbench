@@ -8,7 +8,7 @@
 
 - 원격 연결 모달에서 접속 정보를 입력하고 원격 워크스페이스를 연다.
 - 연결 전에 원격 디렉토리를 browse 해서 `remoteRoot`를 고른다.
-- 연결 이후에는 로컬 워크스페이스와 유사하게 파일 읽기/쓰기/감시/git/comments 기능을 사용한다.
+- 연결 이후에는 로컬 워크스페이스와 유사하게 파일 읽기/쓰기/감시/git/comments/파일 복사(copyEntries) 기능을 사용한다.
 - 연결 단절, degraded 상태, retry 가능 여부를 배너/상태로 확인한다.
 - 원격 워크스페이스에서 `Open in iTerm`을 누르면 SSH 접속 후 `remoteRoot`에서 셸이 시작된다.
 - 원격 워크스페이스에서 `Open in VSCode`를 누르면 VS Code Remote-SSH authority로 `remoteRoot`를 연다 (`sshAlias` 필수).
@@ -43,6 +43,8 @@
 
 - renderer는 local/remote 차이를 `workspace:*` contract 뒤에 숨긴다.
 - main process가 `WorkspaceBackend` 구현체를 골라 동일한 invoke surface를 유지한다.
+- `copyEntries`도 동일한 추상화를 따른다. remote backend는 `workspace.copyEntries` RPC를 remote agent runtime에 위임한다.
+- macOS Finder 클립보드 붙여넣기는 로컬 전용이다. 원격 워크스페이스에서 Finder 소스만 있으면 안내 메시지를 반환한다.
 
 ### 4.4 외부 도구 실행 정책
 
@@ -71,7 +73,7 @@
 - `electron/remote-agent/directory-browser.ts`
 - `electron/remote-agent/connection-service.ts`
 - `electron/remote-agent/security.ts`
-- `electron/remote-agent/runtime/*`
+- `electron/remote-agent/runtime/*` (incl. `copy-ops.ts`: remote copyEntries 구현)
 - `electron/system-open.ts`
 - `electron/vscode-ssh-config.ts`
 

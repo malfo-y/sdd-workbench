@@ -71,6 +71,7 @@
 | F25 | 파일 트리 CRUD | Done | 파일/디렉토리를 앱 안에서 만든다/지운다 | [워크스페이스/트리](./domains/workspace-and-file-tree.md), [IPC](./contracts/ipc-contracts.md) | `src/file-tree/file-tree-panel.tsx`, `electron/main.ts` / `src/file-tree/file-tree-panel.test.tsx` |
 | F25b | 파일/디렉토리 rename | Done | 컨텍스트 메뉴에서 이름을 바꾼다 | [워크스페이스/트리](./domains/workspace-and-file-tree.md), [IPC](./contracts/ipc-contracts.md) | `src/file-tree/file-tree-panel.tsx`, `src/workspace/workspace-context.tsx` / 관련 file-tree/workspace 테스트 |
 | F26 | 파일 트리 Git 파일 상태 마커 | Done | 파일 수준 U/M 상태를 트리에서 즉시 본다 | [워크스페이스/트리](./domains/workspace-and-file-tree.md) | `electron/git-file-statuses.ts`, `src/file-tree/file-tree-panel.tsx` / `electron/git-file-statuses.test.ts` |
+| F40 | 파일 클립보드 Copy/Paste | Done | 파일/디렉토리를 트리에서 복사·붙여넣기하고 macOS Finder 클립보드도 지원한다 | [워크스페이스/트리](./domains/workspace-and-file-tree.md), [IPC](./contracts/ipc-contracts.md) | `electron/file-clipboard.ts`, `electron/increment-file-name.ts`, `electron/workspace-backend/copy-entries.ts`, `src/file-tree/file-tree-panel.tsx` / `electron/file-clipboard.test.ts`, `electron/increment-file-name.test.ts`, `electron/workspace-backend/copy-entries.test.ts` |
 
 ## 5. Search / Source Mapping / Navigation / Theme
 
