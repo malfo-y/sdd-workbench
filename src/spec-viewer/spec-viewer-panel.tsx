@@ -1345,6 +1345,7 @@ export function SpecViewerPanel({
     }),
     [
       activeSpecPath,
+      appearanceTheme,
       handleCommentMarkerMouseEnter,
       handleMarkdownLinkClick,
       resolvedCommentMarkerCounts,

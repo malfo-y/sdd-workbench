@@ -736,7 +736,7 @@ export function CodeEditorPanel({
     return () => {
       cancelled = true
     }
-  }, [activeFileContent, activeFile, appearanceTheme, editable])
+  }, [activeFileContent, activeFile, appearanceTheme, editable, scheduleNavigationLineHighlight])
 
   // ---- Jump to line ------------------------------------------------------
   useEffect(() => {

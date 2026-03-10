@@ -32,7 +32,7 @@ export const navigationLineHighlightField = StateField.define<DecorationSet>({
     return Decoration.none
   },
   update(value, tr) {
-    let nextValue = value.map(tr.changes)
+    const nextValue = value.map(tr.changes)
 
     for (const effect of tr.effects) {
       if (effect.is(setNavigationLineHighlight)) {
