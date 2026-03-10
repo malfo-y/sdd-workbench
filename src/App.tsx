@@ -115,9 +115,6 @@ type GlobalCommentsModalState = {
   initialValue: string
 }
 
-type CommentBannerState = {
-  message: string
-}
 
 type SpecViewerNavigationRequest = {
   targetRelativePath: string
@@ -608,18 +605,7 @@ function App() {
     lastTriggeredDirection: null,
   })
   const isHistoryNavigationScopeActiveRef = useRef(false)
-  const [commentBannerState, setCommentBannerState] =
-    useState<CommentBannerState | null>(null)
-
-  const showCommentBanner = useCallback(
-    (message: string) => {
-      showBanner(message)
-      setCommentBannerState({
-        message,
-      })
-    },
-    [showBanner],
-  )
+  const showCommentBanner = showBanner
 
   const writeToClipboard = useCallback(
     async (
@@ -1574,13 +1560,11 @@ function App() {
 
   useEffect(() => {
     if (!bannerMessage) {
-      setCommentBannerState(null)
       return
     }
 
     const timeoutId = window.setTimeout(() => {
       clearBanner()
-      setCommentBannerState(null)
     }, COMMENT_BANNER_AUTODISMISS_MS)
 
     return () => {
@@ -1761,7 +1745,6 @@ function App() {
   }, [navigateHistory])
 
   const handleDismissBanner = useCallback(() => {
-    setCommentBannerState(null)
     clearBanner()
   }, [clearBanner])
 
