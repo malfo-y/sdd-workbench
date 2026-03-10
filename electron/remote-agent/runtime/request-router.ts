@@ -22,6 +22,7 @@ import {
   workspaceWriteFile,
   workspaceWriteGlobalComments,
 } from './workspace-ops'
+import { workspaceCopyEntries } from './copy-ops'
 import { RuntimeWatchService } from './watch-ops'
 import type {
   RuntimeEventMessage,
@@ -162,6 +163,11 @@ export class RuntimeRequestRouter {
         return workspaceReadGlobalComments({ rootPath: this.rootPath })
       case 'workspace.writeGlobalComments':
         return workspaceWriteGlobalComments({ rootPath: this.rootPath }, methodParams)
+      case 'workspace.copyEntries':
+        return workspaceCopyEntries({ rootPath: this.rootPath }, {
+          entries: Array.isArray(methodParams.entries) ? methodParams.entries : [],
+          destDir: typeof methodParams.destDir === 'string' ? methodParams.destDir : '',
+        })
       case 'workspace.exportCommentsBundle':
         return workspaceExportCommentsBundle({ rootPath: this.rootPath }, methodParams)
       case 'workspace.watchStart':

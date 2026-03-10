@@ -1515,3 +1515,253 @@ describe('FileTreePanel git status badges', () => {
     expect(screen.getByTestId('tree-git-badge-src/deep.ts')).toBeInTheDocument()
   })
 })
+
+describe('FileTreePanel clipboard copy/paste', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  const fileTree = [
+    {
+      name: 'src',
+      relativePath: 'src',
+      kind: 'directory' as const,
+      children: [
+        { name: 'app.ts', relativePath: 'src/app.ts', kind: 'file' as const },
+      ],
+    },
+    { name: 'readme.md', relativePath: 'readme.md', kind: 'file' as const },
+  ]
+
+  it('shows Copy and Paste in context menu for a file node', () => {
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'app.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+
+    expect(screen.getByText('Copy')).toBeInTheDocument()
+    expect(screen.getByText('Paste')).toBeInTheDocument()
+  })
+
+  it('calls onRequestCopyToClipboard when Copy is selected from context menu', () => {
+    const onCopy = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopyToClipboard={onCopy}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'app.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByText('Copy'))
+
+    expect(onCopy).toHaveBeenCalledWith([
+      { relativePath: 'src/app.ts', kind: 'file' },
+    ])
+  })
+
+  it('calls onRequestPasteFromClipboard with parent dir when Paste is selected on a file', () => {
+    const onPaste = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestPasteFromClipboard={onPaste}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'app.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByText('Paste'))
+
+    expect(onPaste).toHaveBeenCalledWith('src')
+  })
+
+  it('calls onRequestPasteFromClipboard with directory path when Paste is selected on a directory', () => {
+    const onPaste = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestPasteFromClipboard={onPaste}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /src/ }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByText('Paste'))
+
+    expect(onPaste).toHaveBeenCalledWith('src')
+  })
+
+  it('copies activeFile via Cmd+C keyboard shortcut', () => {
+    const onCopy = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile="src/app.ts"
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopyToClipboard={onCopy}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const panel = screen.getByTestId('file-tree-panel')
+    fireEvent.keyDown(panel, { key: 'c', metaKey: true })
+
+    expect(onCopy).toHaveBeenCalledWith([
+      { relativePath: 'src/app.ts', kind: 'file' },
+    ])
+  })
+
+  it('pastes to parent of activeFile via Cmd+V keyboard shortcut', () => {
+    const onPaste = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile="src/app.ts"
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestPasteFromClipboard={onPaste}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const panel = screen.getByTestId('file-tree-panel')
+    fireEvent.keyDown(panel, { key: 'v', metaKey: true })
+
+    expect(onPaste).toHaveBeenCalledWith('src')
+  })
+
+  it('pastes to root when no activeFile via Cmd+V', () => {
+    const onPaste = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestPasteFromClipboard={onPaste}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const panel = screen.getByTestId('file-tree-panel')
+    fireEvent.keyDown(panel, { key: 'v', metaKey: true })
+
+    expect(onPaste).toHaveBeenCalledWith('')
+  })
+
+  it('does not trigger copy when Cmd+C is pressed without activeFile', () => {
+    const onCopy = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestCopyToClipboard={onCopy}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const panel = screen.getByTestId('file-tree-panel')
+    fireEvent.keyDown(panel, { key: 'c', metaKey: true })
+
+    expect(onCopy).not.toHaveBeenCalled()
+  })
+
+  it('shows Paste in context menu on workspace root (empty area)', () => {
+    const onPaste = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestPasteFromClipboard={onPaste}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const panel = screen.getByTestId('file-tree-panel')
+    fireEvent.contextMenu(panel, { clientX: 50, clientY: 50 })
+
+    expect(screen.getByText('Paste')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Paste'))
+    expect(onPaste).toHaveBeenCalledWith('')
+  })
+})

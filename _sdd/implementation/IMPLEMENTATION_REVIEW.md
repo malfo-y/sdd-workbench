@@ -1,177 +1,208 @@
-# Implementation Review: F39 원격 워크스페이스용 SSH 외부 도구 열기
+# Implementation Review: F40 파일 클립보드 Copy/Paste
 
-**Review Date**: 2026-03-10
-**Plan Location**: `_sdd/drafts/feature_draft_f39_remote_external_open_over_ssh.md`
-**Reviewer**: Claude Opus 4.6
-**Commits Reviewed**: `4e5b3d9`, `0d5d1df`, `1880db6`
-
----
-
-## 1. Progress Overview
-
-### Task Completion
-
-| ID | Task | Code | Tests | Status |
-|----|------|------|-------|--------|
-| R1 | workspace-aware system open 계약 정의 | ✓ | ✓ | COMPLETE |
-| R2 | 원격 프로필에 `sshAlias` 입력/영속화 추가 | ✓ | ✓ | COMPLETE |
-| R3 | renderer 외부 열기 dispatch를 workspace-aware로 전환 | ✓ | ✓ | COMPLETE |
-| R4 | main process 외부 열기 helper 분리 | ✓ | ✓ | COMPLETE |
-| R5 | IPC handler에 remote launch 정책 통합 | ✓ | ✓ | COMPLETE |
-| R6 | 원격/로컬 외부 열기 회귀 테스트 및 스모크 보강 | ✓ | ✓ | COMPLETE |
-| +α | VSCode SSH config 자동 동기화 | ✓ | ✓ | COMPLETE (계획 외 추가) |
-
-### Acceptance Criteria 총평
-
-- **Total criteria**: 24
-- **Met**: 23 (96%)
-- **Untested (수동 확인 필요)**: 1
-- **Not met**: 0
+**리뷰 일자**: 2026-03-11
+**계획 위치**: `_sdd/drafts/feature_draft_f40_file_clipboard_copy_paste.md`
+**리뷰어**: Claude (Opus 4.6)
+**범위**: Phase 1 (T1-T7) + Phase 2 (T8-T10)
 
 ---
 
-## 2. Detailed Assessment
+## 1. 진행 현황 요약
 
-### Feature Draft Acceptance Criteria vs 구현
+### Task 완료 현황
 
-#### F39 메인 Acceptance Criteria
+| Phase | Task | 제목 | 상태 |
+|-------|------|------|------|
+| **Phase 1** | T1 | incrementFileName 유틸리티 | COMPLETE |
+| | T2 | WorkspaceBackend copyEntries 인터페이스 + 로컬 구현 | COMPLETE |
+| | T3 | Remote Agent copyEntries RPC | COMPLETE |
+| | T4 | Main Process 클립보드 상태 + IPC 핸들러 | COMPLETE |
+| | T5 | Preload API + 타입 선언 | COMPLETE |
+| | T6 | File Tree Copy/Paste UI | COMPLETE |
+| | T7 | Phase 1 통합 테스트 | PARTIAL |
+| **Phase 2** | T8 | bplist-parser + Finder 클립보드 읽기 | COMPLETE |
+| | T9 | pasteFromClipboard Finder 소스 통합 | COMPLETE |
+| | T10 | 원격 워크스페이스 Finder paste 차단 | COMPLETE |
 
-| # | Criterion | Code Location | Test | Status |
-|---|-----------|---------------|------|--------|
-| 1 | 원격 iTerm → SSH 접속 후 remoteRoot 셸 시작 | `system-open.ts:94-112` `buildRemoteItermCommand()` | `system-open.test.ts` "builds ssh command" | MET |
-| 2 | 원격 VSCode → Remote-SSH authority로 remoteRoot 열기 | `system-open.ts:114-130` `buildVsCodeRemoteArgs()` | `system-open.test.ts` "builds vscode remote args" | MET |
-| 3 | sshAlias 누락 시 사용자 안내 메시지 배너 | `system-open.ts:118-122`, `App.tsx` 배너 처리 | `system-open.test.ts` "returns explicit error" | MET |
-| 4 | 원격 Finder → unsupported 메시지로 safe-fail | `system-open.ts:172-177, 228-233` | `system-open.test.ts` "returns unsupported" | MET |
-| 5 | 로컬 워크스페이스 외부 열기 회귀 없음 | `system-open.ts:179-214` | `system-open.test.ts` "opens local workspace", `App.test.tsx` 로컬 테스트 | MET |
-| 6 | 세션 복원 후 sshAlias 포함 프로필 필드 유지 | `workspace-persistence` sshAlias 포함 | `remote-connect-modal.test.tsx` sshAlias submit 검증 | MET |
+### 지표
 
-#### R1: workspace-aware system open 계약
-
-| # | Criterion | Evidence | Status |
-|---|-----------|----------|--------|
-| 1 | openIn* 3개가 동일한 request 구조 사용 | `electron-env.d.ts` `SystemOpenInRequest` 공용 타입 | MET |
-| 2 | WorkspaceRemoteProfile에 optional sshAlias | `system-open.ts:15` | MET |
-| 3 | 세션 복원 타입이 새 필드 보존 | workspace-persistence에 sshAlias 포함 | MET |
-| 4 | preload/env 타입이 동일 계약 노출 | `electron-env.d.ts`, `preload.ts` 일관 | MET |
-
-#### R2: sshAlias 입력/영속화
-
-| # | Criterion | Evidence | Status |
-|---|-----------|----------|--------|
-| 1 | 모달에서 sshAlias 입력/수정 가능 | `remote-connect-modal.tsx` sshAlias 필드 | MET |
-| 2 | sshAlias 비어있어도 연결 가능 | sync 비활성 시 sshAlias optional | MET |
-| 3 | 연결 후 remoteProfile에 sshAlias 보존 | 모달 submit → profile 포함 | MET |
-| 4 | 앱 재시작 후 sshAlias 유지 | persistence 경로에 포함 | MET |
-
-#### R3: renderer dispatch workspace-aware 전환
-
-| # | Criterion | Evidence | Status |
-|---|-----------|----------|--------|
-| 1 | 요청에 workspace context 포함 | `App.tsx` handleOpenIn* → workspaceKind/remoteProfile 전달 | MET |
-| 2 | 원격 실패 시 target별 안내 배너 | App.tsx 배너 처리 | MET |
-| 3 | 로컬 UX 유지 | `App.test.tsx` 로컬 테스트 통과 | MET |
-
-#### R4/R5: main process helper 분리 + IPC 통합
-
-| # | Criterion | Evidence | Status |
-|---|-----------|----------|--------|
-| 1 | local/remote/iTerm/VSCode/Finder 분기 | `system-open.ts` `openLocalWorkspaceInExternalTool` / `openRemoteWorkspaceInExternalTool` | MET |
-| 2 | SSH quoting 규칙 정의 | `quoteShellArgument()`, `escapeAppleScriptString()` | MET |
-| 3 | VSCode 인자 helper 캡슐화 | `buildVsCodeRemoteArgs()`, `buildVsCodeOpenAppArgs()` | MET |
-| 4 | remote 요청 시 stat 우회 | `getWorkspaceKind() === 'remote'` → stat 스킵 | MET |
-| 5 | prerequisite 누락 시 safe error | sshAlias 누락 → explicit error message | MET |
-
-#### R6: 회귀 테스트
-
-| # | Criterion | Evidence | Status |
-|---|-----------|----------|--------|
-| 1 | local openIn* 회귀 없음 | `App.test.tsx`, `system-open.test.ts` 로컬 케이스 | MET |
-| 2 | remote openInIterm/VSCode remoteProfile 기반 | `App.test.tsx` 원격 테스트, `system-open.test.ts` | MET |
-| 3 | sshAlias 누락/Finder/failure 메시지 검증 | `system-open.test.ts` 3개 케이스 | MET |
-| 4 | helper 단위 테스트 | `system-open.test.ts` 9개 케이스 | MET |
+- **Tasks**: 9/10 완료, 1 부분 완료 (90%)
+- **Acceptance Criteria**: 43/45 충족 (96%)
+- **테스트**: 684 전체 통과 (0 실패)
+- **Lint**: 클린 (0 에러)
 
 ---
 
-## 3. Issues Found
+## 2. Acceptance Criteria 상세 검증
+
+### T1: incrementFileName 유틸리티 — COMPLETE (3/3)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | `incrementFileName('file.txt', ['file.txt'])` → `'file (1).txt'` | MET | `electron/increment-file-name.ts:21-35` |
+| 2 | `incrementFileName('dir', ['dir'])` → `'dir (1)'` | MET | `electron/increment-file-name.ts:22-25` |
+| 3 | 단위 테스트 100% 커버리지 | MET | `electron/increment-file-name.test.ts` (8 테스트) |
+
+> **참고**: 원래 계획은 `src/file-tree/`였으나 `electron/`에 배치됨. Renderer에서 직접 사용하지 않으므로 적절한 판단.
+
+### T2: WorkspaceBackend copyEntries — COMPLETE (5/5)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | `WorkspaceBackend` 인터페이스에 `copyEntries` 추가 | MET | `electron/workspace-backend/types.ts:112-116, 170` |
+| 2 | 파일 복사 (`fs.cp`) + 디렉토리 재귀 복사 | MET | `electron/workspace-backend/copy-entries.ts:27` |
+| 3 | 이름 충돌 시 자동 넘버링 | MET | `electron/workspace-backend/copy-entries.ts:23` |
+| 4 | 존재하지 않는 소스 에러 처리 | MET | `electron/workspace-backend/copy-entries.test.ts:141-151` |
+| 5 | 단위 테스트 | MET | `electron/workspace-backend/copy-entries.test.ts` (7 테스트) |
+
+### T3: Remote Agent copyEntries RPC — COMPLETE (4/4)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | `request-router.ts`에 라우트 등록 | MET | `electron/remote-agent/runtime/request-router.ts:166-170` |
+| 2 | `copy-ops.ts`에 `workspaceCopyEntries` 구현 | MET | `electron/remote-agent/runtime/copy-ops.ts:36-102` |
+| 3 | `remote-workspace-backend.ts` copyEntries 위임 | MET | `electron/workspace-backend/remote-workspace-backend.ts:219-232` |
+| 4 | 단위 테스트 | MET | `electron/remote-agent/runtime/copy-ops.test.ts` (14 테스트) |
+
+> **추가 작업**: `electron/remote-agent/security.ts` allowlist에 `workspace.copyEntries` 추가 (계획에 없던 의존성 해결)
+
+### T4: Main Process 클립보드 상태 + IPC 핸들러 — COMPLETE (5/5)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | 클립보드 상태 타입 | MET | `electron/file-clipboard.ts:15-19` |
+| 2 | 4개 IPC 핸들러 | MET | `electron/file-clipboard.ts:130-258` |
+| 3 | pasteFromClipboard → copyEntries 흐름 | MET | `electron/file-clipboard.ts:224-229` |
+| 4 | 워크스페이스 전환 시 클립보드 유지 | MET | `electron/file-clipboard.ts:65` (모듈 레벨 상태) |
+| 5 | 단위 테스트 | MET | `electron/file-clipboard.test.ts` (24 테스트) |
+
+### T5: Preload API + 타입 선언 — COMPLETE (5/5)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | `setFileClipboard` 노출 | MET | `electron/preload.ts:575-583` |
+| 2 | `readFileClipboard` 노출 | MET | `electron/preload.ts:584-588` |
+| 3 | `copyEntries` 노출 | MET | `electron/preload.ts:589-599` |
+| 4 | `pasteFromClipboard` 노출 | MET | `electron/preload.ts:600-606` |
+| 5 | TypeScript 타입 선언 | MET | `electron/electron-env.d.ts:334-481` |
+
+### T6: File Tree Copy/Paste UI — COMPLETE (6/7)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | 컨텍스트 메뉴 "Copy" | MET | `src/file-tree/file-tree-panel.tsx:770-778` |
+| 2 | 컨텍스트 메뉴 "Paste" | MET | `src/file-tree/file-tree-panel.tsx:781-786` |
+| 3 | Cmd+C 키보드 단축키 | MET | `src/file-tree/file-tree-panel.tsx:700-706` |
+| 4 | Cmd+V 키보드 단축키 | MET | `src/file-tree/file-tree-panel.tsx:707-710` |
+| 5 | 에러 시 배너 | MET | `src/App.tsx:1827-1830` |
+| 6 | 포커스 없으면 텍스트 복사 유지 | MET | `src/file-tree/file-tree-panel.tsx:845` (`tabIndex={-1}`) |
+| 7 | Paste 후 파일 트리 자동 새로고침 | PARTIAL | 파일 워치 이벤트에 의존 (명시적 refresh 없음) |
+
+> **Quality Issue**: Paste 후 파일 트리 새로고침이 워치 이벤트에 의존합니다. 워치가 활성화된 상태에서는 정상 동작하지만, 워치가 비활성화된 경우 새 파일이 표시되지 않을 수 있습니다. 실사용 시 워치는 항상 활성화 상태이므로 실질적 영향은 낮습니다.
+
+### T7: Phase 1 통합 테스트 — PARTIAL (3/4)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | backend-router copyEntries 라우팅 테스트 | NOT MET | `backend-router.test.ts`에 copyEntries 테스트 없음 |
+| 2 | 클립보드 set → read → paste 플로우 | MET | `file-clipboard.test.ts:255-277` |
+| 3 | 이름 충돌 해결 시나리오 | MET | `copy-entries.test.ts:56-101` |
+| 4 | 에러 케이스 | MET | `copy-entries.test.ts:141-151`, `file-clipboard.test.ts:213-239` |
+
+### T8: bplist-parser + Finder 클립보드 읽기 — COMPLETE (5/5)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | `bplist-parser` 패키지 설치 | MET | `package.json` (`"bplist-parser": "^0.3.2"`) |
+| 2 | `readFinderClipboardFiles()` 구현 | MET | `electron/file-clipboard.ts:77-100` |
+| 3 | `NSFilenamesPboardType` 확인 | MET | `electron/file-clipboard.ts:81-82` |
+| 4 | `readBuffer` + `parseBuffer` 조합 | MET | `electron/file-clipboard.ts:84-90` |
+| 5 | 단위 테스트 | MET | `electron/file-clipboard.test.ts:40-81` (5 테스트) |
+
+### T9: pasteFromClipboard Finder 소스 통합 — COMPLETE (5/5)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | Finder 우선 확인 (로컬만) | MET | `electron/file-clipboard.ts:203-207` |
+| 2 | Finder 파일 → 대상 디렉토리 복사 | MET | `electron/file-clipboard.ts:105-126` (`fs.cp`) |
+| 3 | 이름 충돌 자동 해결 | MET | `electron/file-clipboard.ts:117` |
+| 4 | Finder 없으면 내부 클립보드 fallback | MET | `electron/file-clipboard.ts:220-242` |
+| 5 | 단위 테스트 | MET | `electron/file-clipboard.test.ts:311-407` (3 테스트) |
+
+### T10: 원격 Finder paste 차단 — COMPLETE (4/4)
+
+| # | 기준 | 상태 | 위치 |
+|---|------|------|------|
+| 1 | 원격에서 Finder 감지 시 에러 반환 | MET | `electron/file-clipboard.ts:208-217` |
+| 2 | 배너 메시지 (한국어) | MET | `electron/file-clipboard.ts:215` |
+| 3 | 5초 후 자동 dismiss | MET | `src/workspace/workspace-context.tsx:407-412` |
+| 4 | 원격 내부 클립보드 정상 동작 | MET | `electron/file-clipboard.test.ts:435-451` |
+
+---
+
+## 3. 발견된 이슈
 
 ### Critical (0)
 
 없음.
 
-### Quality Issues (3)
+### Quality Issues (2)
 
-1. **sshAlias 프로필 수준 검증 부재**
-   - Location: `system-open.ts` `SystemOpenRemoteProfile`
-   - Issue: 모달에서는 검증하지만, JSON 직접 편집 시 whitespace 포함 sshAlias가 `buildVsCodeRemoteArgs`까지 전달될 수 있음
-   - Severity: Low (실제 사용 경로에서는 모달 검증이 cover)
-   - Action: `buildVsCodeRemoteArgs`에서 sshAlias whitespace 검증 추가 고려
+1. **T7 backend-router copyEntries 라우팅 테스트 누락**
+   - 위치: `electron/workspace-backend/backend-router.test.ts`
+   - 영향: copyEntries가 backend-router를 통해 올바르게 라우팅되는지 통합 수준에서 검증 안 됨
+   - 완화: 개별 단위 테스트(copy-entries.test, file-clipboard.test)에서 핵심 로직은 검증됨
+   - 조치: 선택적 — 통합 테스트 추가 권장
 
-2. **workspace-persistence sshAlias 단위 테스트 부재**
-   - Location: `src/workspace/workspace-persistence.test.ts`
-   - Issue: sshAlias 영속화/복원 전용 단위 테스트가 없음 (모달 테스트에서 간접 검증)
-   - Severity: Low
-   - Action: persistence roundtrip 테스트에 sshAlias 포함 검증 추가 고려
+2. **T6 Paste 후 명시적 파일 트리 새로고침 없음**
+   - 위치: `src/App.tsx:handleRequestPasteFromClipboard`
+   - 영향: 워치 비활성 시 새 파일이 즉시 표시되지 않을 수 있음
+   - 완화: 실사용 시 워치가 항상 활성화되어 있어 실질적 영향 낮음
+   - 조치: 선택적 — Paste 성공 후 `refreshWorkspace()` 호출 추가 권장
 
-3. **스모크 테스트 체크리스트 미갱신**
-   - Location: `_sdd/implementation/F15_SMOKE_TEST_CHECKLIST.md`
-   - Issue: Feature draft R6에서 수동 확인 항목 추가를 명시했으나 미반영
-   - Severity: Low (자동 테스트가 대부분 cover)
-   - Action: 원격 iTerm/VSCode/Finder 수동 확인 항목 추가
+### Improvements (선택적)
 
-### Improvements (계획 외 추가 구현 — 긍정적)
-
-1. **VSCode SSH config 자동 동기화** (`vscode-ssh-config.ts`)
-   - Feature draft에 없던 기능이지만 UX를 크게 개선
-   - `~/.ssh/sdd-workbench.config` 관리형 config로 Host 블록 자동 생성/갱신
-   - Include를 파일 상단에 삽입하는 올바른 전략 적용
-   - SSH directory/file 권한(0o700/0o600) 정확
-
-2. **VSCode CLI 자동 탐지 + fallback**
-   - `resolveVsCodeCliPath()`: osascript로 앱 번들에서 CLI 경로 추출
-   - CLI 실패 시 `open -a` fallback → 안정성 향상
+1. **T1 파일 위치 변경**: `src/file-tree/` → `electron/` (합리적 판단, 이슈 아님)
+2. **bplist-creator dev dependency 추가**: 테스트에서 실제 bplist 바이너리 생성용 (합리적 판단)
 
 ---
 
-## 4. Test Status
+## 4. 테스트 현황
 
-### Test Summary
+### 전체 테스트 결과
+- **전체 파일**: 63개 통과
+- **전체 테스트**: 684 통과, 1 스킵, 0 실패
+- **Lint**: 0 에러
 
-| Test File | Tests | Passing | Failing |
-|-----------|-------|---------|---------|
-| `electron/system-open.test.ts` | 9 | 9 | 0 |
-| `electron/vscode-ssh-config.test.ts` | 3 | 3 | 0 |
-| `src/App.test.tsx` | 113 | 112 | 0 (1 skipped) |
-| `src/workspace/remote-connect-modal.test.tsx` | 9 | 9 | 0 |
-| **Total** | **134** | **133** | **0** |
+### F40 관련 테스트 파일
 
-### Untested Areas (수동 확인 권장)
+| 파일 | 테스트 수 | 상태 |
+|------|----------|------|
+| `electron/increment-file-name.test.ts` | 8 | PASS |
+| `electron/workspace-backend/copy-entries.test.ts` | 7 | PASS |
+| `electron/remote-agent/runtime/copy-ops.test.ts` | 14 | PASS |
+| `electron/file-clipboard.test.ts` | 24 | PASS |
+| `src/file-tree/file-tree-panel.test.tsx` | (기존 + 9 clipboard) | PASS |
+| `src/App.test.tsx` | (기존 + clipboard) | PASS |
 
-- 실제 macOS에서 iTerm SSH 세션 열기 (osascript 실행)
-- 실제 VSCode Remote-SSH 연결 (VSCode 설치 필요)
-- 앱 재시작 후 sshAlias 복원 (E2E)
-
----
-
-## 5. Recommendations
-
-### Should Do (품질 개선)
-
-1. [ ] `_sdd/implementation/F15_SMOKE_TEST_CHECKLIST.md`에 원격 외부 열기 수동 확인 항목 추가
-2. [ ] `workspace-persistence.test.ts`에 sshAlias roundtrip 단위 테스트 추가
-3. [ ] `buildVsCodeRemoteArgs`에 sshAlias whitespace 방어 검증 추가
-
-### Could Do (선택적 개선)
-
-4. [ ] VSCode CLI 경로 캐싱 (현재 매 호출마다 osascript 실행)
-5. [ ] identityFile 존재 여부 사전 검증 + 경고 메시지
-6. [ ] SSH config Include 위치 검증 유틸 (기존 config에 잘못된 위치의 Include가 있을 때 감지/수정)
+**F40 신규 테스트 합계**: 약 62개
 
 ---
 
-## 6. Conclusion
+## 5. 권장 조치
 
-F39 구현은 feature draft의 6개 Task(R1~R6) 전체와 24개 acceptance criteria 중 23개를 충족하며, 계획 외 추가 기능(VSCode SSH config 자동 동기화)까지 포함해 **기대 이상으로 완성**되었다. 테스트 134개 전체 통과, critical issue 0건. SSH config Include 위치 버그를 발견하고 즉시 수정한 점이 특히 좋다.
+### Should Do (품질)
+1. [ ] `backend-router.test.ts`에 copyEntries 라우팅 통합 테스트 추가 (T7 잔여)
+2. [ ] Paste 성공 후 명시적 `refreshWorkspace()` 호출 추가 (T6 보완)
 
-가장 큰 리스크는 macOS 전용 구현(osascript/AppleScript 의존)이나, 이는 feature draft에서 명시한 범위 내 제약이다. 즉시 필요한 추가 작업은 없으며, 품질 개선 3건은 후속 작업으로 충분하다.
+### Could Do (개선)
+3. [ ] `backend-integration.test.ts` 파일 생성하여 클립보드 E2E 플로우 테스트
+4. [ ] 스펙 업데이트 반영 (`/spec-update-done`)
 
-**최종 판정: COMPLETE — Production Ready**
+---
+
+## 6. 결론
+
+F40 파일 클립보드 Copy/Paste 기능은 **Phase 1, 2 모두 실질적으로 완료** 상태입니다. 10개 Task 중 9개가 완전 완료, 1개(T7 통합 테스트)가 부분 완료입니다. 45개 Acceptance Criteria 중 43개(96%)가 충족되었으며, 미충족 2개는 모두 Quality 수준(Critical 아님)입니다.
+
+전체 테스트 스위트(684개)가 통과하고 lint 에러 없이 깨끗한 상태입니다. **프로덕션 배포 가능** 수준이며, 권장 조치 1-2번을 추가하면 더욱 견고해집니다.

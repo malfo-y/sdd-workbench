@@ -68,6 +68,8 @@ type FileTreePanelProps = {
   onRequestDeleteFile?: (relativePath: string) => void
   onRequestDeleteDirectory?: (relativePath: string) => void
   onRequestRename?: (oldRelativePath: string, newRelativePath: string) => void
+  onRequestCopyToClipboard?: (entries: { relativePath: string; kind: 'file' | 'directory' }[]) => void
+  onRequestPasteFromClipboard?: (destDir: string) => void
   onSearchFiles?: (query: string) => Promise<WorkspaceSearchFilesResult>
 }
 
@@ -435,6 +437,8 @@ export function FileTreePanel({
   onRequestDeleteFile,
   onRequestDeleteDirectory,
   onRequestRename,
+  onRequestCopyToClipboard,
+  onRequestPasteFromClipboard,
   onSearchFiles,
 }: FileTreePanelProps) {
   const [contextMenuState, setContextMenuState] = useState<{
@@ -675,6 +679,40 @@ export function FileTreePanel({
     [expandedDirectoriesSet, onExpandedDirectoriesChange, onSelectFile],
   )
 
+  const findNodeKind = useCallback(
+    (relativePath: string): 'file' | 'directory' => {
+      const search = (nodes: WorkspaceFileNode[]): 'file' | 'directory' | null => {
+        for (const node of nodes) {
+          if (node.relativePath === relativePath) return node.kind
+          if (node.kind === 'directory' && node.children && relativePath.startsWith(node.relativePath + '/')) {
+            const found = search(node.children)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      return search(fileTree) ?? 'file'
+    },
+    [fileTree],
+  )
+
+  const handlePanelKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (!event.metaKey && !event.ctrlKey) return
+      if (event.key === 'c') {
+        if (!activeFile) return
+        event.preventDefault()
+        const kind = findNodeKind(activeFile)
+        onRequestCopyToClipboard?.([{ relativePath: activeFile, kind }])
+      } else if (event.key === 'v') {
+        event.preventDefault()
+        const destDir = activeFile ? getParentPath(activeFile) : ''
+        onRequestPasteFromClipboard?.(destDir)
+      }
+    },
+    [activeFile, findNodeKind, onRequestCopyToClipboard, onRequestPasteFromClipboard],
+  )
+
   const hasActiveSearch = searchQuery.trim().length > 0
   const shouldShowSearchHint =
     searchState.truncated ||
@@ -728,7 +766,24 @@ export function FileTreePanel({
               onRequestCopyRelativePath(contextMenuState.relativePath)
             },
           })
+
+          actions.push({
+            label: 'Copy',
+            onSelect: () => {
+              onRequestCopyToClipboard?.([{
+                relativePath: contextMenuState.relativePath,
+                kind: contextMenuState.nodeKind,
+              }])
+            },
+          })
         }
+
+        actions.push({
+          label: 'Paste',
+          onSelect: () => {
+            onRequestPasteFromClipboard?.(parentPath)
+          },
+        })
 
         actions.push({
           label: 'New File here',
@@ -786,6 +841,8 @@ export function FileTreePanel({
       className="file-tree-panel"
       data-testid="file-tree-panel"
       onContextMenu={handlePanelContextMenu}
+      onKeyDown={handlePanelKeyDown}
+      tabIndex={-1}
     >
       <div className="tree-search-bar">
         <input

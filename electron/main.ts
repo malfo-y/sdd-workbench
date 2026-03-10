@@ -52,6 +52,7 @@ import {
   buildApplicationMenuTemplate,
   sendAppearanceThemeMenuRequest,
 } from './appearance-menu'
+import { createFileClipboardHandlers } from './file-clipboard'
 import {
   DEFAULT_APPEARANCE_THEME,
   parseAppearanceTheme,
@@ -3219,6 +3220,11 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('system:openInIterm')
   ipcMain.removeHandler('system:openInVsCode')
   ipcMain.removeHandler('system:openInFinder')
+  ipcMain.removeHandler('workspace:setFileClipboard')
+  ipcMain.removeHandler('workspace:readFileClipboard')
+  ipcMain.removeHandler('workspace:copyEntries')
+  ipcMain.removeHandler('workspace:pasteFromClipboard')
+  const clipboardHandlers = createFileClipboardHandlers(workspaceBackendRouter)
   ipcMain.handle('workspace:openDialog', handleWorkspaceOpenDialog)
   ipcMain.handle('workspace:index', handleWorkspaceIndexRouted)
   ipcMain.handle('workspace:indexDirectory', handleWorkspaceIndexDirectoryRouted)
@@ -3258,6 +3264,10 @@ function registerIpcHandlers() {
   ipcMain.handle('system:openInIterm', handleSystemOpenInIterm)
   ipcMain.handle('system:openInVsCode', handleSystemOpenInVsCode)
   ipcMain.handle('system:openInFinder', handleSystemOpenInFinder)
+  ipcMain.handle('workspace:setFileClipboard', clipboardHandlers.handleSetFileClipboard)
+  ipcMain.handle('workspace:readFileClipboard', clipboardHandlers.handleReadFileClipboard)
+  ipcMain.handle('workspace:copyEntries', clipboardHandlers.handleCopyEntries)
+  ipcMain.handle('workspace:pasteFromClipboard', clipboardHandlers.handlePasteFromClipboard)
   ipcMain.removeAllListeners(APPEARANCE_THEME_CHANGED_CHANNEL)
   ipcMain.on(APPEARANCE_THEME_CHANGED_CHANNEL, (_event, payload: { theme?: string }) => {
     currentAppearanceTheme =

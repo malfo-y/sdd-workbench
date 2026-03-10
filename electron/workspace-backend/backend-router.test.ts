@@ -22,6 +22,7 @@ function createBackend(kind: 'local' | 'remote', onDispose?: () => Promise<void>
     readGlobalComments: async () => ({ ok: true }),
     writeGlobalComments: async () => ({ ok: true }),
     exportCommentsBundle: async () => ({ ok: true }),
+    copyEntries: async () => ({ ok: true, copiedPaths: [] }),
     watchStart: async () => ({ ok: true }),
     watchStop: async () => ({ ok: true }),
     dispose: onDispose,
@@ -100,5 +101,46 @@ describe('workspace-backend/backend-router', () => {
     expect(() => router.resolveByRootPath('remote://workspace-z')).toThrow(
       /Remote workspace backend is not registered/,
     )
+  })
+
+  it('routes copyEntries to local backend for local root path', async () => {
+    const localBackend = createBackend('local')
+    const copyEntriesSpy = vi.fn().mockResolvedValue({ ok: true, copiedPaths: ['dest/a.ts'] })
+    localBackend.copyEntries = copyEntriesSpy
+    const router = new WorkspaceBackendRouter(localBackend)
+
+    const resolved = router.resolveByRootPath('/Users/tester/project')
+    const result = await resolved.copyEntries({
+      rootPath: '/Users/tester/project',
+      entries: [{ relativePath: 'a.ts', kind: 'file' }],
+      destDir: 'dest',
+    })
+
+    expect(copyEntriesSpy).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ ok: true, copiedPaths: ['dest/a.ts'] })
+  })
+
+  it('routes copyEntries to remote backend for registered remote root path', async () => {
+    const localBackend = createBackend('local')
+    const remoteBackend = createBackend('remote')
+    const copyEntriesSpy = vi.fn().mockResolvedValue({ ok: true, copiedPaths: ['dest/b.ts'] })
+    remoteBackend.copyEntries = copyEntriesSpy
+    const router = new WorkspaceBackendRouter(localBackend)
+
+    router.registerRemoteWorkspace({
+      workspaceId: 'workspace-a',
+      rootPath: 'remote://workspace-a',
+      backend: remoteBackend,
+    })
+
+    const resolved = router.resolveByRootPath('remote://workspace-a')
+    const result = await resolved.copyEntries({
+      rootPath: 'remote://workspace-a',
+      entries: [{ relativePath: 'b.ts', kind: 'file' }],
+      destDir: 'dest',
+    })
+
+    expect(copyEntriesSpy).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ ok: true, copiedPaths: ['dest/b.ts'] })
   })
 })

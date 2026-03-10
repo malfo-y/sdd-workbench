@@ -331,6 +331,31 @@ interface SystemOpenInRequest {
   remoteProfile?: WorkspaceRemoteConnectionProfile | null
 }
 
+interface WorkspaceSetFileClipboardResult {
+  ok: boolean
+  error?: string
+}
+
+interface WorkspaceReadFileClipboardResult {
+  ok: boolean
+  hasFiles: boolean
+  source: 'internal' | 'finder' | 'none'
+  error?: string
+}
+
+interface WorkspaceCopyEntriesResult {
+  ok: boolean
+  copiedPaths?: string[]
+  error?: string
+}
+
+interface WorkspacePasteFromClipboardResult {
+  ok: boolean
+  pastedPaths?: string[]
+  source: 'internal' | 'finder' | 'none'
+  error?: string
+}
+
 interface Window {
   workspace: {
     openDialog: () => Promise<WorkspaceOpenDialogResult>
@@ -439,5 +464,20 @@ interface Window {
     openInIterm: (request: SystemOpenInRequest) => Promise<SystemOpenInResult>
     openInVsCode: (request: SystemOpenInRequest) => Promise<SystemOpenInResult>
     openInFinder: (request: SystemOpenInRequest) => Promise<SystemOpenInResult>
+    setFileClipboard: (
+      rootPath: string,
+      paths: { relativePath: string; kind: 'file' | 'directory' }[],
+    ) => Promise<WorkspaceSetFileClipboardResult>
+    readFileClipboard: () => Promise<WorkspaceReadFileClipboardResult>
+    copyEntries: (
+      rootPath: string,
+      entries: { relativePath: string; kind: 'file' | 'directory' }[],
+      destDir: string,
+    ) => Promise<WorkspaceCopyEntriesResult>
+    pasteFromClipboard: (
+      rootPath: string,
+      destDir: string,
+      isRemote?: boolean,
+    ) => Promise<WorkspacePasteFromClipboardResult>
   }
 }

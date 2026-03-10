@@ -109,6 +109,12 @@ export type WorkspaceExportCommentsBundleRequest = {
   writeBundleFile: boolean
 }
 
+export type WorkspaceCopyEntriesRequest = {
+  rootPath: string
+  entries: { relativePath: string; kind: 'file' | 'directory' }[]
+  destDir: string // 대상 디렉토리 (rootPath 기준 상대경로, '' = root)
+}
+
 export type WorkspaceWatchStartRequest = {
   workspaceId: string
   rootPath: string
@@ -161,6 +167,7 @@ export interface WorkspaceBackend {
   exportCommentsBundle: (
     request: WorkspaceExportCommentsBundleRequest,
   ) => Promise<unknown>
+  copyEntries: (request: WorkspaceCopyEntriesRequest) => Promise<unknown>
   watchStart: (request: WorkspaceWatchStartRequest) => Promise<unknown>
   watchStop: (request: WorkspaceWatchStopRequest) => Promise<unknown>
   dispose?: () => Promise<void>

@@ -308,6 +308,31 @@ type SystemOpenInResult = {
   error?: string
 }
 
+type WorkspaceSetFileClipboardResult = {
+  ok: boolean
+  error?: string
+}
+
+type WorkspaceReadFileClipboardResult = {
+  ok: boolean
+  hasFiles: boolean
+  source: 'internal' | 'finder' | 'none'
+  error?: string
+}
+
+type WorkspaceCopyEntriesResult = {
+  ok: boolean
+  copiedPaths?: string[]
+  error?: string
+}
+
+type WorkspacePasteFromClipboardResult = {
+  ok: boolean
+  pastedPaths?: string[]
+  source: 'internal' | 'finder' | 'none'
+  error?: string
+}
+
 const workspaceApi = {
   openDialog() {
     return ipcRenderer.invoke(
@@ -546,6 +571,38 @@ const workspaceApi = {
   },
   openInFinder(request: SystemOpenInRequest) {
     return ipcRenderer.invoke('system:openInFinder', request) as Promise<SystemOpenInResult>
+  },
+  setFileClipboard(
+    rootPath: string,
+    paths: { relativePath: string; kind: 'file' | 'directory' }[],
+  ) {
+    return ipcRenderer.invoke('workspace:setFileClipboard', {
+      rootPath,
+      paths,
+    }) as Promise<WorkspaceSetFileClipboardResult>
+  },
+  readFileClipboard() {
+    return ipcRenderer.invoke(
+      'workspace:readFileClipboard',
+    ) as Promise<WorkspaceReadFileClipboardResult>
+  },
+  copyEntries(
+    rootPath: string,
+    entries: { relativePath: string; kind: 'file' | 'directory' }[],
+    destDir: string,
+  ) {
+    return ipcRenderer.invoke('workspace:copyEntries', {
+      rootPath,
+      entries,
+      destDir,
+    }) as Promise<WorkspaceCopyEntriesResult>
+  },
+  pasteFromClipboard(rootPath: string, destDir: string, isRemote?: boolean) {
+    return ipcRenderer.invoke('workspace:pasteFromClipboard', {
+      rootPath,
+      destDir,
+      isRemote,
+    }) as Promise<WorkspacePasteFromClipboardResult>
   },
 }
 

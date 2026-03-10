@@ -18,6 +18,7 @@ const REMOTE_WORKSPACE_METHOD_ALLOWLIST = [
   'workspace.readGlobalComments',
   'workspace.writeGlobalComments',
   'workspace.exportCommentsBundle',
+  'workspace.copyEntries',
   'workspace.watchStart',
   'workspace.watchStop',
 ] as const

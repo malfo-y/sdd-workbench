@@ -1812,6 +1812,26 @@ function App() {
     [renameFileOrDirectory],
   )
 
+  const handleRequestCopyToClipboard = useCallback(
+    (entries: { relativePath: string; kind: 'file' | 'directory' }[]) => {
+      if (!rootPath) return
+      void window.workspace.setFileClipboard(rootPath, entries)
+    },
+    [rootPath],
+  )
+
+  const handleRequestPasteFromClipboard = useCallback(
+    async (destDir: string) => {
+      if (!rootPath) return
+      const isRemote = workspaceKind === 'remote'
+      const result = await window.workspace.pasteFromClipboard(rootPath, destDir, isRemote)
+      if (!result.ok) {
+        showBanner(result.error ?? 'Failed to paste files.')
+      }
+    },
+    [rootPath, showBanner, workspaceKind],
+  )
+
   useLayoutEffect(() => {
     applyAppearanceThemeToRoot(appearanceTheme)
   }, [appearanceTheme])
@@ -2173,6 +2193,8 @@ function App() {
               onRequestDeleteFile={handleRequestDeleteFile}
               onRequestDeleteDirectory={handleRequestDeleteDirectory}
               onRequestRename={handleRequestRename}
+              onRequestCopyToClipboard={handleRequestCopyToClipboard}
+              onRequestPasteFromClipboard={handleRequestPasteFromClipboard}
             />
           </section>
         </div>

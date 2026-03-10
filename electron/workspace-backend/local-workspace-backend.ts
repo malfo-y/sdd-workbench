@@ -1,5 +1,6 @@
 import type {
   WorkspaceBackend,
+  WorkspaceCopyEntriesRequest,
   WorkspaceCreateDirectoryRequest,
   WorkspaceCreateFileRequest,
   WorkspaceDeleteDirectoryRequest,
@@ -49,6 +50,7 @@ type LocalWorkspaceBackendHandlers = {
   exportCommentsBundle: (
     request: WorkspaceExportCommentsBundleRequest,
   ) => Promise<unknown>
+  copyEntries: (request: WorkspaceCopyEntriesRequest) => Promise<unknown>
   watchStart: (request: WorkspaceWatchStartRequest) => Promise<unknown>
   watchStop: (request: WorkspaceWatchStopRequest) => Promise<unknown>
 }
@@ -75,6 +77,7 @@ export function createLocalWorkspaceBackend(
     readGlobalComments: handlers.readGlobalComments,
     writeGlobalComments: handlers.writeGlobalComments,
     exportCommentsBundle: handlers.exportCommentsBundle,
+    copyEntries: handlers.copyEntries,
     watchStart: handlers.watchStart,
     watchStop: handlers.watchStop,
   }

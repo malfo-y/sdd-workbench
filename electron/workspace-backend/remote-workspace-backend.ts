@@ -216,6 +216,21 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
     })
   }
 
+  async copyEntries(request: {
+    rootPath: string
+    entries: { relativePath: string; kind: 'file' | 'directory' }[]
+    destDir: string
+  }): Promise<unknown> {
+    this.assertRootPath(request.rootPath)
+    for (const entry of request.entries) {
+      this.assertRelativePathInWorkspace(entry.relativePath)
+    }
+    return this.requestWorkspaceMethod('workspace.copyEntries', {
+      entries: request.entries,
+      destDir: request.destDir,
+    })
+  }
+
   exportCommentsBundle(
     request: WorkspaceExportCommentsBundleRequest,
   ): Promise<unknown> {
