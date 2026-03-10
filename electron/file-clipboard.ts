@@ -79,21 +79,45 @@ export function readFinderClipboardFiles(): string[] | null {
 
   try {
     const formats = clipboard.availableFormats()
-    if (!formats.includes('NSFilenamesPboardType')) return null
 
-    const buf = clipboard.readBuffer('NSFilenamesPboardType')
-    if (!buf || buf.length === 0) return null
+    // Electron returns Chromium MIME types, not native macOS pasteboard names.
+    // Finder file copies appear as 'text/uri-list' containing file:// URLs.
+    if (formats.includes('text/uri-list')) {
+      const uriList = clipboard.readBuffer('text/uri-list').toString('utf-8')
+      if (!uriList) return null
 
-    // bplist-parser is a CommonJS module, use require
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-    const bplistParser = require('bplist-parser')
-    const parsed = bplistParser.parseBuffer(buf)
-    if (!Array.isArray(parsed) || parsed.length === 0) return null
+      const paths = uriList
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('file://'))
+        .map((uri) => {
+          try {
+            return new URL(uri).pathname
+          } catch {
+            return null
+          }
+        })
+        .filter((p): p is string => p !== null && p.length > 0)
 
-    const filePaths = parsed[0]
-    if (!Array.isArray(filePaths) || filePaths.length === 0) return null
+      return paths.length > 0 ? paths : null
+    }
 
-    return filePaths.filter((p: unknown): p is string => typeof p === 'string')
+    // Fallback: try legacy NSFilenamesPboardType (binary plist)
+    if (formats.includes('NSFilenamesPboardType')) {
+      const buf = clipboard.readBuffer('NSFilenamesPboardType')
+      if (!buf || buf.length === 0) return null
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+      const bplistParser = require('bplist-parser')
+      const parsed = bplistParser.parseBuffer(buf)
+      if (!Array.isArray(parsed) || parsed.length === 0) return null
+
+      const filePaths = parsed[0]
+      if (!Array.isArray(filePaths) || filePaths.length === 0) return null
+
+      return filePaths.filter((p: unknown): p is string => typeof p === 'string')
+    }
+
+    return null
   } catch {
     return null
   }
