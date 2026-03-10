@@ -148,6 +148,7 @@ function normalizeRemoteProfile(value: unknown): WorkspaceRemoteProfile | null {
   const identityFile = isNonEmptyString(value.identityFile)
     ? value.identityFile
     : undefined
+  const sshAlias = isNonEmptyString(value.sshAlias) ? value.sshAlias : undefined
 
   return {
     workspaceId,
@@ -159,6 +160,7 @@ function normalizeRemoteProfile(value: unknown): WorkspaceRemoteProfile | null {
       : {}),
     ...(agentPath ? { agentPath } : {}),
     ...(identityFile ? { identityFile } : {}),
+    ...(sshAlias ? { sshAlias } : {}),
     ...(normalizeOptionalPositiveInteger(value.requestTimeoutMs)
       ? { requestTimeoutMs: normalizeOptionalPositiveInteger(value.requestTimeoutMs) }
       : {}),

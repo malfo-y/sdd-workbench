@@ -36,6 +36,7 @@ export type WorkspaceRemoteProfile = {
   port?: number
   agentPath?: string
   identityFile?: string
+  sshAlias?: string
   requestTimeoutMs?: number
   connectTimeoutMs?: number
 }

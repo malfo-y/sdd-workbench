@@ -195,11 +195,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         content: string,
       ) => Promise<WorkspaceWriteFileResult>
     >()
-  const openInItermMock = vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
+  const openInItermMock =
+    vi.fn<(request: SystemOpenInRequest) => Promise<SystemOpenInResult>>()
   const openInVsCodeMock =
-    vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
+    vi.fn<(request: SystemOpenInRequest) => Promise<SystemOpenInResult>>()
   const openInFinderMock =
-    vi.fn<(rootPath: string) => Promise<SystemOpenInResult>>()
+    vi.fn<(request: SystemOpenInRequest) => Promise<SystemOpenInResult>>()
   const createFileMock =
     vi.fn<(rootPath: string, relativePath: string) => Promise<{ ok: boolean; error?: string }>>()
   const createDirectoryMock =
@@ -1366,13 +1367,114 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(openInItermMock).toHaveBeenCalledWith(
-        '/Users/tester/projects/sdd-workbench',
+        {
+          rootPath: '/Users/tester/projects/sdd-workbench',
+          workspaceKind: 'local',
+        },
       )
       expect(openInVsCodeMock).toHaveBeenCalledWith(
-        '/Users/tester/projects/sdd-workbench',
+        {
+          rootPath: '/Users/tester/projects/sdd-workbench',
+          workspaceKind: 'local',
+        },
       )
       expect(openInFinderMock).toHaveBeenCalledWith(
-        '/Users/tester/projects/sdd-workbench',
+        {
+          rootPath: '/Users/tester/projects/sdd-workbench',
+          workspaceKind: 'local',
+        },
+      )
+    })
+  })
+
+  it('opens remote workspace actions with remote profile payload', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-open-actions',
+      sessionId: 'session-remote-open-actions',
+      rootPath: 'remote://remote-open-actions',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'remote.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/remote-project' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-user-input'), {
+      target: { value: 'ubuntu' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-port-input'), {
+      target: { value: '2222' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_ed25519' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-ssh-alias-input'), {
+      target: { value: 'remote-devbox' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-open-actions' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in iTerm' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open in VSCode' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }))
+
+    await waitFor(() => {
+      expect(openInItermMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rootPath: 'remote://remote-open-actions',
+          workspaceKind: 'remote',
+          remoteProfile: expect.objectContaining({
+            workspaceId: 'remote-open-actions',
+            host: 'remote.example.com',
+            user: 'ubuntu',
+            port: 2222,
+            remoteRoot: '/srv/remote-project',
+            identityFile: '~/.ssh/id_ed25519',
+            sshAlias: 'remote-devbox',
+          }),
+        }),
+      )
+      expect(openInVsCodeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rootPath: 'remote://remote-open-actions',
+          workspaceKind: 'remote',
+          remoteProfile: expect.objectContaining({
+            sshAlias: 'remote-devbox',
+            remoteRoot: '/srv/remote-project',
+          }),
+        }),
+      )
+      expect(openInFinderMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rootPath: 'remote://remote-open-actions',
+          workspaceKind: 'remote',
+          remoteProfile: expect.objectContaining({
+            host: 'remote.example.com',
+          }),
+        }),
       )
     })
   })

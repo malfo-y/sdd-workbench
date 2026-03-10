@@ -238,6 +238,7 @@ interface WorkspaceRemoteConnectionProfile {
   port?: number
   agentPath?: string
   identityFile?: string
+  sshAlias?: string
   requestTimeoutMs?: number
   connectTimeoutMs?: number
 }
@@ -301,6 +302,12 @@ interface WorkspaceDisconnectRemoteResult {
 interface SystemOpenInResult {
   ok: boolean
   error?: string
+}
+
+interface SystemOpenInRequest {
+  rootPath: string
+  workspaceKind?: 'local' | 'remote'
+  remoteProfile?: WorkspaceRemoteConnectionProfile | null
 }
 
 interface Window {
@@ -405,8 +412,8 @@ interface Window {
       listener: (theme: AppearanceTheme) => void,
     ) => () => void
     notifyAppearanceThemeChanged: (theme: AppearanceTheme) => void
-    openInIterm: (rootPath: string) => Promise<SystemOpenInResult>
-    openInVsCode: (rootPath: string) => Promise<SystemOpenInResult>
-    openInFinder: (rootPath: string) => Promise<SystemOpenInResult>
+    openInIterm: (request: SystemOpenInRequest) => Promise<SystemOpenInResult>
+    openInVsCode: (request: SystemOpenInRequest) => Promise<SystemOpenInResult>
+    openInFinder: (request: SystemOpenInRequest) => Promise<SystemOpenInResult>
   }
 }

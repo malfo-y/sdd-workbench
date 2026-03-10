@@ -1,4 +1,4 @@
-import { Menu, app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { Menu, app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { execFile } from 'node:child_process'
 import type { Dirent } from 'node:fs'
@@ -37,6 +37,11 @@ import { createLocalWorkspaceBackend } from './workspace-backend/local-workspace
 import { createRemoteWorkspaceBackend } from './workspace-backend/remote-workspace-backend'
 import { WorkspaceBackendRouter } from './workspace-backend/backend-router'
 import { searchWorkspaceFilesByName } from './workspace-search'
+import {
+  openWorkspaceInExternalTool,
+  type SystemOpenInRequest,
+  type SystemOpenInResult,
+} from './system-open'
 import {
   APPEARANCE_THEME_CHANGED_CHANNEL,
   buildApplicationMenuTemplate,
@@ -371,15 +376,6 @@ type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
 type WorkspaceHistoryNavigationEventPayload = {
   direction: WorkspaceHistoryNavigationDirection
   source: WorkspaceHistoryNavigationSource
-}
-
-type SystemOpenInRequest = {
-  rootPath: string
-}
-
-type SystemOpenInResult = {
-  ok: boolean
-  error?: string
 }
 
 type WorkspaceWatcherEntry = {
@@ -1994,121 +1990,25 @@ async function handleWorkspaceExportCommentsBundle(
   }
 }
 
-function openDirectoryWithApplication(
-  applicationName: string,
-  directoryPath: string,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'open',
-      ['-a', applicationName, directoryPath],
-      (error) => {
-        if (error) {
-          reject(error)
-          return
-        }
-        resolve()
-      },
-    )
-  })
-}
-
-async function handleSystemOpenInApplication(
-  request: SystemOpenInRequest,
-  applicationName: string,
-): Promise<SystemOpenInResult> {
-  try {
-    if (process.platform !== 'darwin') {
-      return {
-        ok: false,
-        error: 'Open in app is only supported on macOS.',
-      }
-    }
-
-    const rootPath = request?.rootPath
-    if (!rootPath) {
-      return {
-        ok: false,
-        error: 'rootPath is required.',
-      }
-    }
-
-    const resolvedRootPath = path.resolve(rootPath)
-    const rootStats = await stat(resolvedRootPath)
-    if (!rootStats.isDirectory()) {
-      return {
-        ok: false,
-        error: 'Selected workspace root is not a directory.',
-      }
-    }
-
-    await openDirectoryWithApplication(applicationName, resolvedRootPath)
-    return { ok: true }
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : `Failed to open workspace in ${applicationName}.`,
-    }
-  }
-}
-
 async function handleSystemOpenInIterm(
   _event: IpcMainInvokeEvent,
   request: SystemOpenInRequest,
 ): Promise<SystemOpenInResult> {
-  return handleSystemOpenInApplication(request, 'iTerm')
+  return openWorkspaceInExternalTool(request, 'iterm')
 }
 
 async function handleSystemOpenInVsCode(
   _event: IpcMainInvokeEvent,
   request: SystemOpenInRequest,
 ): Promise<SystemOpenInResult> {
-  return handleSystemOpenInApplication(request, 'Visual Studio Code')
+  return openWorkspaceInExternalTool(request, 'vscode')
 }
 
 async function handleSystemOpenInFinder(
   _event: IpcMainInvokeEvent,
   request: SystemOpenInRequest,
 ): Promise<SystemOpenInResult> {
-  try {
-    const rootPath = request?.rootPath
-    if (!rootPath) {
-      return {
-        ok: false,
-        error: 'rootPath is required.',
-      }
-    }
-
-    const resolvedRootPath = path.resolve(rootPath)
-    const rootStats = await stat(resolvedRootPath)
-    if (!rootStats.isDirectory()) {
-      return {
-        ok: false,
-        error: 'Selected workspace root is not a directory.',
-      }
-    }
-
-    const errorMessage = await shell.openPath(resolvedRootPath)
-    if (errorMessage) {
-      return {
-        ok: false,
-        error: errorMessage,
-      }
-    }
-
-    return { ok: true }
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to open workspace in Finder.',
-    }
-  }
+  return openWorkspaceInExternalTool(request, 'finder')
 }
 
 function sendWorkspaceWatchEvent(payload: WorkspaceWatchEventPayload) {

@@ -42,10 +42,16 @@
 - [ ] File watcher still reflects file content changes for active file.
 - [ ] No repeated error banner loop while idle.
 
+### 7) Remote external open sanity (F39)
+- [ ] Connect a remote workspace with `Host`, `Remote Root`, and `SSH Alias for VSCode`.
+- [ ] Click `Open in iTerm` and verify a new iTerm window/session starts an SSH login for the current remote target.
+- [ ] Click `Open in VSCode` and verify VS Code opens a Remote-SSH window for the configured alias and remote root.
+- [ ] Click `Open in Finder` on the remote workspace and verify the app shows an explicit unsupported message instead of a generic local path error.
+- [ ] Repeat `Open in iTerm`, `Open in VSCode`, and `Open in Finder` on a local workspace and verify local behavior still works.
+
 ## Quick commands
 ```bash
 npm run dev
 npm test
 npm run lint
 ```
-

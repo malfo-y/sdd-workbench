@@ -76,6 +76,9 @@ describe('workspace/remote-connect-modal', () => {
     fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
       target: { value: '~/.ssh/id_rsa' },
     })
+    fireEvent.change(screen.getByTestId('remote-connect-ssh-alias-input'), {
+      target: { value: 'kakao-devbox' },
+    })
 
     firstRender.unmount()
 
@@ -102,6 +105,9 @@ describe('workspace/remote-connect-modal', () => {
     )
     expect(screen.getByTestId('remote-connect-identity-file-input')).toHaveValue(
       '~/.ssh/id_rsa',
+    )
+    expect(screen.getByTestId('remote-connect-ssh-alias-input')).toHaveValue(
+      'kakao-devbox',
     )
   })
 
@@ -225,5 +231,45 @@ describe('workspace/remote-connect-modal', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
 
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('includes sshAlias in the submitted remote profile when provided', () => {
+    const onSubmit = vi.fn()
+
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting={false}
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
+        onClose={() => undefined}
+        onSubmit={onSubmit}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/project-a' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-ssh-alias-input'), {
+      target: { value: 'devbox-a' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'example.com',
+        remoteRoot: '/srv/project-a',
+        sshAlias: 'devbox-a',
+      }),
+    )
   })
 })

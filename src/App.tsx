@@ -1122,14 +1122,19 @@ function App() {
         finder: 'Finder',
       }
       const targetLabel = targetLabels[target]
+      const openRequest: SystemOpenInRequest = {
+        rootPath,
+        workspaceKind: workspaceKind ?? 'local',
+        ...(workspaceKind === 'remote' ? { remoteProfile } : {}),
+      }
       try {
         let result: SystemOpenInResult
         if (target === 'iterm') {
-          result = await window.workspace.openInIterm(rootPath)
+          result = await window.workspace.openInIterm(openRequest)
         } else if (target === 'vscode') {
-          result = await window.workspace.openInVsCode(rootPath)
+          result = await window.workspace.openInVsCode(openRequest)
         } else {
-          result = await window.workspace.openInFinder(rootPath)
+          result = await window.workspace.openInFinder(openRequest)
         }
         if (!result.ok) {
           showBanner(result.error ?? `Failed to open workspace in ${targetLabel}.`)
@@ -1138,7 +1143,7 @@ function App() {
         showBanner(`Failed to open workspace in ${targetLabel}.`)
       }
     },
-    [rootPath, showBanner],
+    [remoteProfile, rootPath, showBanner, workspaceKind],
   )
 
   const handleWatchModePreferenceChange = useCallback(

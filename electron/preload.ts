@@ -215,6 +215,7 @@ type WorkspaceRemoteConnectionProfile = {
   port?: number
   agentPath?: string
   identityFile?: string
+  sshAlias?: string
   requestTimeoutMs?: number
   connectTimeoutMs?: number
 }
@@ -273,6 +274,12 @@ type WorkspaceDisconnectRemoteResult = {
   ok: boolean
   workspaceId: string
   error?: string
+}
+
+type SystemOpenInRequest = {
+  rootPath: string
+  workspaceKind?: 'local' | 'remote'
+  remoteProfile?: WorkspaceRemoteConnectionProfile | null
 }
 
 type SystemOpenInResult = {
@@ -504,20 +511,14 @@ const workspaceApi = {
       theme,
     })
   },
-  openInIterm(rootPath: string) {
-    return ipcRenderer.invoke('system:openInIterm', {
-      rootPath,
-    }) as Promise<SystemOpenInResult>
+  openInIterm(request: SystemOpenInRequest) {
+    return ipcRenderer.invoke('system:openInIterm', request) as Promise<SystemOpenInResult>
   },
-  openInVsCode(rootPath: string) {
-    return ipcRenderer.invoke('system:openInVsCode', {
-      rootPath,
-    }) as Promise<SystemOpenInResult>
+  openInVsCode(request: SystemOpenInRequest) {
+    return ipcRenderer.invoke('system:openInVsCode', request) as Promise<SystemOpenInResult>
   },
-  openInFinder(rootPath: string) {
-    return ipcRenderer.invoke('system:openInFinder', {
-      rootPath,
-    }) as Promise<SystemOpenInResult>
+  openInFinder(request: SystemOpenInRequest) {
+    return ipcRenderer.invoke('system:openInFinder', request) as Promise<SystemOpenInResult>
   },
 }
 

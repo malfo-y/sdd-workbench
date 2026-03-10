@@ -22,6 +22,7 @@ type RemoteConnectDraft = {
   remoteRoot: string
   agentPath: string
   identityFile: string
+  sshAlias: string
   lastBrowsePath: string
   activeStep: RemoteConnectStep
 }
@@ -36,6 +37,7 @@ const EMPTY_REMOTE_CONNECT_DRAFT: RemoteConnectDraft = {
   remoteRoot: '',
   agentPath: '',
   identityFile: '',
+  sshAlias: '',
   lastBrowsePath: '',
   activeStep: 'profile',
 }
@@ -72,6 +74,7 @@ function loadRemoteConnectDraft(): RemoteConnectDraft {
       remoteRoot: toDraftStringField(parsed.remoteRoot),
       agentPath: toDraftStringField(parsed.agentPath),
       identityFile: toDraftStringField(parsed.identityFile),
+      sshAlias: toDraftStringField(parsed.sshAlias),
       lastBrowsePath: toDraftStringField(parsed.lastBrowsePath),
       activeStep: toRemoteConnectStep(parsed.activeStep),
     }
@@ -317,6 +320,7 @@ export function RemoteConnectModal({
       ...(portResult.port !== null ? { port: portResult.port } : {}),
       ...(draft.agentPath.trim() ? { agentPath: draft.agentPath.trim() } : {}),
       ...(draft.identityFile.trim() ? { identityFile: draft.identityFile.trim() } : {}),
+      ...(draft.sshAlias.trim() ? { sshAlias: draft.sshAlias.trim() } : {}),
     })
   }
 
@@ -484,6 +488,22 @@ export function RemoteConnectModal({
           placeholder="~/.ssh/id_ed25519"
           type="text"
           value={draft.identityFile}
+        />
+        <label className="comment-modal-label" htmlFor="remote-connect-ssh-alias">
+          SSH Alias for VSCode (optional)
+        </label>
+        <input
+          className="remote-connect-input"
+          data-testid="remote-connect-ssh-alias-input"
+          id="remote-connect-ssh-alias"
+          onChange={(event) => {
+            updateDraft({
+              sshAlias: event.target.value,
+            })
+          }}
+          placeholder="my-remote-host"
+          type="text"
+          value={draft.sshAlias}
         />
 
         <div className="remote-connect-browse-actions">
