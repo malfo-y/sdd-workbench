@@ -442,6 +442,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       deleteFile: deleteFileMock,
       deleteDirectory: deleteDirectoryMock,
       rename: renameMock,
+      setFileClipboard: vi.fn(async () => ({ ok: true })),
+      readFileClipboard: vi.fn(async () => ({ ok: true, hasFiles: false, source: 'none' as const })),
+      copyEntries: vi.fn(async () => ({ ok: true, copiedPaths: [] })),
+      pasteFromClipboard: vi.fn(async () => ({ ok: true, source: 'none' as const })),
     }
   })
 

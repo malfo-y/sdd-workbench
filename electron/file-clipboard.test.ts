@@ -100,7 +100,7 @@ describe('createFileClipboardHandlers', () => {
 
       expect(result).toEqual({ ok: true })
 
-      const readResult = await handleReadFileClipboard(mockEvent, undefined)
+      const readResult = await handleReadFileClipboard()
       expect(readResult.hasFiles).toBe(true)
       expect(readResult.source).toBe('internal')
     })
@@ -137,7 +137,7 @@ describe('createFileClipboardHandlers', () => {
       const router = makeMockRouter()
       const { handleReadFileClipboard } = createFileClipboardHandlers(router)
 
-      const result = await handleReadFileClipboard(mockEvent, undefined)
+      const result = await handleReadFileClipboard()
 
       expect(result).toEqual({ ok: true, hasFiles: false, source: 'none' })
     })
@@ -152,7 +152,7 @@ describe('createFileClipboardHandlers', () => {
         paths: [{ relativePath: 'dir/', kind: 'directory' }],
       })
 
-      const result = await handleReadFileClipboard(mockEvent, undefined)
+      const result = await handleReadFileClipboard()
       expect(result).toEqual({ ok: true, hasFiles: true, source: 'internal' })
     })
 
@@ -164,7 +164,7 @@ describe('createFileClipboardHandlers', () => {
       const router = makeMockRouter()
       const { handleReadFileClipboard } = createFileClipboardHandlers(router)
 
-      const result = await handleReadFileClipboard(mockEvent, undefined)
+      const result = await handleReadFileClipboard()
       expect(result).toEqual({ ok: true, hasFiles: true, source: 'finder' })
     })
 
@@ -184,7 +184,7 @@ describe('createFileClipboardHandlers', () => {
         paths: [{ relativePath: 'a.ts', kind: 'file' }],
       })
 
-      const result = await handleReadFileClipboard(mockEvent, undefined)
+      const result = await handleReadFileClipboard()
       expect(result.source).toBe('internal')
     })
   })

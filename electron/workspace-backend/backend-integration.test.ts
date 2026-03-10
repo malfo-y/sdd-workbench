@@ -23,6 +23,7 @@ describe('workspace-backend/backend-integration', () => {
       readGlobalComments: async () => ({ ok: true }),
       writeGlobalComments: async () => ({ ok: true }),
       exportCommentsBundle: async () => ({ ok: true }),
+      copyEntries: async () => ({ ok: true }),
       watchStart: async () => ({ ok: true }),
       watchStop: async () => ({ ok: true }),
     })

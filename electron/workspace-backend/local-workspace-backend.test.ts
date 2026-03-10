@@ -21,6 +21,7 @@ describe('workspace-backend/local-workspace-backend', () => {
       readGlobalComments: vi.fn(async () => ({ ok: true, source: 'readGlobalComments' })),
       writeGlobalComments: vi.fn(async () => ({ ok: true, source: 'writeGlobalComments' })),
       exportCommentsBundle: vi.fn(async () => ({ ok: true, source: 'exportCommentsBundle' })),
+      copyEntries: vi.fn(async () => ({ ok: true, source: 'copyEntries' })),
       watchStart: vi.fn(async () => ({ ok: true, source: 'watchStart' })),
       watchStop: vi.fn(async () => ({ ok: true, source: 'watchStop' })),
     }

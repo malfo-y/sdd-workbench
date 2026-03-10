@@ -36,6 +36,7 @@ import type {
 import { createLocalWorkspaceBackend } from './workspace-backend/local-workspace-backend'
 import { createRemoteWorkspaceBackend } from './workspace-backend/remote-workspace-backend'
 import { WorkspaceBackendRouter } from './workspace-backend/backend-router'
+import { copyEntries as localCopyEntries } from './workspace-backend/copy-entries'
 import { searchWorkspaceFilesByName } from './workspace-search'
 import {
   openWorkspaceInExternalTool,
@@ -2663,6 +2664,10 @@ const localWorkspaceBackend = createLocalWorkspaceBackend({
     handleWorkspaceWriteGlobalComments(DUMMY_IPC_EVENT, request),
   exportCommentsBundle: async (request) =>
     handleWorkspaceExportCommentsBundle(DUMMY_IPC_EVENT, request),
+  copyEntries: async (request) => {
+    await localCopyEntries(request)
+    return { ok: true }
+  },
   watchStart: async (request) =>
     handleWorkspaceWatchStart(DUMMY_IPC_EVENT, request),
   watchStop: async (request) =>
