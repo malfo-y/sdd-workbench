@@ -245,6 +245,27 @@ type WorkspaceRemoteDirectoryBrowseResult = {
   error?: string
 }
 
+type WorkspaceSyncVsCodeSshConfigRequest = {
+  sshAlias: string
+  host: string
+  user?: string
+  port?: number
+  identityFile?: string
+}
+
+type WorkspaceSyncVsCodeSshConfigResult =
+  | {
+      ok: true
+      configPath: string
+      managedConfigPath: string
+      includeInserted: boolean
+      entryUpdated: boolean
+    }
+  | {
+      ok: false
+      error: string
+    }
+
 type WorkspaceRemoteConnectionEvent = {
   workspaceId: string
   sessionId?: string
@@ -427,6 +448,12 @@ const workspaceApi = {
     return ipcRenderer.invoke('workspace:connectRemote', {
       profile,
     }) as Promise<WorkspaceConnectRemoteResult>
+  },
+  syncVsCodeSshConfig(request: WorkspaceSyncVsCodeSshConfigRequest) {
+    return ipcRenderer.invoke(
+      'workspace:syncVsCodeSshConfig',
+      request,
+    ) as Promise<WorkspaceSyncVsCodeSshConfigResult>
   },
   browseRemoteDirectories(request: WorkspaceRemoteDirectoryBrowseRequest) {
     return ipcRenderer.invoke('workspace:browseRemoteDirectories', {

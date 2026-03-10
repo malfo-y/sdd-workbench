@@ -169,6 +169,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         profile: WorkspaceRemoteConnectionProfile,
       ) => Promise<WorkspaceConnectRemoteResult>
     >()
+  const syncVsCodeSshConfigMock =
+    vi.fn<
+      (
+        request: WorkspaceSyncVsCodeSshConfigRequest,
+      ) => Promise<WorkspaceSyncVsCodeSshConfigResult>
+    >()
   const browseRemoteDirectoriesMock =
     vi.fn<
       (
@@ -271,6 +277,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     watchStartMock.mockReset()
     watchStopMock.mockReset()
     connectRemoteMock.mockReset()
+    syncVsCodeSshConfigMock.mockReset()
     browseRemoteDirectoriesMock.mockReset()
     disconnectRemoteMock.mockReset()
     writeFileMock.mockReset()
@@ -306,6 +313,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       workspaceId: '',
       errorCode: 'UNKNOWN',
       error: 'Not configured in test.',
+    })
+    syncVsCodeSshConfigMock.mockResolvedValue({
+      ok: true,
+      configPath: '/Users/tester/.ssh/config',
+      managedConfigPath: '/Users/tester/.ssh/sdd-workbench.config',
+      includeInserted: false,
+      entryUpdated: true,
     })
     browseRemoteDirectoriesMock.mockResolvedValue({
       ok: true,
@@ -411,6 +425,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       watchStart: watchStartMock,
       watchStop: watchStopMock,
       connectRemote: connectRemoteMock,
+      syncVsCodeSshConfig: syncVsCodeSshConfigMock,
       browseRemoteDirectories: browseRemoteDirectoriesMock,
       disconnectRemote: disconnectRemoteMock,
       onWatchEvent: onWatchEventMock,
@@ -928,6 +943,76 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await expandWorkspaceSummaryIfCollapsed()
     expect(screen.getByTestId('workspace-remote-target')).toHaveTextContent(
       'example.com:/srv/project-a',
+    )
+  })
+
+  it('syncs VSCode SSH config before remote connect when opted in', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-workspace-sync',
+      sessionId: 'session-sync',
+      rootPath: 'remote://remote-workspace-sync',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-user-input'), {
+      target: { value: 'bc-user' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-port-input'), {
+      target: { value: '2222' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/project-a' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_rsa' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-ssh-alias-input'), {
+      target: { value: 'summer-test' },
+    })
+    fireEvent.click(screen.getByTestId('remote-connect-sync-vscode-ssh-checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(syncVsCodeSshConfigMock).toHaveBeenCalledWith({
+        sshAlias: 'summer-test',
+        host: 'example.com',
+        user: 'bc-user',
+        port: 2222,
+        identityFile: '~/.ssh/id_rsa',
+      })
+    })
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'example.com',
+          user: 'bc-user',
+          port: 2222,
+          remoteRoot: '/srv/project-a',
+          sshAlias: 'summer-test',
+          identityFile: '~/.ssh/id_rsa',
+        }),
+      )
+    })
+
+    expect(syncVsCodeSshConfigMock.mock.invocationCallOrder[0]).toBeLessThan(
+      connectRemoteMock.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
     )
   })
 

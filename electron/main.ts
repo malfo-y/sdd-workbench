@@ -43,6 +43,11 @@ import {
   type SystemOpenInResult,
 } from './system-open'
 import {
+  syncVsCodeSshConfig,
+  type WorkspaceSyncVsCodeSshConfigRequest,
+  type WorkspaceSyncVsCodeSshConfigResult,
+} from './vscode-ssh-config'
+import {
   APPEARANCE_THEME_CHANGED_CHANNEL,
   buildApplicationMenuTemplate,
   sendAppearanceThemeMenuRequest,
@@ -345,6 +350,8 @@ type WorkspaceBrowseRemoteDirectoriesResult = {
   errorCode?: string
   error?: string
 }
+
+type WorkspaceSyncVsCodeSshConfigIpcRequest = WorkspaceSyncVsCodeSshConfigRequest
 
 type WorkspaceDisconnectRemoteRequest = {
   workspaceId: string
@@ -3133,6 +3140,13 @@ async function handleWorkspaceBrowseRemoteDirectories(
   }
 }
 
+async function handleWorkspaceSyncVsCodeSshConfig(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceSyncVsCodeSshConfigIpcRequest,
+): Promise<WorkspaceSyncVsCodeSshConfigResult> {
+  return syncVsCodeSshConfig(request)
+}
+
 function sanitizeRemoteLogMessage(message: string | undefined): string | null {
   if (!message || message.trim().length === 0) {
     return null
@@ -3199,6 +3213,7 @@ function registerIpcHandlers() {
   ipcMain.removeHandler('workspace:watchStart')
   ipcMain.removeHandler('workspace:watchStop')
   ipcMain.removeHandler('workspace:connectRemote')
+  ipcMain.removeHandler('workspace:syncVsCodeSshConfig')
   ipcMain.removeHandler('workspace:browseRemoteDirectories')
   ipcMain.removeHandler('workspace:disconnectRemote')
   ipcMain.removeHandler('system:openInIterm')
@@ -3231,6 +3246,10 @@ function registerIpcHandlers() {
   ipcMain.handle('workspace:watchStart', handleWorkspaceWatchStartRouted)
   ipcMain.handle('workspace:watchStop', handleWorkspaceWatchStopRouted)
   ipcMain.handle('workspace:connectRemote', handleWorkspaceConnectRemote)
+  ipcMain.handle(
+    'workspace:syncVsCodeSshConfig',
+    handleWorkspaceSyncVsCodeSshConfig,
+  )
   ipcMain.handle(
     'workspace:browseRemoteDirectories',
     handleWorkspaceBrowseRemoteDirectories,

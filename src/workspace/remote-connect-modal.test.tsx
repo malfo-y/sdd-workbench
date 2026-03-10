@@ -272,4 +272,141 @@ describe('workspace/remote-connect-modal', () => {
       }),
     )
   })
+
+  it('shows VSCode SSH guidance for alias override and identity file behavior', () => {
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting={false}
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
+        onClose={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        /VSCode Remote-SSH opens a separate SSH session and reads your local SSH config/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Must match a local `~\/\.ssh\/config` `Host` entry/i),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('remote-connect-ssh-alias-input')).toHaveAttribute(
+      'placeholder',
+      'Required for VSCode: ~/.ssh/config Host entry',
+    )
+  })
+
+  it('requires sshAlias when VSCode SSH config sync is enabled', async () => {
+    const onSubmit = vi.fn()
+    const onSyncVsCodeSshConfig = vi.fn()
+
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting={false}
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
+        onClose={() => undefined}
+        onSubmit={onSubmit}
+        onSyncVsCodeSshConfig={onSyncVsCodeSshConfig}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/project-a' },
+    })
+    fireEvent.click(screen.getByTestId('remote-connect-sync-vscode-ssh-checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(await screen.findByText(/SSH Host Alias for VSCode is required/i)).toBeVisible()
+    expect(onSyncVsCodeSshConfig).not.toHaveBeenCalled()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('syncs VSCode SSH config before submitting when enabled', async () => {
+    const onSubmit = vi.fn()
+    const onSyncVsCodeSshConfig = vi.fn().mockResolvedValue({
+      ok: true,
+      configPath: '/Users/tester/.ssh/config',
+      managedConfigPath: '/Users/tester/.ssh/sdd-workbench.config',
+      includeInserted: true,
+      entryUpdated: true,
+    })
+
+    render(
+      <RemoteConnectModal
+        isOpen
+        isSubmitting={false}
+        onBrowse={() =>
+          Promise.resolve({
+            ok: true,
+            currentPath: '/tmp',
+            entries: [],
+            truncated: false,
+          })
+        }
+        onClose={() => undefined}
+        onSubmit={onSubmit}
+        onSyncVsCodeSshConfig={onSyncVsCodeSshConfig}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-user-input'), {
+      target: { value: 'bc-user' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-port-input'), {
+      target: { value: '2222' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/project-a' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-identity-file-input'), {
+      target: { value: '~/.ssh/id_rsa' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-ssh-alias-input'), {
+      target: { value: 'summer-test' },
+    })
+    fireEvent.click(screen.getByTestId('remote-connect-sync-vscode-ssh-checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    expect(await screen.findByTestId('remote-connect-sync-vscode-ssh-checkbox')).toBeChecked()
+    expect(onSyncVsCodeSshConfig).toHaveBeenCalledWith({
+      sshAlias: 'summer-test',
+      host: 'example.com',
+      user: 'bc-user',
+      port: 2222,
+      identityFile: '~/.ssh/id_rsa',
+    })
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'example.com',
+        user: 'bc-user',
+        port: 2222,
+        remoteRoot: '/srv/project-a',
+        sshAlias: 'summer-test',
+        identityFile: '~/.ssh/id_rsa',
+      }),
+    )
+  })
 })

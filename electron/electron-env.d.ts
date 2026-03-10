@@ -268,6 +268,27 @@ interface WorkspaceRemoteDirectoryBrowseResult {
   error?: string
 }
 
+interface WorkspaceSyncVsCodeSshConfigRequest {
+  sshAlias: string
+  host: string
+  user?: string
+  port?: number
+  identityFile?: string
+}
+
+type WorkspaceSyncVsCodeSshConfigResult =
+  | {
+      ok: true
+      configPath: string
+      managedConfigPath: string
+      includeInserted: boolean
+      entryUpdated: boolean
+    }
+  | {
+      ok: false
+      error: string
+    }
+
 interface WorkspaceRemoteConnectionEvent {
   workspaceId: string
   sessionId?: string
@@ -390,6 +411,9 @@ interface Window {
     connectRemote: (
       profile: WorkspaceRemoteConnectionProfile,
     ) => Promise<WorkspaceConnectRemoteResult>
+    syncVsCodeSshConfig: (
+      request: WorkspaceSyncVsCodeSshConfigRequest,
+    ) => Promise<WorkspaceSyncVsCodeSshConfigResult>
     browseRemoteDirectories: (
       request: WorkspaceRemoteDirectoryBrowseRequest,
     ) => Promise<WorkspaceRemoteDirectoryBrowseResult>

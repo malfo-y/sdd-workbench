@@ -35,6 +35,7 @@ type StatLike = {
 type SystemOpenDependencies = {
   platform?: NodeJS.Platform
   execFile?: (file: string, args: string[]) => Promise<void>
+  execFileStdout?: (file: string, args: string[]) => Promise<string>
   statPath?: (targetPath: string) => Promise<StatLike>
 }
 
@@ -50,6 +51,18 @@ function runExecFile(file: string, args: string[]): Promise<void> {
   })
 }
 
+function runExecFileStdout(file: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFileWithCallback(file, args, (error, stdout) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve(String(stdout))
+    })
+  })
+}
+
 function getWorkspaceKind(
   request: SystemOpenInRequest,
 ): 'local' | 'remote' {
@@ -59,6 +72,16 @@ function getWorkspaceKind(
 function getApplicationName(target: Exclude<SystemOpenTarget, 'finder'>): string {
   return target === 'iterm' ? 'iTerm' : 'Visual Studio Code'
 }
+
+const VSCODE_APP_BUNDLE_ID = 'com.microsoft.VSCode'
+const VSCODE_APP_PATH_SCRIPT = `POSIX path of (path to application id "${VSCODE_APP_BUNDLE_ID}")`
+const VSCODE_CLI_RELATIVE_PATH = path.join(
+  'Contents',
+  'Resources',
+  'app',
+  'bin',
+  'code',
+)
 
 function quoteShellArgument(value: string): string {
   return "'" + value.replace(/'/g, `'"'"'`) + "'"
@@ -94,17 +117,40 @@ export function buildVsCodeRemoteArgs(
   const sshAlias = profile.sshAlias?.trim()
   if (!sshAlias) {
     throw new Error(
-      'Open in VSCode for remote workspace requires SSH Alias in the remote profile.',
+      'Open in VSCode for remote workspace requires a local SSH config Host alias.',
     )
   }
 
+  const encodedPathUrl = new URL('vscode-remote://placeholder')
+  encodedPathUrl.pathname = profile.remoteRoot
+
+  const remoteFolderUri = `vscode-remote://ssh-remote+${sshAlias}${encodedPathUrl.pathname}`
+
+  return ['--folder-uri', remoteFolderUri]
+}
+
+async function resolveVsCodeCliPath(
+  dependencies: Required<SystemOpenDependencies>,
+): Promise<string | null> {
+  try {
+    const appPath = (
+      await dependencies.execFileStdout('osascript', ['-e', VSCODE_APP_PATH_SCRIPT])
+    ).trim()
+    if (!appPath) {
+      return null
+    }
+    return path.join(appPath, VSCODE_CLI_RELATIVE_PATH)
+  } catch {
+    return null
+  }
+}
+
+function buildVsCodeOpenAppArgs(profile: SystemOpenRemoteProfile): string[] {
   return [
     '-a',
-    'Visual Studio Code',
+    getApplicationName('vscode'),
     '--args',
-    '--remote',
-    `ssh-remote+${sshAlias}`,
-    profile.remoteRoot,
+    ...buildVsCodeRemoteArgs(profile),
   ]
 }
 
@@ -193,11 +239,23 @@ async function openRemoteWorkspaceInExternalTool(
       return { ok: true }
     }
 
-    await dependencies.execFile('open', buildVsCodeRemoteArgs(profile))
+    // Launch the app-bundled CLI first so the remote folder args reach an
+    // already-running VSCode instance reliably on macOS.
+    const cliPath = await resolveVsCodeCliPath(dependencies)
+    if (cliPath) {
+      try {
+        await dependencies.execFile(cliPath, buildVsCodeRemoteArgs(profile))
+        return { ok: true }
+      } catch {
+        // Fall through to app launch args when the bundled CLI is unavailable.
+      }
+    }
+
+    await dependencies.execFile('open', buildVsCodeOpenAppArgs(profile))
     return { ok: true }
   } catch (error) {
     if (error instanceof Error && error.message.trim().length > 0) {
-      if (error.message.includes('requires SSH Alias')) {
+      if (error.message.includes('requires a local SSH config Host alias')) {
         return {
           ok: false,
           error: error.message,
@@ -239,6 +297,7 @@ export async function openWorkspaceInExternalTool(
   const resolvedDependencies: Required<SystemOpenDependencies> = {
     platform,
     execFile: dependencies.execFile ?? runExecFile,
+    execFileStdout: dependencies.execFileStdout ?? runExecFileStdout,
     statPath: dependencies.statPath ?? stat,
   }
 

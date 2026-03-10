@@ -1176,6 +1176,30 @@ function App() {
     [connectRemoteWorkspace],
   )
 
+  const handleSyncVsCodeSshConfig = useCallback(
+    async (
+      request: WorkspaceSyncVsCodeSshConfigRequest,
+    ): Promise<WorkspaceSyncVsCodeSshConfigResult> => {
+      if (typeof window.workspace.syncVsCodeSshConfig !== 'function') {
+        return {
+          ok: false,
+          error:
+            'VSCode SSH config sync API is unavailable. Restart SDD Workbench to load latest preload/main changes.',
+        }
+      }
+
+      try {
+        return await window.workspace.syncVsCodeSshConfig(request)
+      } catch {
+        return {
+          ok: false,
+          error: 'Failed to update local SSH config for VSCode.',
+        }
+      }
+    },
+    [],
+  )
+
   const handleBrowseRemoteDirectories = useCallback(
     async (
       request: WorkspaceRemoteDirectoryBrowseRequest,
@@ -2255,6 +2279,7 @@ function App() {
             setIsRemoteConnectModalOpen(false)
           }
         }}
+        onSyncVsCodeSshConfig={handleSyncVsCodeSshConfig}
         onSubmit={handleSubmitRemoteConnect}
       />
       <CommentEditorModal

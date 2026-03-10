@@ -1529,6 +1529,26 @@
   outline-offset: 1px;
 }
 
+.remote-connect-help {
+  color: var(--theme-text-subtle);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.remote-connect-checkbox {
+  align-items: center;
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.remote-connect-checkbox input {
+  margin: 0;
+}
+
 .remote-connect-browse-actions {
   display: flex;
   justify-content: flex-start;

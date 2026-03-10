@@ -32,47 +32,27 @@ describe('electron/system-open', () => {
       buildVsCodeRemoteArgs({
         workspaceId: 'remote-a',
         host: 'example.com',
-        remoteRoot: '/srv/project-a',
+        remoteRoot: '/srv/folder.with.dot',
         sshAlias: 'devbox-a',
       }),
     ).toEqual([
-      '-a',
-      'Visual Studio Code',
-      '--args',
-      '--remote',
-      'ssh-remote+devbox-a',
-      '/srv/project-a',
+      '--folder-uri',
+      'vscode-remote://ssh-remote+devbox-a/srv/folder.with.dot',
     ])
   })
 
-  it('returns an explicit error when remote VSCode open has no sshAlias', async () => {
-    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
-      () => Promise.resolve(),
+  it('throws when remote VSCode open has no sshAlias', () => {
+    expect(() =>
+      buildVsCodeRemoteArgs({
+        workspaceId: 'remote-a',
+        host: 'remote.example.com',
+        user: 'bc-user',
+        port: 2222,
+        remoteRoot: '/srv/project-a',
+      }),
+    ).toThrow(
+      'Open in VSCode for remote workspace requires a local SSH config Host alias.',
     )
-
-    await expect(
-      openWorkspaceInExternalTool(
-        {
-          rootPath: 'remote://remote-a',
-          workspaceKind: 'remote',
-          remoteProfile: {
-            workspaceId: 'remote-a',
-            host: 'example.com',
-            remoteRoot: '/srv/project-a',
-          },
-        },
-        'vscode',
-        {
-          platform: 'darwin',
-          execFile,
-        },
-      ),
-    ).resolves.toEqual({
-      ok: false,
-      error: 'Open in VSCode for remote workspace requires SSH Alias in the remote profile.',
-    })
-
-    expect(execFile).not.toHaveBeenCalled()
   })
 
   it('returns unsupported for remote Finder open', async () => {
@@ -165,5 +145,115 @@ describe('electron/system-open', () => {
     expect(appleScriptArgs.join(' ')).toContain('write text')
     expect(appleScriptArgs.join(' ')).toContain('tester@example.com')
     expect(appleScriptArgs.join(' ')).toContain('/srv/project-a')
+  })
+
+  it('opens remote VSCode sessions via the bundled CLI', async () => {
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.resolve(),
+    )
+    const execFileStdout = vi.fn<(file: string, args: string[]) => Promise<string>>(
+      () => Promise.resolve('/Applications/Visual Studio Code.app/\n'),
+    )
+
+    await expect(
+      openWorkspaceInExternalTool(
+        {
+          rootPath: 'remote://remote-a',
+          workspaceKind: 'remote',
+          remoteProfile: {
+            workspaceId: 'remote-a',
+            host: 'example.com',
+            remoteRoot: '/srv/project-a',
+            sshAlias: 'devbox-a',
+          },
+        },
+        'vscode',
+        {
+          platform: 'darwin',
+          execFile,
+          execFileStdout,
+        },
+      ),
+    ).resolves.toEqual({ ok: true })
+
+    expect(execFileStdout).toHaveBeenCalledWith('osascript', [
+      '-e',
+      'POSIX path of (path to application id "com.microsoft.VSCode")',
+    ])
+    expect(execFile).toHaveBeenCalledWith(
+      '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
+      [
+        '--folder-uri',
+        'vscode-remote://ssh-remote+devbox-a/srv/project-a',
+      ],
+    )
+  })
+
+  it('returns an explicit error when remote VSCode open has no sshAlias', async () => {
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.resolve(),
+    )
+
+    await expect(
+      openWorkspaceInExternalTool(
+        {
+          rootPath: 'remote://remote-a',
+          workspaceKind: 'remote',
+          remoteProfile: {
+            workspaceId: 'remote-a',
+            host: 'remote.example.com',
+            remoteRoot: '/srv/project-a',
+          },
+        },
+        'vscode',
+        {
+          platform: 'darwin',
+          execFile,
+        },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Open in VSCode for remote workspace requires a local SSH config Host alias.',
+    })
+
+    expect(execFile).not.toHaveBeenCalled()
+  })
+
+  it('falls back to open -a when the VSCode bundled CLI cannot be resolved', async () => {
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.resolve(),
+    )
+    const execFileStdout = vi.fn<(file: string, args: string[]) => Promise<string>>(
+      () => Promise.reject(new Error('not found')),
+    )
+
+    await expect(
+      openWorkspaceInExternalTool(
+        {
+          rootPath: 'remote://remote-a',
+          workspaceKind: 'remote',
+          remoteProfile: {
+            workspaceId: 'remote-a',
+            host: 'remote.example.com',
+            remoteRoot: '/srv/project-a',
+            sshAlias: 'summer-test',
+          },
+        },
+        'vscode',
+        {
+          platform: 'darwin',
+          execFile,
+          execFileStdout,
+        },
+      ),
+    ).resolves.toEqual({ ok: true })
+
+    expect(execFile).toHaveBeenCalledWith('open', [
+      '-a',
+      'Visual Studio Code',
+      '--args',
+      '--folder-uri',
+      'vscode-remote://ssh-remote+summer-test/srv/project-a',
+    ])
   })
 })

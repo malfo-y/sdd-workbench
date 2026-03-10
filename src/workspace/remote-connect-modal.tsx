@@ -11,6 +11,9 @@ type RemoteConnectModalProps = {
   onBrowse: (
     request: WorkspaceRemoteDirectoryBrowseRequest,
   ) => Promise<WorkspaceRemoteDirectoryBrowseResult>
+  onSyncVsCodeSshConfig?: (
+    request: WorkspaceSyncVsCodeSshConfigRequest,
+  ) => Promise<WorkspaceSyncVsCodeSshConfigResult>
   onSubmit: (profile: WorkspaceRemoteProfile) => Promise<void> | void
 }
 
@@ -23,6 +26,7 @@ type RemoteConnectDraft = {
   agentPath: string
   identityFile: string
   sshAlias: string
+  syncVsCodeSshConfig: boolean
   lastBrowsePath: string
   activeStep: RemoteConnectStep
 }
@@ -38,6 +42,7 @@ const EMPTY_REMOTE_CONNECT_DRAFT: RemoteConnectDraft = {
   agentPath: '',
   identityFile: '',
   sshAlias: '',
+  syncVsCodeSshConfig: false,
   lastBrowsePath: '',
   activeStep: 'profile',
 }
@@ -48,6 +53,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toDraftStringField(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function toDraftBooleanField(value: unknown): boolean {
+  return value === true
 }
 
 function toRemoteConnectStep(value: unknown): RemoteConnectStep {
@@ -75,6 +84,7 @@ function loadRemoteConnectDraft(): RemoteConnectDraft {
       agentPath: toDraftStringField(parsed.agentPath),
       identityFile: toDraftStringField(parsed.identityFile),
       sshAlias: toDraftStringField(parsed.sshAlias),
+      syncVsCodeSshConfig: toDraftBooleanField(parsed.syncVsCodeSshConfig),
       lastBrowsePath: toDraftStringField(parsed.lastBrowsePath),
       activeStep: toRemoteConnectStep(parsed.activeStep),
     }
@@ -164,11 +174,13 @@ export function RemoteConnectModal({
   isSubmitting,
   onClose,
   onBrowse,
+  onSyncVsCodeSshConfig,
   onSubmit,
 }: RemoteConnectModalProps) {
   const [draft, setDraft] = useState<RemoteConnectDraft>(loadRemoteConnectDraft)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isBrowsing, setIsBrowsing] = useState(false)
+  const [isSyncingVsCodeSshConfig, setIsSyncingVsCodeSshConfig] = useState(false)
   const [browseCurrentPath, setBrowseCurrentPath] = useState(
     draft.lastBrowsePath,
   )
@@ -197,7 +209,12 @@ export function RemoteConnectModal({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || isSubmitting || isBrowsing) {
+      if (
+        event.key !== 'Escape' ||
+        isSubmitting ||
+        isBrowsing ||
+        isSyncingVsCodeSshConfig
+      ) {
         return
       }
       event.preventDefault()
@@ -208,13 +225,13 @@ export function RemoteConnectModal({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isBrowsing, isOpen, isSubmitting, onClose])
+  }, [isBrowsing, isOpen, isSubmitting, isSyncingVsCodeSshConfig, onClose])
 
   if (!isOpen) {
     return null
   }
 
-  const browseDisabled = isBrowsing || isSubmitting
+  const browseDisabled = isBrowsing || isSubmitting || isSyncingVsCodeSshConfig
 
   const updateDraft = (nextDraft: Partial<RemoteConnectDraft>) => {
     setDraft((previous) => ({
@@ -282,8 +299,8 @@ export function RemoteConnectModal({
     void runBrowse(getParentPath(currentPath))
   }
 
-  const handleSubmit = () => {
-    if (isSubmitting) {
+  const handleSubmit = async () => {
+    if (isSubmitting || isSyncingVsCodeSshConfig) {
       return
     }
 
@@ -312,7 +329,41 @@ export function RemoteConnectModal({
       lastBrowsePath: effectiveRemoteRoot,
     })
 
-    void onSubmit({
+    if (draft.syncVsCodeSshConfig) {
+      const normalizedAlias = draft.sshAlias.trim()
+      if (!normalizedAlias) {
+        setValidationError('SSH Host Alias for VSCode is required when sync is enabled.')
+        return
+      }
+      if (!onSyncVsCodeSshConfig) {
+        setValidationError(
+          'VSCode SSH config sync API is unavailable. Restart SDD Workbench to load latest changes.',
+        )
+        return
+      }
+
+      setIsSyncingVsCodeSshConfig(true)
+      try {
+        const syncResult = await onSyncVsCodeSshConfig({
+          sshAlias: normalizedAlias,
+          host: normalizedHost,
+          ...(draft.user.trim() ? { user: draft.user.trim() } : {}),
+          ...(portResult.port !== null ? { port: portResult.port } : {}),
+          ...(draft.identityFile.trim()
+            ? { identityFile: draft.identityFile.trim() }
+            : {}),
+        })
+
+        if (!syncResult.ok) {
+          setValidationError(syncResult.error)
+          return
+        }
+      } finally {
+        setIsSyncingVsCodeSshConfig(false)
+      }
+    }
+
+    await onSubmit({
       workspaceId: effectiveWorkspaceId,
       host: normalizedHost,
       remoteRoot: effectiveRemoteRoot,
@@ -339,7 +390,7 @@ export function RemoteConnectModal({
         className="comment-modal remote-connect-modal"
         onSubmit={(event) => {
           event.preventDefault()
-          handleSubmit()
+          void handleSubmit()
         }}
         ref={dialogRef}
         role="dialog"
@@ -489,8 +540,12 @@ export function RemoteConnectModal({
           type="text"
           value={draft.identityFile}
         />
+        <p className="remote-connect-help">
+          Used for the workbench SSH connection. VSCode Remote-SSH opens a separate SSH
+          session and reads your local SSH config and SSH agent instead.
+        </p>
         <label className="comment-modal-label" htmlFor="remote-connect-ssh-alias">
-          SSH Alias for VSCode (optional)
+          SSH Host Alias for VSCode
         </label>
         <input
           className="remote-connect-input"
@@ -501,10 +556,31 @@ export function RemoteConnectModal({
               sshAlias: event.target.value,
             })
           }}
-          placeholder="my-remote-host"
+          placeholder="Required for VSCode: ~/.ssh/config Host entry"
           type="text"
           value={draft.sshAlias}
         />
+        <p className="remote-connect-help">
+          Must match a local `~/.ssh/config` `Host` entry that defines `HostName`,
+          `User`, `Port`, and `IdentityFile` for VSCode Remote-SSH.
+        </p>
+        <label className="remote-connect-checkbox">
+          <input
+            checked={draft.syncVsCodeSshConfig}
+            data-testid="remote-connect-sync-vscode-ssh-checkbox"
+            onChange={(event) => {
+              updateDraft({
+                syncVsCodeSshConfig: event.target.checked,
+              })
+            }}
+            type="checkbox"
+          />
+          <span>Sync local SSH config for VSCode on connect</span>
+        </label>
+        <p className="remote-connect-help">
+          This updates `~/.ssh/sdd-workbench.config` and ensures `~/.ssh/config`
+          includes it.
+        </p>
 
         <div className="remote-connect-browse-actions">
           <button
@@ -610,11 +686,19 @@ export function RemoteConnectModal({
         {validationError && <p className="comment-modal-warning">{validationError}</p>}
 
         <div className="comment-modal-actions">
-          <button disabled={isSubmitting || isBrowsing} onClick={onClose} type="button">
+          <button
+            disabled={isSubmitting || isBrowsing || isSyncingVsCodeSshConfig}
+            onClick={onClose}
+            type="button"
+          >
             Cancel
           </button>
-          <button disabled={isSubmitting || isBrowsing} type="submit">
-            {isSubmitting ? 'Connecting...' : 'Connect'}
+          <button disabled={isSubmitting || isBrowsing || isSyncingVsCodeSshConfig} type="submit">
+            {isSubmitting
+              ? 'Connecting...'
+              : isSyncingVsCodeSshConfig
+                ? 'Syncing SSH Config...'
+                : 'Connect'}
           </button>
         </div>
       </form>
