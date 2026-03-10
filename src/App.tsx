@@ -1578,10 +1578,6 @@ function App() {
       return
     }
 
-    if (!commentBannerState || bannerMessage !== commentBannerState.message) {
-      return
-    }
-
     const timeoutId = window.setTimeout(() => {
       clearBanner()
       setCommentBannerState(null)
@@ -1590,7 +1586,7 @@ function App() {
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [bannerMessage, clearBanner, commentBannerState])
+  }, [bannerMessage, clearBanner])
 
   useEffect(() => {
     if (!isDirty) {

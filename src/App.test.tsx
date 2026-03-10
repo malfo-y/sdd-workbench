@@ -6451,7 +6451,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('does not auto-dismiss non-comment banners', async () => {
+  it('auto-dismisses non-comment banners after 5 seconds', async () => {
     const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
     openDialogMock.mockResolvedValueOnce({
       canceled: true,
@@ -6471,7 +6471,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('permission denied')
     })
 
-    expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 5000)
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5000)
   })
 
   it('auto-dismisses remote connection banners after 5 seconds', async () => {
