@@ -5,7 +5,7 @@
 ### Project Snapshot
 
 - SDD Workbench는 로컬/원격 워크스페이스를 열고, 코드와 Markdown 스펙을 한 앱에서 왕복 탐색·편집·리뷰하는 Electron 데스크톱 워크벤치다.
-- 현재 기준선은 `F01~F38` 구현 완료 상태이며, 원격 경로는 `F27` Remote Agent Protocol이 canonical path이고 `F15` SSHFS 경로는 이력으로만 남긴다.
+- 현재 기준선은 `F01~F39` 구현 완료 상태이며, 원격 경로는 `F27` Remote Agent Protocol이 canonical path이고 `F15` SSHFS 경로는 이력으로만 남긴다.
 - 이 문서는 “이 저장소가 무엇을 하고 어디를 먼저 봐야 하는가”를 5분 안에 파악하게 만드는 엔트리 포인트다.
 
 ### Key Features
@@ -15,6 +15,7 @@
 - 멀티 워크스페이스, 파일 트리 CRUD, lazy indexing, 파일 검색, Git 상태/라인 마커
 - line comments / global comments / hover preview / export bundle
 - Remote Agent Protocol 기반 원격 워크스페이스 연결과 SSH browse
+- 원격 워크스페이스에서 SSH 기반 iTerm/VSCode 외부 도구 열기와 VSCode SSH config 자동 동기화
 - `dark-gray` / `light` 테마와 native `View > Theme` 메뉴
 
 ### Non-Goals
@@ -28,7 +29,9 @@
 
 ### System Boundary
 
-- `electron/main.ts`: 파일 시스템, watcher, Git, system open, local/remote backend 라우팅, remote bootstrap을 담당한다.
+- `electron/main.ts`: 파일 시스템, watcher, Git, system open, local/remote backend 라우팅, remote bootstrap, VSCode SSH config sync를 담당한다.
+- `electron/system-open.ts`: local/remote 워크스페이스별 외부 도구(iTerm/VSCode/Finder) 실행 전략과 SSH 명령 조합을 담당한다.
+- `electron/vscode-ssh-config.ts`: `~/.ssh/sdd-workbench.config` 관리형 Host 블록 생성/갱신과 Include 삽입을 담당한다.
 - `electron/preload.ts`: Renderer에 `window.workspace` typed bridge만 노출한다.
 - `src/App.tsx`, `src/workspace/workspace-context.tsx`: app shell, active workspace, 패널 전환, jump orchestration을 담당한다.
 - `src/code-editor/code-editor-panel.tsx`: CM6 편집기, 저장, 검색, gutter, navigation highlight를 담당한다.

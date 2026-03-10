@@ -28,7 +28,8 @@
 | `workspace:connectRemote` / `workspace:disconnectRemote` | Renderer -> Main (`invoke`) | remote session lifecycle |
 | `workspace:remoteConnectionEvent` | Main -> Renderer (`send`) | remote 상태/오류 이벤트 |
 | `workspace:historyNavigate` | Main -> Renderer (`send`) | back/forward 요청 |
-| `system:openInIterm` / `system:openInVsCode` | Renderer -> Main (`invoke`) | 외부 도구 열기 |
+| `system:openInIterm` / `system:openInVsCode` / `system:openInFinder` | Renderer -> Main (`invoke`) | workspace-aware 외부 도구 열기 (local: 직접 열기, remote: SSH/Remote-SSH) |
+| `workspace:syncVsCodeSshConfig` | Renderer -> Main (`invoke`) | VSCode Remote-SSH용 `~/.ssh/sdd-workbench.config` Host 블록 동기화 |
 | `appearance-theme:menu-request` | Main -> Renderer (`send`) | native theme menu 선택 전달 |
 | `appearance-theme:changed` | Renderer -> Main (`send`) | renderer current theme 통지 |
 
@@ -76,6 +77,31 @@
 - response:
   - `{ ok, currentPath, entries, truncated, errorCode?, error? }`
 
+### 3.6 `system:openInIterm` / `system:openInVsCode` / `system:openInFinder`
+
+- request:
+  - `{ rootPath, workspaceKind?: 'local'|'remote', remoteProfile?: { workspaceId, host, remoteRoot, user?, port?, identityFile?, sshAlias? } }`
+- response:
+  - `{ ok, error? }`
+- 규칙:
+  - `workspaceKind === 'remote'`일 때 `rootPath`의 로컬 `stat` 검증을 건너뛴다.
+  - remote iTerm: AppleScript로 신규 세션을 열고 SSH 명령(`ssh -p PORT user@host -t "cd remoteRoot && exec $SHELL -l"`)을 실행한다.
+  - remote VSCode: `sshAlias` 필수. `vscode-remote://ssh-remote+{sshAlias}{remoteRoot}` URI로 Remote-SSH 창을 연다.
+  - remote Finder: unsupported — `{ ok: false, error: 'Open in Finder is unavailable for remote workspace.' }` 반환.
+  - macOS 전용. 다른 플랫폼에서는 `{ ok: false }` 반환.
+
+### 3.7 `workspace:syncVsCodeSshConfig`
+
+- request:
+  - `{ sshAlias, host, user?, port?, identityFile? }`
+- response:
+  - `{ ok, configPath?, managedConfigPath?, includeInserted?, entryUpdated?, error? }`
+- 규칙:
+  - `~/.ssh/sdd-workbench.config`에 관리형 Host 블록을 생성/갱신한다.
+  - `~/.ssh/config` 최상단에 `Include ~/.ssh/sdd-workbench.config`을 삽입한다 (Host 블록 내부에 들어가면 OpenSSH가 무시하므로).
+  - `sshAlias`는 공백 불가. `port`는 1~65535 정수.
+  - SSH directory(0o700)와 config 파일(0o600) 권한을 보장한다.
+
 ## 4. 공통 안전 규칙
 
 1. filesystem write는 모두 workspace 경계 검증을 거친다.
@@ -88,6 +114,8 @@
 - `electron/main.ts`
 - `electron/preload.ts`
 - `electron/electron-env.d.ts`
+- `electron/system-open.ts`
+- `electron/vscode-ssh-config.ts`
 - `electron/workspace-backend/types.ts`
 - `electron/workspace-backend/local-workspace-backend.ts`
 - `electron/workspace-backend/remote-workspace-backend.ts`
@@ -96,4 +124,6 @@
 
 - `electron/workspace-backend/*.test.ts`
 - `electron/workspace-watch-mode.test.ts`
+- `electron/system-open.test.ts`
+- `electron/vscode-ssh-config.test.ts`
 - `src/App.test.tsx`

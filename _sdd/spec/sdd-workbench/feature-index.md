@@ -55,6 +55,7 @@
 | F16 | lazy indexing + on-demand 디렉토리 확장 | Done | 큰 저장소에서도 트리를 감당한다 | [워크스페이스/트리](./domains/workspace-and-file-tree.md), [IPC](./contracts/ipc-contracts.md) | `electron/main.ts`, `src/workspace/workspace-context.tsx` / `src/file-tree/file-tree-panel.test.tsx` |
 | F27 | Remote Agent Protocol 원격 워크스페이스 | Done | SSHFS 없이 원격 파일/감시/git/comment를 다룬다 | [원격 워크스페이스](./domains/remote-workspace.md), [IPC](./contracts/ipc-contracts.md) | `electron/workspace-backend/*`, `electron/remote-agent/*` / `electron/workspace-backend/*.test.ts`, `electron/remote-agent/**/*.test.ts` |
 | F28 | remote directory browse + remoteRoot 선택 | Done | 연결 전에 원격 디렉토리를 탐색해 경로를 고른다 | [원격 워크스페이스](./domains/remote-workspace.md), [IPC](./contracts/ipc-contracts.md) | `electron/remote-agent/directory-browser.ts`, `src/App.tsx` / browse 관련 통합 테스트 |
+| F39 | 원격 워크스페이스 SSH 외부 도구 열기 | Done | 원격 워크스페이스에서 iTerm SSH/VSCode Remote-SSH로 외부 도구를 연다 | [원격 워크스페이스](./domains/remote-workspace.md), [IPC](./contracts/ipc-contracts.md) | `electron/system-open.ts`, `electron/vscode-ssh-config.ts`, `src/workspace/remote-connect-modal.tsx` / `electron/system-open.test.ts`, `electron/vscode-ssh-config.test.ts`, `src/workspace/remote-connect-modal.test.tsx` |
 
 ## 4. Editor / Tree / Search / Git
 

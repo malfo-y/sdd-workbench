@@ -18,6 +18,10 @@
 - `SpecViewerNavigationRequest = { targetRelativePath, lineNumber, token }`
 - `GitFileStatusKind = 'added' | 'modified' | 'untracked'`
 - `WorkspaceGitLineMarkerKind = 'added' | 'modified'`
+- `SystemOpenInRequest = { rootPath, workspaceKind?: 'local'|'remote', remoteProfile?: SystemOpenRemoteProfile | null }`
+- `SystemOpenRemoteProfile = { workspaceId, host, remoteRoot, user?, port?, agentPath?, identityFile?, sshAlias?, requestTimeoutMs?, connectTimeoutMs? }`
+- `SystemOpenInResult = { ok, error? }`
+- `WorkspaceSyncVsCodeSshConfigRequest = { sshAlias, host, user?, port?, identityFile? }`
 
 ## 3. 전역 불변식
 
@@ -35,7 +39,7 @@
   - `src/workspace/workspace-context.tsx`
   - `src/workspace/workspace-model.ts`
 - persisted workspace snapshot:
-  - `src/workspace/workspace-persistence.ts`
+  - `src/workspace/workspace-persistence.ts` (sshAlias 포함 원격 프로필 영속화)
 - theme persistence:
   - `src/appearance-theme.ts`
 - comment persistence:
@@ -48,10 +52,14 @@
 - `src/appearance-theme.ts`
 - `src/source-selection.ts`
 - `src/code-comments/comment-types.ts`
+- `electron/system-open.ts`
+- `electron/vscode-ssh-config.ts`
 
 ## 6. 관련 테스트
 
 - `src/workspace/workspace-model.test.ts`
 - `src/workspace/workspace-persistence.test.ts`
 - `src/appearance-theme.test.ts`
+- `electron/system-open.test.ts`
+- `electron/vscode-ssh-config.test.ts`
 - `src/App.test.tsx`
