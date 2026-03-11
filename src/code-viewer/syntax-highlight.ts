@@ -10,6 +10,8 @@ import {
   type AppearanceTheme,
 } from '../appearance-theme'
 import type { HighlightLanguage } from './language-map'
+import { ayuMirageTheme } from './shiki-ayu-mirage-theme'
+import { quietLightTheme } from './shiki-quiet-light-theme'
 
 const LANG_IMPORTS: Record<string, LanguageInput> = {
   typescript: () => import('shiki/langs/typescript.mjs'),
@@ -50,13 +52,13 @@ const LANG_IMPORTS: Record<string, LanguageInput> = {
 }
 
 const THEME_IMPORTS: Record<AppearanceTheme, ThemeInput> = {
-  'dark-gray': () => import('shiki/themes/github-dark-dimmed.mjs'),
-  light: () => import('shiki/themes/github-light.mjs'),
+  'dark-gray': ayuMirageTheme,
+  light: quietLightTheme,
 }
 
 const THEME_NAMES: Record<AppearanceTheme, string> = {
-  'dark-gray': 'github-dark-dimmed',
-  light: 'github-light',
+  'dark-gray': 'ayu-mirage',
+  light: 'quiet-light',
 }
 
 const highlighterPromises = new Map<AppearanceTheme, Promise<HighlighterCore>>()

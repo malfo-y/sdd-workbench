@@ -766,16 +766,16 @@ describe('CodeEditorPanel', () => {
     })
 
     expect(cm6DarkThemeSource).toMatch(
-      /\.cm-searchMatch[\s\S]*backgroundColor:\s*'rgba\(214,177,65,0\.22\)'/,
+      /\.cm-searchMatch[\s\S]*backgroundColor:\s*'rgba\(255,204,102,0\.22\)'/,
     )
     expect(cm6DarkThemeSource).toMatch(
-      /\.cm-selectionMatch[\s\S]*backgroundColor:\s*'rgba\(123,182,232,0\.14\)'/,
+      /\.cm-selectionMatch[\s\S]*backgroundColor:\s*'rgba\(64,159,255,0\.18\)'/,
     )
     expect(cm6LightThemeSource).toMatch(
-      /\.cm-searchMatch[\s\S]*backgroundColor:\s*'rgba\(214,177,65,0\.24\)'/,
+      /\.cm-searchMatch[\s\S]*backgroundColor:\s*'rgba\(254,249,53,0\.28\)'/,
     )
     expect(cm6LightThemeSource).toMatch(
-      /\.cm-selectionMatch[\s\S]*backgroundColor:\s*'rgba\(52,120,185,0\.12\)'/,
+      /\.cm-selectionMatch[\s\S]*backgroundColor:\s*'rgba\(193,245,176,0\.35\)'/,
     )
   })
 
