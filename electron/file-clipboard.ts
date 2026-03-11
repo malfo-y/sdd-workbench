@@ -1,5 +1,5 @@
 import type { IpcMainInvokeEvent } from 'electron'
-import { clipboard } from 'electron'
+import { readFilePaths as nativeReadFilePaths } from 'electron-clipboard-ex'
 import { cp, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { WorkspaceBackendRouter } from './workspace-backend/backend-router'
@@ -71,53 +71,15 @@ export function resetClipboardState(): void {
 
 /**
  * macOS Finder 클립보드에서 파일 경로 배열을 읽는다.
- * Finder가 Cmd+C로 파일을 복사하면 `NSFilenamesPboardType` (binary plist) 형태로 저장.
- * @returns 절대 경로 배열 또는 null (Finder 파일이 없거나 파싱 실패 시)
+ * electron-clipboard-ex의 readFilePaths()로 native NSPasteboard에 직접 접근한다.
+ * @returns 절대 경로 배열 또는 null (Finder 파일이 없을 때)
  */
 export function readFinderClipboardFiles(): string[] | null {
   if (process.platform !== 'darwin') return null
 
   try {
-    const formats = clipboard.availableFormats()
-
-    // Electron returns Chromium MIME types, not native macOS pasteboard names.
-    // Finder file copies appear as 'text/uri-list' containing file:// URLs.
-    if (formats.includes('text/uri-list')) {
-      const uriList = clipboard.readBuffer('text/uri-list').toString('utf-8')
-      if (!uriList) return null
-
-      const paths = uriList
-        .split(/\r?\n/)
-        .filter((line) => line.startsWith('file://'))
-        .map((uri) => {
-          try {
-            return new URL(uri).pathname
-          } catch {
-            return null
-          }
-        })
-        .filter((p): p is string => p !== null && p.length > 0)
-
-      return paths.length > 0 ? paths : null
-    }
-
-    // Fallback: try legacy NSFilenamesPboardType (binary plist)
-    if (formats.includes('NSFilenamesPboardType')) {
-      const buf = clipboard.readBuffer('NSFilenamesPboardType')
-      if (!buf || buf.length === 0) return null
-
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-      const bplistParser = require('bplist-parser')
-      const parsed = bplistParser.parseBuffer(buf)
-      if (!Array.isArray(parsed) || parsed.length === 0) return null
-
-      const filePaths = parsed[0]
-      if (!Array.isArray(filePaths) || filePaths.length === 0) return null
-
-      return filePaths.filter((p: unknown): p is string => typeof p === 'string')
-    }
-
-    return null
+    const paths = nativeReadFilePaths()
+    return paths.length > 0 ? paths : null
   } catch {
     return null
   }

@@ -6,24 +6,14 @@ import path from 'node:path'
 import { createFileClipboardHandlers, readFinderClipboardFiles, resetClipboardState } from './file-clipboard'
 import type { WorkspaceBackendRouter } from './workspace-backend/backend-router'
 
-// vi.hoisted ensures mocks are available when vi.mock factories run (hoisted)
-const { mockAvailableFormats, mockReadBuffer } = vi.hoisted(() => ({
-  mockAvailableFormats: vi.fn<() => string[]>().mockReturnValue([]),
-  mockReadBuffer: vi.fn<(format: string) => Buffer>().mockReturnValue(Buffer.alloc(0)),
+// Mock electron-clipboard-ex native module
+const { mockReadFilePaths } = vi.hoisted(() => ({
+  mockReadFilePaths: vi.fn<() => string[]>().mockReturnValue([]),
 }))
 
-vi.mock('electron', () => ({
-  clipboard: {
-    availableFormats: (...args: unknown[]) => mockAvailableFormats(...args as []),
-    readBuffer: (...args: unknown[]) => mockReadBuffer(...args as [string]),
-  },
+vi.mock('electron-clipboard-ex', () => ({
+  readFilePaths: (...args: unknown[]) => mockReadFilePaths(...(args as [])),
 }))
-
-/** Create a text/uri-list buffer mimicking Finder file copy clipboard */
-function makeUriListBuffer(paths: string[]): Buffer {
-  const uriList = paths.map((p) => `file://${p}`).join('\r\n')
-  return Buffer.from(uriList, 'utf-8')
-}
 
 const mockEvent = {} as IpcMainInvokeEvent
 
@@ -37,44 +27,22 @@ function makeMockRouter(copyEntriesFn = vi.fn().mockResolvedValue({ ok: true, co
 
 describe('readFinderClipboardFiles', () => {
   beforeEach(() => {
-    mockAvailableFormats.mockReturnValue([])
-    mockReadBuffer.mockReturnValue(Buffer.alloc(0))
+    mockReadFilePaths.mockReturnValue([])
   })
 
-  it('returns null when no file-related format is available', () => {
-    mockAvailableFormats.mockReturnValue(['text/plain'])
+  it('returns null when clipboard has no files', () => {
+    mockReadFilePaths.mockReturnValue([])
     expect(readFinderClipboardFiles()).toBeNull()
   })
 
-  it('returns null when uri-list buffer is empty', () => {
-    mockAvailableFormats.mockReturnValue(['text/uri-list'])
-    mockReadBuffer.mockReturnValue(Buffer.alloc(0))
-    expect(readFinderClipboardFiles()).toBeNull()
-  })
-
-  it('returns file paths from text/uri-list', () => {
-    const buf = makeUriListBuffer(['/Users/me/file.txt', '/Users/me/dir'])
-    mockAvailableFormats.mockReturnValue(['text/uri-list'])
-    mockReadBuffer.mockReturnValue(buf)
-
+  it('returns file paths from native clipboard', () => {
+    mockReadFilePaths.mockReturnValue(['/Users/me/file.txt', '/Users/me/dir'])
     const result = readFinderClipboardFiles()
     expect(result).toEqual(['/Users/me/file.txt', '/Users/me/dir'])
   })
 
-  it('returns single file path from text/uri-list', () => {
-    const buf = makeUriListBuffer(['/Users/me/file.txt'])
-    mockAvailableFormats.mockReturnValue(['text/uri-list'])
-    mockReadBuffer.mockReturnValue(buf)
-
-    const result = readFinderClipboardFiles()
-    expect(result).toEqual(['/Users/me/file.txt'])
-  })
-
-  it('ignores non-file URIs in text/uri-list', () => {
-    const buf = Buffer.from('https://example.com\r\nfile:///Users/me/file.txt', 'utf-8')
-    mockAvailableFormats.mockReturnValue(['text/uri-list'])
-    mockReadBuffer.mockReturnValue(buf)
-
+  it('returns single file path', () => {
+    mockReadFilePaths.mockReturnValue(['/Users/me/file.txt'])
     const result = readFinderClipboardFiles()
     expect(result).toEqual(['/Users/me/file.txt'])
   })
@@ -83,8 +51,7 @@ describe('readFinderClipboardFiles', () => {
 describe('createFileClipboardHandlers', () => {
   beforeEach(() => {
     resetClipboardState()
-    mockAvailableFormats.mockReturnValue([])
-    mockReadBuffer.mockReturnValue(Buffer.alloc(0))
+    mockReadFilePaths.mockReturnValue([])
   })
 
   describe('handleSetFileClipboard', () => {
@@ -157,9 +124,7 @@ describe('createFileClipboardHandlers', () => {
     })
 
     it('returns hasFiles true and source finder when Finder has files', async () => {
-      const buf = makeUriListBuffer(['/Users/me/file.txt'])
-      mockAvailableFormats.mockReturnValue(['text/uri-list'])
-      mockReadBuffer.mockReturnValue(buf)
+      mockReadFilePaths.mockReturnValue(['/Users/me/file.txt'])
 
       const router = makeMockRouter()
       const { handleReadFileClipboard } = createFileClipboardHandlers(router)
@@ -170,9 +135,7 @@ describe('createFileClipboardHandlers', () => {
 
     it('prefers internal over finder when both have files', async () => {
       // Set Finder clipboard
-      const buf = makeUriListBuffer(['/Users/me/file.txt'])
-      mockAvailableFormats.mockReturnValue(['text/uri-list'])
-      mockReadBuffer.mockReturnValue(buf)
+      mockReadFilePaths.mockReturnValue(['/Users/me/file.txt'])
 
       const router = makeMockRouter()
       const { handleSetFileClipboard, handleReadFileClipboard } =
@@ -330,9 +293,7 @@ describe('createFileClipboardHandlers', () => {
         await mkdir(destDir, { recursive: true })
 
         // Mock Finder clipboard with text/uri-list
-        const buf = makeUriListBuffer([srcFile])
-        mockAvailableFormats.mockReturnValue(['text/uri-list'])
-        mockReadBuffer.mockReturnValue(buf)
+        mockReadFilePaths.mockReturnValue([srcFile])
 
         const router = makeMockRouter()
         const { handlePasteFromClipboard } = createFileClipboardHandlers(router)
@@ -361,9 +322,7 @@ describe('createFileClipboardHandlers', () => {
         await mkdir(destDir, { recursive: true })
         await writeFile(path.join(destDir, 'dup.txt'), 'existing')
 
-        const buf = makeUriListBuffer([srcFile])
-        mockAvailableFormats.mockReturnValue(['text/uri-list'])
-        mockReadBuffer.mockReturnValue(buf)
+        mockReadFilePaths.mockReturnValue([srcFile])
 
         const router = makeMockRouter()
         const { handlePasteFromClipboard } = createFileClipboardHandlers(router)
@@ -388,9 +347,7 @@ describe('createFileClipboardHandlers', () => {
         const rootDir = path.join(tmpDir, 'root')
         await mkdir(rootDir, { recursive: true })
 
-        const buf = makeUriListBuffer([srcFile])
-        mockAvailableFormats.mockReturnValue(['text/uri-list'])
-        mockReadBuffer.mockReturnValue(buf)
+        mockReadFilePaths.mockReturnValue([srcFile])
 
         const router = makeMockRouter()
         const { handlePasteFromClipboard } = createFileClipboardHandlers(router)
@@ -407,9 +364,7 @@ describe('createFileClipboardHandlers', () => {
 
     describe('Finder clipboard paste (remote)', () => {
       it('returns error when Finder has files but workspace is remote', async () => {
-        const buf = makeUriListBuffer(['/Users/me/file.txt'])
-        mockAvailableFormats.mockReturnValue(['text/uri-list'])
-        mockReadBuffer.mockReturnValue(buf)
+        mockReadFilePaths.mockReturnValue(['/Users/me/file.txt'])
 
         const router = makeMockRouter()
         const { handlePasteFromClipboard } = createFileClipboardHandlers(router)
@@ -427,9 +382,7 @@ describe('createFileClipboardHandlers', () => {
 
       it('uses internal clipboard on remote even when Finder has files', async () => {
         // Set Finder clipboard
-        const buf = makeUriListBuffer(['/Users/me/file.txt'])
-        mockAvailableFormats.mockReturnValue(['text/uri-list'])
-        mockReadBuffer.mockReturnValue(buf)
+        mockReadFilePaths.mockReturnValue(['/Users/me/file.txt'])
 
         const copyEntriesFn = vi.fn().mockResolvedValue({ ok: true, copiedPaths: ['dest/a.ts'] })
         const router = makeMockRouter(copyEntriesFn)
