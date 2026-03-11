@@ -61,7 +61,7 @@
 ### 4.5 파일 클립보드 Copy / Paste
 
 - 내부 클립보드: 파일 트리에서 Cmd+C 또는 컨텍스트 메뉴 "Copy"로 항목을 선택하면 main process 모듈 상태에 저장한다. Cmd+V 또는 "Paste"로 대상 디렉토리에 복사한다.
-- macOS Finder 클립보드: `NSFilenamesPboardType` binary plist를 `bplist-parser`로 해석해 Finder에서 복사한 파일도 붙여넣기 할 수 있다. **로컬 워크스페이스 전용** — 원격 워크스페이스에서 Finder 소스 paste를 시도하면 안내 배너를 보여준다.
+- macOS Finder 클립보드: `electron-clipboard-ex`의 `readFilePaths()`로 native NSPasteboard에 직접 접근해 Finder에서 복사한 파일도 붙여넣기 할 수 있다. **로컬 워크스페이스 전용** — 원격 워크스페이스에서 Finder 소스 paste를 시도하면 안내 배너를 보여준다.
 - 이름 충돌 해결: 대상 디렉토리에 동명 파일이 있으면 `name (1).ext` 형태로 자동 넘버링한다 (`incrementFileName`).
 - 파일 복사 백엔드: `WorkspaceBackend.copyEntries()`가 local/remote 공통으로 재귀 복사를 수행한다. `BackendRouter`가 `rootPath` 기준으로 올바른 백엔드에 라우팅한다.
 - 트리 갱신: paste 후 새 파일은 기존 watch 이벤트를 통해 파일 트리에 반영된다.

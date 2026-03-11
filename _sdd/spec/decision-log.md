@@ -1146,3 +1146,25 @@
 - Impact / follow-up:
   - `main.md`(v0.35.0), `product-overview.md`, `system-architecture.md`, `component-map.md`, `contract-map.md`, `operations-and-validation.md`, `appendix.md`를 F23 완료 기준으로 동기화한다.
   - 품질 게이트: `npm test`(`23 files, 285 passed`), `npm run lint`, `npm run build` 모두 통과.
+
+## 2026-03-11 - F40 Finder 클립보드 구현 변경(electron clipboard → electron-clipboard-ex)
+
+- Context:
+  - 기존 Finder 클립보드 읽기는 `electron.clipboard.availableFormats()` + `clipboard.readBuffer('text/uri-list')` 조합으로 URI를 파싱하고, fallback으로 `NSFilenamesPboardType` binary plist를 `bplist-parser`로 해석했음.
+  - `text/uri-list` 경로는 Electron/Chromium이 NSPasteboard를 MIME 변환하는 과정에서 환경별로 불안정한 동작을 보였고, `bplist-parser` fallback은 binary plist 버전 의존성이 있었음.
+  - `electron-clipboard-ex` native 모듈은 `readFilePaths()`로 NSPasteboard에 직접 접근해 안정적인 파일 경로 배열을 반환함.
+- Decision:
+  - `electron.clipboard` + `bplist-parser` 조합을 제거하고 `electron-clipboard-ex`의 `readFilePaths()`로 대체한다.
+  - `electron-clipboard-ex`를 `package.json` dependencies에 추가하고, Vite main process 빌드에서 `external`로 설정한다.
+  - `readFinderClipboardFiles()` 함수의 외부 인터페이스(반환 타입 `string[] | null`)는 변경 없이 유지한다.
+- Rationale:
+  - native 모듈이 NSPasteboard 접근을 직접 수행하므로 Electron/Chromium MIME 변환 레이어의 불안정성을 우회할 수 있다.
+  - URI 파싱/bplist 파싱 코드 약 40줄이 단일 함수 호출로 대체되어 유지보수 비용이 감소한다.
+  - native addon이므로 Vite 번들에 포함하면 안 되고, `rollupOptions.external`로 제외해야 한다.
+- Alternatives considered:
+  - `text/uri-list` 파싱만 유지하고 `bplist-parser` fallback 제거: Electron 버전별 MIME 변환 불일치 위험 잔존
+  - `bplist-parser`만 유지하고 `text/uri-list` 경로 제거: binary plist 버전 호환성 위험 잔존
+  - 자체 native addon 작성: `electron-clipboard-ex`가 이미 동일 기능을 안정적으로 제공
+- Impact / follow-up:
+  - `workspace-and-file-tree.md`, `ipc-contracts.md`, `main.md`를 동기화했다.
+  - `bplist-parser`는 `package.json`에 아직 남아 있으나 코드에서 더 이상 사용하지 않으므로 향후 정리 대상이다.

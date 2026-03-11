@@ -91,7 +91,7 @@
 ## Environment & Dependencies
 
 - 런타임: `electron@30`, `react@18`, `vite@5`, `typescript@5`
-- 편집/렌더링 핵심: `@codemirror/*`, `react-markdown`, `remark-gfm`, `rehype-sanitize`, `shiki`
+- 편집/렌더링 핵심: `@codemirror/*`, `react-markdown`, `remark-gfm`, `rehype-sanitize`, `shiki`, `electron-clipboard-ex`
 - 테스트/검증: `vitest`, `jsdom`, `@testing-library/*`, `eslint`, `electron-builder`
 - 실행 환경 기준은 [_sdd/env.md](../env.md)에 유지한다.
 

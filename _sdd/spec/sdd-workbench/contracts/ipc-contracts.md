@@ -116,7 +116,7 @@
 **`workspace:readFileClipboard`**
 - request: (없음)
 - response: `{ ok, hasFiles, source: 'internal'|'finder'|'none', error? }`
-- 규칙: 내부 클립보드 우선, 없으면 macOS Finder `NSFilenamesPboardType` 확인.
+- 규칙: 내부 클립보드 우선, 없으면 macOS Finder 클립보드 확인 (`electron-clipboard-ex` native 접근).
 
 **`workspace:copyEntries`**
 - request: `{ rootPath, entries: { relativePath, kind }[], destDir }`
