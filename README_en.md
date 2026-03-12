@@ -8,11 +8,15 @@ It lets you browse code and Markdown specs, edit files, leave structured comment
 - 2-panel layout: left sidebar + right content tabs (`Code` / `Spec`)
 - Multi-workspace management (open/switch/close)
 - CodeMirror 6 editor (editable, save, search, wrap toggle)
-- Rendered spec navigation (link jump, `Go to Source`, in-panel anchor scroll)
+- Rendered spec navigation (link jump, `Go to Source`, in-panel anchor scroll, spec search)
 - Inline comments on code/spec + global comments + bundle export
+- File tree CRUD (New File/Dir, Rename, Delete) + Copy/Paste (internal + macOS Finder clipboard)
+- File search with wildcard support (`*`/`?`)
 - Remote workspace via Remote Agent Protocol over SSH (F27/F28)
+- Remote workspace external tools: iTerm SSH / VSCode Remote-SSH
 - Watch mode control (`Auto` / `Native` / `Polling`) with fallback handling
 - Git indicators in tree (U/M) + line markers in active code file
+- Ayu Mirage `dark` / `light` theme + native `View > Theme` menu
 
 ## Requirements
 
@@ -90,7 +94,7 @@ The left sidebar includes:
 - connect remote workspace
 - close workspace
 - current workspace summary (mode, remote status, watch mode)
-- `Open In` actions (terminal / VSCode)
+- `Open In` actions (iTerm / VSCode / Finder; remote workspaces open via SSH/Remote-SSH)
 - file tree
 
 Keyboard shortcuts:
@@ -105,6 +109,12 @@ Right-click file/directory nodes:
 - `New Directory`
 - `Rename`
 - `Delete`
+- `Copy` (`Cmd+C`)
+- `Paste` (`Cmd+V`)
+
+Clipboard:
+- Internal Copy/Paste: copy files/directories within the app
+- macOS Finder clipboard: paste files copied from Finder into the app
 
 Behavior details:
 - lazy directory loading and large tree caps are applied for performance
@@ -136,6 +146,7 @@ Context menu actions:
 - rendered Markdown with TOC
 - relative path link interception + in-app open/jump
 - same-document anchor scroll handling
+- `Cmd+F` in-document search (prev/next, highlight)
 - selection actions:
   - `Add Comment`
   - `Go to Source`
@@ -284,7 +295,7 @@ _sdd/
 ## Spec and Reference Docs
 
 - Spec index: [`_sdd/spec/main.md`](_sdd/spec/main.md)
-- Spec summary: [`_sdd/spec/SUMMARY.md`](_sdd/spec/SUMMARY.md)
+- Spec summary: [`_sdd/spec/summary.md`](_sdd/spec/summary.md)
 
 ## License
 
