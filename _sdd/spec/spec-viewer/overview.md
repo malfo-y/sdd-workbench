@@ -60,9 +60,8 @@
 
 ## 6. 관련 계약 문서
 
-- [navigation-rules](../contracts/navigation-rules.md)
-- [search-rules](../contracts/search-rules.md)
-- [comment-contracts](../contracts/comment-contracts.md)
+- [navigation-rules + search-rules (본 컴포넌트 contracts)](./contracts.md)
+- [comment-contracts](../comments-and-export/contracts.md)
 
 ## 7. 핵심 테스트
 

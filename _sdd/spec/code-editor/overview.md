@@ -60,10 +60,10 @@
 
 ## 6. 관련 계약 문서
 
-- [state-model](../contracts/state-model.md)
-- [navigation-rules](../contracts/navigation-rules.md)
-- [search-rules](../contracts/search-rules.md)
-- [theme-and-menu-contracts](../contracts/theme-and-menu-contracts.md)
+- [state-model (본 컴포넌트 contracts)](./contracts.md)
+- [navigation-rules](../spec-viewer/contracts.md)
+- [search-rules](../spec-viewer/contracts.md)
+- [theme-and-menu-contracts](../appearance-and-navigation/contracts.md)
 
 ## 7. 핵심 테스트
 

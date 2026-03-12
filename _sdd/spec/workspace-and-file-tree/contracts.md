@@ -1,10 +1,10 @@
-# IPC Contracts
+# IPC Contracts — Workspace Core
 
-## 1. 목적
+이 문서는 `Renderer <-> Main` invoke/send 채널 중 워크스페이스 핵심 작업(인덱싱, 파일 CRUD, watcher, Git, 검색, 코멘트, 클립보드, 히스토리)에 해당하는 IPC 계약을 정리한다.
 
-이 문서는 `Renderer <-> Main` invoke/send 채널과 핵심 request/response 계약을 정리한다.
+원격 연결/browse/system open 관련 IPC는 [remote-workspace/contracts.md](../remote-workspace/contracts.md)에 있다.
 
-## 2. 채널 개요
+## 1. 채널 개요
 
 | 채널 | 방향 | 용도 |
 |---|---|---|
@@ -28,18 +28,11 @@
 | `workspace:readFileClipboard` | Renderer -> Main (`invoke`) | 클립보드 소스 확인 (internal/finder/none) |
 | `workspace:copyEntries` | Renderer -> Main (`invoke`) | 파일/디렉토리 복사 실행 |
 | `workspace:pasteFromClipboard` | Renderer -> Main (`invoke`) | 클립보드에서 대상 디렉토리에 붙여넣기 |
-| `workspace:browseRemoteDirectories` | Renderer -> Main (`invoke`) | 연결 전 remote directory browse |
-| `workspace:connectRemote` / `workspace:disconnectRemote` | Renderer -> Main (`invoke`) | remote session lifecycle |
-| `workspace:remoteConnectionEvent` | Main -> Renderer (`send`) | remote 상태/오류 이벤트 |
 | `workspace:historyNavigate` | Main -> Renderer (`send`) | back/forward 요청 |
-| `system:openInIterm` / `system:openInVsCode` / `system:openInFinder` | Renderer -> Main (`invoke`) | workspace-aware 외부 도구 열기 (local: 직접 열기, remote: SSH/Remote-SSH) |
-| `workspace:syncVsCodeSshConfig` | Renderer -> Main (`invoke`) | VSCode Remote-SSH용 `~/.ssh/sdd-workbench.config` Host 블록 동기화 |
-| `appearance-theme:menu-request` | Main -> Renderer (`send`) | native theme menu 선택 전달 |
-| `appearance-theme:changed` | Renderer -> Main (`send`) | renderer current theme 통지 |
 
-## 3. 핵심 request/response 요약
+## 2. 핵심 request/response 요약
 
-### 3.1 `workspace:indexDirectory`
+### 2.1 `workspace:indexDirectory`
 
 - request:
   - `{ rootPath, relativePath, offset?: number, limit?: number }`
@@ -49,7 +42,7 @@
   - 디렉토리 child cap `500`
   - 초과 시 `childrenStatus='partial'`
 
-### 3.2 `workspace:watchStart`
+### 2.2 `workspace:watchStart`
 
 - request:
   - `{ workspaceId, rootPath, watchModePreference?: 'auto'|'native'|'polling' }`
@@ -59,54 +52,15 @@
   - 우선순위는 `override > auto heuristic`
   - native 실패 시 polling fallback 가능
 
-### 3.3 `workspace:searchFiles`
+### 2.3 `workspace:searchFiles`
 
 - request:
   - `{ rootPath, query, maxDepth?, maxResults?, maxDirectoryChildren?, timeBudgetMs? }`
 - response:
   - `{ ok, results, truncated, skippedLargeDirectoryCount, depthLimitHit, timedOut, error? }`
-- 상세 규칙은 [search-rules](./search-rules.md) 참조
+- 상세 규칙은 [search-rules](../spec-viewer/contracts.md) 참조
 
-### 3.4 `workspace:connectRemote`
-
-- request:
-  - `{ profile: { workspaceId, host, remoteRoot, user?, port?, agentPath?, identityFile?, requestTimeoutMs?, connectTimeoutMs? } }`
-- response:
-  - `{ ok, workspaceId?, sessionId?, rootPath?, remoteConnectionState?, state?, errorCode?, error? }`
-
-### 3.5 `workspace:browseRemoteDirectories`
-
-- request:
-  - `{ request: { host, user?, port?, identityFile?, targetPath?, connectTimeoutMs?, limit? } }`
-- response:
-  - `{ ok, currentPath, entries, truncated, errorCode?, error? }`
-
-### 3.6 `system:openInIterm` / `system:openInVsCode` / `system:openInFinder`
-
-- request:
-  - `{ rootPath, workspaceKind?: 'local'|'remote', remoteProfile?: { workspaceId, host, remoteRoot, user?, port?, identityFile?, sshAlias? } }`
-- response:
-  - `{ ok, error? }`
-- 규칙:
-  - `workspaceKind === 'remote'`일 때 `rootPath`의 로컬 `stat` 검증을 건너뛴다.
-  - remote iTerm: AppleScript로 신규 세션을 열고 SSH 명령(`ssh -p PORT user@host -t "cd remoteRoot && exec $SHELL -l"`)을 실행한다.
-  - remote VSCode: `sshAlias` 필수. `vscode-remote://ssh-remote+{sshAlias}{remoteRoot}` URI로 Remote-SSH 창을 연다.
-  - remote Finder: unsupported — `{ ok: false, error: 'Open in Finder is unavailable for remote workspace.' }` 반환.
-  - macOS 전용. 다른 플랫폼에서는 `{ ok: false }` 반환.
-
-### 3.7 `workspace:syncVsCodeSshConfig`
-
-- request:
-  - `{ sshAlias, host, user?, port?, identityFile? }`
-- response:
-  - `{ ok, configPath?, managedConfigPath?, includeInserted?, entryUpdated?, error? }`
-- 규칙:
-  - `~/.ssh/sdd-workbench.config`에 관리형 Host 블록을 생성/갱신한다.
-  - `~/.ssh/config` 최상단에 `Include ~/.ssh/sdd-workbench.config`을 삽입한다 (Host 블록 내부에 들어가면 OpenSSH가 무시하므로).
-  - `sshAlias`는 공백 불가. `port`는 1~65535 정수.
-  - SSH directory(0o700)와 config 파일(0o600) 권한을 보장한다.
-
-### 3.8 파일 클립보드 Copy / Paste
+### 2.4 파일 클립보드 Copy / Paste
 
 **`workspace:setFileClipboard`**
 - request: `{ rootPath, paths: { relativePath, kind }[] }`
@@ -131,20 +85,18 @@
   - 원격: Finder 소스만 있고 내부 클립보드 없으면 `{ ok: false, source: 'finder' }` 반환 (Finder paste는 로컬 전용).
   - 원격 내부 클립보드는 정상 동작.
 
-## 4. 공통 안전 규칙
+## 3. 공통 안전 규칙
 
 1. filesystem write는 모두 workspace 경계 검증을 거친다.
 2. invoke handler는 실패 시 throw보다 `{ ok: false, error }` 형태의 safe degrade를 우선한다.
 3. renderer는 local/remote backend 차이를 IPC surface 뒤에 숨긴다.
 4. typed preload bridge와 spec 계약은 함께 갱신한다.
 
-## 5. 관련 구현 파일
+## 4. 관련 구현 파일
 
 - `electron/main.ts`
 - `electron/preload.ts`
 - `electron/electron-env.d.ts`
-- `electron/system-open.ts`
-- `electron/vscode-ssh-config.ts`
 - `electron/workspace-backend/types.ts`
 - `electron/workspace-backend/local-workspace-backend.ts`
 - `electron/workspace-backend/remote-workspace-backend.ts`
@@ -153,12 +105,10 @@
 - `electron/workspace-backend/copy-entries.ts`
 - `electron/workspace-backend/backend-router.ts`
 
-## 6. 관련 테스트
+## 5. 관련 테스트
 
 - `electron/workspace-backend/*.test.ts`
 - `electron/workspace-watch-mode.test.ts`
-- `electron/system-open.test.ts`
-- `electron/vscode-ssh-config.test.ts`
 - `electron/file-clipboard.test.ts`
 - `electron/increment-file-name.test.ts`
 - `electron/workspace-backend/copy-entries.test.ts`

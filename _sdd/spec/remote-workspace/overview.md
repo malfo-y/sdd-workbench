@@ -46,7 +46,7 @@
 - `copyEntries`도 동일한 추상화를 따른다. remote backend는 `workspace.copyEntries` RPC를 remote agent runtime에 위임한다.
 - macOS Finder 클립보드 붙여넣기는 로컬 전용이다. 원격 워크스페이스에서 Finder 소스만 있으면 안내 메시지를 반환한다.
 
-### 4.4 외부 도구 실행 정책
+### 4.3 외부 도구 실행 정책
 
 - 원격 워크스페이스의 외부 도구 실행은 `remoteProfile`(host/user/port/identityFile/remoteRoot/sshAlias)을 source of truth로 사용한다. `remote://...` canonical path를 로컬 경로로 `stat`하지 않는다.
 - iTerm: AppleScript로 신규 세션을 만들고 SSH 명령을 주입한다. `identityFile`이 있으면 `-i ... -o IdentitiesOnly=yes`를 적용한다.
@@ -55,7 +55,7 @@
 - VSCode SSH config 자동 동기화: `~/.ssh/sdd-workbench.config`에 관리형 Host 블록을 유지하고 `~/.ssh/config` 최상단에 Include를 삽입한다.
 - macOS 전용. 다른 플랫폼에서는 미지원 메시지를 반환한다.
 
-### 4.3 watch / scale / fallback
+### 4.4 watch / scale / fallback
 
 - remote runtime polling watcher는 `1500ms`, 파일 상한 `100000`, symlink 추적을 사용한다.
 - 연결 실패/강등은 오류 코드와 함께 renderer로 이벤트를 보낸다.
@@ -79,9 +79,9 @@
 
 ## 6. 관련 계약 문서
 
-- [ipc-contracts](../contracts/ipc-contracts.md)
-- [state-model](../contracts/state-model.md)
-- [search-rules](../contracts/search-rules.md)
+- [remote ipc-contracts (본 컴포넌트 contracts)](./contracts.md)
+- [state-model](../code-editor/contracts.md)
+- [search-rules](../spec-viewer/contracts.md)
 
 ## 7. 핵심 테스트
 

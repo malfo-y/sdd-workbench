@@ -87,9 +87,9 @@
 
 ## 6. 관련 계약 문서
 
-- [state-model](../contracts/state-model.md)
-- [ipc-contracts](../contracts/ipc-contracts.md)
-- [search-rules](../contracts/search-rules.md)
+- [ipc-contracts (본 컴포넌트 contracts)](./contracts.md)
+- [state-model](../code-editor/contracts.md)
+- [search-rules](../spec-viewer/contracts.md)
 
 ## 7. 핵심 테스트
 

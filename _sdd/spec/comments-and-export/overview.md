@@ -62,9 +62,9 @@
 
 ## 6. 관련 계약 문서
 
-- [comment-contracts](../contracts/comment-contracts.md)
-- [navigation-rules](../contracts/navigation-rules.md)
-- [state-model](../contracts/state-model.md)
+- [comment-contracts (본 컴포넌트 contracts)](./contracts.md)
+- [navigation-rules](../spec-viewer/contracts.md)
+- [state-model](../code-editor/contracts.md)
 
 ## 7. 핵심 테스트
 
