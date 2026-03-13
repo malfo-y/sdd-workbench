@@ -39,6 +39,66 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-03-13 - summary.md를 lightweight entry snapshot으로 재구성
+
+- Context:
+  - `main.md`는 이미 whitepaper `§1~§8 + Appendix` 구조와 code citation을 갖춘 canonical 문서인데, `summary.md`가 기능 설명, 아키텍처 표, 우선순위 목록을 길게 반복하면서 사실상 두 번째 메인 문서처럼 커지고 있었음.
+  - strict review 이후 supporting docs의 역할을 다시 선명하게 하지 않으면, 이후 sync 때 `main.md`와 `summary.md`가 함께 커지며 drift가 반복될 가능성이 있었음.
+- Decision:
+  - `main.md`는 그대로 canonical whitepaper로 유지하고, `summary.md`는 “빠른 진입용 snapshot”으로 축소한다.
+  - `summary.md`에는 현재 상태, 읽는 순서, 한 화면 아키텍처, validation baseline, active risks만 남기고 기능별 상세 설명과 장문의 상태 대시보드는 제거한다.
+  - 이번 변경은 문서 역할 정리이지 제품 동작/계약 변경이 아니므로 spec version은 `0.46.1`을 유지한다.
+- Rationale:
+  - supporting docs가 canonical 문서를 다시 복제하기 시작하면 문서 유지 비용이 커지고, 리뷰 시 어떤 문장을 신뢰해야 하는지 판단 비용도 같이 커진다.
+  - 요약 문서는 “무엇을 먼저 읽어야 하는가”를 빠르게 알려주는 쪽이 가치가 크고, 상세 설명은 whitepaper와 component docs로 위임하는 편이 더 안정적이다.
+- Changes:
+  - `_sdd/spec/summary.md`를 lightweight snapshot 구조로 재작성
+  - `_sdd/spec/REWRITE_REPORT.md`에 conservative rewrite 결과/잔여 이슈 기록
+  - `_sdd/spec/prev/PREV_summary.md_20260313_232456.md` 백업 생성
+  - `_sdd/spec/prev/PREV_decision-log.md_20260313_232456.md` 백업 생성
+  - `_sdd/spec/prev/PREV_REWRITE_REPORT.md_20260313_232456.md` 백업 생성
+
+## 2026-03-13 - summary/quality gate 문구를 strict review 결과에 맞춰 동기화
+
+- Context:
+  - strict spec review에서 `main.md` whitepaper 본문은 대체로 정확했지만, `summary.md`가 아직 `0.45.0` / 2026-03-12 기준의 구조 설명을 유지하고 있었음.
+  - `summary.md`, `operations.md`는 `npm test -> 49 files, 493 passed, 1 skipped`를 현재 자동 게이트처럼 제시하고 있었지만, review 환경(Node 25.2.1 / npm 11.7.0)에서는 `Test Files no tests`, `Errors 63`이 관찰되어 그대로 green baseline으로 둘 수 없었음.
+- Decision:
+  - 스펙 세트 버전을 `0.46.1`로 올리고, `summary.md`를 `main.md` whitepaper canonical 상태 기준으로 동기화한다.
+  - 품질 게이트는 `2026-03-02 / Node 20.x baseline`을 **last known good**로 표시하고, `2026-03-13 / Node 25.2.1` review run은 원인 미확정 note로만 기록한다.
+  - Node 25.x 지원 여부는 새 기능/호환성 결정으로 확정하지 않고, 현재는 “미재검증” 상태를 유지한다.
+- Rationale:
+  - review 결과가 문서보다 뒤처지면 문서가 잘못된 안전 신호를 주게 된다.
+  - 환경 차이에서 비롯된 가능성이 있어도, 불확실한 green 상태를 active quality gate처럼 두는 것보다 baseline과 미확정 상태를 분리하는 편이 안전하다.
+- Changes:
+  - `_sdd/spec/main.md` 버전 `0.46.1`로 갱신
+  - `_sdd/spec/summary.md` metadata/구조 설명/quality gate 동기화
+  - `_sdd/spec/operations.md` quality gate baseline/리뷰 노트 반영
+  - `_sdd/spec/prev/PREV_main.md_20260313_211605.md` 백업 생성
+  - `_sdd/spec/prev/PREV_summary.md_20260313_211605.md` 백업 생성
+  - `_sdd/spec/prev/PREV_operations.md_20260313_211605.md` 백업 생성
+  - `_sdd/spec/prev/PREV_decision-log.md_20260313_211605.md` 백업 생성
+
+## 2026-03-13 - 메인 스펙을 whitepaper §1-§8 형식으로 업그레이드
+
+- Context:
+  - 현재 `_sdd/spec/`는 컴포넌트별 split spec 구조로 정리되어 있었지만, canonical entry point인 `main.md`는 `Goal`, `Architecture`, `Component Index`, `Usage Examples` 중심의 엔트리 문서라 whitepaper §1-§8 구조와 code citation 기준을 직접 충족하지는 않았음.
+  - 특히 `§1 Background & Motivation`, `§2 Core Design`, `§5 Usage Guide & Expected Results`, `Appendix: Code Reference Index`가 상위 문서에 명시적으로 존재하지 않아, 스펙을 처음 읽는 사람과 LLM 모두가 supporting docs를 여러 번 왕복해야 했음.
+- Decision:
+  - split spec 구조는 유지하고, `main.md`를 canonical whitepaper 문서로 재작성한다.
+  - 하위 `overview.md` / `contracts.md` 문서는 §4 Component Details와 §7 API Reference의 상세 근거 문서로 계속 사용한다.
+  - `main.md`에는 실제 구현 함수 기준 인라인 citation과 핵심 코드 발췌를 추가하고, `decision-log.md`에는 이번 업그레이드 자체를 별도 구조 결정으로 기록한다.
+- Rationale:
+  - 기존 supporting docs의 분해 이점은 유지하면서도, 상위 문서 하나만 읽어도 프로젝트의 배경, 핵심 설계, 사용법, 데이터 모델, IPC 표면을 빠르게 이해할 수 있어야 한다.
+  - whitepaper 형식은 설명력과 추적 가능성을 동시에 요구하므로, narrative section과 code citation을 top-level에 올리는 편이 유지보수성과 자동화 친화성 모두에 유리하다.
+- Changes:
+  - `_sdd/spec/main.md`를 whitepaper §1-§8 + Appendix 구조로 재작성
+  - `_sdd/spec/code-map.md`, `_sdd/spec/feature-index.md`의 canonical 링크를 `main.md` 기준으로 정리
+  - `_sdd/spec/prev/PREV_main.md_20260313_193535.md` 백업 생성
+  - `_sdd/spec/prev/PREV_decision-log.md_20260313_193535.md` 백업 생성
+  - `_sdd/spec/prev/PREV_code-map.md_20260313_194330.md` 백업 생성
+  - `_sdd/spec/prev/PREV_feature-index.md_20260313_194330.md` 백업 생성
+
 ## 2026-03-09 - 번호형/대문자 스펙 이름을 책임 기반 소문자 이름으로 정리
 
 - Context:

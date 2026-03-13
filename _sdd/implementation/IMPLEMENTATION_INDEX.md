@@ -4,6 +4,29 @@ Feature별 구현 산출물 아카이브 인덱스.
 
 ---
 
+## spec_review_sync_20260313
+
+**Description**: strict spec review 후 whitepaper summary / quality gate / validation baseline 문구를 동기화한 문서 유지보수 sync
+
+| synced_at (UTC) | destination | source |
+|---|---|---|
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_PLAN.md` | `IMPLEMENTATION_PLAN.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_PLAN_PHASE_1.md` | `IMPLEMENTATION_PLAN_PHASE_1.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_PLAN_PHASE_2.md` | `IMPLEMENTATION_PLAN_PHASE_2.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_PLAN_PHASE_3.md` | `IMPLEMENTATION_PLAN_PHASE_3.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_PLAN_PHASE_4.md` | `IMPLEMENTATION_PLAN_PHASE_4.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_PROGRESS.md` | `IMPLEMENTATION_PROGRESS.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_REVIEW.md` | `IMPLEMENTATION_REVIEW.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_REPORT.md` | `IMPLEMENTATION_REPORT.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_REPORT_PHASE_1.md` | `IMPLEMENTATION_REPORT_PHASE_1.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_REPORT_PHASE_2.md` | `IMPLEMENTATION_REPORT_PHASE_2.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_REPORT_PHASE_3.md` | `IMPLEMENTATION_REPORT_PHASE_3.md` |
+| 2026-03-13 12:17:39 | `features/spec_review_sync_20260313/SYNC_20260313_121739_IMPLEMENTATION_REPORT_PHASE_4.md` | `IMPLEMENTATION_REPORT_PHASE_4.md` |
+
+**Notes**: `summary.md` / `operations.md` / `main.md` / `decision-log.md` sync. Quality gate는 `2026-03-02 / Node 20.x` 를 last known good로 유지하고, `2026-03-13 / Node 25.2.1` review run은 unresolved note로 기록.
+
+---
+
 ## F39_remote_ssh_external_open
 
 **Description**: 원격 워크스페이스용 SSH 외부 도구 열기 (iTerm SSH, VSCode Remote-SSH, Finder unsupported, VSCode SSH config 자동 동기화)

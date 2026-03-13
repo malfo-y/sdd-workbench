@@ -6,28 +6,28 @@
 
 - 제품 관점에서는 어떤 기능이 현재 들어가 있는지 빠르게 확인한다.
 - 구현 관점에서는 기능 변경 시 먼저 찾아봐야 할 문서/코드/테스트를 좁힌다.
-- 상세 계약은 [contract-map](./contract-map.md), 상세 도메인 설명은 [component-map](./component-map.md)를 우선 참조한다.
+- 상세 계약은 각 컴포넌트 `contracts.md`, 상세 도메인 설명은 각 `overview.md`, 전체 whitepaper 컨텍스트는 [main](./main.md)을 우선 참조한다.
 
 ## 1. Foundation / Workspace / Viewer
 
 | ID | 이름 | 상태 | 사용자 가치 | 주요 문서 | 핵심 코드 / 테스트 |
 |---|---|---|---|---|---|
-| F01 | workspace bootstrap + 배너/경로 축약 | Done | 앱 실행 후 빠르게 워크스페이스를 연다 | [개요](./product-overview.md), [워크스페이스/트리](./workspace-and-file-tree/overview.md) | `src/App.tsx`, `src/workspace/workspace-context.tsx` / `src/App.test.tsx` |
+| F01 | workspace bootstrap + 배너/경로 축약 | Done | 앱 실행 후 빠르게 워크스페이스를 연다 | [개요](./main.md), [워크스페이스/트리](./workspace-and-file-tree/overview.md) | `src/App.tsx`, `src/workspace/workspace-context.tsx` / `src/App.test.tsx` |
 | F02 | 파일 인덱싱 + 트리 렌더 | Done | 프로젝트 구조를 즉시 탐색한다 | [워크스페이스/트리](./workspace-and-file-tree/overview.md), [IPC](./workspace-and-file-tree/contracts.md) | `electron/main.ts`, `src/file-tree/file-tree-panel.tsx` / `src/file-tree/file-tree-panel.test.tsx` |
 | F03 | 코드 뷰어 + 라인 선택 | Done | 파일을 읽고 라인 범위를 잡는다 | [코드 에디터](./code-editor/overview.md), [상태 모델](./code-editor/contracts.md) | `src/code-editor/code-editor-panel.tsx` / `src/code-editor/code-editor-panel.test.tsx` |
 | F03.1 | 확장자 색상 코딩 | Done | 파일 타입을 트리에서 빠르게 구분한다 | [워크스페이스/트리](./workspace-and-file-tree/overview.md) | `src/file-tree/file-tree-panel.tsx` / `src/file-tree/file-tree-panel.test.tsx` |
-| F03.5 | 멀티 워크스페이스 | Done | 여러 프로젝트를 같은 세션에서 오간다 | [개요](./product-overview.md), [상태 모델](./code-editor/contracts.md) | `src/workspace/workspace-context.tsx`, `src/workspace/workspace-model.ts` / `src/workspace/workspace-model.test.ts` |
+| F03.5 | 멀티 워크스페이스 | Done | 여러 프로젝트를 같은 세션에서 오간다 | [개요](./main.md), [상태 모델](./code-editor/contracts.md) | `src/workspace/workspace-context.tsx`, `src/workspace/workspace-model.ts` / `src/workspace/workspace-model.test.ts` |
 | F04 | markdown dual view | Done | raw markdown과 rendered spec를 함께 다룬다 | [스펙 뷰어](./spec-viewer/overview.md) | `src/spec-viewer/spec-viewer-panel.tsx` / `src/spec-viewer/spec-viewer-panel.test.tsx` |
 | F04.1 | 링크 인터셉트 + copy popover | Done | 내부/외부 링크를 안전하게 해석한다 | [스펙 뷰어](./spec-viewer/overview.md), [내비게이션 규칙](./spec-viewer/contracts.md) | `src/spec-viewer/spec-link-utils.ts`, `src/spec-viewer/spec-viewer-panel.tsx` / `src/spec-viewer/spec-viewer-panel.test.tsx` |
 | F05 | spec -> code line jump | Done | 스펙에서 대응 코드 라인으로 바로 이동한다 | [스펙 뷰어](./spec-viewer/overview.md), [내비게이션 규칙](./spec-viewer/contracts.md) | `src/App.tsx`, `src/spec-viewer/spec-viewer-panel.tsx` / `src/App.test.tsx` |
-| F06 | 툴바 복사 정책 고정 | Done | 복사 동작을 예측 가능하게 사용한다 | [개요](./product-overview.md), [코멘트/Export 계약](./comments-and-export/contracts.md) | `src/App.tsx` / `src/App.test.tsx` |
+| F06 | 툴바 복사 정책 고정 | Done | 복사 동작을 예측 가능하게 사용한다 | [개요](./main.md), [코멘트/Export 계약](./comments-and-export/contracts.md) | `src/App.tsx` / `src/App.test.tsx` |
 | F06.1 | 컨텍스트 복사 popover | Done | 복사 전에 경로/문맥을 확인한다 | [코드 에디터](./code-editor/overview.md) | `src/App.tsx` / `src/App.test.tsx` |
 | F06.2 | 드래그 선택 + copy UX 통합 | Done | 드래그/컨텍스트 메뉴 흐름을 일관되게 사용한다 | [코드 에디터](./code-editor/overview.md), [상태 모델](./code-editor/contracts.md) | `src/code-editor/cm6-selection-bridge.ts` / `src/code-editor/cm6-selection-bridge.test.ts` |
 | F07 | watcher + changed indicator | Done | 파일 변경을 즉시 감지한다 | [워크스페이스/트리](./workspace-and-file-tree/overview.md), [운영 가이드](./operations.md) | `electron/main.ts`, `src/workspace/workspace-context.tsx` / `src/App.test.tsx` |
 | F07.1 | workspace file history navigation | Done | back/forward로 최근 파일 이동을 복원한다 | [appearance/navigation](./appearance-and-navigation/overview.md), [상태 모델](./code-editor/contracts.md) | `src/App.tsx`, `src/workspace/workspace-model.ts` / `src/App.test.tsx` |
 | F07.2 | 코드 에디터 히스토리 스크롤 복원 | Done | 히스토리 이동 후 읽던 위치를 유지한다 | [코드 에디터](./code-editor/overview.md) | `src/App.tsx`, `src/code-editor/code-editor-panel.tsx` / `src/App.test.tsx` |
 | F08 | Open In(iTerm/VSCode) | Done | 현재 파일/워크스페이스를 외부 도구로 연다 | [appearance/navigation](./appearance-and-navigation/overview.md), [IPC](./workspace-and-file-tree/contracts.md) | `electron/main.ts`, `src/App.tsx` / `src/App.test.tsx` |
-| F09 | 앱 재시작 세션 복원 | Done | 마지막 세션을 다시 연다 | [개요](./product-overview.md), [상태 모델](./code-editor/contracts.md) | `src/workspace/workspace-persistence.ts` / `src/workspace/workspace-persistence.test.ts` |
+| F09 | 앱 재시작 세션 복원 | Done | 마지막 세션을 다시 연다 | [개요](./main.md), [상태 모델](./code-editor/contracts.md) | `src/workspace/workspace-persistence.ts` / `src/workspace/workspace-persistence.test.ts` |
 | F10 | 보안/성능 안정화 | Done | 위험한 링크/대형 파일/외부 경계를 안전하게 다룬다 | [운영 가이드](./operations.md), [스펙 뷰어](./spec-viewer/overview.md) | `src/spec-viewer/markdown-security.ts`, `electron/main.ts` / 관련 통합 테스트 |
 | F10.1 | rendered selection `Go to Source` | Done | 렌더된 spec에서 선택 지점을 코드로 보낸다 | [스펙 뷰어](./spec-viewer/overview.md), [내비게이션 규칙](./spec-viewer/contracts.md) | `src/spec-viewer/spec-viewer-panel.tsx` / `src/spec-viewer/spec-viewer-panel.test.tsx` |
 | F10.2 | code viewer 이미지 프리뷰 | Done | 텍스트가 아닌 자산도 앱 안에서 확인한다 | [코드 에디터](./code-editor/overview.md) | `src/code-editor/code-editor-panel.tsx` / `src/code-editor/code-editor-panel.test.tsx` |

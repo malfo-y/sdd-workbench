@@ -4,8 +4,8 @@
 
 이 문서는 구현 변경 시 어느 파일부터 읽어야 하는지 빠르게 좁히기 위한 코드 인덱스다.
 
-- 제품 설명은 [product-overview](./product-overview.md)와 [component-map](./component-map.md)를 본다.
-- 상태/IPC/계약은 [contract-map](./contract-map.md)와 하위 계약 문서를 본다.
+- 제품 설명과 whitepaper 엔트리 포인트는 [main](./main.md)을 본다.
+- 상태/IPC/계약은 각 컴포넌트 `contracts.md`와 [main](./main.md)의 §7 API Reference를 본다.
 - 여기서는 “어디를 고칠 가능성이 높은가”만 빠르게 찾는다.
 
 ## 1. App Shell / Navigation

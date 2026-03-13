@@ -51,11 +51,15 @@
 
 ## 4. 테스트 운영
 
-### 4.1 자동 게이트 (2026-03-02 기준)
+### 4.1 자동 게이트
 
-- `npm test` -> `49 files, 493 passed, 1 skipped`
-- `npm run lint` -> pass
-- `npm run build` -> pass
+- **Last known good (2026-03-02, Node 20.x baseline)**
+  - `npm test` -> `49 files, 493 passed, 1 skipped`
+  - `npm run lint` -> pass
+  - `npm run build` -> pass
+- **Review note (2026-03-13, Node 25.2.1 / npm 11.7.0)**
+  - `npm test` -> `Test Files no tests`, `Errors 63`
+  - 현재 상태는 원인 미확정이며, Node 20.x baseline 재검증 전까지 green gate로 간주하지 않는다.
 
 ### 4.2 권장 검증 순서
 
