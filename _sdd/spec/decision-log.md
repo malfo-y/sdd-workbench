@@ -6,6 +6,7 @@
 
 | 날짜 | 제목 | 핵심 결정 |
 |------|------|----------|
+| 2026-03-14 | F43 Python citation navigation 구현 완료 | `[path.py:Symbol]` bracket citation으로 Python 선언 위치 점프. code-block-citation은 language-agnostic 추출, react-markdown v10에서 node position 기반 inline/fenced 판별. |
 | 2026-03-08 | F38 구현 완료 반영 + theme primary control을 native menu로 고정 | appearance theme 전환의 primary entry point는 Electron application menu `View > Theme > Dark Gray \| Light`로 고정한다. |
 | 2026-03-08 | F36/F37 구현 완료 반영 + theme bootstrap/recovery 계약 확정 | appearance theme bootstrap은 React mount 전에 `document.documentElement[data-theme]`에 persisted theme를 반영하는 pre-paint 경로로 고정한다. |
 | 2026-03-08 | F34/F35 구현 완료 반영 + markdown/spec 왕복 내비게이션 정책 고정 | F34(`Go to Spec`)를 `Implemented/Done`으로 반영하고, 범위는 `.md` Code 탭 context menu에서 같은 markdown 파일의 `selectionRange.startLine`을 rende... |

@@ -2,7 +2,7 @@
 
 > 로컬/원격 워크스페이스에서 코드와 Markdown 스펙을 왕복 탐색·편집·리뷰하는 Electron 기반 워크벤치
 
-**Version**: 0.47.0
+**Version**: 0.48.0
 **Last Updated**: 2026-03-14
 **Status**: In Review
 
@@ -52,6 +52,7 @@ SDD Workbench는 코드 편집기, Markdown 스펙 뷰어, 원격 작업 도구,
 4. **대규모 워크스페이스 대응**: lazy indexing, child cap, watcher fallback, partial loading으로 큰 저장소를 다룬다.
 5. **원격 워크스페이스 통합**: browse, connect, watch, system open, VS Code SSH config sync를 같은 계약으로 지원한다.
 6. **일관된 시각 상태 관리**: theme, navigation highlight, selection, search를 서로 분리된 시각 상태로 유지한다.
+7. **Python citation navigation**: 스펙 문서에서 `[path.py:Symbol]` bracket citation으로 Python 선언 위치를 자동 탐색한다.
 
 ### Target Users / Use Cases
 

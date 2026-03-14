@@ -75,7 +75,7 @@
 | F26 | 파일 트리 Git 파일 상태 마커 | Done | 파일 수준 U/M 상태를 트리에서 즉시 본다 | [워크스페이스/트리](./workspace-and-file-tree/overview.md) | `electron/git-file-statuses.ts`, `src/file-tree/file-tree-panel.tsx` / `electron/git-file-statuses.test.ts` |
 | F40 | 파일 클립보드 Copy/Paste | Done | 파일/디렉토리를 트리에서 복사·붙여넣기하고 macOS Finder 클립보드도 지원한다 | [워크스페이스/트리](./workspace-and-file-tree/overview.md), [IPC](./workspace-and-file-tree/contracts.md) | `electron/file-clipboard.ts`, `electron/increment-file-name.ts`, `electron/workspace-backend/copy-entries.ts`, `src/file-tree/file-tree-panel.tsx` / `electron/file-clipboard.test.ts`, `electron/increment-file-name.test.ts`, `electron/workspace-backend/copy-entries.test.ts` |
 
-## 5. Search / Source Mapping / Navigation / Theme
+## 5. Search / Source Mapping / Navigation / Theme / Citation
 
 | ID | 이름 | 상태 | 사용자 가치 | 주요 문서 | 핵심 코드 / 테스트 |
 |---|---|---|---|---|---|
@@ -89,6 +89,7 @@
 | F36 | appearance theme foundation | Done | `dark-gray`/`light` 테마 전환의 기반을 제공한다 | [appearance/navigation](./appearance-and-navigation/overview.md), [theme/menu 계약](./appearance-and-navigation/contracts.md) | `src/appearance-theme.ts`, `src/App.tsx`, `src/main.tsx` / `src/appearance-theme.test.ts` |
 | F37 | `light` theme | Done | 밝은 회색 계열 테마로 앱을 사용한다 | [appearance/navigation](./appearance-and-navigation/overview.md), [theme/menu 계약](./appearance-and-navigation/contracts.md) | `src/index.css`, `src/code-editor/cm6-light-theme.ts`, `src/code-viewer/syntax-highlight.ts` / `src/App.test.tsx`, `src/code-viewer/syntax-highlight.test.ts` |
 | F38 | native `View > Theme` 메뉴 | Done | 큰 헤더 UI 없이 시스템 메뉴에서 테마를 바꾼다 | [appearance/navigation](./appearance-and-navigation/overview.md), [theme/menu 계약](./appearance-and-navigation/contracts.md) | `electron/appearance-menu.ts`, `electron/main.ts`, `electron/preload.ts` / `electron/appearance-menu.test.ts` |
+| F43 | Python citation navigation | Done | 스펙 문서에서 `[path.py:Symbol]` 형식으로 Python 선언 위치로 바로 점프한다 | [스펙 뷰어](./spec-viewer/overview.md), [내비게이션 규칙](./spec-viewer/contracts.md) | `src/spec-viewer/citation-target.ts`, `src/spec-viewer/python-symbol-resolver.ts`, `src/spec-viewer/remark-citation-links.ts`, `src/spec-viewer/code-block-citation.ts`, `src/spec-viewer/spec-viewer-panel.tsx`, `src/App.tsx` / `src/spec-viewer/citation-target.test.ts`, `src/spec-viewer/python-symbol-resolver.test.ts`, `src/spec-viewer/remark-citation-links.test.ts`, `src/spec-viewer/code-block-citation.test.ts`, `src/App.test.tsx` |
 
 ## 6. Bug Fix Index
 

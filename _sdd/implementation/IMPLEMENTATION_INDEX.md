@@ -4,6 +4,21 @@ Feature별 구현 산출물 아카이브 인덱스.
 
 ---
 
+## F43_python_citation_navigation
+
+**Description**: Python citation navigation — `[path.py:Symbol]` bracket citation으로 스펙 문서에서 Python 선언 위치로 자동 점프. Prose remark transform + language-agnostic fenced code block citation + Lezer Python resolver.
+
+| synced_at (UTC) | destination | source |
+|---|---|---|
+| 2026-03-14 02:50:35 | `features/python_citation_navigation/SYNC_20260314_025035_feature_draft_python_citation_navigation.md` | `_sdd/drafts/feature_draft_python_citation_navigation.md` |
+| 2026-03-14 02:50:35 | `features/python_citation_navigation/SYNC_20260314_025035_IMPLEMENTATION_REVIEW.md` | `IMPLEMENTATION_REVIEW.md` |
+| 2026-03-14 02:50:35 | `features/python_citation_navigation/SYNC_20260314_025035_IMPLEMENTATION_PROGRESS.md` | `IMPLEMENTATION_PROGRESS.md` |
+| 2026-03-14 02:50:35 | `features/python_citation_navigation/SYNC_20260314_025035_IMPLEMENTATION_REPORT.md` | `IMPLEMENTATION_REPORT.md` |
+
+**Notes**: 6개 Task 전체 완료, 18/18 AC 충족(100%). 221 tests passing (220 passed, 1 skipped). normalizePosixPath DRY 추출, failure path 테스트 추가, remark edge case 보강, JSDoc 문서화, react-markdown v10 inline code 판별 수정.
+
+---
+
 ## f41_f42_draggable_comment_modals
 
 **Description**: comment modal family draggable positioning (`View Comments`, `Add Comment`, `Add Global Comments`, `Export Comments`) + shared clamp/reset hook

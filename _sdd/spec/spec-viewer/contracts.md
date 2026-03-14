@@ -17,13 +17,15 @@ spec 링크, source action, code/spec 왕복 이동, exact offset, temporary hig
 - `#heading-id`
 - `./path/to/file.md`, `../path/to/file.md`
 - `path/to/file.ts#Lx`, `path/to/file.ts#Lx-Ly`
+- `#sdd-citation:<encoded-path>:<symbol>` (bracket citation에서 자동 생성)
 - external URI(`https://`, `mailto:` 등)
 
 핵심 규칙:
 
 1. same-document anchor는 브라우저 기본 이동 대신 현재 spec 패널 내부 heading scroll을 사용한다.
 2. same-workspace 상대 링크만 내부 라우팅한다.
-3. external 또는 unresolved 링크는 자동 이동 대신 안전한 fallback(copy/open)을 사용한다.
+3. `#sdd-citation:` 링크는 대상 파일 읽기 → Python symbol 해석 → Code 탭 점프 순서로 처리한다. 해석 실패 시 기존 fallback UX를 사용한다.
+4. external 또는 unresolved 링크는 자동 이동 대신 안전한 fallback(copy/open)을 사용한다.
 
 ## 3. source selection 규칙
 
@@ -63,12 +65,21 @@ spec 링크, source action, code/spec 왕복 이동, exact offset, temporary hig
 - `src/App.tsx`
 - `src/code-editor/code-editor-panel.tsx`
 - `src/code-editor/cm6-navigation-highlight.ts`
+- `src/spec-viewer/citation-target.ts`
+- `src/spec-viewer/python-symbol-resolver.ts`
+- `src/spec-viewer/remark-citation-links.ts`
+- `src/spec-viewer/code-block-citation.ts`
+- `src/spec-viewer/spec-link-utils.ts`
 
 ## 7. 관련 테스트
 
 - `src/spec-viewer/spec-viewer-panel.test.tsx`
 - `src/spec-viewer/source-line-resolver.test.ts`
 - `src/spec-viewer/source-line-metadata.test.ts`
+- `src/spec-viewer/citation-target.test.ts`
+- `src/spec-viewer/python-symbol-resolver.test.ts`
+- `src/spec-viewer/remark-citation-links.test.ts`
+- `src/spec-viewer/code-block-citation.test.ts`
 - `src/code-editor/code-editor-panel.test.tsx`
 - `src/App.test.tsx`
 

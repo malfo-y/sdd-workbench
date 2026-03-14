@@ -10,6 +10,7 @@
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
 - rendered selection에서 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`, `Go to Source`, `Add Comment`를 호출할 수 있다.
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
+- prose 또는 fenced code block 안의 `[path.py:Symbol]` bracket citation을 클릭해 Python 선언 위치로 점프할 수 있다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -24,6 +25,11 @@
 - 링크/보안:
   - `src/spec-viewer/spec-link-utils.ts`
   - `src/spec-viewer/markdown-security.ts`
+- citation navigation:
+  - `src/spec-viewer/citation-target.ts`
+  - `src/spec-viewer/python-symbol-resolver.ts`
+  - `src/spec-viewer/remark-citation-links.ts`
+  - `src/spec-viewer/code-block-citation.ts`
 
 ## 4. 핵심 규칙
 
@@ -42,7 +48,15 @@
 - code -> spec explicit navigation은 `data-source-line` 후보 중 best-effort block을 고른다.
 - navigation highlight는 search/comment state와 별도 class로 관리한다.
 
-### 4.3 scroll과 문맥 유지
+### 4.3 citation navigation
+
+- prose text의 `[relative/path.py:Symbol]`은 remark 플러그인이 클릭 가능한 링크로 변환한다.
+- fenced code block 안의 bracket citation은 언어 무관으로 추출되며, 인라인 위치에 링크를 렌더한다.
+- 클릭 시 App 레벨에서 대상 파일을 읽고 Lezer Python 파서로 선언 위치를 해석해 Code 탭으로 점프한다.
+- 해석 실패 시 기존 link fallback UX(copy popover)를 유지한다.
+- `normalizePosixPath`는 `citation-target.ts`에서 export하며 `spec-link-utils.ts`와 공유한다.
+
+### 4.4 scroll과 문맥 유지
 
 - same-spec source jump는 가능한 경우 현재 rendered 문맥을 재사용한다.
 - spec scroll position은 런타임에서 workspace + activeSpecPath 기준으로 복원한다.
@@ -56,6 +70,10 @@
 - `src/spec-viewer/spec-link-utils.ts`
 - `src/spec-viewer/rehype-source-text-leaves.ts`
 - `src/spec-viewer/markdown-security.ts`
+- `src/spec-viewer/citation-target.ts`
+- `src/spec-viewer/python-symbol-resolver.ts`
+- `src/spec-viewer/remark-citation-links.ts`
+- `src/spec-viewer/code-block-citation.ts`
 - `src/source-selection.ts`
 
 ## 6. 관련 계약 문서
@@ -69,6 +87,10 @@
 - `src/spec-viewer/source-line-resolver.test.ts`
 - `src/spec-viewer/source-line-metadata.test.ts`
 - `src/spec-viewer/spec-search.test.ts`
+- `src/spec-viewer/citation-target.test.ts`
+- `src/spec-viewer/python-symbol-resolver.test.ts`
+- `src/spec-viewer/remark-citation-links.test.ts`
+- `src/spec-viewer/code-block-citation.test.ts`
 - `src/App.test.tsx`
 
 ## 8. 변경 시 주의점
