@@ -5563,8 +5563,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
     })
-    // Should not attempt to open the missing file
-    expect(readFileMock).not.toHaveBeenCalledWith(workspaceRoot, 'src/missing.py')
+    // readFile is attempted but returns ok: false, so fallback UX is shown
+    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/missing.py')
+    expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
+      'src/missing.py',
+    )
   })
 
   it('opens generic fenced code citation links from rendered code blocks', async () => {

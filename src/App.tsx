@@ -1388,7 +1388,7 @@ function App() {
 
   const openCitationTarget = useCallback(
     async (target: CitationTarget) => {
-      if (!rootPath || !workspaceFilePathSet.has(target.targetRelativePath)) {
+      if (!rootPath) {
         return false
       }
 
@@ -1436,7 +1436,6 @@ function App() {
       rootPath,
       selectFile,
       setSelectionRange,
-      workspaceFilePathSet,
     ],
   )
 
