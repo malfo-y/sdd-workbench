@@ -39,6 +39,25 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-03-14 - F41/F42 구현 완료 반영 + comment modal positioning contract 고정
+
+- Context:
+  - comment workflow는 Add Comment, Add Global Comments, View Comments, Export Comments를 모두 중앙 고정 modal로 열고 있었고, 리뷰 중에는 코드/스펙 문맥을 가리는 경우가 잦았음.
+  - 구현에서는 `src/modal-drag-position.ts` shared hook을 도입해 comment modal family가 같은 drag/clamp/reset 규칙을 공유하게 됨.
+- Decision:
+  - comment modal repositioning은 comment modal family에만 적용하고, drag start는 header handle로만 제한한다.
+  - modal 위치는 열린 세션 안에서는 유지하지만, 닫았다 다시 열면 centered 기본 위치로 reset 한다.
+  - viewport 밖으로 완전히 사라지지 않도록 clamp 하며, textarea/checkbox/button/internal scroll은 drag 대상이 아니어야 한다.
+- Rationale:
+  - review/export는 뒤쪽 코드/스펙을 계속 보면서 수행되는 경우가 많아, modal 자체를 치워둘 수 있어야 문맥 전환 비용이 줄어든다.
+  - persisted modal coordinates까지 도입하면 stale layout과 추가 state migration 비용이 생기므로, 이번 범위는 transient session state로 제한하는 편이 안전하다.
+- Changes:
+  - `_sdd/spec/main.md` version `0.47.0` / `2026-03-14`로 갱신
+  - `_sdd/spec/comments-and-export/overview.md`, `_sdd/spec/comments-and-export/contracts.md`에 draggable modal contract 반영
+  - `_sdd/spec/feature-index.md`, `_sdd/spec/appendix/feature-history.md`, `_sdd/spec/appendix/detailed-acceptance.md`에 F41/F42 반영
+  - `_sdd/spec/summary.md`, `_sdd/spec/operations.md` validation snapshot과 comment modal 상태 동기화
+  - `_sdd/spec/prev/PREV_main.md_20260314_082924.md` 외 관련 백업 생성
+
 ## 2026-03-13 - summary.md를 lightweight entry snapshot으로 재구성
 
 - Context:

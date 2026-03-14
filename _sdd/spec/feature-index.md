@@ -46,6 +46,8 @@
 | F12.5 | comment feedback auto-dismiss + action clarity | Done | 작업 피드백 배너가 과도하게 쌓이지 않는다 | [코멘트/Export](./comments-and-export/overview.md), [운영 가이드](./operations.md) | `src/App.tsx` / `src/App.test.tsx` |
 | F17 | global include checkbox + Delete Exported 위치 조정 | Done | export 포함 범위를 명시적으로 고른다 | [코멘트/Export](./comments-and-export/overview.md), [코멘트 계약](./comments-and-export/contracts.md) | `src/code-comments/comment-list-modal.tsx`, `src/code-comments/export-comments-modal.tsx` / modal 테스트 |
 | F20 | 선택 export 완화 + target 클릭 점프 | Done | 코멘트 검토와 export 흐름을 덜 제약적으로 사용한다 | [코멘트/Export](./comments-and-export/overview.md), [내비게이션 규칙](./spec-viewer/contracts.md) | `src/code-comments/comment-list-modal.tsx`, `src/App.tsx` / `src/App.test.tsx` |
+| F41 | View Comments draggable modal | Done | 검토 모달을 옮겨 코드/스펙 문맥을 계속 본다 | [코멘트/Export](./comments-and-export/overview.md), [코멘트 계약](./comments-and-export/contracts.md), [개요](./main.md) | `src/code-comments/comment-list-modal.tsx`, `src/modal-drag-position.ts` / `src/code-comments/comment-list-modal.test.tsx`, `src/App.test.tsx` |
+| F42 | shared draggable comment modals | Done | Add Comment / Add Global Comments / Export Comments가 같은 drag contract를 쓴다 | [코멘트/Export](./comments-and-export/overview.md), [코멘트 계약](./comments-and-export/contracts.md), [개요](./main.md) | `src/modal-drag-position.ts`, `src/code-comments/comment-editor-modal.tsx`, `src/code-comments/global-comments-modal.tsx`, `src/code-comments/export-comments-modal.tsx` / 관련 modal tests, `src/App.test.tsx` |
 
 ## 3. Remote / Scale / Runtime
 

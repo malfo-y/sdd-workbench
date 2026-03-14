@@ -49,8 +49,17 @@
 3. nearest fallback이 필요하면 더 작은 line을 우선한다.
 4. hover preview는 최대 3개 코멘트만 보여주고 초과분은 `+N more`로 요약한다.
 
-## 6. 관련 구현 파일
+## 6. modal positioning 규칙
 
+1. `View Comments`, `Add Comment`, `Add Global Comments`, `Export Comments`는 공통 draggable positioning contract를 사용한다.
+2. drag는 modal body 전체가 아니라 header handle에서만 시작된다.
+3. drag 중 modal은 viewport 밖으로 완전히 사라지지 않도록 clamp 된다.
+4. textarea, checkbox, button, internal scroll은 drag start 대상이 아니며 기존 interaction을 유지해야 한다.
+5. modal을 닫았다 다시 열면 위치는 persisted 되지 않고 centered 기본 위치로 reset 된다.
+
+## 7. 관련 구현 파일
+
+- `src/modal-drag-position.ts`
 - `src/code-comments/comment-types.ts`
 - `src/code-comments/comment-anchor.ts`
 - `src/code-comments/comment-persistence.ts`
@@ -61,10 +70,14 @@
 - `src/code-comments/export-comments-modal.tsx`
 - `src/code-comments/global-comments-modal.tsx`
 
-## 7. 관련 테스트
+## 8. 관련 테스트
 
+- `src/modal-drag-position.test.ts`
 - `src/code-comments/comment-anchor.test.ts`
 - `src/code-comments/comment-persistence.test.ts`
 - `src/code-comments/comment-export.test.ts`
 - `src/code-comments/comment-list-modal.test.tsx`
+- `src/code-comments/comment-editor-modal.test.tsx`
+- `src/code-comments/global-comments-modal.test.tsx`
+- `src/code-comments/export-comments-modal.test.tsx`
 - `src/App.test.tsx`

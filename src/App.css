@@ -791,6 +791,17 @@
   padding: 0;
 }
 
+.spec-code-citation-link {
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: underline dashed;
+  text-underline-offset: 0.18em;
+}
+
+.spec-code-citation-link:hover {
+  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+
 .spec-viewer-content table {
   border-collapse: collapse;
   display: block;
@@ -1485,6 +1496,10 @@
   width: min(720px, 100%);
 }
 
+.comment-modal.is-draggable {
+  will-change: transform;
+}
+
 .remote-connect-modal {
   width: min(540px, 100%);
 }
@@ -1523,6 +1538,34 @@
 .comment-modal h2 {
   font-size: 1.1rem;
   margin: 0;
+}
+
+.comment-modal-header {
+  align-items: flex-start;
+  cursor: grab;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  touch-action: none;
+  user-select: none;
+}
+
+.comment-modal.is-dragging .comment-modal-header {
+  cursor: grabbing;
+}
+
+.comment-modal-header-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.comment-modal-drag-label {
+  color: var(--theme-text-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 
 .comment-modal-label {
@@ -1684,9 +1727,7 @@
 }
 
 .comment-list-modal-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  margin-bottom: 4px;
 }
 
 .comment-list-global-section {
@@ -1838,6 +1879,10 @@
 
 .global-comments-modal .comment-modal-textarea {
   min-height: 220px;
+}
+
+.comment-modal-dragging {
+  user-select: none;
 }
 
 .export-comments-options {

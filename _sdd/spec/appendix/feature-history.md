@@ -63,3 +63,7 @@
 | F36 | Done | 2026-03-08 | appearance theme foundation |
 | F37 | Done | 2026-03-08 | `light` theme |
 | F38 | Done | 2026-03-08 | Electron native `View > Theme` |
+| F39 | Done | 2026-03-10 | 원격 워크스페이스 SSH 외부 도구 열기 |
+| F40 | Done | 2026-03-10 | 파일 클립보드 Copy/Paste |
+| F41 | Done | 2026-03-14 | View Comments draggable modal |
+| F42 | Done | 2026-03-14 | shared draggable comment modals |

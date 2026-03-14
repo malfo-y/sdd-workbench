@@ -4,6 +4,22 @@ Feature별 구현 산출물 아카이브 인덱스.
 
 ---
 
+## f41_f42_draggable_comment_modals
+
+**Description**: comment modal family draggable positioning (`View Comments`, `Add Comment`, `Add Global Comments`, `Export Comments`) + shared clamp/reset hook
+
+| synced_at (UTC) | destination | source |
+|---|---|---|
+| 2026-03-13 15:07:17 | `features/f41_f42_draggable_comment_modals/SYNC_20260313_150717_feature_draft_f41_f42_draggable_comment_modals.md` | `_sdd/drafts/feature_draft_f41_f42_draggable_comment_modals.md` |
+| 2026-03-13 15:07:17 | `features/f41_f42_draggable_comment_modals/SYNC_20260313_150717_IMPLEMENTATION_PROGRESS.md` | `IMPLEMENTATION_PROGRESS.md` |
+| 2026-03-13 15:07:17 | `features/f41_f42_draggable_comment_modals/SYNC_20260313_150717_IMPLEMENTATION_REPORT.md` | `IMPLEMENTATION_REPORT.md` |
+| 2026-03-13 23:33:48 | `features/f41_f42_draggable_comment_modals/SYNC_20260313_233348_IMPLEMENTATION_PROGRESS.md` | `IMPLEMENTATION_PROGRESS.md` |
+| 2026-03-13 23:33:48 | `features/f41_f42_draggable_comment_modals/SYNC_20260313_233348_IMPLEMENTATION_REPORT.md` | `IMPLEMENTATION_REPORT.md` |
+
+**Notes**: shared `src/modal-drag-position.ts` 도입, comment modal 4종 draggable rollout, reopen 시 centered reset 유지. `2026-03-14` spec sync에서 `main.md`/comments docs/summary/operations가 `0.47.0` 기준으로 정렬되었고, implementation progress/report를 같은 feature archive에 한 번 더 timestamped copy로 보존했다.
+
+---
+
 ## spec_review_sync_20260313
 
 **Description**: strict spec review 후 whitepaper summary / quality gate / validation baseline 문구를 동기화한 문서 유지보수 sync

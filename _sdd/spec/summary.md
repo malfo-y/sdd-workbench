@@ -1,18 +1,18 @@
 # SDD Workbench - Specification Summary
 
-**생성일** (Generated): 2026-03-13
-**스펙 버전** (Spec Version): 0.46.1
-**최종 업데이트** (Last Updated): 2026-03-13
+**생성일** (Generated): 2026-03-14
+**스펙 버전** (Spec Version): 0.47.0
+**최종 업데이트** (Last Updated): 2026-03-14
 **문서 역할** (Role): 빠른 진입용 요약. canonical spec은 [main.md](./main.md)다.
 
 ---
 
 ## 1. Current Snapshot
 
-SDD Workbench는 로컬/원격 워크스페이스에서 코드, Markdown 스펙, 코멘트 export 흐름을 한 작업대에서 다루는 Electron 앱이다. 현재 canonical 경로는 `main.md` whitepaper와 6개 컴포넌트 supporting docs이며, 원격 경로는 F27 Remote Agent Protocol이 단일 기준선이다.
+SDD Workbench는 로컬/원격 워크스페이스에서 코드, Markdown 스펙, 코멘트 export 흐름을 한 작업대에서 다루는 Electron 앱이다. 현재 canonical 경로는 `main.md` whitepaper와 6개 컴포넌트 supporting docs이며, 원격 경로는 F27 Remote Agent Protocol이 단일 기준선이다. comments/export 영역은 이제 `View Comments`, `Add Comment`, `Add Global Comments`, `Export Comments` 전부 draggable modal contract를 공유한다.
 
 - **제품 초점**: code/spec/comment/remote workflow를 같은 UX로 묶는 것
-- **현재 상태**: Implemented 31, Retired 1(F15), Done 43, Fixed 2
+- **현재 상태**: Done 55, Fixed 2, Legacy 1(F15), Replaced 1(F21)
 - **원격 전략**: F15(SSHFS) retired, F27(remote protocol) canonical
 - **문서 상태**: `main.md` + component docs + `operations.md` + indexes 기준으로 정렬됨
 
@@ -60,27 +60,28 @@ Component details는 아래 문서가 canonical supporting references다.
 
 ## 4. Validation Baseline
 
-### Last Known Good
+### Current Verified Run
+
+- **Date**: 2026-03-14
+- **Environment**: Node 25.2.1 / npm 11.7.0
+- **Result**: `npx tsc --noEmit` => pass
+- **Result**: `npm test -- --reporter=dot` => `64 files, 694 passed, 1 skipped`
+
+### Release Baseline
 
 - **Date**: 2026-03-02
 - **Environment**: Node 20.x baseline
 - **Result**: `npm test` => `49 files, 493 passed, 1 skipped`
 - **Result**: `npm run lint` => pass
 - **Result**: `npm run build` => pass
-
-### Review Note
-
-- **Date**: 2026-03-13
-- **Environment**: Node 25.2.1 / npm 11.7.0
-- **Observed**: `npm test` => `Test Files no tests`, `Errors 63`
-- **Interpretation**: 현재 green gate로 간주하지 않음. Node 20.x 재검증 전까지는 review note로만 취급
+- **Interpretation**: 현재 트리에서는 Node 25.x test/typecheck가 다시 녹색이며, lint/build는 Node 20.x last known good를 canonical release baseline으로 유지한다.
 
 ## 5. Active Risks And Open Questions
 
 - **Rendered spec restart restore**: 런타임 내 복원은 되지만 앱 재시작 후 rendered scroll 문맥 복원은 아직 명확히 정의되지 않았다.
 - **Comment relocation policy**: rename/large edit 이후 line comment 정합성을 어떻게 유지할지 최소 정책이 필요하다.
 - **Lazy watcher coverage**: browse-only / lazy-loaded 디렉토리의 감시 기대치를 문서와 UX에서 더 선명하게 맞출 필요가 있다.
-- **Validation baseline drift**: Node 20.x와 Node 25.x 사이 테스트 실패 원인이 환경 차이인지 회귀인지 아직 확정되지 않았다.
+- **Release gate refresh**: Node 25.2.1에서는 test/typecheck가 통과했지만, lint/build를 같은 환경에서 다시 녹여 canonical baseline을 옮길지 여부는 아직 정하지 않았다.
 
 ## 6. Working Rules
 
@@ -93,7 +94,7 @@ Component details는 아래 문서가 canonical supporting references다.
 
 - 의미 있는 구현 변경 후에는 `/spec-update-done`으로 canonical/supporting docs를 다시 맞춘다.
 - 문서 드리프트가 의심되면 `/spec-review`로 supporting docs와 code 간 어긋남을 먼저 확인한다.
-- release guidance를 바꾸기 전에는 Node 20.x baseline과 필요 시 Node 25.x를 다시 검증한다.
+- release guidance를 바꾸기 전에는 Node 20.x lint/build baseline과 Node 25.x test/typecheck 결과를 함께 보고 결정한다.
 
 ---
 

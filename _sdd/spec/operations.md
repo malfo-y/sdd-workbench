@@ -53,13 +53,16 @@
 
 ### 4.1 자동 게이트
 
-- **Last known good (2026-03-02, Node 20.x baseline)**
+- **Current verified run (2026-03-14, Node 25.2.1 / npm 11.7.0)**
+  - `npx tsc --noEmit` -> pass
+  - `npm test -- --reporter=dot` -> `64 files, 694 passed, 1 skipped`
+- **Release baseline (2026-03-02, Node 20.x baseline)**
   - `npm test` -> `49 files, 493 passed, 1 skipped`
   - `npm run lint` -> pass
   - `npm run build` -> pass
-- **Review note (2026-03-13, Node 25.2.1 / npm 11.7.0)**
-  - `npm test` -> `Test Files no tests`, `Errors 63`
-  - 현재 상태는 원인 미확정이며, Node 20.x baseline 재검증 전까지 green gate로 간주하지 않는다.
+- **Interpretation**
+  - 현재 트리에서 Node 25.x의 test/typecheck 경로는 다시 녹색이다.
+  - release gate는 lint/build를 다시 같은 환경에서 검증하기 전까지 Node 20.x baseline을 canonical로 유지한다.
 
 ### 4.2 권장 검증 순서
 
@@ -77,9 +80,9 @@
 5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 + same-document anchor(`#heading`) 클릭 시 패널 내 heading 이동 확인
 6. Back/Forward(mouse/swipe/wheel) 동작
 7. CodeViewer/SpecViewer에서 Add Comment + marker 표시
-8. View Comments에서 edit/delete/Delete Exported 동작 + 실패 시 모달 유지 확인
-9. Add Global Comments 저장/복원 + Export 시 Global Comments 선행 배치 확인
-10. Export Comments pending-only/partial success 배너 + `exportedAt` 기록 확인
+8. View Comments에서 edit/delete/Delete Exported 동작 + header drag/clamp/reopen reset + 실패 시 모달 유지 확인
+9. Add Global Comments 저장/복원 + draggable header 이후에도 textarea 입력/저장이 유지되는지 확인
+10. Export Comments pending-only/partial success 배너 + draggable header 이후 checkbox/input/export 흐름 + `exportedAt` 기록 확인
 11. CodeViewer/SpecViewer marker hover preview(`+N more`) 동작 확인
 12. 헤더 compact action(`icon + short label`) 및 협소 폭 icon-only 접근성(`title`/`aria-label`) 확인
 13. 로컬 워크스페이스에서 watch mode `Auto` 기본값이 `native`로 선택되는지 확인

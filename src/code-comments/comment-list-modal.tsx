@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
+import { useModalDragPosition } from '../modal-drag-position'
 import {
   sanitizeCommentBody,
   sortCodeComments,
@@ -61,6 +62,10 @@ export function CommentListModal({
 }: CommentListModalProps) {
   const { backdropRef, dialogRef, handleWheelCapture } =
     useModalBackgroundWheelPassthrough<HTMLDivElement>()
+  const { dialogStyle, isDragging, dragHandleProps } = useModalDragPosition({
+    dialogRef,
+    isOpen,
+  })
   const sortedComments = useMemo(() => sortCodeComments([...comments]), [comments])
   const [expandedCommentIds, setExpandedCommentIds] = useState<Set<string>>(
     () => new Set(),
@@ -294,15 +299,23 @@ export function CommentListModal({
     >
       <div
         aria-label="View comments"
-        className="comment-modal comment-list-modal"
+        className={`comment-modal comment-list-modal is-draggable${isDragging ? ' is-dragging' : ''}`}
         ref={dialogRef}
         role="dialog"
+        style={dialogStyle}
       >
-        <div className="comment-list-modal-header">
-          <h2>View Comments</h2>
-          <p className="comment-modal-meta">
-            {sortedComments.length} comment(s) total
-          </p>
+        <div
+          className="comment-modal-header comment-list-modal-header"
+          data-testid="comment-modal-drag-handle"
+          {...dragHandleProps}
+        >
+          <div className="comment-modal-header-main">
+            <h2>View Comments</h2>
+            <p className="comment-modal-meta">
+              {sortedComments.length} comment(s) total
+            </p>
+          </div>
+          <span className="comment-modal-drag-label">Drag to move</span>
         </div>
 
         <section

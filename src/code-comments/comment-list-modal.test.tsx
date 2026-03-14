@@ -25,6 +25,41 @@ const COMMENTS: readonly CodeComment[] = [
   },
 ]
 
+function installDialogRectMock(
+  element: HTMLElement,
+  input: {
+    left: number
+    top: number
+    width: number
+    height: number
+  },
+) {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => {
+      const match = /translate3d\(([-\d.]+)px,\s*([-\d.]+)px,\s*0px\)/.exec(
+        element.style.transform,
+      )
+      const offsetX = match ? Number(match[1]) : 0
+      const offsetY = match ? Number(match[2]) : 0
+      const left = input.left + offsetX
+      const top = input.top + offsetY
+
+      return {
+        x: left,
+        y: top,
+        left,
+        top,
+        width: input.width,
+        height: input.height,
+        right: left + input.width,
+        bottom: top + input.height,
+        toJSON: () => ({}),
+      }
+    },
+  })
+}
+
 describe('CommentListModal', () => {
   afterEach(() => {
     cleanup()
@@ -595,6 +630,71 @@ describe('CommentListModal', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a draggable header and resets transform when reopened', () => {
+    const { rerender } = render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'View comments' })
+    const dragHandle = screen.getByTestId('comment-modal-drag-handle')
+    installDialogRectMock(dialog, {
+      left: 200,
+      top: 150,
+      width: 640,
+      height: 420,
+    })
+
+    expect(dialog).toHaveClass('is-draggable')
+    expect(dragHandle).toHaveTextContent('Drag to move')
+    expect(dialog).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0px)',
+    })
+
+    rerender(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen={false}
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+    rerender(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={() => undefined}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'View comments' })).toHaveStyle({
+      transform: 'translate3d(0px, 0px, 0px)',
+    })
   })
 
   it('Escape cancels comment edit before closing modal', () => {

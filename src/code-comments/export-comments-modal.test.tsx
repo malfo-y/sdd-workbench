@@ -128,4 +128,33 @@ describe('ExportCommentsModal', () => {
       }),
     )
   })
+
+  it('renders a draggable header and still exports with form data', () => {
+    const onConfirm = vi.fn()
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Export comments' })).toHaveClass(
+      'is-draggable',
+    )
+    expect(screen.getByTestId('comment-modal-drag-handle')).toHaveTextContent(
+      'Drag to move',
+    )
+
+    fireEvent.change(screen.getByLabelText('Instruction for LLM'), {
+      target: { value: 'Please summarize these comments.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instruction: 'Please summarize these comments.',
+      }),
+    )
+  })
 })

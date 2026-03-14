@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useModalDragPosition } from '../modal-drag-position'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 
@@ -22,6 +23,10 @@ export function CommentEditorModal({
   const [body, setBody] = useState('')
   const { backdropRef, dialogRef, handleWheelCapture } =
     useModalBackgroundWheelPassthrough<HTMLFormElement>()
+  const { dialogStyle, isDragging, dragHandleProps } = useModalDragPosition({
+    dialogRef,
+    isOpen,
+  })
 
   useEffect(() => {
     if (!isOpen) {
@@ -65,7 +70,7 @@ export function CommentEditorModal({
     >
       <form
         aria-label="Add comment"
-        className="comment-modal"
+        className={`comment-modal is-draggable${isDragging ? ' is-dragging' : ''}`}
         onSubmit={(event) => {
           event.preventDefault()
           if (!canSave) {
@@ -75,11 +80,21 @@ export function CommentEditorModal({
         }}
         ref={dialogRef}
         role="dialog"
+        style={dialogStyle}
       >
-        <h2>Add Comment</h2>
-        <p className="comment-modal-target" title={relativePath}>
-          {relativePath}:L{selectionRange.startLine}-L{selectionRange.endLine}
-        </p>
+        <div
+          className="comment-modal-header"
+          data-testid="comment-modal-drag-handle"
+          {...dragHandleProps}
+        >
+          <div className="comment-modal-header-main">
+            <h2>Add Comment</h2>
+            <p className="comment-modal-target" title={relativePath}>
+              {relativePath}:L{selectionRange.startLine}-L{selectionRange.endLine}
+            </p>
+          </div>
+          <span className="comment-modal-drag-label">Drag to move</span>
+        </div>
         <label className="comment-modal-label" htmlFor="comment-editor-body">
           Comment
         </label>

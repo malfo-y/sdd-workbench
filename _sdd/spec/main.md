@@ -2,8 +2,8 @@
 
 > 로컬/원격 워크스페이스에서 코드와 Markdown 스펙을 왕복 탐색·편집·리뷰하는 Electron 기반 워크벤치
 
-**Version**: 0.46.1
-**Last Updated**: 2026-03-13
+**Version**: 0.47.0
+**Last Updated**: 2026-03-14
 **Status**: In Review
 
 ## Table of Contents
@@ -48,7 +48,7 @@ SDD Workbench는 코드 편집기, Markdown 스펙 뷰어, 원격 작업 도구,
 
 1. **Code/Spec 왕복 내비게이션**: rendered spec과 raw code 사이를 line-level로 이동하고 highlight를 유지한다.
 2. **편집 가능한 코드 워크벤치**: CodeMirror 6 기반 편집, 저장, 검색, wrap, git gutter, comment gutter를 제공한다.
-3. **협업용 코멘트 루프**: line comments, global comments, hover preview, export bundle을 지원한다.
+3. **협업용 코멘트 루프**: line comments, global comments, hover preview, draggable review modals, export bundle을 지원한다.
 4. **대규모 워크스페이스 대응**: lazy indexing, child cap, watcher fallback, partial loading으로 큰 저장소를 다룬다.
 5. **원격 워크스페이스 통합**: browse, connect, watch, system open, VS Code SSH config sync를 같은 계약으로 지원한다.
 6. **일관된 시각 상태 관리**: theme, navigation highlight, selection, search를 서로 분리된 시각 상태로 유지한다.
@@ -207,6 +207,7 @@ export function renderCommentsMarkdown(
 | FS/OS 접근을 main process로 제한 | workspace 경계 검증, watcher lifecycle, system open, export I/O를 안전하게 통제할 수 있다 | renderer 직접 접근 |
 | local/remote 공통 `workspace:*` surface | 기능 추가 시 renderer 분기를 줄이고 테스트 범위를 단순화한다 | 원격 전용 별도 API |
 | line range 우선 + exact offset additive | 대부분의 markdown 구조에서 안정적으로 degrade 하면서 세밀한 selection도 지원한다 | exact offset only, line only |
+| comment modal drag는 transient UI state로 유지 | 열린 세션 안에서는 사용자가 모달을 옮겨 코드/스펙을 계속 볼 수 있고, reopen 시에는 stale 좌표를 남기지 않는다 [src/modal-drag-position.ts:useModalDragPosition] [src/code-comments/comment-list-modal.tsx:CommentListModal] | persisted modal coordinates |
 | `display: none` 기반 탭 보존 | Code/Spec 탭 전환 시 스크롤 위치와 문맥 유지가 쉽다 | 탭 전환 시 패널 unmount/remount |
 | renderer theme authoritative + menu mirror | storage failure와 app menu sync를 동시에 단순하게 처리한다 | main process authoritative theme |
 
@@ -323,12 +324,12 @@ Electron Main
 
 ### Component: Comments & Export
 
-- **Overview**: line comments, global comments, hover preview, View Comments 관리, `_COMMENTS.md`/LLM bundle export를 제공한다.
+- **Overview**: line comments, global comments, hover preview, draggable comment modal family(View Comments / Add Comment / Add Global Comments / Export Comments), `_COMMENTS.md`/LLM bundle export를 제공한다.
 - **Why**: 리뷰 결과를 앱 안에서 끝내지 않고 구조화된 산출물로 전달해야 SDD 워크플로가 완성된다.
-- **Responsibility**: 코멘트 schema 정규화, persistence, line index 계산, export formatting, modal CRUD.
+- **Responsibility**: 코멘트 schema 정규화, persistence, line index 계산, export formatting, modal CRUD, header-only drag positioning contract.
 - **Interface**: `workspace:readComments`, `workspace:writeComments`, `workspace:readGlobalComments`, `workspace:writeGlobalComments`, `workspace:exportCommentsBundle`.
-- **Source**: `src/code-comments/comment-persistence.ts` (`normalizeCodeComments`), `src/code-comments/comment-export.ts` (`renderCommentsMarkdown`, `renderLlmBundle`), `src/code-comments/comment-list-modal.tsx`.
-- **Dependencies**: Workspace session, source-line selection, export directory/file write.
+- **Source**: `src/code-comments/comment-persistence.ts` (`normalizeCodeComments`), `src/code-comments/comment-export.ts` (`renderCommentsMarkdown`, `renderLlmBundle`), `src/modal-drag-position.ts` (`clampModalDragDelta`, `useModalDragPosition`), `src/code-comments/comment-list-modal.tsx` (`CommentListModal`), `src/code-comments/comment-editor-modal.tsx` (`CommentEditorModal`), `src/code-comments/global-comments-modal.tsx` (`GlobalCommentsModal`), `src/code-comments/export-comments-modal.tsx` (`ExportCommentsModal`).
+- **Dependencies**: Workspace session, source-line selection, export directory/file write, shared modal shell styles.
 - **Spec**: [overview](./comments-and-export/overview.md), [contracts](./comments-and-export/contracts.md)
 
 ### Component: Remote Workspace
@@ -387,13 +388,15 @@ npm run dev
 **Action:**
 ```text
 1. 코드 또는 rendered spec에서 줄/블록을 선택하고 Add Comment를 실행한다.
-2. View Comments에서 comment를 편집하거나 Global Comments를 추가한다.
-3. Export Comments를 실행해 `_COMMENTS.md` 또는 LLM bundle을 생성한다.
+2. 필요하면 modal header를 드래그해 코드/스펙을 가리지 않는 위치로 옮긴다.
+3. View Comments에서 comment를 편집하거나 Global Comments를 추가한다.
+4. Export Comments를 실행해 `_COMMENTS.md` 또는 LLM bundle을 생성한다.
 ```
 
 **Expected Result:**
 ```text
 - line comments는 `.sdd-workbench/comments.json`, global comments는 `.sdd-workbench/global-comments.md`에 유지된다.
+- comment modal은 header drag로만 이동하고, viewport 밖으로 완전히 사라지지 않으며, 닫았다 다시 열면 중앙에서 다시 시작한다.
 - export 시 pending comments 중심의 `_COMMENTS.md`가 생성되고, 필요하면 global comments가 선행 섹션으로 포함된다.
 - marker hover preview와 target jump를 통해 export 전에 코멘트 위치를 다시 검토할 수 있다.
 ```
@@ -660,6 +663,7 @@ npm run build
 | `src/spec-viewer/source-line-resolver.ts` | `resolveSourceLine()` | §2, §4 |
 | `src/code-comments/comment-persistence.ts` | `normalizeCodeComments()`, `serializeCodeComments()` | §2, §4, §6 |
 | `src/code-comments/comment-export.ts` | `renderCommentsMarkdown()`, `renderLlmBundle()` | §1, §2, §7 |
+| `src/modal-drag-position.ts` | `clampModalDragDelta()`, `useModalDragPosition()` | §2, §4, §5 |
 | `src/appearance-theme.ts` | `restoreAppearanceThemeOnRoot()`, `notifyAppearanceThemeChanged()` | §2, §4 |
 | `electron/main.ts` | `registerIpcHandlers()`, `handleWorkspaceConnectRemote()`, `installApplicationMenu()` | §1, §2, §4, §7 |
 | `electron/remote-agent/runtime/agent-main.ts` | `parseAgentCliArgs()`, `runRemoteAgent()` | §1, §4 |

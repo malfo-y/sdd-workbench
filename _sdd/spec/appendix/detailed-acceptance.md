@@ -26,6 +26,8 @@
 
 - comments 저장/관리(edit/delete/Delete Exported) 정책
 - View Comments target 클릭 시 해당 파일/라인으로 점프 + 모달 자동 닫힘
+- comment modal family는 header-only drag, viewport clamp, reopen centered reset을 공유한다
+- drag 이후에도 textarea/checkbox/button/internal scroll interaction은 유지된다
 - global comments 저장/복원 및 export prepend 정책
 - export 모달 global comments 포함 카운트 표기
 - code/rendered marker hover preview(`+N more`, read-only)

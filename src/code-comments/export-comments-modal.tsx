@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useModalDragPosition } from '../modal-drag-position'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 
 export type ExportCommentsModalInput = {
@@ -41,6 +42,10 @@ export function ExportCommentsModal({
   const [deleteExportedComments, setDeleteExportedComments] = useState(true)
   const { backdropRef, dialogRef, handleWheelCapture } =
     useModalBackgroundWheelPassthrough<HTMLFormElement>()
+  const { dialogStyle, isDragging, dragHandleProps } = useModalDragPosition({
+    dialogRef,
+    isOpen,
+  })
 
   useEffect(() => {
     if (!isOpen) {
@@ -104,7 +109,7 @@ export function ExportCommentsModal({
     >
       <form
         aria-label="Export comments"
-        className="comment-modal export-comments-modal"
+        className={`comment-modal export-comments-modal is-draggable${isDragging ? ' is-dragging' : ''}`}
         onSubmit={(event) => {
           event.preventDefault()
           if (!canSubmit || isExporting) {
@@ -120,15 +125,25 @@ export function ExportCommentsModal({
         }}
         ref={dialogRef}
         role="dialog"
+        style={dialogStyle}
       >
-        <h2>Export Comments</h2>
-        <p className="comment-modal-meta">
-          {commentCount} comment(s){hasGlobalComments ? ' + global comments' : ''} included
-        </p>
-        <p className="comment-modal-meta">{pendingCommentCount} pending comment(s)</p>
-        <p className="comment-modal-meta">
-          Global comments: {hasGlobalComments ? 'included' : 'not included'}
-        </p>
+        <div
+          className="comment-modal-header"
+          data-testid="comment-modal-drag-handle"
+          {...dragHandleProps}
+        >
+          <div className="comment-modal-header-main">
+            <h2>Export Comments</h2>
+            <p className="comment-modal-meta">
+              {commentCount} comment(s){hasGlobalComments ? ' + global comments' : ''} included
+            </p>
+            <p className="comment-modal-meta">{pendingCommentCount} pending comment(s)</p>
+            <p className="comment-modal-meta">
+              Global comments: {hasGlobalComments ? 'included' : 'not included'}
+            </p>
+          </div>
+          <span className="comment-modal-drag-label">Drag to move</span>
+        </div>
         <label className="comment-modal-label" htmlFor="export-instruction">
           Instruction for LLM
         </label>

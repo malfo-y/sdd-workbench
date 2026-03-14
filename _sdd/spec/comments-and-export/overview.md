@@ -7,6 +7,7 @@
 ## 2. 사용자 가시 동작
 
 - 코드/스펙에서 코멘트를 추가한다.
+- Add Comment / Add Global Comments / View Comments / Export Comments 모달은 header drag로 위치를 옮길 수 있다.
 - 저장된 코멘트를 모달에서 조회, 수정, 삭제, exported 정리한다.
 - global comments를 별도 텍스트로 편집하고 export 포함 여부를 제어한다.
 - marker hover로 코멘트 내용을 빠르게 미리 본다.
@@ -22,6 +23,7 @@
   - `src/code-comments/comment-hover-popover.tsx`
   - `src/code-comments/comment-export.ts`
 - UI:
+  - `src/modal-drag-position.ts`
   - `src/code-comments/comment-editor-modal.tsx`
   - `src/code-comments/comment-list-modal.tsx`
   - `src/code-comments/export-comments-modal.tsx`
@@ -48,6 +50,12 @@
 - global comments는 체크박스가 켜진 경우에만 prepend 된다.
 - hover preview는 최대 3개 코멘트까지만 표시한다.
 
+### 4.4 modal positioning
+
+- comment modal drag는 header 영역에서만 시작된다.
+- drag 중 modal은 viewport 밖으로 완전히 사라지지 않도록 clamp 된다.
+- modal을 닫았다 다시 열면 centered 기본 위치로 reset 된다.
+
 ## 5. 주요 코드
 
 - `src/code-comments/comment-types.ts`
@@ -56,6 +64,7 @@
 - `src/code-comments/comment-line-index.ts`
 - `src/code-comments/comment-hover-popover.tsx`
 - `src/code-comments/comment-export.ts`
+- `src/modal-drag-position.ts`
 - `src/code-comments/comment-list-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
 - `src/code-comments/global-comments-modal.tsx`
@@ -71,10 +80,15 @@
 - `src/code-comments/comment-anchor.test.ts`
 - `src/code-comments/comment-persistence.test.ts`
 - `src/code-comments/comment-export.test.ts`
+- `src/modal-drag-position.test.ts`
 - `src/code-comments/comment-list-modal.test.tsx`
+- `src/code-comments/comment-editor-modal.test.tsx`
+- `src/code-comments/global-comments-modal.test.tsx`
+- `src/code-comments/export-comments-modal.test.tsx`
 - `src/App.test.tsx`
 
 ## 8. 변경 시 주의점
 
 - schema 변경은 persistence, export text, modal UI, hover preview를 함께 갱신해야 한다.
 - global comments 포함 규칙은 export 카운트 문구와도 연결되어 있다.
+- draggable header contract를 바꿀 때는 form control interaction, reopen reset, viewport clamp 회귀를 함께 확인해야 한다.

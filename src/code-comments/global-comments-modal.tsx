@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useModalDragPosition } from '../modal-drag-position'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 
 type GlobalCommentsModalProps = {
@@ -19,6 +20,10 @@ export function GlobalCommentsModal({
   const [body, setBody] = useState(initialValue)
   const { backdropRef, dialogRef, handleWheelCapture } =
     useModalBackgroundWheelPassthrough<HTMLFormElement>()
+  const { dialogStyle, isDragging, dragHandleProps } = useModalDragPosition({
+    dialogRef,
+    isOpen,
+  })
 
   useEffect(() => {
     if (!isOpen) {
@@ -59,7 +64,7 @@ export function GlobalCommentsModal({
     >
       <form
         aria-label="Add global comments"
-        className="comment-modal global-comments-modal"
+        className={`comment-modal global-comments-modal is-draggable${isDragging ? ' is-dragging' : ''}`}
         onSubmit={(event) => {
           event.preventDefault()
           if (isSaving) {
@@ -69,11 +74,21 @@ export function GlobalCommentsModal({
         }}
         ref={dialogRef}
         role="dialog"
+        style={dialogStyle}
       >
-        <h2>Add Global Comments</h2>
-        <p className="comment-modal-meta">
-          These notes are exported before line comments.
-        </p>
+        <div
+          className="comment-modal-header"
+          data-testid="comment-modal-drag-handle"
+          {...dragHandleProps}
+        >
+          <div className="comment-modal-header-main">
+            <h2>Add Global Comments</h2>
+            <p className="comment-modal-meta">
+              These notes are exported before line comments.
+            </p>
+          </div>
+          <span className="comment-modal-drag-label">Drag to move</span>
+        </div>
         <label className="comment-modal-label" htmlFor="global-comments-body">
           Global comments (Markdown)
         </label>

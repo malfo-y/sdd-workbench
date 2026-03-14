@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommentEditorModal } from './comment-editor-modal'
 
@@ -174,5 +174,34 @@ describe('CommentEditorModal', () => {
     })
 
     expect(backgroundScrollContainer.scrollTop).toBe(40)
+  })
+
+  it('renders a draggable header and still saves the comment body', () => {
+    const onSave = vi.fn()
+
+    render(
+      <CommentEditorModal
+        isOpen
+        isSaving={false}
+        onCancel={() => undefined}
+        onSave={onSave}
+        relativePath="src/app.ts"
+        selectionRange={{ startLine: 3, endLine: 5 }}
+      />,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Add comment' })).toHaveClass(
+      'is-draggable',
+    )
+    expect(screen.getByTestId('comment-modal-drag-handle')).toHaveTextContent(
+      'Drag to move',
+    )
+
+    fireEvent.change(document.getElementById('comment-editor-body')!, {
+      target: { value: 'Move this modal but keep saving' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Comment' }))
+
+    expect(onSave).toHaveBeenCalledWith('Move this modal but keep saving')
   })
 })
