@@ -7,7 +7,6 @@ import { EditorView } from '@codemirror/view'
 import App from './App'
 import {
   APPEARANCE_THEME_STORAGE_KEY,
-  DEFAULT_APPEARANCE_THEME,
   type AppearanceTheme,
 } from './appearance-theme'
 import { WorkspaceProvider } from './workspace/workspace-context'
@@ -725,9 +724,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
 
     await waitFor(() => {
-      expect(document.documentElement).toHaveAttribute(
-        'data-theme',
-        DEFAULT_APPEARANCE_THEME,
+      // DEFAULT_APPEARANCE_THEME is 'system'; DOM receives the resolved value
+      expect(document.documentElement.getAttribute('data-theme')).toMatch(
+        /^(dark-gray|light)$/,
       )
     })
 

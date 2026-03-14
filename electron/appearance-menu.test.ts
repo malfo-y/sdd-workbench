@@ -46,7 +46,7 @@ describe('appearance-menu', () => {
 
     const themeEntries = getThemeMenuEntries(template)
 
-    expect(themeEntries).toHaveLength(2)
+    expect(themeEntries).toHaveLength(3)
     expect(themeEntries?.[0]).toMatchObject({
       type: 'radio',
       label: 'Dark Gray',
@@ -56,6 +56,11 @@ describe('appearance-menu', () => {
       type: 'radio',
       label: 'Light',
       checked: true,
+    })
+    expect(themeEntries?.[2]).toMatchObject({
+      type: 'radio',
+      label: 'System',
+      checked: false,
     })
   })
 

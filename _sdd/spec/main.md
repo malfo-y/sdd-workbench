@@ -2,7 +2,7 @@
 
 > 로컬/원격 워크스페이스에서 코드와 Markdown 스펙을 왕복 탐색·편집·리뷰하는 Electron 기반 워크벤치
 
-**Version**: 0.48.0
+**Version**: 0.49.0
 **Last Updated**: 2026-03-14
 **Status**: In Review
 

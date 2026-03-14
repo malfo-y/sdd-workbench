@@ -40,8 +40,10 @@ import {
   applyAppearanceThemeToRoot,
   loadAppearanceTheme,
   notifyAppearanceThemeChanged,
+  resolveAppearanceTheme,
   saveAppearanceTheme,
   subscribeToAppearanceThemeMenuRequests,
+  subscribeToSystemThemeChanges,
   type AppearanceTheme,
 } from './appearance-theme'
 import { type CitationTarget } from './spec-viewer/citation-target'
@@ -511,6 +513,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<ContentTab>('code')
   const [appearanceTheme, setAppearanceTheme] =
     useState<AppearanceTheme>(() => loadAppearanceTheme())
+  const resolvedTheme = resolveAppearanceTheme(appearanceTheme)
   const workspaceLayoutRef = useRef<HTMLElement | null>(null)
   const resizeSessionRef = useRef<ResizeSession | null>(null)
   const workspaceFilePathSet = useMemo(
@@ -1889,6 +1892,17 @@ function App() {
 
   useLayoutEffect(() => {
     applyAppearanceThemeToRoot(appearanceTheme)
+  }, [appearanceTheme, resolvedTheme])
+
+  useEffect(() => {
+    if (appearanceTheme !== 'system') {
+      return
+    }
+    return subscribeToSystemThemeChanges(() => {
+      applyAppearanceThemeToRoot('system')
+      // Force re-render so resolvedTheme updates for child components.
+      setAppearanceTheme('system')
+    })
   }, [appearanceTheme])
 
   const handleAppearanceThemeChange = useCallback((theme: AppearanceTheme) => {
@@ -2273,7 +2287,7 @@ function App() {
               activeFile={activeFile}
               activeFileContent={activeFileContent}
               activeFileImagePreview={activeFileImagePreview}
-              appearanceTheme={appearanceTheme}
+              appearanceTheme={resolvedTheme}
               commentLineEntries={activeFileCommentLineEntries}
               commentLineCounts={activeFileCommentLineCounts}
               gitLineMarkers={activeFileGitLineMarkerMap}
@@ -2303,7 +2317,7 @@ function App() {
             <section className="workspace-card spec-panel" data-testid="spec-panel">
               <SpecViewerPanel
                 activeSpecPath={activeSpec}
-                appearanceTheme={appearanceTheme}
+                appearanceTheme={resolvedTheme}
                 commentLineEntries={activeSpecCommentLineEntries}
                 commentLineCounts={activeSpecCommentLineCounts}
                 isActive={activeTab === 'spec'}

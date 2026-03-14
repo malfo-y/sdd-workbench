@@ -128,7 +128,7 @@ interface WorkspaceGetGitFileStatusesResult {
   error?: string
 }
 
-type AppearanceTheme = 'dark-gray' | 'light'
+type AppearanceTheme = 'dark-gray' | 'light' | 'system'
 
 interface CodeCommentRecord {
   id: string

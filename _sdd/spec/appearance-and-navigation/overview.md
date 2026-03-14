@@ -9,7 +9,7 @@
 - Code/Spec 탭을 전환하면서 동일한 콘텐츠 영역을 재사용한다.
 - Back/Forward, 워크스페이스 키보드 전환, Code/Spec 키보드 전환을 사용할 수 있다.
 - spec -> code, code -> spec 이동 후 도착 라인/블록이 잠깐 하이라이트된다.
-- native `View > Theme` 메뉴에서 `Dark Gray`/`Light`를 고를 수 있다.
+- native `View > Theme` 메뉴에서 `Dark Gray`/`Light`/`System`을 고를 수 있다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -41,7 +41,9 @@
 
 ### 4.3 theme
 
-- 현재 supported mode는 `dark-gray`, `light` 두 가지다.
+- supported preference는 `dark-gray`, `light`, `system` 세 가지다. 기본값은 `system`이다.
+- `system` 선택 시 OS `prefers-color-scheme` media query로 실제 테마를 결정하고, OS 설정 변경을 실시간 추적한다.
+- DOM에는 항상 resolved된 `dark-gray` 또는 `light`만 `data-theme`으로 적용한다.
 - renderer `appearanceTheme` + localStorage가 source of truth다.
 - React mount 전 root `data-theme` bootstrap으로 first-paint flash를 줄인다.
 - main process는 native menu checked state만 mirror 한다.

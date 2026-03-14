@@ -6,6 +6,7 @@ import {
   loadAppearanceTheme,
   notifyAppearanceThemeChanged,
   parseAppearanceTheme,
+  resolveAppearanceTheme,
   restoreAppearanceThemeOnRoot,
   saveAppearanceTheme,
   subscribeToAppearanceThemeMenuRequests,
@@ -68,9 +69,24 @@ describe('appearance-theme', () => {
   it('parses only supported appearance themes', () => {
     expect(parseAppearanceTheme('dark-gray')).toBe('dark-gray')
     expect(parseAppearanceTheme('light')).toBe('light')
+    expect(parseAppearanceTheme('system')).toBe('system')
     expect(parseAppearanceTheme('dark')).toBeNull()
     expect(parseAppearanceTheme('')).toBeNull()
     expect(parseAppearanceTheme(null)).toBeNull()
+  })
+
+  it('resolves system theme to dark-gray or light based on media query', () => {
+    expect(resolveAppearanceTheme('dark-gray')).toBe('dark-gray')
+    expect(resolveAppearanceTheme('light')).toBe('light')
+
+    // Mock matchMedia for system theme tests
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false })
+    expect(resolveAppearanceTheme('system')).toBe('light')
+
+    ;(window.matchMedia as ReturnType<typeof vi.fn>).mockReturnValue({ matches: true })
+    expect(resolveAppearanceTheme('system')).toBe('dark-gray')
+    window.matchMedia = originalMatchMedia
   })
 
   it('loads the stored appearance theme and falls back to dark-gray', () => {
@@ -126,8 +142,17 @@ describe('appearance-theme', () => {
     const root = document.createElement('html')
 
     applyAppearanceThemeToRoot('dark-gray', root)
-
     expect(root.getAttribute('data-theme')).toBe('dark-gray')
+
+    applyAppearanceThemeToRoot('light', root)
+    expect(root.getAttribute('data-theme')).toBe('light')
+
+    // 'system' resolves to a concrete theme via matchMedia
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false })
+    applyAppearanceThemeToRoot('system', root)
+    expect(root.getAttribute('data-theme')).toBe('light')
+    window.matchMedia = originalMatchMedia
   })
 
   it('notifies the host bridge when the appearance theme changes', () => {

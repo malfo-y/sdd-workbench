@@ -1,8 +1,9 @@
 export const APPEARANCE_THEME_STORAGE_KEY = 'sdd-workbench.appearance-theme.v1'
 
-export const DEFAULT_APPEARANCE_THEME = 'dark-gray'
+export const DEFAULT_APPEARANCE_THEME = 'system'
 
-export type AppearanceTheme = 'dark-gray' | 'light'
+export type AppearanceTheme = 'dark-gray' | 'light' | 'system'
+export type ResolvedAppearanceTheme = 'dark-gray' | 'light'
 
 export const APPEARANCE_THEME_OPTIONS = [
   {
@@ -12,6 +13,10 @@ export const APPEARANCE_THEME_OPTIONS = [
   {
     value: 'light',
     label: 'Light',
+  },
+  {
+    value: 'system',
+    label: 'System',
   },
 ] as const satisfies ReadonlyArray<{
   value: AppearanceTheme
@@ -28,10 +33,44 @@ type AppearanceThemeBridgeLike = {
 }
 
 export function parseAppearanceTheme(value: string | null | undefined): AppearanceTheme | null {
-  if (value === 'dark-gray' || value === 'light') {
+  if (value === 'dark-gray' || value === 'light' || value === 'system') {
     return value
   }
   return null
+}
+
+export const SYSTEM_THEME_FALLBACK: ResolvedAppearanceTheme = 'dark-gray'
+
+export function resolveAppearanceTheme(theme: AppearanceTheme): ResolvedAppearanceTheme {
+  if (theme !== 'system') {
+    return theme
+  }
+  try {
+    return typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark-gray'
+      : 'light'
+  } catch {
+    return SYSTEM_THEME_FALLBACK
+  }
+}
+
+export function subscribeToSystemThemeChanges(
+  listener: () => void,
+): () => void {
+  try {
+    const mediaQuery =
+      typeof window !== 'undefined'
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null
+    if (!mediaQuery) {
+      return () => {}
+    }
+    mediaQuery.addEventListener('change', listener)
+    return () => mediaQuery.removeEventListener('change', listener)
+  } catch {
+    return () => {}
+  }
 }
 
 export function getAppearanceThemeLabel(theme: AppearanceTheme): string {
@@ -91,7 +130,7 @@ export function applyAppearanceThemeToRoot(
   theme: AppearanceTheme,
   root: RootElementLike | null = getDefaultRootElement(),
 ): void {
-  root?.setAttribute('data-theme', theme)
+  root?.setAttribute('data-theme', resolveAppearanceTheme(theme))
 }
 
 export function restoreAppearanceThemeOnRoot(

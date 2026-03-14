@@ -8,6 +8,8 @@ import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 import {
   DEFAULT_APPEARANCE_THEME,
   type AppearanceTheme,
+  type ResolvedAppearanceTheme,
+  resolveAppearanceTheme,
 } from '../appearance-theme'
 import type { HighlightLanguage } from './language-map'
 import { ayuMirageTheme } from './shiki-ayu-mirage-theme'
@@ -51,35 +53,36 @@ const LANG_IMPORTS: Record<string, LanguageInput> = {
   zig: () => import('shiki/langs/zig.mjs'),
 }
 
-const THEME_IMPORTS: Record<AppearanceTheme, ThemeInput> = {
+const THEME_IMPORTS: Record<ResolvedAppearanceTheme, ThemeInput> = {
   'dark-gray': ayuMirageTheme,
   light: quietLightTheme,
 }
 
-const THEME_NAMES: Record<AppearanceTheme, string> = {
+const THEME_NAMES: Record<ResolvedAppearanceTheme, string> = {
   'dark-gray': 'ayu-mirage',
   light: 'quiet-light',
 }
 
-const highlighterPromises = new Map<AppearanceTheme, Promise<HighlighterCore>>()
+const highlighterPromises = new Map<ResolvedAppearanceTheme, Promise<HighlighterCore>>()
 
 export function getOrCreateHighlighter(
   appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
 ): Promise<HighlighterCore> {
-  const existing = highlighterPromises.get(appearanceTheme)
+  const resolved = resolveAppearanceTheme(appearanceTheme)
+  const existing = highlighterPromises.get(resolved)
   if (existing) {
     return existing
   }
 
   const promise = createHighlighterCore({
     engine: createJavaScriptRegexEngine(),
-    themes: [THEME_IMPORTS[appearanceTheme]],
+    themes: [THEME_IMPORTS[resolved]],
     langs: [],
   }).catch((error) => {
-    highlighterPromises.delete(appearanceTheme)
+    highlighterPromises.delete(resolved)
     throw error
   })
-  highlighterPromises.set(appearanceTheme, promise)
+  highlighterPromises.set(resolved, promise)
   return promise
 }
 
@@ -127,9 +130,10 @@ export async function highlightLines(
     }
   }
 
+  const resolved = resolveAppearanceTheme(appearanceTheme)
   const { tokens } = highlighter.codeToTokens(code, {
     lang: language,
-    theme: THEME_NAMES[appearanceTheme],
+    theme: THEME_NAMES[resolved],
   })
 
   return tokens.map((lineTokens) => {

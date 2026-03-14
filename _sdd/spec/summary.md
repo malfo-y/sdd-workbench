@@ -1,7 +1,7 @@
 # SDD Workbench - Specification Summary
 
 **생성일** (Generated): 2026-03-14
-**스펙 버전** (Spec Version): 0.48.0
+**스펙 버전** (Spec Version): 0.49.0
 **최종 업데이트** (Last Updated): 2026-03-14
 **문서 역할** (Role): 빠른 진입용 요약. canonical spec은 [main.md](./main.md)다.
 
@@ -12,7 +12,7 @@
 SDD Workbench는 로컬/원격 워크스페이스에서 코드, Markdown 스펙, 코멘트 export 흐름을 한 작업대에서 다루는 Electron 앱이다. 현재 canonical 경로는 `main.md` whitepaper와 6개 컴포넌트 supporting docs이며, 원격 경로는 F27 Remote Agent Protocol이 단일 기준선이다. comments/export 영역은 이제 `View Comments`, `Add Comment`, `Add Global Comments`, `Export Comments` 전부 draggable modal contract를 공유한다.
 
 - **제품 초점**: code/spec/comment/remote workflow를 같은 UX로 묶는 것
-- **현재 상태**: Done 56, Fixed 2, Legacy 1(F15), Replaced 1(F21)
+- **현재 상태**: Done 57, Fixed 2, Legacy 1(F15), Replaced 1(F21)
 - **원격 전략**: F15(SSHFS) retired, F27(remote protocol) canonical
 - **문서 상태**: `main.md` + component docs + `operations.md` + indexes 기준으로 정렬됨
 
