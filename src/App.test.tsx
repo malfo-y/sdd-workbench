@@ -800,25 +800,25 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-bg-app:\s*#e5e9ee;/,
+      /:root\[data-theme='light'\][\s\S]*--theme-bg-app:\s*#e0e0e0;/,
     )
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-bg-surface:\s*#edf1f5;/,
+      /:root\[data-theme='light'\][\s\S]*--theme-bg-surface:\s*#f2f2f2;/,
     )
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-border:\s*#c8d0d8;/,
+      /:root\[data-theme='light'\][\s\S]*--theme-border:\s*#d0d0d0;/,
     )
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-surface-shadow:\s*0 6px 18px rgba\(31, 35, 40, 0\.06\);/,
+      /:root\[data-theme='light'\][\s\S]*--theme-surface-shadow:\s*0 6px 18px rgba\(0, 0, 0, 0\.05\);/,
     )
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-warning-text:\s*#745c0f;/,
+      /:root\[data-theme='light'\][\s\S]*--theme-warning-text:\s*#8a6d0b;/,
     )
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-git-added-border:\s*#57ab5a;/,
+      /:root\[data-theme='light'\][\s\S]*--theme-git-added-border:\s*#6aad4e;/,
     )
     expect(indexCssSource).toMatch(
-      /:root\[data-theme='light'\][\s\S]*--theme-navigation-ring:\s*rgba\(9, 105, 218, 0\.3\);/,
+      /:root\[data-theme='light'\][\s\S]*--theme-navigation-ring:\s*rgba\(75, 131, 205, 0\.3\);/,
     )
 
     expect(appCssSource).toMatch(
@@ -1997,9 +1997,16 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   it('renders file content and tracks selected line range', async () => {
     const indexedTree: WorkspaceFileNode[] = [
       {
-        name: 'README.md',
-        relativePath: 'README.md',
-        kind: 'file',
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
       },
     ]
 
@@ -2025,9 +2032,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
     })
 
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
     fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
 
     await waitFor(() => {
@@ -5073,6 +5084,583 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('opens prose citation links by resolving a Python declaration before jumping', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'See [src/app.py:run] for details.',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: 'def run():\n    return 1\n',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:run]' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.py',
+      )
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L1-L1',
+    )
+    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/app.py')
+  })
+
+  it('restores the markdown viewer when going back after a prose citation jump', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'See [src/app.py:run] for details.',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: 'def run():\n    return 1\n',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:run]' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.py',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/README.md',
+      )
+    })
+    await waitFor(() => {
+      const activeTab = screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active')
+      expect(activeTab).toHaveTextContent('Spec')
+    })
+    expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+      'See [src/app.py:run] for details.',
+    )
+  })
+
+  it('keeps fallback UX for unresolved prose citation links without opening the file', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'See [src/app.py:run] for details.',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: 'def other():\n    return 1\n',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'README.md' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:run]' }), {
+      clientX: 220,
+      clientY: 240,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+      '#sdd-citation:src%2Fapp.py:run',
+    )
+    expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
+      'src/app.py',
+    )
+  })
+
+  it('shows fallback UX when citation target file read fails', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'See [src/app.py:run] for details.',
+        }
+      }
+
+      // Target file read fails
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'README.md' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:run]' }), {
+      clientX: 220,
+      clientY: 240,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
+    })
+    // Should stay on current file, not switch to src/app.py
+    expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
+      'src/app.py',
+    )
+  })
+
+  it('shows fallback UX when citation references a file not in workspace', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          // Citation references a file that is NOT in the workspace tree
+          content: 'See [src/missing.py:run] for details.',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'README.md' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/missing.py:run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/missing.py:run]' }), {
+      clientX: 220,
+      clientY: 240,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
+    })
+    // Should not attempt to open the missing file
+    expect(readFileMock).not.toHaveBeenCalledWith(workspaceRoot, 'src/missing.py')
+  })
+
+  it('opens generic fenced code citation links from rendered code blocks', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content:
+            '```\nDJDataset [src/app.py:run]\nNestedDataset [src/app.py:run]\n```',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: 'def run():\n    return 1\n',
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    const citationLinks = await screen.findAllByRole('link', {
+      name: '[src/app.py:run]',
+    })
+    fireEvent.click(citationLinks[0]!)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.py',
+      )
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L1-L1',
+    )
+  })
+
   it('opens markdown links without line hash and keeps selection empty', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [
@@ -6177,6 +6765,64 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('renders View Comments as a draggable modal shell', async () => {
+    const workspaceRoot = '/Users/tester/projects/view-comments-draggable-shell'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'docs/spec.md:4-4:aaaa1111:2026-02-22T14:00:00.000Z',
+          relativePath: 'docs/spec.md',
+          startLine: 4,
+          endLine: 4,
+          body: 'Check the draggable shell',
+          anchor: {
+            snippet: 'Section title',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:00:00.000Z',
+        },
+      ],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('dialog', { name: 'View comments' })).toHaveClass(
+      'is-draggable',
+    )
+    expect(screen.getByTestId('comment-modal-drag-handle')).toHaveTextContent(
+      'Drag to move',
+    )
+  })
+
   it('jumps to comment code line and closes View Comments modal when target clicked', async () => {
     const workspaceRoot = '/Users/tester/projects/jump-comment-workspace'
     openDialogMock.mockResolvedValueOnce({
@@ -6822,6 +7468,51 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('renders Add Global Comments as a draggable modal shell', async () => {
+    const workspaceRoot = '/Users/tester/projects/global-comments-draggable-shell'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Add Global Comments' }),
+      ).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Global Comments' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('dialog', { name: 'Add global comments' }),
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Add global comments' })).toHaveClass(
+      'is-draggable',
+    )
+    expect(screen.getByTestId('comment-modal-drag-handle')).toHaveTextContent(
+      'Drag to move',
+    )
+  })
+
   it('keeps global comments scoped to the workspace where the modal was opened', async () => {
     const workspaceRootA = '/Users/tester/projects/global-comments-workspace-a'
     const workspaceRootB = '/Users/tester/projects/global-comments-workspace-b'
@@ -7079,6 +7770,68 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(bundleGlobalIndex).toBeLessThan(bundleSectionIndex)
     expect(writeGlobalCommentsMock).toHaveBeenCalledTimes(1)
     expect(writeGlobalCommentsMock).toHaveBeenCalledWith(workspaceRoot, '')
+  })
+
+  it('renders Export Comments as a draggable modal shell', async () => {
+    const workspaceRoot = '/Users/tester/projects/export-comments-draggable-shell'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'src/a.ts:1-1:aaaa1111:2026-02-22T12:00:00.000Z',
+          relativePath: 'src/a.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'line comment',
+          anchor: {
+            snippet: 'const a = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T12:00:00.000Z',
+        },
+      ],
+    })
+    readGlobalCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      body: '',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Comments' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Comments' }))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'View comments' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('export-selected-button'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Export comments' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Export comments' })).toHaveClass(
+      'is-draggable',
+    )
+    expect(screen.getByTestId('comment-modal-drag-handle')).toHaveTextContent(
+      'Drag to move',
+    )
   })
 
   it('allows export when only global comments exist and keeps line export status unchanged', async () => {

@@ -44,6 +44,8 @@ import {
   subscribeToAppearanceThemeMenuRequests,
   type AppearanceTheme,
 } from './appearance-theme'
+import { type CitationTarget } from './spec-viewer/citation-target'
+import { resolvePythonSymbol } from './spec-viewer/python-symbol-resolver'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
 import type { SourceOffsetRange } from './source-selection'
@@ -1384,6 +1386,60 @@ function App() {
     ],
   )
 
+  const openCitationTarget = useCallback(
+    async (target: CitationTarget) => {
+      if (!rootPath || !workspaceFilePathSet.has(target.targetRelativePath)) {
+        return false
+      }
+
+      const targetFileContent =
+        activeFile === target.targetRelativePath && activeFileContent !== null
+          ? activeFileContent
+          : null
+
+      let fileContent = targetFileContent
+      if (fileContent === null) {
+        const readResult = await window.workspace.readFile(
+          rootPath,
+          target.targetRelativePath,
+        )
+        if (!readResult.ok || typeof readResult.content !== 'string') {
+          return false
+        }
+        fileContent = readResult.content
+      }
+
+      const resolution = resolvePythonSymbol(fileContent, target.symbolName)
+      if (!resolution.ok) {
+        return false
+      }
+
+      setSpecViewerNavigationRequest(null)
+      selectFile(target.targetRelativePath)
+      setActiveTab('code')
+      setSelectionRange({
+        startLine: resolution.lineNumber,
+        endLine: resolution.lineNumber,
+      })
+      queueCodeViewerJumpRequest({
+        targetRelativePath: target.targetRelativePath,
+        lineNumber: resolution.lineNumber,
+        sourceOffsetRange: resolution.sourceOffsetRange,
+        shouldHighlight: true,
+      })
+      return true
+    },
+    [
+      activeFile,
+      activeFileContent,
+      queueCodeViewerJumpRequest,
+      rootPath,
+      selectFile,
+      setSelectionRange,
+      workspaceFilePathSet,
+    ],
+  )
+
   const handleSelectFileFromTree = useCallback(
     (relativePath: string) => {
       setSpecViewerNavigationRequest(null)
@@ -1864,7 +1920,7 @@ function App() {
               aria-label="Back"
               className="workspace-open-in-button"
               disabled={!canGoBack}
-              onClick={goBackInHistory}
+              onClick={() => navigateHistory('back')}
               title="Back"
               type="button"
             >
@@ -1874,7 +1930,7 @@ function App() {
               aria-label="Forward"
               className="workspace-open-in-button"
               disabled={!canGoForward}
-              onClick={goForwardInHistory}
+              onClick={() => navigateHistory('forward')}
               title="Forward"
               type="button"
             >
@@ -2260,6 +2316,7 @@ function App() {
                 onRequestCopyBoth={handleCopyBoth}
                 onRequestCopyRelativePath={handleCopyRelativePath}
                 onRequestCopySelectedContent={handleCopySelectedContent}
+                onOpenCitationTarget={openCitationTarget}
                 onGoToSourceLine={goToActiveSpecSourceLine}
                 onOpenRelativePath={openSpecRelativePath}
                 readError={activeSpecReadError}

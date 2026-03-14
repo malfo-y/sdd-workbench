@@ -70,6 +70,9 @@ describe('SpecViewerPanel', () => {
         ) => boolean
       >()
       .mockReturnValue(true),
+    onOpenCitationTarget = vi
+      .fn<(target: { targetRelativePath: string; symbolName: string }) => Promise<boolean>>()
+      .mockResolvedValue(true),
     commentLineCounts = new Map<number, number>(),
     commentLineEntries = new Map<number, readonly CodeComment[]>(),
   }: {
@@ -117,6 +120,10 @@ describe('SpecViewerPanel', () => {
       relativePath: string,
       lineRange: { startLine: number; endLine: number } | null,
     ) => boolean
+    onOpenCitationTarget?: (target: {
+      targetRelativePath: string
+      symbolName: string
+    }) => Promise<boolean>
     commentLineCounts?: ReadonlyMap<number, number>
     commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   } = {}) {
@@ -135,6 +142,7 @@ describe('SpecViewerPanel', () => {
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onRequestCopySelectedContent={onRequestCopySelectedContent}
         onGoToSourceLine={onGoToSourceLine}
+        onOpenCitationTarget={onOpenCitationTarget}
         onOpenRelativePath={onOpenRelativePath}
         readError={readError}
         restoredScrollTop={restoredScrollTop}
@@ -145,6 +153,7 @@ describe('SpecViewerPanel', () => {
 
     return {
       onGoToSourceLine,
+      onOpenCitationTarget,
       onRequestAddComment,
       onRequestCopyBoth,
       onRequestCopyRelativePath,
@@ -291,6 +300,7 @@ describe('SpecViewerPanel', () => {
         isLoading={false}
         markdownContent={markdownContent}
         navigationRequest={null}
+        onOpenCitationTarget={vi.fn().mockResolvedValue(true)}
         onGoToSourceLine={vi.fn()}
         onOpenRelativePath={vi.fn().mockReturnValue(true)}
         onRequestAddComment={vi.fn()}
@@ -354,6 +364,55 @@ describe('SpecViewerPanel', () => {
 
     expect(clickEvent.defaultPrevented).toBe(true)
     expect(onOpenRelativePath).toHaveBeenCalledWith('docs/guide.md', null)
+  })
+
+  it('transforms prose citation text into semantic navigation links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<(target: { targetRelativePath: string; symbolName: string }) => Promise<boolean>>()
+      .mockResolvedValue(true)
+    renderPanel({
+      markdownContent: 'See [src/app.py:run] for details.',
+      onOpenCitationTarget,
+    })
+
+    const citationLink = screen.getByRole('link', { name: '[src/app.py:run]' })
+    fireEvent.click(citationLink, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'src/app.py',
+        symbolName: 'run',
+      })
+    })
+  })
+
+  it('renders generic fenced code citations as clickable links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<(target: { targetRelativePath: string; symbolName: string }) => Promise<boolean>>()
+      .mockResolvedValue(true)
+    renderPanel({
+      markdownContent:
+        '```\nDJDataset [data_juicer/core/data/dj_dataset.py:DJDataset]\n```',
+      onOpenCitationTarget,
+    })
+
+    const citationLink = await screen.findByRole('link', {
+      name: '[data_juicer/core/data/dj_dataset.py:DJDataset]',
+    })
+    fireEvent.click(citationLink, {
+      clientX: 210,
+      clientY: 240,
+    })
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'data_juicer/core/data/dj_dataset.py',
+        symbolName: 'DJDataset',
+      })
+    })
   })
 
   it('passes single-line and range line hashes for workspace file links', () => {
@@ -1303,6 +1362,7 @@ describe('SpecViewerPanel', () => {
           lineNumber: 5,
           token: 1,
         }}
+        onOpenCitationTarget={vi.fn().mockResolvedValue(true)}
         onGoToSourceLine={vi.fn()}
         onOpenRelativePath={vi.fn().mockReturnValue(true)}
         onRequestAddComment={vi.fn()}
@@ -1356,6 +1416,7 @@ describe('SpecViewerPanel', () => {
           lineNumber: 6,
           token: 2,
         }}
+        onOpenCitationTarget={vi.fn().mockResolvedValue(true)}
         onGoToSourceLine={vi.fn()}
         onOpenRelativePath={vi.fn().mockReturnValue(true)}
         onRequestAddComment={vi.fn()}

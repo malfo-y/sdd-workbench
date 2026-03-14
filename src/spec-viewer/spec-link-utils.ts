@@ -1,9 +1,15 @@
+import {
+  normalizePosixPath,
+  parseCitationHref,
+  type CitationTarget,
+} from './citation-target'
+
 export type SpecLinkLineRange = {
   startLine: number
   endLine: number
 }
 
-type SpecLinkResolution =
+export type SpecLinkResolution =
   | {
       kind: 'anchor'
       href: string
@@ -13,6 +19,11 @@ type SpecLinkResolution =
       href: string
       targetRelativePath: string
       lineRange: SpecLinkLineRange | null
+    }
+  | {
+      kind: 'workspace-symbol'
+      href: string
+      target: CitationTarget
     }
   | {
       kind: 'external'
@@ -26,41 +37,6 @@ type SpecLinkResolution =
 
 const EXTERNAL_LINK_PATTERN = /^[a-z][a-z\d+.-]*:/i
 const LINE_RANGE_HASH_PATTERN = /^L(\d+)(?:-L?(\d+))?$/i
-
-function normalizePosixPath(input: string): string {
-  const isAbsolute = input.startsWith('/')
-  const segments = input.split('/')
-  const normalized: string[] = []
-
-  for (const segment of segments) {
-    if (!segment || segment === '.') {
-      continue
-    }
-
-    if (segment === '..') {
-      if (
-        normalized.length === 0 ||
-        normalized[normalized.length - 1] === '..'
-      ) {
-        if (!isAbsolute) {
-          normalized.push('..')
-        }
-        continue
-      }
-
-      normalized.pop()
-      continue
-    }
-
-    normalized.push(segment)
-  }
-
-  if (isAbsolute) {
-    return `/${normalized.join('/')}`
-  }
-
-  return normalized.join('/') || '.'
-}
 
 function dirnamePosix(input: string): string {
   const normalized = normalizePosixPath(input)
@@ -114,6 +90,15 @@ export function resolveSpecLink(
       kind: 'unresolved',
       href: '',
       reason: 'empty',
+    }
+  }
+
+  const citationTarget = parseCitationHref(normalizedHref)
+  if (citationTarget) {
+    return {
+      kind: 'workspace-symbol',
+      href: normalizedHref,
+      target: citationTarget,
     }
   }
 

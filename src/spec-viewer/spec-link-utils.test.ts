@@ -9,6 +9,19 @@ describe('resolveSpecLink', () => {
     })
   })
 
+  it('classifies internal citation links before normal anchor handling', () => {
+    expect(
+      resolveSpecLink('#sdd-citation:src%2Fapp.py:run', 'docs/main.md'),
+    ).toEqual({
+      kind: 'workspace-symbol',
+      href: '#sdd-citation:src%2Fapp.py:run',
+      target: {
+        targetRelativePath: 'src/app.py',
+        symbolName: 'run',
+      },
+    })
+  })
+
   it('classifies external links', () => {
     expect(resolveSpecLink('https://example.com', 'docs/main.md')).toEqual({
       kind: 'external',

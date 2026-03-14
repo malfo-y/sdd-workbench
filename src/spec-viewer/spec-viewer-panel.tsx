@@ -1,4 +1,5 @@
 import {
+  Fragment,
   createElement,
   useCallback,
   useEffect,
@@ -22,7 +23,7 @@ import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import type { CodeComment } from '../code-comments/comment-types'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { buildCopyActiveFilePathPayload } from '../context-copy/copy-payload'
-import { highlightLines } from '../code-viewer/syntax-highlight'
+import { escapeHtml, highlightLines } from '../code-viewer/syntax-highlight'
 import type { HighlightLanguage } from '../code-viewer/language-map'
 import { extractMarkdownHeadings } from './markdown-utils'
 import {
@@ -47,6 +48,12 @@ import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 import { buildSearchMatchStartLines } from './spec-search'
 import { rehypeWrapSourceTextLeaves } from './rehype-source-text-leaves'
 import type { SourceOffsetRange } from '../source-selection'
+import { type CitationTarget, buildCitationHref } from './citation-target'
+import {
+  extractCodeBlockCitationMatches,
+  type CodeBlockCitationMatch,
+} from './code-block-citation'
+import { remarkCitationLinks } from './remark-citation-links'
 
 type SpecViewerPanelProps = {
   workspaceRootPath: string | null
@@ -65,6 +72,7 @@ type SpecViewerPanelProps = {
     relativePath: string,
     lineRange: SpecLinkLineRange | null,
   ) => boolean
+  onOpenCitationTarget: (target: CitationTarget) => Promise<boolean>
   onGoToSourceLine: (
     lineNumber: number,
     sourceOffsetRange?: SourceOffsetRange,
@@ -407,22 +415,93 @@ function mapSearchMatchLinesToRenderedSourceLines(
   return Array.from(mappedCounts.keys()).sort((left, right) => left - right)
 }
 
+function renderCodeLineWithCitationMatches({
+  line,
+  lineNumber,
+  matches,
+  onCitationClick,
+}: {
+  line: string
+  lineNumber: number
+  matches: readonly CodeBlockCitationMatch[]
+  onCitationClick: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
+}) {
+  if (matches.length === 0) {
+    return null
+  }
+
+  const segments: ReactNode[] = []
+  let cursor = 0
+
+  matches.forEach((match, matchIndex) => {
+    if (match.startOffset > cursor) {
+      segments.push(
+        <Fragment key={`code-line-${lineNumber}-text-${matchIndex}`}>
+          {line.slice(cursor, match.startOffset)}
+        </Fragment>,
+      )
+    }
+
+    const href = buildCitationHref(match.target)
+    segments.push(
+      <a
+        className="spec-code-citation-link"
+        data-testid={`spec-code-citation-${lineNumber}-${matchIndex + 1}`}
+        href={href}
+        key={`code-line-${lineNumber}-citation-${matchIndex}`}
+        onClick={(event) => onCitationClick(event, href)}
+        title={match.rawText}
+      >
+        {match.rawText}
+      </a>,
+    )
+    cursor = match.endOffset
+  })
+
+  if (cursor < line.length) {
+    segments.push(
+      <Fragment key={`code-line-${lineNumber}-suffix`}>
+        {line.slice(cursor)}
+      </Fragment>,
+    )
+  }
+
+  return segments
+}
+
 function HighlightedCodeBlock({
   code,
   language,
   appearanceTheme,
+  onCitationClick,
 }: {
   code: string
   language: HighlightLanguage
   appearanceTheme: AppearanceTheme
+  onCitationClick: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
 }) {
-  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
+  const [highlightedLines, setHighlightedLines] = useState<string[] | null>(null)
+  const codeLines = useMemo(() => code.split('\n'), [code])
+  const citationMatches = useMemo(
+    () => extractCodeBlockCitationMatches(code),
+    [code],
+  )
+  const citationMatchesByLineNumber = useMemo(() => {
+    const matchesByLineNumber = new Map<number, CodeBlockCitationMatch[]>()
+    codeLines.forEach((_, index) => {
+      matchesByLineNumber.set(index + 1, [])
+    })
+    citationMatches.forEach((match) => {
+      matchesByLineNumber.get(match.lineNumber)?.push(match)
+    })
+    return matchesByLineNumber
+  }, [citationMatches, codeLines])
 
   useEffect(() => {
     let cancelled = false
     highlightLines(code, language, appearanceTheme).then((lines) => {
       if (!cancelled) {
-        setHighlightedHtml(lines.join('\n'))
+        setHighlightedLines(lines)
       }
     })
     return () => {
@@ -430,11 +509,35 @@ function HighlightedCodeBlock({
     }
   }, [appearanceTheme, code, language])
 
-  if (highlightedHtml === null) {
-    return <code>{code}</code>
-  }
+  const renderedLines =
+    highlightedLines ??
+    codeLines.map((line) => (line.length > 0 ? escapeHtml(line) : ' '))
 
-  return <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+  return (
+    <code>
+      {renderedLines.map((renderedLine, index) => {
+        const lineNumber = index + 1
+        const matches = citationMatchesByLineNumber.get(lineNumber) ?? []
+        const renderedCitationSegments = renderCodeLineWithCitationMatches({
+          line: codeLines[index] ?? '',
+          lineNumber,
+          matches,
+          onCitationClick,
+        })
+
+        return (
+          <Fragment key={`code-line-${lineNumber}`}>
+            {renderedCitationSegments ? (
+              renderedCitationSegments
+            ) : (
+              <span dangerouslySetInnerHTML={{ __html: renderedLine }} />
+            )}
+            {lineNumber < renderedLines.length ? '\n' : null}
+          </Fragment>
+        )
+      })}
+    </code>
+  )
 }
 
 export function SpecViewerPanel({
@@ -447,6 +550,7 @@ export function SpecViewerPanel({
   isLoading,
   readError,
   onOpenRelativePath,
+  onOpenCitationTarget,
   onGoToSourceLine,
   onRequestAddComment,
   onRequestCopySelectedContent,
@@ -925,6 +1029,27 @@ export function SpecViewerPanel({
 
       event.preventDefault()
 
+      if (resolvedLink.kind === 'workspace-symbol') {
+        void (async () => {
+          try {
+            const opened = await onOpenCitationTarget(resolvedLink.target)
+            if (opened) {
+              setLinkPopoverState(null)
+              return
+            }
+          } catch {
+            // Fall through to the existing safe fallback UX.
+          }
+
+          setLinkPopoverState({
+            href: resolvedLink.href,
+            x: event.clientX,
+            y: event.clientY,
+          })
+        })()
+        return
+      }
+
       if (resolvedLink.kind === 'workspace-file') {
         const opened = onOpenRelativePath(
           resolvedLink.targetRelativePath,
@@ -949,7 +1074,13 @@ export function SpecViewerPanel({
         y: event.clientY,
       })
     },
-    [activeSpecPath, closeCommentHover, documentHeadings, onOpenRelativePath],
+    [
+      activeSpecPath,
+      closeCommentHover,
+      documentHeadings,
+      onOpenCitationTarget,
+      onOpenRelativePath,
+    ],
   )
 
   const handleSpecContextMenu = useCallback(
@@ -1205,10 +1336,18 @@ export function SpecViewerPanel({
       },
       code: (props) => {
         const { node, className, children, ...codeProps } = props
-        void node
         const languageMatch =
           typeof className === 'string' ? className.match(/language-(\w+)/) : null
-        if (!languageMatch) {
+        const codeText = String(children).replace(/\n$/, '')
+        // Fenced code blocks span multiple source lines (even single-line
+        // content has opening/closing fences). Inline code stays on one line.
+        const nodeSpansMultipleLines =
+          node?.position?.start?.line != null &&
+          node?.position?.end?.line != null &&
+          node.position.end.line > node.position.start.line
+        const isFencedBlock =
+          !!languageMatch || codeText.includes('\n') || nodeSpansMultipleLines
+        if (!isFencedBlock) {
           return (
             <code
               {...buildSourceLineAttributes(node, {
@@ -1221,13 +1360,16 @@ export function SpecViewerPanel({
             </code>
           )
         }
-        const language = resolveMarkdownLanguage(languageMatch[1])
-        const codeText = String(children).replace(/\n$/, '')
+
+        const language = languageMatch
+          ? resolveMarkdownLanguage(languageMatch[1])
+          : 'plaintext'
         return (
           <HighlightedCodeBlock
             appearanceTheme={appearanceTheme}
             code={codeText}
             language={language}
+            onCitationClick={handleMarkdownLinkClick}
           />
         )
       },
@@ -1511,7 +1653,7 @@ export function SpecViewerPanel({
                 [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA],
                 rehypeWrapSourceTextLeaves,
               ]}
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkCitationLinks]}
             >
               {markdownContent}
             </ReactMarkdown>

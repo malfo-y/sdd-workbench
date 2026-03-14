@@ -1,208 +1,206 @@
-# Implementation Review: F40 파일 클립보드 Copy/Paste
+# Implementation Review: Python Citation Navigation
 
-**리뷰 일자**: 2026-03-11
-**계획 위치**: `_sdd/drafts/feature_draft_f40_file_clipboard_copy_paste.md`
-**리뷰어**: Claude (Opus 4.6)
-**범위**: Phase 1 (T1-T7) + Phase 2 (T8-T10)
-
----
-
-## 1. 진행 현황 요약
-
-### Task 완료 현황
-
-| Phase | Task | 제목 | 상태 |
-|-------|------|------|------|
-| **Phase 1** | T1 | incrementFileName 유틸리티 | COMPLETE |
-| | T2 | WorkspaceBackend copyEntries 인터페이스 + 로컬 구현 | COMPLETE |
-| | T3 | Remote Agent copyEntries RPC | COMPLETE |
-| | T4 | Main Process 클립보드 상태 + IPC 핸들러 | COMPLETE |
-| | T5 | Preload API + 타입 선언 | COMPLETE |
-| | T6 | File Tree Copy/Paste UI | COMPLETE |
-| | T7 | Phase 1 통합 테스트 | PARTIAL |
-| **Phase 2** | T8 | bplist-parser + Finder 클립보드 읽기 | COMPLETE |
-| | T9 | pasteFromClipboard Finder 소스 통합 | COMPLETE |
-| | T10 | 원격 워크스페이스 Finder paste 차단 | COMPLETE |
-
-### 지표
-
-- **Tasks**: 9/10 완료, 1 부분 완료 (90%)
-- **Acceptance Criteria**: 43/45 충족 (96%)
-- **테스트**: 684 전체 통과 (0 실패)
-- **Lint**: 클린 (0 에러)
+**Review Date**: 2026-03-14
+**Review Mode**: Tier 1 — Plan-based full review (Feature Draft as Plan)
+**Reference**: `_sdd/drafts/feature_draft_python_citation_navigation.md`
+**Reviewer**: Claude Opus 4.6
+**Model**: claude-opus-4-6[1m]
 
 ---
 
-## 2. Acceptance Criteria 상세 검증
+## 1. Progress Overview
 
-### T1: incrementFileName 유틸리티 — COMPLETE (3/3)
+### Task Completion
 
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | `incrementFileName('file.txt', ['file.txt'])` → `'file (1).txt'` | MET | `electron/increment-file-name.ts:21-35` |
-| 2 | `incrementFileName('dir', ['dir'])` → `'dir (1)'` | MET | `electron/increment-file-name.ts:22-25` |
-| 3 | 단위 테스트 100% 커버리지 | MET | `electron/increment-file-name.test.ts` (8 테스트) |
+| ID | Task | Component | Priority | Code | Tests | Status |
+|----|------|-----------|----------|------|-------|--------|
+| 1 | Citation target grammar & shared helpers | Citation Target Grammar | P0 | ✓ | ✓ 13/13 | COMPLETE |
+| 2 | Python declaration resolver | Python Declaration Resolver | P0 | ✓ | ✓ 5/5 | COMPLETE |
+| 3 | Prose citation remark transform | Rendered Citation Adapters | P1 | ✓ | ✓ 2/2 | COMPLETE |
+| 4 | Fenced Python citation annotation | Rendered Citation Adapters | P1 | ✓ | ✓ 3/3 | COMPLETE |
+| 5 | Spec Viewer/App semantic jump orchestration | Navigation Orchestration | P0 | ✓ | ✗ 2 failing | PARTIAL |
+| 6 | Regression tests & fallback polish | Regression Test Suite | P1 | - | ✗ 2 failing | PARTIAL |
 
-> **참고**: 원래 계획은 `src/file-tree/`였으나 `electron/`에 배치됨. Renderer에서 직접 사용하지 않으므로 적절한 판단.
+### Acceptance Criteria Summary
 
-### T2: WorkspaceBackend copyEntries — COMPLETE (5/5)
+- Total criteria: 18
+- Met: 15 (83%)
+- Not met: 1
+- Untested / 검증 불가: 2
 
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | `WorkspaceBackend` 인터페이스에 `copyEntries` 추가 | MET | `electron/workspace-backend/types.ts:112-116, 170` |
-| 2 | 파일 복사 (`fs.cp`) + 디렉토리 재귀 복사 | MET | `electron/workspace-backend/copy-entries.ts:27` |
-| 3 | 이름 충돌 시 자동 넘버링 | MET | `electron/workspace-backend/copy-entries.ts:23` |
-| 4 | 존재하지 않는 소스 에러 처리 | MET | `electron/workspace-backend/copy-entries.test.ts:141-151` |
-| 5 | 단위 테스트 | MET | `electron/workspace-backend/copy-entries.test.ts` (7 테스트) |
+### Test Summary
 
-### T3: Remote Agent copyEntries RPC — COMPLETE (4/4)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | `request-router.ts`에 라우트 등록 | MET | `electron/remote-agent/runtime/request-router.ts:166-170` |
-| 2 | `copy-ops.ts`에 `workspaceCopyEntries` 구현 | MET | `electron/remote-agent/runtime/copy-ops.ts:36-102` |
-| 3 | `remote-workspace-backend.ts` copyEntries 위임 | MET | `electron/workspace-backend/remote-workspace-backend.ts:219-232` |
-| 4 | 단위 테스트 | MET | `electron/remote-agent/runtime/copy-ops.test.ts` (14 테스트) |
-
-> **추가 작업**: `electron/remote-agent/security.ts` allowlist에 `workspace.copyEntries` 추가 (계획에 없던 의존성 해결)
-
-### T4: Main Process 클립보드 상태 + IPC 핸들러 — COMPLETE (5/5)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | 클립보드 상태 타입 | MET | `electron/file-clipboard.ts:15-19` |
-| 2 | 4개 IPC 핸들러 | MET | `electron/file-clipboard.ts:130-258` |
-| 3 | pasteFromClipboard → copyEntries 흐름 | MET | `electron/file-clipboard.ts:224-229` |
-| 4 | 워크스페이스 전환 시 클립보드 유지 | MET | `electron/file-clipboard.ts:65` (모듈 레벨 상태) |
-| 5 | 단위 테스트 | MET | `electron/file-clipboard.test.ts` (24 테스트) |
-
-### T5: Preload API + 타입 선언 — COMPLETE (5/5)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | `setFileClipboard` 노출 | MET | `electron/preload.ts:575-583` |
-| 2 | `readFileClipboard` 노출 | MET | `electron/preload.ts:584-588` |
-| 3 | `copyEntries` 노출 | MET | `electron/preload.ts:589-599` |
-| 4 | `pasteFromClipboard` 노출 | MET | `electron/preload.ts:600-606` |
-| 5 | TypeScript 타입 선언 | MET | `electron/electron-env.d.ts:334-481` |
-
-### T6: File Tree Copy/Paste UI — COMPLETE (6/7)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | 컨텍스트 메뉴 "Copy" | MET | `src/file-tree/file-tree-panel.tsx:770-778` |
-| 2 | 컨텍스트 메뉴 "Paste" | MET | `src/file-tree/file-tree-panel.tsx:781-786` |
-| 3 | Cmd+C 키보드 단축키 | MET | `src/file-tree/file-tree-panel.tsx:700-706` |
-| 4 | Cmd+V 키보드 단축키 | MET | `src/file-tree/file-tree-panel.tsx:707-710` |
-| 5 | 에러 시 배너 | MET | `src/App.tsx:1827-1830` |
-| 6 | 포커스 없으면 텍스트 복사 유지 | MET | `src/file-tree/file-tree-panel.tsx:845` (`tabIndex={-1}`) |
-| 7 | Paste 후 파일 트리 자동 새로고침 | PARTIAL | 파일 워치 이벤트에 의존 (명시적 refresh 없음) |
-
-> **Quality Issue**: Paste 후 파일 트리 새로고침이 워치 이벤트에 의존합니다. 워치가 활성화된 상태에서는 정상 동작하지만, 워치가 비활성화된 경우 새 파일이 표시되지 않을 수 있습니다. 실사용 시 워치는 항상 활성화 상태이므로 실질적 영향은 낮습니다.
-
-### T7: Phase 1 통합 테스트 — PARTIAL (3/4)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | backend-router copyEntries 라우팅 테스트 | NOT MET | `backend-router.test.ts`에 copyEntries 테스트 없음 |
-| 2 | 클립보드 set → read → paste 플로우 | MET | `file-clipboard.test.ts:255-277` |
-| 3 | 이름 충돌 해결 시나리오 | MET | `copy-entries.test.ts:56-101` |
-| 4 | 에러 케이스 | MET | `copy-entries.test.ts:141-151`, `file-clipboard.test.ts:213-239` |
-
-### T8: bplist-parser + Finder 클립보드 읽기 — COMPLETE (5/5)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | `bplist-parser` 패키지 설치 | MET | `package.json` (`"bplist-parser": "^0.3.2"`) |
-| 2 | `readFinderClipboardFiles()` 구현 | MET | `electron/file-clipboard.ts:77-100` |
-| 3 | `NSFilenamesPboardType` 확인 | MET | `electron/file-clipboard.ts:81-82` |
-| 4 | `readBuffer` + `parseBuffer` 조합 | MET | `electron/file-clipboard.ts:84-90` |
-| 5 | 단위 테스트 | MET | `electron/file-clipboard.test.ts:40-81` (5 테스트) |
-
-### T9: pasteFromClipboard Finder 소스 통합 — COMPLETE (5/5)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | Finder 우선 확인 (로컬만) | MET | `electron/file-clipboard.ts:203-207` |
-| 2 | Finder 파일 → 대상 디렉토리 복사 | MET | `electron/file-clipboard.ts:105-126` (`fs.cp`) |
-| 3 | 이름 충돌 자동 해결 | MET | `electron/file-clipboard.ts:117` |
-| 4 | Finder 없으면 내부 클립보드 fallback | MET | `electron/file-clipboard.ts:220-242` |
-| 5 | 단위 테스트 | MET | `electron/file-clipboard.test.ts:311-407` (3 테스트) |
-
-### T10: 원격 Finder paste 차단 — COMPLETE (4/4)
-
-| # | 기준 | 상태 | 위치 |
-|---|------|------|------|
-| 1 | 원격에서 Finder 감지 시 에러 반환 | MET | `electron/file-clipboard.ts:208-217` |
-| 2 | 배너 메시지 (한국어) | MET | `electron/file-clipboard.ts:215` |
-| 3 | 5초 후 자동 dismiss | MET | `src/workspace/workspace-context.tsx:407-412` |
-| 4 | 원격 내부 클립보드 정상 동작 | MET | `electron/file-clipboard.test.ts:435-451` |
+- Total tests: 183
+- Passing: 180
+- Failing: 2
+- Skipped: 1
 
 ---
 
-## 3. 발견된 이슈
+## 2. Detailed Assessment
 
-### Critical (0)
+### Completed Tasks
 
-없음.
+#### Task 1: Citation target grammar & shared helpers
+- **citation-target.ts** (126줄): `CitationTarget` type, `parseBracketCitationText()`, `buildCitationHref()`, `parseCitationHref()` 정상 구현
+- **spec-link-utils.ts** (213줄): `SpecLinkResolution` union type (5 variant), `resolveSpecLink()` — semantic citation target (`workspace-symbol`) 분기 추가
+- Tests: 4 + 9 = 13 passing
+- Acceptance Criteria: 3/3 MET
+
+| # | Criterion | Code | Test | Status |
+|---|-----------|------|------|--------|
+| 1 | citation target shape가 prose/fenced block 양쪽 공통 사용 | citation-target.ts | ✓ | MET |
+| 2 | same-workspace relative path 제약과 symbol parsing 규칙 unit test | citation-target.test.ts | ✓ 4 tests | MET |
+| 3 | 기존 line-hash link behavior regression 없음 | spec-link-utils.test.ts | ✓ 9 tests | MET |
+
+#### Task 2: Python declaration resolver
+- **python-symbol-resolver.ts** (127줄): `@lezer/python` AST parser 기반 declaration lookup. function, class, method 지원
+- Tests: 5 passing
+- Acceptance Criteria: 3/3 MET
+
+| # | Criterion | Code | Test | Status |
+|---|-----------|------|------|--------|
+| 1 | top-level function, class, class method declaration lookup | python-symbol-resolver.ts | ✓ 3 success tests | MET |
+| 2 | unsupported pattern은 explicit failure | python-symbol-resolver.ts | ✓ 2 failure tests | MET |
+| 3 | 외부 parser dependency 없이 구현 | @lezer/python 재사용 | - | MET |
+
+#### Task 3: Prose citation remark transform
+- **remark-citation-links.ts** (82줄): bracket citation을 link node로 변환하는 remark plugin
+- Tests: 2 passing
+- Acceptance Criteria: 3/3 MET
+
+| # | Criterion | Code | Test | Status |
+|---|-----------|------|------|--------|
+| 1 | paragraph 등 prose 안 citation이 clickable target으로 렌더 | remark-citation-links.ts | ✓ | MET |
+| 2 | markdown link, inline code, heading anchor behavior 유지 | remark-citation-links.ts | ✓ skip test | MET |
+| 3 | plugin unit tests가 citation detection과 non-target exclusion 검증 | remark-citation-links.test.ts | ✓ 2 tests | MET |
+
+#### Task 4: Fenced Python citation annotation
+- **code-block-citation.ts** (27줄): full-line Python comment citation 감지, annotation metadata 생성
+- Tests: 3 passing
+- Acceptance Criteria: 3/3 MET
+
+| # | Criterion | Code | Test | Status |
+|---|-----------|------|------|--------|
+| 1 | python/py fenced block의 `# [path.py:Symbol]` line 감지 | code-block-citation.ts | ✓ | MET |
+| 2 | non-citation code line은 기존 highlight behavior 유지 | code-block-citation.ts | ✓ | MET |
+| 3 | annotation utility tests가 recognition과 false positive exclusion 검증 | code-block-citation.test.ts | ✓ 3 tests | MET |
+
+### Partial Tasks
+
+#### Task 5: Spec Viewer/App semantic jump orchestration
+- **spec-viewer-panel.tsx**: `handleMarkdownLinkClick`에 `workspace-symbol` 분기 추가, try/catch fallback UX 구현
+- **App.tsx**: `openCitationTarget` 함수 — 파일 읽기 → Python resolver 실행 → jump request
+- **App.test.tsx**: 2개 테스트 실패
+
+| # | Criterion | Code | Test | Status |
+|---|-----------|------|------|--------|
+| 1 | prose citation click이 App-level semantic jump flow 호출 | spec-viewer-panel.tsx:950-1024 | ✓ | MET |
+| 2 | fenced block citation click이 동일 flow 재사용 | spec-viewer-panel.tsx:415-479 | ✓ | MET |
+| 3 | 성공 시 Code tab이 열리고 declaration line highlight 적용 | App.tsx:1389-1437 | ✗ FAILING | NOT MET |
+| 4 | failure path에서 fallback UX 유지, file 자동 열기 없음 | spec-viewer-panel.tsx:974-987 | ✓ | MET |
+
+**실패 상세**:
+1. `renders file content and tracks selected line range` — 파일 트리에서 "docs" 디렉토리 버튼을 찾지 못함
+2. `citation navigation opens file and selects symbol` — selection이 `none`이어야 하는데 `L1-L1` 반환
+
+#### Task 6: Regression tests & fallback polish
+- Task 5의 2개 테스트 실패로 인해 회귀 검증 불완전
+
+| # | Criterion | Code | Test | Status |
+|---|-----------|------|------|--------|
+| 1 | 기존 line-range markdown link tests 통과 | spec-link-utils.test.ts | ✓ 9/9 | MET |
+| 2 | unresolved/unsupported citation이 silent failure 없음 | - | △ | UNTESTED |
+| 3 | prose/fenced 모두 success + failure integration coverage | App.test.tsx | ✗ 2 failing | NOT MET |
+
+---
+
+## 3. Issues Found
+
+### Critical (2)
+
+1. **App.test.tsx: `renders file content and tracks selected line range` 실패**
+   - Location: `src/App.test.tsx`
+   - Issue: `Unable to find role="button" and name "docs"` — 파일 트리 렌더링 문제
+   - Impact: 기존 파일 선택 flow의 회귀 가능성
+   - Action: 테스트 fixture의 디렉토리 구조 또는 App의 파일 트리 렌더링 변경 확인 필요
+
+2. **App.test.tsx: citation navigation selection 상태 불일치**
+   - Location: `src/App.test.tsx:2188`
+   - Issue: 파일 전환 후 selection이 `none`이어야 하는데 `L1-L1` 반환
+   - Impact: citation navigation 후 선택 상태가 올바르지 않음
+   - Action: `openCitationTarget`의 selection 초기화 로직 검증 필요
 
 ### Quality Issues (2)
 
-1. **T7 backend-router copyEntries 라우팅 테스트 누락**
-   - 위치: `electron/workspace-backend/backend-router.test.ts`
-   - 영향: copyEntries가 backend-router를 통해 올바르게 라우팅되는지 통합 수준에서 검증 안 됨
-   - 완화: 개별 단위 테스트(copy-entries.test, file-clipboard.test)에서 핵심 로직은 검증됨
-   - 조치: 선택적 — 통합 테스트 추가 권장
+1. **`normalizePosixPath()` 코드 중복**
+   - Location: `citation-target.ts`, `spec-link-utils.ts` 양쪽에 동일 함수 존재
+   - Impact: 유지보수 부담, 미묘한 의미 차이 (backslash 처리)
+   - Action: 공통 유틸리티로 추출 권장
 
-2. **T6 Paste 후 명시적 파일 트리 새로고침 없음**
-   - 위치: `src/App.tsx:handleRequestPasteFromClipboard`
-   - 영향: 워치 비활성 시 새 파일이 즉시 표시되지 않을 수 있음
-   - 완화: 실사용 시 워치가 항상 활성화되어 있어 실질적 영향 낮음
-   - 조치: 선택적 — Paste 성공 후 `refreshWorkspace()` 호출 추가 권장
+2. **App.test.tsx citation 전용 테스트 부족**
+   - Location: `src/App.test.tsx`
+   - Issue: Python symbol resolution 실패, 파일 읽기 오류, 잘못된 workspace path 등의 시나리오 미검증
+   - Action: openCitationTarget의 failure path 테스트 추가 권장
 
-### Improvements (선택적)
+### Improvements (2)
 
-1. **T1 파일 위치 변경**: `src/file-tree/` → `electron/` (합리적 판단, 이슈 아님)
-2. **bplist-creator dev dependency 추가**: 테스트에서 실제 bplist 바이너리 생성용 (합리적 판단)
+1. **remark-citation-links 테스트 보강**
+   - 다중 연속 citation, 빈 bracket, 깊은 중첩 노드 edge case 미검증
+   - Priority: Low
 
----
-
-## 4. 테스트 현황
-
-### 전체 테스트 결과
-- **전체 파일**: 63개 통과
-- **전체 테스트**: 684 통과, 1 스킵, 0 실패
-- **Lint**: 0 에러
-
-### F40 관련 테스트 파일
-
-| 파일 | 테스트 수 | 상태 |
-|------|----------|------|
-| `electron/increment-file-name.test.ts` | 8 | PASS |
-| `electron/workspace-backend/copy-entries.test.ts` | 7 | PASS |
-| `electron/remote-agent/runtime/copy-ops.test.ts` | 14 | PASS |
-| `electron/file-clipboard.test.ts` | 24 | PASS |
-| `src/file-tree/file-tree-panel.test.tsx` | (기존 + 9 clipboard) | PASS |
-| `src/App.test.tsx` | (기존 + clipboard) | PASS |
-
-**F40 신규 테스트 합계**: 약 62개
+2. **Citation 포맷 문서화**
+   - `[file:symbol]` 포맷에 대한 JSDoc 또는 코드 주석 부재
+   - Priority: Low
 
 ---
 
-## 5. 권장 조치
+## 4. Test Status
 
-### Should Do (품질)
-1. [ ] `backend-router.test.ts`에 copyEntries 라우팅 통합 테스트 추가 (T7 잔여)
-2. [ ] Paste 성공 후 명시적 `refreshWorkspace()` 호출 추가 (T6 보완)
+### Test Summary
 
-### Could Do (개선)
-3. [ ] `backend-integration.test.ts` 파일 생성하여 클립보드 E2E 플로우 테스트
-4. [ ] 스펙 업데이트 반영 (`/spec-update-done`)
+| File | Tests | Status |
+|------|-------|--------|
+| citation-target.test.ts | 4 | ✓ All passing |
+| python-symbol-resolver.test.ts | 5 | ✓ All passing |
+| remark-citation-links.test.ts | 2 | ✓ All passing |
+| code-block-citation.test.ts | 3 | ✓ All passing |
+| spec-link-utils.test.ts | 9 | ✓ All passing |
+| spec-viewer-panel.test.tsx | 37+ | ✓ All passing |
+| App.test.tsx | 118 | ✗ 2 failing |
+
+### Untested Areas
+
+- `openCitationTarget` failure paths (파일 미존재, resolution 실패, 비-Python 파일)
+- 복수 citation이 동시에 존재하는 markdown prose
+- fenced block에서 citation click 후 fallback UX 통합 검증
 
 ---
 
-## 6. 결론
+## 5. Recommendations
 
-F40 파일 클립보드 Copy/Paste 기능은 **Phase 1, 2 모두 실질적으로 완료** 상태입니다. 10개 Task 중 9개가 완전 완료, 1개(T7 통합 테스트)가 부분 완료입니다. 45개 Acceptance Criteria 중 43개(96%)가 충족되었으며, 미충족 2개는 모두 Quality 수준(Critical 아님)입니다.
+### Must Do (Blockers)
 
-전체 테스트 스위트(684개)가 통과하고 lint 에러 없이 깨끗한 상태입니다. **프로덕션 배포 가능** 수준이며, 권장 조치 1-2번을 추가하면 더욱 견고해집니다.
+1. [ ] **App.test.tsx 2개 실패 테스트 수정** — 파일 트리 fixture와 selection 초기화 로직 점검
+   - `renders file content and tracks selected line range`: 디렉토리 구조 fixture 확인
+   - `citation navigation opens file and selects symbol`: selection 초기화 타이밍 확인
+
+### Should Do (Quality)
+
+2. [ ] `normalizePosixPath()` 공통 유틸리티로 추출 (DRY)
+3. [ ] `openCitationTarget` failure path 테스트 추가 (파일 미존재, resolution 실패)
+
+### Could Do (Improvements)
+
+4. [ ] remark-citation-links edge case 테스트 보강 (다중 citation, 빈 bracket)
+5. [ ] Citation 포맷 JSDoc 문서화
+
+---
+
+## 6. Conclusion
+
+Python Citation Navigation 기능은 **아키텍처적으로 건실하게 구현**되었습니다. 6개 Task 중 4개(Task 1-4)가 완전히 완료되었고, 핵심 모듈(citation grammar, Python resolver, remark transform, code block annotation)은 모두 테스트 통과합니다.
+
+**가장 큰 리스크**는 App.test.tsx의 2개 테스트 실패입니다. 하나는 기존 파일 트리 렌더링 회귀, 다른 하나는 citation navigation 후 selection 상태 불일치입니다. **가장 중요한 다음 행동**은 이 2개 테스트 실패를 수정하여 Task 5-6을 완료하는 것입니다.
+
+Overall Progress: **4/6 tasks complete (67%), 15/18 criteria met (83%)**
