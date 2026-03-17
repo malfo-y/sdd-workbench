@@ -85,6 +85,36 @@ describe('transformCitationTextNodes', () => {
     ])
   })
 
+  it('transforms one-level dotted method citations', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: '[src/app.py:Worker.run]',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/app.py',
+          symbolName: 'Worker.run',
+        }),
+        children: [{ type: 'text', value: '[src/app.py:Worker.run]' }],
+      },
+    ])
+  })
+
   it('ignores empty brackets and non-citation bracket text', () => {
     const tree = {
       type: 'root',

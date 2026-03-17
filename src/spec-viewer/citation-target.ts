@@ -1,16 +1,29 @@
 /**
  * Parsed citation target pointing to a Python symbol in a workspace file.
- * Format: `[relative/path.py:SymbolName]` where SymbolName is a simple
- * identifier (no dotted owner-chain).
+ * Format: `[relative/path.py:SymbolName]` or
+ * `[relative/path.py:ClassName.methodName]`.
  */
 export type CitationTarget = {
   targetRelativePath: string
   symbolName: string
 }
 
+export type CitationNavigationResult =
+  | {
+      ok: true
+    }
+  | {
+      ok: false
+      failureReason?: string
+    }
+
 export const CITATION_LINK_PREFIX = '#sdd-citation:'
 
+const IDENTIFIER_PATTERN = '[A-Za-z_][A-Za-z0-9_]*'
 const SIMPLE_SYMBOL_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const QUALIFIED_METHOD_PATTERN = new RegExp(
+  `^${IDENTIFIER_PATTERN}\\.${IDENTIFIER_PATTERN}$`,
+)
 
 /**
  * Normalizes a POSIX-style path by resolving `.` and `..` segments and
@@ -69,7 +82,10 @@ function normalizeWorkspaceRelativePath(rawPath: string): string | null {
 
 function normalizeSymbolName(rawSymbolName: string): string | null {
   const normalizedSymbolName = rawSymbolName.trim()
-  if (!SIMPLE_SYMBOL_PATTERN.test(normalizedSymbolName)) {
+  if (
+    !SIMPLE_SYMBOL_PATTERN.test(normalizedSymbolName) &&
+    !QUALIFIED_METHOD_PATTERN.test(normalizedSymbolName)
+  ) {
     return null
   }
 
@@ -103,8 +119,8 @@ function parseCitationParts(rawValue: string): CitationTarget | null {
 
 /**
  * Parses a bracket-wrapped citation string like `[src/app.py:run]` into a
- * `CitationTarget`. Returns `null` for invalid format, dotted symbols,
- * absolute paths, or parent-directory escapes.
+ * `CitationTarget`. Returns `null` for invalid format, unsupported deep dotted
+ * symbols, absolute paths, or parent-directory escapes.
  */
 export function parseBracketCitationText(rawValue: string): CitationTarget | null {
   const trimmed = rawValue.trim()

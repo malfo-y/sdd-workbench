@@ -19,32 +19,49 @@ type SymbolDeclaration = {
   endOffset: number
 }
 
+const IDENTIFIER_PATTERN = '[A-Za-z_][A-Za-z0-9_]*'
 const SIMPLE_SYMBOL_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const QUALIFIED_METHOD_PATTERN = new RegExp(
+  `^${IDENTIFIER_PATTERN}\\.${IDENTIFIER_PATTERN}$`,
+)
 
 function collectDeclarations(code: string): SymbolDeclaration[] {
   const declarations: SymbolDeclaration[] = []
   const cursor = parser.parse(code).cursor()
 
-  function walk() {
-    if (
-      cursor.name === 'ClassDefinition' ||
-      cursor.name === 'FunctionDefinition'
-    ) {
+  function walk(classOwners: readonly string[], functionDepth: number) {
+    let childClassOwners = classOwners
+    let childFunctionDepth = functionDepth
+
+    if (cursor.name === 'ClassDefinition') {
       const declarationName = readDeclarationName(code, cursor)
       if (declarationName) {
         declarations.push(declarationName)
+        childClassOwners = [...classOwners, declarationName.name]
       }
+    } else if (cursor.name === 'FunctionDefinition') {
+      const declarationName = readDeclarationName(code, cursor)
+      if (declarationName) {
+        declarations.push(declarationName)
+        if (classOwners.length === 1 && functionDepth === 0) {
+          declarations.push({
+            ...declarationName,
+            name: `${classOwners[0]}.${declarationName.name}`,
+          })
+        }
+      }
+      childFunctionDepth = functionDepth + 1
     }
 
     if (cursor.firstChild()) {
       do {
-        walk()
+        walk(childClassOwners, childFunctionDepth)
       } while (cursor.nextSibling())
       cursor.parent()
     }
   }
 
-  walk()
+  walk([], 0)
   return declarations
 }
 
@@ -96,7 +113,11 @@ export function resolvePythonSymbol(
   code: string,
   symbolName: string,
 ): PythonSymbolResolution {
-  if (!SIMPLE_SYMBOL_PATTERN.test(symbolName.trim())) {
+  const normalizedSymbolName = symbolName.trim()
+  if (
+    !SIMPLE_SYMBOL_PATTERN.test(normalizedSymbolName) &&
+    !QUALIFIED_METHOD_PATTERN.test(normalizedSymbolName)
+  ) {
     return {
       ok: false,
       reason: 'unsupported_symbol',
@@ -104,7 +125,7 @@ export function resolvePythonSymbol(
   }
 
   const matches = collectDeclarations(code).filter(
-    (declaration) => declaration.name === symbolName,
+    (declaration) => declaration.name === normalizedSymbolName,
   )
   if (matches.length === 0) {
     return {

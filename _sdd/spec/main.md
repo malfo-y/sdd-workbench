@@ -2,8 +2,8 @@
 
 > 로컬/원격 워크스페이스에서 코드와 Markdown 스펙을 왕복 탐색·편집·리뷰하는 Electron 기반 워크벤치
 
-**Version**: 0.49.0
-**Last Updated**: 2026-03-14
+**Version**: 0.49.1
+**Last Updated**: 2026-03-18
 **Status**: In Review
 
 ## Table of Contents
@@ -52,7 +52,7 @@ SDD Workbench는 코드 편집기, Markdown 스펙 뷰어, 원격 작업 도구,
 4. **대규모 워크스페이스 대응**: lazy indexing, child cap, watcher fallback, partial loading으로 큰 저장소를 다룬다.
 5. **원격 워크스페이스 통합**: browse, connect, watch, system open, VS Code SSH config sync를 같은 계약으로 지원한다.
 6. **일관된 시각 상태 관리**: theme, navigation highlight, selection, search를 서로 분리된 시각 상태로 유지한다.
-7. **Python citation navigation**: 스펙 문서에서 `[path.py:Symbol]` bracket citation으로 Python 선언 위치를 자동 탐색한다.
+7. **Python citation navigation**: 스펙 문서의 prose, inline code, generic fenced block에서 `[path.py:Symbol]` / `[path.py:Class.method]` bracket citation으로 Python 선언 위치를 자동 탐색한다.
 
 ### Target Users / Use Cases
 
@@ -315,12 +315,12 @@ Electron Main
 
 ### Component: Spec Viewer
 
-- **Overview**: rendered markdown, source mapping, spec search, same-document anchor, `Go to Source`, spec-origin comment entry를 담당한다.
+- **Overview**: rendered markdown, source mapping, spec search, same-document anchor, citation navigation, `Go to Source`, spec-origin comment entry를 담당한다.
 - **Why**: raw markdown만으로는 리뷰와 탐색이 어렵고, rendered 상태에서도 raw source 기준선을 잃지 않아야 하기 때문이다.
-- **Responsibility**: markdown render, source-line metadata 부여, selection to source line/offset 해석, search block highlight.
-- **Interface**: `Go to Source`, `Copy Relative Path`, `Add Comment`, `Cmd/Ctrl+F` for spec search.
-- **Source**: `src/spec-viewer/spec-viewer-panel.tsx` (`SpecViewerPanel`), `src/spec-viewer/source-line-metadata.ts` (`buildSourceLineAttributes`), `src/spec-viewer/source-line-resolver.ts` (`resolveSourceLine`).
-- **Dependencies**: markdown security/link utils, code editor jump/highlight, App tab orchestration.
+- **Responsibility**: markdown render, source-line metadata 부여, selection to source line/offset 해석, search block highlight, semantic citation target rendering.
+- **Interface**: `Go to Source`, `Copy Relative Path`, `Add Comment`, `Cmd/Ctrl+F` for spec search, `#sdd-citation:` semantic link handling.
+- **Source**: `src/spec-viewer/spec-viewer-panel.tsx` (`SpecViewerPanel`), `src/spec-viewer/source-line-metadata.ts` (`buildSourceLineAttributes`), `src/spec-viewer/source-line-resolver.ts` (`resolveSourceLine`), `src/spec-viewer/citation-target.ts`, `src/spec-viewer/python-symbol-resolver.ts`.
+- **Dependencies**: markdown security/link utils, code editor jump/highlight, App tab orchestration, workspace file read contract.
 - **Spec**: [overview](./spec-viewer/overview.md), [contracts](./spec-viewer/contracts.md)
 
 ### Component: Comments & Export

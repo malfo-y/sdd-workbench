@@ -870,6 +870,13 @@
   overflow-wrap: anywhere;
 }
 
+.spec-link-popover-message {
+  color: var(--theme-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
 .spec-link-popover-actions {
   display: flex;
   gap: 8px;
@@ -880,6 +887,15 @@
   flex: 1;
   font-size: 0.78rem;
   padding: 0.45em 0.7em;
+}
+
+.spec-inline-citation-link {
+  text-decoration: none;
+}
+
+.spec-inline-citation-link code {
+  text-decoration: underline;
+  text-decoration-style: dotted;
 }
 
 .spec-source-popover {

@@ -21,19 +21,31 @@ describe('citation-target', () => {
     expect(parseBracketCitationText('[../src/app.py:run]')).toBeNull()
   })
 
-  it('rejects dotted symbols for the Python MVP', () => {
-    expect(parseBracketCitationText('[src/app.py:Worker.run]')).toBeNull()
+  it('accepts one-level dotted method symbols and rejects deeper chains', () => {
+    expect(parseBracketCitationText('[src/app.py:Worker.run]')).toEqual({
+      targetRelativePath: 'src/app.py',
+      symbolName: 'Worker.run',
+    })
+    expect(parseBracketCitationText('[src/app.py:Outer.Worker.run]')).toBeNull()
   })
 
-  it('serializes and parses citation href payloads', () => {
+  it('serializes and parses citation href payloads for simple and dotted symbols', () => {
     const href = buildCitationHref({
       targetRelativePath: 'src/pkg/mod.py',
       symbolName: 'Worker',
+    })
+    const dottedHref = buildCitationHref({
+      targetRelativePath: 'src/pkg/mod.py',
+      symbolName: 'Worker.run',
     })
 
     expect(parseCitationHref(href)).toEqual({
       targetRelativePath: 'src/pkg/mod.py',
       symbolName: 'Worker',
+    })
+    expect(parseCitationHref(dottedHref)).toEqual({
+      targetRelativePath: 'src/pkg/mod.py',
+      symbolName: 'Worker.run',
     })
   })
 })

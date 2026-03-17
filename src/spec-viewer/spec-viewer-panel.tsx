@@ -48,7 +48,12 @@ import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 import { buildSearchMatchStartLines } from './spec-search'
 import { rehypeWrapSourceTextLeaves } from './rehype-source-text-leaves'
 import type { SourceOffsetRange } from '../source-selection'
-import { type CitationTarget, buildCitationHref } from './citation-target'
+import {
+  type CitationNavigationResult,
+  type CitationTarget,
+  buildCitationHref,
+  parseBracketCitationText,
+} from './citation-target'
 import {
   extractCodeBlockCitationMatches,
   type CodeBlockCitationMatch,
@@ -72,7 +77,9 @@ type SpecViewerPanelProps = {
     relativePath: string,
     lineRange: SpecLinkLineRange | null,
   ) => boolean
-  onOpenCitationTarget: (target: CitationTarget) => Promise<boolean>
+  onOpenCitationTarget: (
+    target: CitationTarget,
+  ) => Promise<CitationNavigationResult>
   onGoToSourceLine: (
     lineNumber: number,
     sourceOffsetRange?: SourceOffsetRange,
@@ -107,6 +114,7 @@ type SpecViewerPanelProps = {
 
 type LinkPopoverState = {
   href: string
+  message?: string
   x: number
   y: number
 }
@@ -1032,11 +1040,19 @@ export function SpecViewerPanel({
       if (resolvedLink.kind === 'workspace-symbol') {
         void (async () => {
           try {
-            const opened = await onOpenCitationTarget(resolvedLink.target)
-            if (opened) {
+            const result = await onOpenCitationTarget(resolvedLink.target)
+            if (result.ok) {
               setLinkPopoverState(null)
               return
             }
+
+            setLinkPopoverState({
+              href: resolvedLink.href,
+              message: result.failureReason,
+              x: event.clientX,
+              y: event.clientY,
+            })
+            return
           } catch {
             // Fall through to the existing safe fallback UX.
           }
@@ -1348,6 +1364,25 @@ export function SpecViewerPanel({
         const isFencedBlock =
           !!languageMatch || codeText.includes('\n') || nodeSpansMultipleLines
         if (!isFencedBlock) {
+          const inlineCitationTarget = parseBracketCitationText(codeText)
+          if (inlineCitationTarget) {
+            const href = buildCitationHref(inlineCitationTarget)
+            return (
+              <a
+                {...buildSourceLineAttributes(node, {
+                  includeAnchorLine: false,
+                })}
+                className="spec-inline-citation-link"
+                href={href}
+                onClick={(event) => handleMarkdownLinkClick(event, href)}
+              >
+                <code className={className} {...codeProps}>
+                  {children}
+                </code>
+              </a>
+            )
+          }
+
           return (
             <code
               {...buildSourceLineAttributes(node, {
@@ -1702,6 +1737,7 @@ export function SpecViewerPanel({
       {linkPopoverState && (
         <SpecLinkPopover
           href={linkPopoverState.href}
+          message={linkPopoverState.message}
           onClose={closeLinkPopover}
           onCopy={() => {
             void copyPopoverLink()

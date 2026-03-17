@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 type SpecLinkPopoverProps = {
   href: string
+  message?: string
   x: number
   y: number
   onClose: () => void
@@ -17,6 +18,7 @@ function clamp(value: number, min: number, max: number) {
 
 export function SpecLinkPopover({
   href,
+  message,
   x,
   y,
   onClose,
@@ -83,6 +85,7 @@ export function SpecLinkPopover({
       <p className="spec-link-popover-href" title={href}>
         {href}
       </p>
+      {message ? <p className="spec-link-popover-message">{message}</p> : null}
       <div className="spec-link-popover-actions">
         <button onClick={onCopy} type="button">
           Copy Link Address

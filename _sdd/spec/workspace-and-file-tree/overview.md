@@ -41,6 +41,7 @@
 - `childrenStatus='not-loaded'|'partial'|'complete'`로 lazy/partial 상태를 구분한다.
 - `workspace:indexDirectory`로 단일 디렉토리를 on-demand 로드한다.
 - `not-loaded`/`partial` 하위 변경 경로는 힌트 버블링으로 일부 가시성을 유지한다.
+- lazy file tree index는 트리 가시성과 탐색을 위한 상태이며, spec citation navigation 같은 직접 file read 경로의 절대 게이트는 아니다.
 
 ### 4.3 파일 검색
 

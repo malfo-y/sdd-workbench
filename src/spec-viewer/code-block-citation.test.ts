@@ -57,11 +57,25 @@ describe('extractCodeBlockCitationMatches', () => {
     ])
   })
 
-  it('rejects unsupported dotted symbols in generic fenced blocks', () => {
+  it('extracts one-level dotted method citations and rejects deeper chains', () => {
     const matches = extractCodeBlockCitationMatches(
-      'Worker [src/app.py:Worker.run]',
+      [
+        'Worker [src/app.py:Worker.run]',
+        'Nested [src/app.py:Outer.Worker.run]',
+      ].join('\n'),
     )
 
-    expect(matches).toEqual([])
+    expect(matches).toEqual([
+      {
+        lineNumber: 1,
+        startOffset: 7,
+        endOffset: 30,
+        rawText: '[src/app.py:Worker.run]',
+        target: {
+          targetRelativePath: 'src/app.py',
+          symbolName: 'Worker.run',
+        },
+      },
+    ])
   })
 })

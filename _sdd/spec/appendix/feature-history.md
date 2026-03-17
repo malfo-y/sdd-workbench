@@ -67,3 +67,4 @@
 | F40 | Done | 2026-03-10 | 파일 클립보드 Copy/Paste |
 | F41 | Done | 2026-03-14 | View Comments draggable modal |
 | F42 | Done | 2026-03-14 | shared draggable comment modals |
+| F43 | Done | 2026-03-14 | Python citation navigation + dotted method support + inline code/generic fenced citation links + lazy-index read-through |

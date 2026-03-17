@@ -24,8 +24,16 @@ spec 링크, source action, code/spec 왕복 이동, exact offset, temporary hig
 
 1. same-document anchor는 브라우저 기본 이동 대신 현재 spec 패널 내부 heading scroll을 사용한다.
 2. same-workspace 상대 링크만 내부 라우팅한다.
-3. `#sdd-citation:` 링크는 대상 파일 읽기 → Python symbol 해석 → Code 탭 점프 순서로 처리한다. 해석 실패 시 기존 fallback UX를 사용한다.
+3. `#sdd-citation:` 링크는 대상 파일 읽기 → Python symbol 해석 → Code 탭 점프 순서로 처리한다. 파일 트리 lazy index 포함 여부는 선행 조건이 아니며, 실제 `readFile` 성공 여부를 기준으로 판단한다.
 4. external 또는 unresolved 링크는 자동 이동 대신 안전한 fallback(copy/open)을 사용한다.
+
+citation 세부 규칙:
+
+- prose text와 inline code span의 `[relative/path.py:Symbol]`, `[relative/path.py:Class.method]`는 semantic citation target으로 승격될 수 있다.
+- fenced code block에서는 언어 태그와 무관하게 `[relative/path.py:Symbol]` / `[relative/path.py:Class.method]` token만 interactive target으로 추출한다.
+- Python symbol resolution은 declaration-only며 simple symbol과 one-level dotted `Class.method` exact match만 지원한다.
+- deeper dotted owner chain(`Outer.Inner.method`)은 unsupported target으로 처리한다.
+- citation 해석 실패 시 link popover에 failure reason을 포함해 copy fallback을 유지한다.
 
 ## 3. source selection 규칙
 

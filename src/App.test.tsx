@@ -5475,6 +5475,210 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/app.py')
   })
 
+  it('opens dotted prose citation links by resolving an exact Python method declaration', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'See [src/app.py:Worker.run] for details.',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: [
+            'class Worker:',
+            '    def run(self):',
+            '        return 1',
+            '',
+            'class Helper:',
+            '    def run(self):',
+            '        return 2',
+          ].join('\n'),
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:Worker.run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:Worker.run]' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.py',
+      )
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L2-L2',
+    )
+    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/app.py')
+  })
+
+  it('opens inline code citations from rendered markdown prose', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'Use `[src/app.py:Worker]` as the primary entry point.',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: [
+            'class Worker:',
+            '    pass',
+          ].join('\n'),
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:Worker]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:Worker]' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.py',
+      )
+    })
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L1-L1',
+    )
+  })
+
   it('restores the markdown viewer when going back after a prose citation jump', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [
@@ -5682,6 +5886,118 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
       '#sdd-citation:src%2Fapp.py:run',
     )
+    expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+      'Python symbol "run" was not found in src/app.py.',
+    )
+    expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
+      'src/app.py',
+    )
+  })
+
+  it('keeps fallback UX for unresolved dotted prose citation links without opening the file', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+    const indexedTree: WorkspaceFileNode[] = [
+      {
+        name: 'docs',
+        relativePath: 'docs',
+        kind: 'directory',
+        children: [
+          {
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            kind: 'file',
+          },
+        ],
+      },
+      {
+        name: 'src',
+        relativePath: 'src',
+        kind: 'directory',
+        children: [
+          {
+            name: 'app.py',
+            relativePath: 'src/app.py',
+            kind: 'file',
+          },
+        ],
+      },
+    ]
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: indexedTree,
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => {
+      if (relativePath === 'docs/README.md') {
+        return {
+          ok: true,
+          content: 'See [src/app.py:Worker.run] for details.',
+        }
+      }
+
+      if (relativePath === 'src/app.py') {
+        return {
+          ok: true,
+          content: [
+            'class Worker:',
+            '    def other(self):',
+            '        return 1',
+          ].join('\n'),
+        }
+      }
+
+      return {
+        ok: false,
+        content: null,
+      }
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'README.md' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('link', { name: '[src/app.py:Worker.run]' }),
+      ).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:Worker.run]' }), {
+      clientX: 220,
+      clientY: 240,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+      '#sdd-citation:src%2Fapp.py:Worker.run',
+    )
+    expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+      'Python symbol "Worker.run" was not found in src/app.py.',
+    )
     expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
       'src/app.py',
     )
@@ -5775,13 +6091,16 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
     })
+    expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+      'Failed to read citation target:',
+    )
     // Should stay on current file, not switch to src/app.py
     expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
       'src/app.py',
     )
   })
 
-  it('shows fallback UX when citation references a file not in workspace', async () => {
+  it('opens citation targets that are not yet present in the lazy file tree', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [
       {
@@ -5810,8 +6129,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       if (relativePath === 'docs/README.md') {
         return {
           ok: true,
-          // Citation references a file that is NOT in the workspace tree
+          // Citation references a file that is not present in the lazy index yet.
           content: 'See [src/missing.py:run] for details.',
+        }
+      }
+
+      if (relativePath === 'src/missing.py') {
+        return {
+          ok: true,
+          content: 'def run():\n    return 1\n',
         }
       }
 
@@ -5855,16 +6181,17 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: 'Link actions' })).toBeInTheDocument()
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/missing.py',
+      )
     })
-    // readFile is attempted but returns ok: false, so fallback UX is shown
-    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/missing.py')
-    expect(screen.getByTestId('code-viewer-active-file')).not.toHaveTextContent(
-      'src/missing.py',
+    expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
+      'Selection: L1-L1',
     )
+    expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/missing.py')
   })
 
-  it('opens generic fenced code citation links from rendered code blocks', async () => {
+  it('opens dotted generic fenced code citation links from rendered code blocks', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [
       {
@@ -5906,14 +6233,18 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         return {
           ok: true,
           content:
-            '```\nDJDataset [src/app.py:run]\nNestedDataset [src/app.py:run]\n```',
+            '```\nDJDataset [src/app.py:Worker.run]\nNestedDataset [src/app.py:Worker.run]\n```',
         }
       }
 
       if (relativePath === 'src/app.py') {
         return {
           ok: true,
-          content: 'def run():\n    return 1\n',
+          content: [
+            'class Worker:',
+            '    def run(self):',
+            '        return 1',
+          ].join('\n'),
         }
       }
 
@@ -5944,7 +6275,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
 
     const citationLinks = await screen.findAllByRole('link', {
-      name: '[src/app.py:run]',
+      name: '[src/app.py:Worker.run]',
     })
     fireEvent.click(citationLinks[0]!)
 
@@ -5954,7 +6285,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       )
     })
     expect(screen.getByTestId('code-viewer-selection-range')).toHaveTextContent(
-      'Selection: L1-L1',
+      'Selection: L2-L2',
     )
   })
 

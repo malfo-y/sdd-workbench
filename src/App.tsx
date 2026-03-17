@@ -46,7 +46,10 @@ import {
   subscribeToSystemThemeChanges,
   type AppearanceTheme,
 } from './appearance-theme'
-import { type CitationTarget } from './spec-viewer/citation-target'
+import {
+  type CitationNavigationResult,
+  type CitationTarget,
+} from './spec-viewer/citation-target'
 import { resolvePythonSymbol } from './spec-viewer/python-symbol-resolver'
 import { type SpecLinkLineRange } from './spec-viewer/spec-link-utils'
 import { SpecViewerPanel } from './spec-viewer/spec-viewer-panel'
@@ -92,6 +95,21 @@ const WHEEL_DELTA_MODE_PIXEL = 0
 const MOUSE_WHEEL_DISCRETE_STEP_DELTA = 120
 const COMMENT_BANNER_AUTODISMISS_MS = 5000
 const HISTORY_NAVIGATION_SCOPE_SELECTOR = '[data-history-navigation-scope="true"]'
+
+function describeCitationResolutionFailure(
+  relativePath: string,
+  symbolName: string,
+  reason: 'ambiguous' | 'not_found' | 'unsupported_symbol',
+): string {
+  switch (reason) {
+    case 'ambiguous':
+      return `Python symbol "${symbolName}" is ambiguous in ${relativePath}.`
+    case 'not_found':
+      return `Python symbol "${symbolName}" was not found in ${relativePath}.`
+    case 'unsupported_symbol':
+      return `Citation target syntax is not supported: ${symbolName}.`
+  }
+}
 
 type PaneSizes = {
   left: number
@@ -1390,9 +1408,12 @@ function App() {
   )
 
   const openCitationTarget = useCallback(
-    async (target: CitationTarget) => {
+    async (target: CitationTarget): Promise<CitationNavigationResult> => {
       if (!rootPath) {
-        return false
+        return {
+          ok: false,
+          failureReason: 'Workspace is unavailable.',
+        }
       }
 
       const targetFileContent =
@@ -1407,14 +1428,26 @@ function App() {
           target.targetRelativePath,
         )
         if (!readResult.ok || typeof readResult.content !== 'string') {
-          return false
+          return {
+            ok: false,
+            failureReason: `Failed to read citation target: ${
+              readResult.error ?? target.targetRelativePath
+            }`,
+          }
         }
         fileContent = readResult.content
       }
 
       const resolution = resolvePythonSymbol(fileContent, target.symbolName)
       if (!resolution.ok) {
-        return false
+        return {
+          ok: false,
+          failureReason: describeCitationResolutionFailure(
+            target.targetRelativePath,
+            target.symbolName,
+            resolution.reason,
+          ),
+        }
       }
 
       setSpecViewerNavigationRequest(null)
@@ -1430,7 +1463,9 @@ function App() {
         sourceOffsetRange: resolution.sourceOffsetRange,
         shouldHighlight: true,
       })
-      return true
+      return {
+        ok: true,
+      }
     },
     [
       activeFile,

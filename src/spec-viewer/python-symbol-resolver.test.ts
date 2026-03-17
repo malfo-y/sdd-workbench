@@ -47,6 +47,27 @@ describe('resolvePythonSymbol', () => {
     })
   })
 
+  it('resolves an owner-qualified method declaration exactly', () => {
+    const code = [
+      'class Worker:',
+      '    def execute(self):',
+      '        return 1',
+      '',
+      'class Helper:',
+      '    def execute(self):',
+      '        return 2',
+    ].join('\n')
+
+    expect(resolvePythonSymbol(code, 'Worker.execute')).toEqual({
+      ok: true,
+      lineNumber: 2,
+      sourceOffsetRange: {
+        startOffset: 22,
+        endOffset: 29,
+      },
+    })
+  })
+
   it('fails when the symbol does not exist', () => {
     const code = ['def helper():', '    return 1'].join('\n')
 
@@ -73,10 +94,23 @@ describe('resolvePythonSymbol', () => {
     })
   })
 
+  it('fails when an owner-qualified method does not exist exactly', () => {
+    const code = [
+      'class Worker:',
+      '    def execute(self):',
+      '        return 1',
+    ].join('\n')
+
+    expect(resolvePythonSymbol(code, 'Worker.run')).toEqual({
+      ok: false,
+      reason: 'not_found',
+    })
+  })
+
   it('rejects unsupported symbol syntax', () => {
     const code = ['def helper():', '    return 1'].join('\n')
 
-    expect(resolvePythonSymbol(code, 'Worker.execute')).toEqual({
+    expect(resolvePythonSymbol(code, 'Outer.Worker.execute')).toEqual({
       ok: false,
       reason: 'unsupported_symbol',
     })

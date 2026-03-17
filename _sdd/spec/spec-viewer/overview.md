@@ -10,7 +10,8 @@
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
 - rendered selection에서 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`, `Go to Source`, `Add Comment`를 호출할 수 있다.
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
-- prose 또는 fenced code block 안의 `[path.py:Symbol]` bracket citation을 클릭해 Python 선언 위치로 점프할 수 있다.
+- prose, inline code span, 또는 fenced code block 안의 `[path.py:Symbol]` / `[path.py:Class.method]` bracket citation을 클릭해 Python 선언 위치로 점프할 수 있다.
+- citation 해석에 실패하면 기존 link popover 안에서 실패 이유를 확인할 수 있다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -50,10 +51,14 @@
 
 ### 4.3 citation navigation
 
-- prose text의 `[relative/path.py:Symbol]`은 remark 플러그인이 클릭 가능한 링크로 변환한다.
-- fenced code block 안의 bracket citation은 언어 무관으로 추출되며, 인라인 위치에 링크를 렌더한다.
-- 클릭 시 App 레벨에서 대상 파일을 읽고 Lezer Python 파서로 선언 위치를 해석해 Code 탭으로 점프한다.
-- 해석 실패 시 기존 link fallback UX(copy popover)를 유지한다.
+- prose text의 `[relative/path.py:Symbol]`과 `[relative/path.py:Class.method]`은 remark 플러그인이 클릭 가능한 링크로 변환한다.
+- inline code span이 citation 하나만 감쌀 때도 같은 semantic citation 링크로 렌더한다.
+- fenced code block 안의 bracket citation token은 언어 무관으로 추출되며, 일반 텍스트/diagram 예제 내부에서도 citation token만 링크로 렌더한다.
+- 클릭 시 App 레벨에서 대상 파일을 실제로 읽고 Lezer Python 파서로 선언 위치를 해석해 Code 탭으로 점프한다.
+- citation jump는 lazy file tree index 포함 여부와 무관하게 `readFile` 성공 여부를 기준으로 처리한다.
+- Python 해석은 declaration-only이며, simple symbol과 one-level dotted `Class.method` exact match만 지원한다. deeper dotted chain은 지원하지 않는다.
+- 해석 실패 시 기존 link fallback UX(copy popover)를 유지하되, popover 안에 실패 이유를 함께 표시한다.
+- citation jump 후 Back/Forward로 돌아오면 markdown spec view가 다시 복원된다.
 - `normalizePosixPath`는 `citation-target.ts`에서 export하며 `spec-link-utils.ts`와 공유한다.
 
 ### 4.4 scroll과 문맥 유지

@@ -17,6 +17,8 @@
 ## 2. Code / Spec Navigation
 
 - spec 링크 인터셉트 + line jump
+- Python citation navigation: prose / inline code / generic fenced block에서 `[path.py:Symbol]` / `[path.py:Class.method]` 점프
+- citation failure reason popover + lazy-index 미포함 파일에 대한 read-through jump
 - same-spec source jump에서 rendered spec scroll 문맥 유지
 - history navigation 입력 바인딩 일관성
 - `Go to Source`, `Go to Spec`, explicit line jump의 temporary highlight
