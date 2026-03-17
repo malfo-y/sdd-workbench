@@ -581,10 +581,10 @@ export async function workspaceIndexDirectory(
   const relativePath = typeof params.relativePath === 'string'
     ? params.relativePath
     : ''
-  const resolvedDirectoryPath = resolveWorkspaceRelativePath(
-    context.rootPath,
-    relativePath,
-  )
+  const resolvedDirectoryPath =
+    relativePath.trim().length > 0
+      ? resolveWorkspaceRelativePath(context.rootPath, relativePath)
+      : context.rootPath
   const targetStats = await stat(resolvedDirectoryPath)
   if (!targetStats.isDirectory()) {
     throw new RemoteAgentError('UNKNOWN', 'Target path is not a directory.')

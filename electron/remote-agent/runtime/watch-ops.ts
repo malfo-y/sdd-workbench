@@ -194,12 +194,14 @@ function diffWorkspacePollingSnapshot(
 
   for (const directoryPath of nextSnapshot.directoryPaths) {
     if (!previousSnapshot.directoryPaths.has(directoryPath)) {
+      changedRelativePaths.add(directoryPath)
       hasStructureChanges = true
     }
   }
 
   for (const directoryPath of previousSnapshot.directoryPaths) {
     if (!nextSnapshot.directoryPaths.has(directoryPath)) {
+      changedRelativePaths.add(directoryPath)
       hasStructureChanges = true
     }
   }

@@ -3721,6 +3721,83 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
   })
 
+  it('refreshes only the changed parent directory when watcher reports structure changes with paths', async () => {
+    const workspaceRoot = '/Users/tester/watch-structure-partial-refresh'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'old.ts',
+              relativePath: 'docs/old.ts',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [
+        {
+          name: 'new.ts',
+          relativePath: 'docs/new.ts',
+          kind: 'file',
+        },
+        {
+          name: 'old.ts',
+          relativePath: 'docs/old.ts',
+          kind: 'file',
+        },
+      ],
+      childrenStatus: 'complete',
+      totalChildCount: 2,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'old.ts' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['docs/new.ts'],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(indexDirectoryMock).toHaveBeenCalledWith(
+        workspaceRoot,
+        'docs',
+        { offset: 0, limit: 500 },
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'new.ts' })).toBeInTheDocument()
+    })
+    expect(indexWorkspaceMock).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps file tree visible while structure refresh is in flight', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-inflight'
 
@@ -4000,10 +4077,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         ok: true,
         fileTree: [{ name: 'gone.ts', relativePath: 'gone.ts', kind: 'file' }],
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        fileTree: [],
-      })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [],
+      childrenStatus: 'complete',
+      totalChildCount: 0,
+    })
     readFileMock.mockResolvedValueOnce({
       ok: true,
       content: 'const gone = true',
@@ -4036,6 +4115,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         screen.getByTestId('code-viewer-active-file'),
       ).toHaveTextContent('No active file')
     })
+    expect(indexDirectoryMock).toHaveBeenCalledWith(workspaceRoot, '', {
+      offset: 0,
+      limit: 500,
+    })
+    expect(indexWorkspaceMock).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'gone.ts' })).not.toBeInTheDocument()
   })
 

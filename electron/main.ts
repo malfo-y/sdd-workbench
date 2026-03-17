@@ -967,19 +967,23 @@ async function handleWorkspaceIndexDirectory(
 ): Promise<WorkspaceIndexDirectoryResult> {
   try {
     const rootPath = request?.rootPath
-    const relativePath = request?.relativePath
-    if (!rootPath || !relativePath) {
+    const relativePath =
+      typeof request?.relativePath === 'string' ? request.relativePath : ''
+    if (!rootPath) {
       return {
         ok: false,
         children: [],
         childrenStatus: 'complete',
         totalChildCount: 0,
-        error: 'rootPath and relativePath are required.',
+        error: 'rootPath is required.',
       }
     }
 
     const resolvedRootPath = path.resolve(rootPath)
-    const resolvedTargetPath = path.resolve(resolvedRootPath, relativePath)
+    const resolvedTargetPath =
+      relativePath.trim().length > 0
+        ? path.resolve(resolvedRootPath, relativePath)
+        : resolvedRootPath
     if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
       return {
         ok: false,
@@ -2127,6 +2131,7 @@ function queueWorkspaceWatchEvent(
     watchEntry.pendingRelativePaths.add(relativePath)
   }
   if (WATCHABLE_STRUCTURE_EVENTS.has(eventName)) {
+    watchEntry.pendingRelativePaths.add(relativePath)
     watchEntry.hasPendingStructureChanges = true
   }
   if (watchEntry.debounceTimer !== null) {
@@ -2275,11 +2280,13 @@ function diffWorkspacePollingSnapshot(
 
   for (const directoryPath of nextSnapshot.directoryPaths) {
     if (!previousSnapshot.directoryPaths.has(directoryPath)) {
+      changedRelativePaths.add(directoryPath)
       hasStructureChanges = true
     }
   }
   for (const directoryPath of previousSnapshot.directoryPaths) {
     if (!nextSnapshot.directoryPaths.has(directoryPath)) {
+      changedRelativePaths.add(directoryPath)
       hasStructureChanges = true
     }
   }

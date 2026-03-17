@@ -30,6 +30,7 @@ import {
   type WorkspaceKind,
   type WorkspaceRemoteConnectionState,
   type WorkspaceRemoteProfile,
+  type WorkspaceSession,
   type WorkspaceWatchMode,
   type WorkspaceWatchModePreference,
   type WorkspaceState,
@@ -307,6 +308,11 @@ function findDirectoryNodeInTree(
   return null
 }
 
+function getParentPath(relativePath: string): string {
+  const lastSlash = relativePath.lastIndexOf('/')
+  return lastSlash < 0 ? '' : relativePath.slice(0, lastSlash)
+}
+
 function buildDirectoryNodeMap(
   tree: WorkspaceFileNode[],
   directoryNodeByPath = new Map<string, WorkspaceFileNode>(),
@@ -323,6 +329,106 @@ function buildDirectoryNodeMap(
   }
 
   return directoryNodeByPath
+}
+
+function getLoadedChildCountForDirectory(
+  tree: WorkspaceFileNode[],
+  directoryRelativePath: string,
+): number {
+  if (directoryRelativePath === '') {
+    return tree.length
+  }
+
+  return findDirectoryNodeInTree(tree, directoryRelativePath)?.children?.length ?? 0
+}
+
+function mergeDirectoryChildrenAtPath(
+  tree: WorkspaceFileNode[],
+  directoryRelativePath: string,
+  children: WorkspaceFileNode[],
+  childrenStatus: 'complete' | 'partial',
+  totalChildCount: number,
+  options?: { appendChildren?: boolean },
+): WorkspaceFileNode[] {
+  if (directoryRelativePath === '') {
+    return options?.appendChildren
+      ? [
+          ...tree,
+          ...children.filter(
+            (childNode) =>
+              !tree.some(
+                (existingChildNode) =>
+                  existingChildNode.relativePath === childNode.relativePath,
+              ),
+          ),
+        ]
+      : children
+  }
+
+  return mergeDirectoryChildren(
+    tree,
+    directoryRelativePath,
+    children,
+    childrenStatus,
+    totalChildCount,
+    options,
+  )
+}
+
+function reconcileWorkspaceSessionTreeState(
+  workspaceSession: WorkspaceSession,
+  nextFileTree: WorkspaceFileNode[],
+): WorkspaceSession {
+  const indexedFilePathSet = collectFileRelativePaths(nextFileTree)
+  const activeFileStillExists =
+    workspaceSession.activeFile !== null &&
+    (indexedFilePathSet.has(workspaceSession.activeFile) ||
+      isFilePathPotentiallyPresent(nextFileTree, workspaceSession.activeFile))
+  const activeSpecStillExists =
+    workspaceSession.activeSpec !== null &&
+    (indexedFilePathSet.has(workspaceSession.activeSpec) ||
+      isFilePathPotentiallyPresent(nextFileTree, workspaceSession.activeSpec))
+
+  return {
+    ...workspaceSession,
+    fileTree: nextFileTree,
+    changedFiles: workspaceSession.changedFiles.filter((relativePath) =>
+      indexedFilePathSet.has(relativePath) ||
+      isFilePathPotentiallyPresent(nextFileTree, relativePath),
+    ),
+    activeFile: activeFileStillExists ? workspaceSession.activeFile : null,
+    activeSpec: activeSpecStillExists ? workspaceSession.activeSpec : null,
+    activeFileContent: activeFileStillExists
+      ? workspaceSession.activeFileContent
+      : null,
+    activeFileImagePreview: activeFileStillExists
+      ? workspaceSession.activeFileImagePreview
+      : null,
+    activeFileGitLineMarkers: activeFileStillExists
+      ? workspaceSession.activeFileGitLineMarkers
+      : [],
+    activeSpecContent: activeSpecStillExists
+      ? workspaceSession.activeSpecContent
+      : null,
+    readFileError: activeFileStillExists
+      ? workspaceSession.readFileError
+      : null,
+    activeSpecReadError: activeSpecStillExists
+      ? workspaceSession.activeSpecReadError
+      : null,
+    previewUnavailableReason: activeFileStillExists
+      ? workspaceSession.previewUnavailableReason
+      : null,
+    selectionRange: activeFileStillExists
+      ? workspaceSession.selectionRange
+      : null,
+    isReadingFile: activeFileStillExists
+      ? workspaceSession.isReadingFile
+      : false,
+    isReadingSpec: activeSpecStillExists
+      ? workspaceSession.isReadingSpec
+      : false,
+  }
 }
 
 function preserveExpandedDirectoryChildren(
@@ -377,6 +483,53 @@ function preserveExpandedDirectoryChildren(
 type ExpandedDirectoryHydrationTarget = {
   relativePath: string
   minimumChildCount: number
+}
+
+function findNearestRefreshableDirectoryPath(
+  tree: WorkspaceFileNode[],
+  changedRelativePath: string,
+): string {
+  let candidatePath = getParentPath(changedRelativePath)
+  while (candidatePath) {
+    if (findDirectoryNodeInTree(tree, candidatePath)) {
+      return candidatePath
+    }
+    candidatePath = getParentPath(candidatePath)
+  }
+
+  return ''
+}
+
+function collectStructureRefreshTargets(
+  tree: WorkspaceFileNode[],
+  changedRelativePaths: string[],
+): ExpandedDirectoryHydrationTarget[] {
+  if (changedRelativePaths.length === 0) {
+    return []
+  }
+
+  return Array.from(
+    new Set(
+      changedRelativePaths.map((changedRelativePath) =>
+        findNearestRefreshableDirectoryPath(tree, changedRelativePath),
+      ),
+    ),
+  )
+    .sort((leftPath, rightPath) => {
+      const leftDepth = leftPath === '' ? 0 : leftPath.split('/').length
+      const rightDepth = rightPath === '' ? 0 : rightPath.split('/').length
+      if (leftDepth !== rightDepth) {
+        return leftDepth - rightDepth
+      }
+      return leftPath.localeCompare(rightPath)
+    })
+    .map((relativePath) => ({
+      relativePath,
+      minimumChildCount: Math.max(
+        getLoadedChildCountForDirectory(tree, relativePath),
+        1,
+      ),
+    }))
 }
 
 function collectExpandedDirectoryHydrationTargets(
@@ -627,7 +780,6 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                 previousWorkspaceSession.expandedDirectories,
               )
             : []
-        const indexedFilePathSet = collectFileRelativePaths(nextFileTree)
         setWorkspaceState((previous) =>
           updateWorkspaceSession(previous, workspaceId, (currentSession) => {
             if (mode === 'reset') {
@@ -638,60 +790,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               }
             }
 
-            const activeFileStillExists =
-              currentSession.activeFile !== null &&
-              (indexedFilePathSet.has(currentSession.activeFile) ||
-                isFilePathPotentiallyPresent(
-                  nextFileTree,
-                  currentSession.activeFile,
-                ))
-            const activeSpecStillExists =
-              currentSession.activeSpec !== null &&
-              (indexedFilePathSet.has(currentSession.activeSpec) ||
-                isFilePathPotentiallyPresent(
-                  nextFileTree,
-                  currentSession.activeSpec,
-                ))
-
             return {
-              ...currentSession,
-              fileTree: nextFileTree,
-              changedFiles: currentSession.changedFiles.filter((relativePath) =>
-                indexedFilePathSet.has(relativePath) ||
-                isFilePathPotentiallyPresent(nextFileTree, relativePath),
+              ...reconcileWorkspaceSessionTreeState(
+                currentSession,
+                nextFileTree,
               ),
-              activeFile: activeFileStillExists ? currentSession.activeFile : null,
-              activeSpec: activeSpecStillExists ? currentSession.activeSpec : null,
-              activeFileContent: activeFileStillExists
-                ? currentSession.activeFileContent
-                : null,
-              activeFileImagePreview: activeFileStillExists
-                ? currentSession.activeFileImagePreview
-                : null,
-              activeFileGitLineMarkers: activeFileStillExists
-                ? currentSession.activeFileGitLineMarkers
-                : [],
-              activeSpecContent: activeSpecStillExists
-                ? currentSession.activeSpecContent
-                : null,
-              readFileError: activeFileStillExists
-                ? currentSession.readFileError
-                : null,
-              activeSpecReadError: activeSpecStillExists
-                ? currentSession.activeSpecReadError
-                : null,
-              previewUnavailableReason: activeFileStillExists
-                ? currentSession.previewUnavailableReason
-                : null,
-              selectionRange: activeFileStillExists
-                ? currentSession.selectionRange
-                : null,
-              isReadingFile: activeFileStillExists
-                ? currentSession.isReadingFile
-                : false,
-              isReadingSpec: activeSpecStillExists
-                ? currentSession.isReadingSpec
-                : false,
               isIndexing: false,
             }
           }),
@@ -2490,13 +2593,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
-      const initialDirectoryNode = findDirectoryNodeInTree(
-        initialWorkspaceSession.fileTree,
-        relativePath,
-      )
       let appendChildren = options?.append === true
       let loadedChildCount = appendChildren
-        ? (initialDirectoryNode?.children?.length ?? 0)
+        ? getLoadedChildCountForDirectory(
+            initialWorkspaceSession.fileTree,
+            relativePath,
+          )
         : 0
       const minimumChildCount = options?.minimumChildCount
 
@@ -2548,20 +2650,25 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           }
 
           setWorkspaceState((previous) =>
-            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-              ...currentSession,
-              fileTree: mergeDirectoryChildren(
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+              const nextFileTree = mergeDirectoryChildrenAtPath(
                 currentSession.fileTree,
                 relativePath,
                 result.children,
                 result.childrenStatus,
                 result.totalChildCount,
                 { appendChildren },
-              ),
-              loadingDirectories: currentSession.loadingDirectories.filter(
-                (dir) => dir !== relativePath,
-              ),
-            })),
+              )
+              return {
+                ...reconcileWorkspaceSessionTreeState(
+                  currentSession,
+                  nextFileTree,
+                ),
+                loadingDirectories: currentSession.loadingDirectories.filter(
+                  (dir) => dir !== relativePath,
+                ),
+              }
+            }),
           )
 
           loadedChildCount =
@@ -2607,6 +2714,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   )
 
   const hydrateExpandedDirectories = useCallback(
+    async (
+      workspaceId: WorkspaceId,
+      targets: ExpandedDirectoryHydrationTarget[],
+    ) => {
+      for (const target of targets) {
+        await loadWorkspaceDirectoryChildren(workspaceId, target.relativePath, {
+          minimumChildCount: target.minimumChildCount,
+          suppressIgnorableErrors: true,
+        })
+      }
+    },
+    [loadWorkspaceDirectoryChildren],
+  )
+
+  const refreshWorkspaceDirectories = useCallback(
     async (
       workspaceId: WorkspaceId,
       targets: ExpandedDirectoryHydrationTarget[],
@@ -2936,6 +3058,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const workspaceSession =
         workspaceStateRef.current.workspacesById[watchEvent.workspaceId]
       const activeFile = workspaceSession?.activeFile ?? null
+      const structureRefreshTargets =
+        hasStructureChanges && workspaceSession
+          ? collectStructureRefreshTargets(
+              workspaceSession.fileTree,
+              normalizedChangedRelativePaths,
+            )
+          : []
       const shouldRefreshActiveFile =
         activeFile !== null &&
         normalizedChangedRelativePaths.includes(activeFile)
@@ -2983,11 +3112,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
 
       if (hasStructureChanges && workspaceSession) {
-        void loadWorkspaceIndex(
-          watchEvent.workspaceId,
-          workspaceSession.rootPath,
-          'refresh',
-        )
+        if (structureRefreshTargets.length > 0) {
+          void refreshWorkspaceDirectories(
+            watchEvent.workspaceId,
+            structureRefreshTargets,
+          )
+        } else {
+          void loadWorkspaceIndex(
+            watchEvent.workspaceId,
+            workspaceSession.rootPath,
+            'refresh',
+          )
+        }
       }
 
       if (workspaceSession) {
@@ -3006,7 +3142,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         void window.workspace.watchStop(workspaceId)
       }
     }
-  }, [loadWorkspaceFile, loadWorkspaceGitFileStatuses, loadWorkspaceIndex, loadWorkspaceSpec])
+  }, [
+    loadWorkspaceFile,
+    loadWorkspaceGitFileStatuses,
+    loadWorkspaceIndex,
+    loadWorkspaceSpec,
+    refreshWorkspaceDirectories,
+  ])
 
   useEffect(() => {
     refreshActiveWorkspaceGitDecorations({
