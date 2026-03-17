@@ -1516,6 +1516,344 @@ describe('FileTreePanel git status badges', () => {
   })
 })
 
+describe('FileTreePanel focus retention', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('keeps directory focus across tree refreshes', () => {
+    const onExpandedDirectoriesChange = vi.fn()
+    const { rerender } = render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'app.ts',
+                relativePath: 'src/app.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const directoryButton = screen.getByRole('button', { name: 'src' })
+    directoryButton.focus()
+    expect(directoryButton).toHaveFocus()
+
+    rerender(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'app.ts',
+                relativePath: 'src/app.ts',
+                kind: 'file',
+              },
+              {
+                name: 'new.ts',
+                relativePath: 'src/new.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={onExpandedDirectoriesChange}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'src' })).toHaveFocus()
+  })
+
+  it('restores focus to the nearest parent directory when a focused file disappears', () => {
+    const { rerender } = render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const fileButton = screen.getByRole('button', { name: 'math.ts' })
+    fileButton.focus()
+    expect(fileButton).toHaveFocus()
+
+    rerender(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [],
+                childrenStatus: 'not-loaded',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'utils' })).toHaveFocus()
+  })
+
+  it('waits for the active file button to return before restoring focus during refresh hydration', () => {
+    const { rerender } = render(
+      <FileTreePanel
+        activeFile="src/utils/math.ts"
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const fileButton = screen.getByRole('button', { name: 'math.ts' })
+    fileButton.focus()
+    expect(fileButton).toHaveFocus()
+
+    rerender(
+      <FileTreePanel
+        activeFile="src/utils/math.ts"
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [],
+                childrenStatus: 'not-loaded',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'utils' })).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+
+    rerender(
+      <FileTreePanel
+        activeFile="src/utils/math.ts"
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'math.ts',
+                    relativePath: 'src/utils/math.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'math.ts' })).toHaveFocus()
+  })
+
+  it('restores the tree scroll position after refresh replaces rendered nodes', () => {
+    const { rerender } = render(
+      <FileTreePanel
+        activeFile="src/utils/math.ts"
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: Array.from({ length: 20 }, (_, index) => ({
+                  name: `file-${index}.ts`,
+                  relativePath: `src/utils/file-${index}.ts`,
+                  kind: 'file' as const,
+                })).concat({
+                  name: 'math.ts',
+                  relativePath: 'src/utils/math.ts',
+                  kind: 'file',
+                }),
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    const panel = screen.getByTestId('file-tree-panel')
+    panel.scrollTop = 240
+    fireEvent.scroll(panel)
+    expect(panel.scrollTop).toBe(240)
+
+    panel.scrollTop = 0
+
+    rerender(
+      <FileTreePanel
+        activeFile="src/utils/math.ts"
+        changedFiles={[]}
+        expandedDirectories={['src', 'src/utils']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [],
+                childrenStatus: 'not-loaded',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    expect(screen.getByTestId('file-tree-panel').scrollTop).toBe(240)
+  })
+})
+
 describe('FileTreePanel clipboard copy/paste', () => {
   afterEach(() => {
     cleanup()

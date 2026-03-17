@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type MouseEvent,
   type ReactNode,
 } from 'react'
@@ -87,6 +89,15 @@ type InlineInputState = {
   originalRelativePath: string
   originalName: string
 } | null
+
+type FocusRestoreTarget =
+  | { kind: 'panel' }
+  | { kind: 'search' }
+  | {
+      kind: 'node'
+      nodeKind: 'file' | 'directory'
+      relativePath: string
+    }
 
 function buildChangedSubtreeSet(
   nodes: WorkspaceFileNode[],
@@ -271,6 +282,8 @@ function renderFileTreeNodes(
           <button
             aria-expanded={isExpanded}
             className="tree-directory-button"
+            data-tree-kind="directory"
+            data-tree-relative-path={node.relativePath}
             onContextMenu={(event) => onNodeContextMenu(event, node.relativePath, 'directory')}
             onClick={() => onToggleDirectory(node.relativePath)}
             type="button"
@@ -378,6 +391,8 @@ function renderFileTreeNodes(
       >
         <button
           className="tree-file-button"
+          data-tree-kind="file"
+          data-tree-relative-path={node.relativePath}
           onContextMenu={(event) => onNodeContextMenu(event, node.relativePath, 'file')}
           onClick={() => onSelectFile(node.relativePath)}
           type="button"
@@ -417,6 +432,99 @@ function validateInlineInputName(name: string): string | null {
   if (name.includes('/')) return 'Name cannot contain "/".'
   if (name === '.' || name === '..') return 'Name cannot be "." or "..".'
   return null
+}
+
+function getFocusRestoreTargetFromElement(
+  element: HTMLElement | null,
+): FocusRestoreTarget | null {
+  if (!element) {
+    return null
+  }
+
+  if (element instanceof HTMLInputElement) {
+    if (element.dataset.treeFocusTarget === 'search') {
+      return { kind: 'search' }
+    }
+    return null
+  }
+
+  if (!(element instanceof HTMLButtonElement)) {
+    return null
+  }
+
+  const relativePath = element.dataset.treeRelativePath
+  const nodeKind = element.dataset.treeKind
+  if (
+    relativePath &&
+    (nodeKind === 'file' || nodeKind === 'directory')
+  ) {
+    return {
+      kind: 'node',
+      nodeKind,
+      relativePath,
+    }
+  }
+
+  return { kind: 'panel' }
+}
+
+function findFocusRestoreElement(
+  panel: HTMLElement,
+  target: FocusRestoreTarget,
+): {
+  exactMatch: HTMLElement | null
+  fallbackMatch: HTMLElement | null
+} {
+  if (target.kind === 'search') {
+    const searchTarget = panel.querySelector<HTMLElement>(
+      '[data-tree-focus-target="search"]',
+    )
+    return {
+      exactMatch: searchTarget,
+      fallbackMatch: searchTarget,
+    }
+  }
+
+  if (target.kind === 'panel') {
+    return {
+      exactMatch: panel,
+      fallbackMatch: panel,
+    }
+  }
+
+  const nodeButtons = Array.from(
+    panel.querySelectorAll<HTMLButtonElement>('[data-tree-relative-path]'),
+  )
+  const findMatchingButton = (
+    relativePath: string,
+    nodeKind: 'file' | 'directory',
+  ): HTMLButtonElement | null =>
+    nodeButtons.find(
+      (button) =>
+        button.dataset.treeRelativePath === relativePath &&
+        button.dataset.treeKind === nodeKind,
+    ) ?? null
+
+  const exactMatch = findMatchingButton(target.relativePath, target.nodeKind)
+
+  let fallbackPath = getParentPath(target.relativePath)
+  while (fallbackPath) {
+    const parentMatch = findMatchingButton(fallbackPath, 'directory')
+    if (parentMatch) {
+      return {
+        exactMatch,
+        fallbackMatch: parentMatch,
+      }
+    }
+    fallbackPath = getParentPath(fallbackPath)
+  }
+
+  return {
+    exactMatch,
+    fallbackMatch:
+      panel.querySelector<HTMLElement>('[data-tree-focus-target="search"]') ??
+      panel,
+  }
 }
 
 export function FileTreePanel({
@@ -467,6 +575,9 @@ export function FileTreePanel({
     timedOut: false,
   })
   const searchRequestTokenRef = useRef(0)
+  const panelRef = useRef<HTMLElement | null>(null)
+  const lastFocusedTargetRef = useRef<FocusRestoreTarget | null>(null)
+  const lastScrollTopRef = useRef(0)
 
   const expandedDirectoriesSet = useMemo(
     () => new Set(expandedDirectories),
@@ -489,6 +600,8 @@ export function FileTreePanel({
   useEffect(() => {
     setContextMenuState(null)
     setSearchQuery('')
+    lastFocusedTargetRef.current = null
+    lastScrollTopRef.current = 0
     setSearchState({
       loading: false,
       results: [],
@@ -498,6 +611,63 @@ export function FileTreePanel({
       timedOut: false,
     })
   }, [rootPath])
+
+  useLayoutEffect(() => {
+    if (inlineInput !== null) {
+      lastFocusedTargetRef.current = null
+      return
+    }
+
+    const panel = panelRef.current
+    const target = lastFocusedTargetRef.current
+    if (!panel || !target) {
+      return
+    }
+
+    const activeElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+    if (activeElement && panel.contains(activeElement)) {
+      return
+    }
+
+    if (
+      activeElement &&
+      activeElement !== document.body &&
+      document.contains(activeElement)
+    ) {
+      return
+    }
+
+    const nextFocusTarget = findFocusRestoreElement(panel, target)
+    if (nextFocusTarget.exactMatch) {
+      nextFocusTarget.exactMatch.focus()
+      return
+    }
+
+    if (
+      target.kind === 'node' &&
+      target.nodeKind === 'file' &&
+      activeFile === target.relativePath
+    ) {
+      return
+    }
+
+    nextFocusTarget.fallbackMatch?.focus()
+  }, [activeFile, expandedDirectories, fileTree, inlineInput, isIndexing, loadingDirectories, rootPath])
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (!panel) {
+      return
+    }
+
+    const targetScrollTop = Math.max(0, Math.trunc(lastScrollTopRef.current))
+    if (panel.scrollTop !== targetScrollTop) {
+      panel.scrollTop = targetScrollTop
+    }
+  }, [expandedDirectories, fileTree, isIndexing, loadingDirectories, rootPath, searchQuery])
 
   useEffect(() => {
     const trimmedQuery = searchQuery.trim()
@@ -713,6 +883,22 @@ export function FileTreePanel({
     [activeFile, findNodeKind, onRequestCopyToClipboard, onRequestPasteFromClipboard],
   )
 
+  const handlePanelFocusCapture = useCallback(
+    (event: FocusEvent<HTMLElement>) => {
+      lastFocusedTargetRef.current = getFocusRestoreTargetFromElement(
+        event.target instanceof HTMLElement ? event.target : null,
+      )
+    },
+    [],
+  )
+
+  const handlePanelScroll = useCallback(
+    (event: React.UIEvent<HTMLElement>) => {
+      lastScrollTopRef.current = event.currentTarget.scrollTop
+    },
+    [],
+  )
+
   const hasActiveSearch = searchQuery.trim().length > 0
   const shouldShowSearchHint =
     searchState.truncated ||
@@ -840,13 +1026,17 @@ export function FileTreePanel({
     <section
       className="file-tree-panel"
       data-testid="file-tree-panel"
+      onFocusCapture={handlePanelFocusCapture}
       onContextMenu={handlePanelContextMenu}
       onKeyDown={handlePanelKeyDown}
+      onScroll={handlePanelScroll}
+      ref={panelRef}
       tabIndex={-1}
     >
       <div className="tree-search-bar">
         <input
           className="tree-search-input"
+          data-tree-focus-target="search"
           data-testid="file-tree-search-input"
           onChange={(event) => {
             setSearchQuery(event.target.value)

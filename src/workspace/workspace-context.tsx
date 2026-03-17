@@ -307,6 +307,126 @@ function findDirectoryNodeInTree(
   return null
 }
 
+function buildDirectoryNodeMap(
+  tree: WorkspaceFileNode[],
+  directoryNodeByPath = new Map<string, WorkspaceFileNode>(),
+): Map<string, WorkspaceFileNode> {
+  for (const node of tree) {
+    if (node.kind !== 'directory') {
+      continue
+    }
+
+    directoryNodeByPath.set(node.relativePath, node)
+    if (node.children && node.children.length > 0) {
+      buildDirectoryNodeMap(node.children, directoryNodeByPath)
+    }
+  }
+
+  return directoryNodeByPath
+}
+
+function preserveExpandedDirectoryChildren(
+  nextTree: WorkspaceFileNode[],
+  previousTree: WorkspaceFileNode[],
+  expandedDirectories: string[],
+): WorkspaceFileNode[] {
+  if (expandedDirectories.length === 0) {
+    return nextTree
+  }
+
+  const expandedDirectorySet = new Set(expandedDirectories)
+  const previousDirectoryNodeByPath = buildDirectoryNodeMap(previousTree)
+
+  const visit = (nodes: WorkspaceFileNode[]): WorkspaceFileNode[] =>
+    nodes.map((node): WorkspaceFileNode => {
+      if (node.kind !== 'directory') {
+        return node
+      }
+
+      const previousNode = previousDirectoryNodeByPath.get(node.relativePath)
+      const previousChildren = previousNode?.children ?? []
+      const nextChildren = node.children ?? []
+      const shouldReuseLoadedChildren =
+        expandedDirectorySet.has(node.relativePath) &&
+        previousChildren.length > nextChildren.length &&
+        (node.childrenStatus === 'not-loaded' ||
+          node.childrenStatus === 'partial')
+
+      if (shouldReuseLoadedChildren) {
+        return {
+          ...node,
+          children: previousChildren,
+          ...(previousNode?.childrenStatus
+            ? { childrenStatus: previousNode.childrenStatus }
+            : {}),
+          ...(previousNode?.totalChildCount !== undefined
+            ? { totalChildCount: previousNode.totalChildCount }
+            : {}),
+        }
+      }
+
+      return {
+        ...node,
+        children: visit(nextChildren),
+      }
+    })
+
+  return visit(nextTree)
+}
+
+type ExpandedDirectoryHydrationTarget = {
+  relativePath: string
+  minimumChildCount: number
+}
+
+function collectExpandedDirectoryHydrationTargets(
+  previousTree: WorkspaceFileNode[],
+  nextTree: WorkspaceFileNode[],
+  expandedDirectories: string[],
+): ExpandedDirectoryHydrationTarget[] {
+  if (expandedDirectories.length === 0) {
+    return []
+  }
+
+  const previousDirectoryNodeByPath = buildDirectoryNodeMap(previousTree)
+
+  return Array.from(new Set(expandedDirectories))
+    .sort((leftPath, rightPath) => {
+      const leftDepth = leftPath.split('/').length
+      const rightDepth = rightPath.split('/').length
+      if (leftDepth !== rightDepth) {
+        return leftDepth - rightDepth
+      }
+      return leftPath.localeCompare(rightPath)
+    })
+    .flatMap((relativePath) => {
+      const previousNode = previousDirectoryNodeByPath.get(relativePath)
+      const previousLoadedChildCount = previousNode?.children?.length ?? 0
+      const minimumChildCount = Math.max(previousLoadedChildCount, 1)
+      const nextNode = findDirectoryNodeInTree(nextTree, relativePath)
+      const nextLoadedChildCount = nextNode?.children?.length ?? 0
+      const needsHydration =
+        !nextNode ||
+        nextNode.childrenStatus === 'not-loaded' ||
+        nextLoadedChildCount < minimumChildCount
+
+      return needsHydration
+        ? [{ relativePath, minimumChildCount }]
+        : []
+    })
+}
+
+function isIgnorableDirectoryHydrationError(errorMessage: string | undefined) {
+  if (!errorMessage) {
+    return false
+  }
+
+  return (
+    errorMessage.includes('Target path is not a directory.') ||
+    errorMessage.includes('ENOENT')
+  )
+}
+
 function createWorkspaceStateFromSnapshot(
   snapshot: WorkspaceSessionSnapshot,
 ): WorkspaceState {
@@ -489,13 +609,31 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           return 'failed'
         }
 
-        const indexedFilePathSet = collectFileRelativePaths(indexResult.fileTree)
+        const previousWorkspaceSession =
+          workspaceStateRef.current.workspacesById[workspaceId]
+        const nextFileTree =
+          mode === 'refresh' && previousWorkspaceSession
+            ? preserveExpandedDirectoryChildren(
+                indexResult.fileTree,
+                previousWorkspaceSession.fileTree,
+                previousWorkspaceSession.expandedDirectories,
+              )
+            : indexResult.fileTree
+        const expandedDirectoryHydrationTargets =
+          mode === 'refresh' && previousWorkspaceSession
+            ? collectExpandedDirectoryHydrationTargets(
+                previousWorkspaceSession.fileTree,
+                indexResult.fileTree,
+                previousWorkspaceSession.expandedDirectories,
+              )
+            : []
+        const indexedFilePathSet = collectFileRelativePaths(nextFileTree)
         setWorkspaceState((previous) =>
           updateWorkspaceSession(previous, workspaceId, (currentSession) => {
             if (mode === 'reset') {
               return {
                 ...currentSession,
-                fileTree: indexResult.fileTree,
+                fileTree: nextFileTree,
                 isIndexing: false,
               }
             }
@@ -504,23 +642,23 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               currentSession.activeFile !== null &&
               (indexedFilePathSet.has(currentSession.activeFile) ||
                 isFilePathPotentiallyPresent(
-                  indexResult.fileTree,
+                  nextFileTree,
                   currentSession.activeFile,
                 ))
             const activeSpecStillExists =
               currentSession.activeSpec !== null &&
               (indexedFilePathSet.has(currentSession.activeSpec) ||
                 isFilePathPotentiallyPresent(
-                  indexResult.fileTree,
+                  nextFileTree,
                   currentSession.activeSpec,
                 ))
 
             return {
               ...currentSession,
-              fileTree: indexResult.fileTree,
+              fileTree: nextFileTree,
               changedFiles: currentSession.changedFiles.filter((relativePath) =>
                 indexedFilePathSet.has(relativePath) ||
-                isFilePathPotentiallyPresent(indexResult.fileTree, relativePath),
+                isFilePathPotentiallyPresent(nextFileTree, relativePath),
               ),
               activeFile: activeFileStillExists ? currentSession.activeFile : null,
               activeSpec: activeSpecStillExists ? currentSession.activeSpec : null,
@@ -558,6 +696,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             }
           }),
         )
+        if (expandedDirectoryHydrationTargets.length > 0) {
+          void hydrateExpandedDirectories(
+            workspaceId,
+            expandedDirectoryHydrationTargets,
+          )
+        }
         if (indexResult.truncated) {
           setBannerMessage(getWorkspaceIndexTruncationMessage())
         }
@@ -2326,6 +2470,157 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [],
   )
 
+  const loadWorkspaceDirectoryChildren = useCallback(
+    async (
+      workspaceId: WorkspaceId,
+      relativePath: string,
+      options?: {
+        append?: boolean
+        minimumChildCount?: number
+        suppressIgnorableErrors?: boolean
+      },
+    ) => {
+      const initialWorkspaceSession =
+        workspaceStateRef.current.workspacesById[workspaceId]
+      if (!initialWorkspaceSession) {
+        return
+      }
+
+      if (initialWorkspaceSession.loadingDirectories.includes(relativePath)) {
+        return
+      }
+
+      const initialDirectoryNode = findDirectoryNodeInTree(
+        initialWorkspaceSession.fileTree,
+        relativePath,
+      )
+      let appendChildren = options?.append === true
+      let loadedChildCount = appendChildren
+        ? (initialDirectoryNode?.children?.length ?? 0)
+        : 0
+      const minimumChildCount = options?.minimumChildCount
+
+      while (true) {
+        const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
+        if (!workspaceSession) {
+          return
+        }
+
+        if (workspaceSession.loadingDirectories.includes(relativePath)) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            loadingDirectories: currentSession.loadingDirectories.includes(
+              relativePath,
+            )
+              ? currentSession.loadingDirectories
+              : [...currentSession.loadingDirectories, relativePath],
+          })),
+        )
+
+        try {
+          const result = await window.workspace.indexDirectory(
+            workspaceSession.rootPath,
+            relativePath,
+            {
+              offset: appendChildren ? loadedChildCount : 0,
+              limit: DIRECTORY_PAGE_SIZE,
+            },
+          )
+
+          if (!result.ok) {
+            if (
+              options?.suppressIgnorableErrors &&
+              isIgnorableDirectoryHydrationError(result.error)
+            ) {
+              return
+            }
+
+            setBannerMessage(
+              result.error
+                ? `Failed to load directory: ${result.error}`
+                : 'Failed to load directory.',
+            )
+            return
+          }
+
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              fileTree: mergeDirectoryChildren(
+                currentSession.fileTree,
+                relativePath,
+                result.children,
+                result.childrenStatus,
+                result.totalChildCount,
+                { appendChildren },
+              ),
+              loadingDirectories: currentSession.loadingDirectories.filter(
+                (dir) => dir !== relativePath,
+              ),
+            })),
+          )
+
+          loadedChildCount =
+            (appendChildren ? loadedChildCount : 0) + result.children.length
+          const needsMoreChildren =
+            minimumChildCount !== undefined &&
+            loadedChildCount < minimumChildCount &&
+            result.childrenStatus === 'partial'
+
+          if (!needsMoreChildren) {
+            return
+          }
+
+          appendChildren = true
+        } catch (error) {
+          if (
+            options?.suppressIgnorableErrors &&
+            error instanceof Error &&
+            isIgnorableDirectoryHydrationError(error.message)
+          ) {
+            return
+          }
+
+          setBannerMessage(
+            error instanceof Error
+              ? `Failed to load directory: ${error.message}`
+              : 'Failed to load directory.',
+          )
+          return
+        } finally {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              loadingDirectories: currentSession.loadingDirectories.filter(
+                (dir) => dir !== relativePath,
+              ),
+            })),
+          )
+        }
+      }
+    },
+    [],
+  )
+
+  const hydrateExpandedDirectories = useCallback(
+    async (
+      workspaceId: WorkspaceId,
+      targets: ExpandedDirectoryHydrationTarget[],
+    ) => {
+      for (const target of targets) {
+        await loadWorkspaceDirectoryChildren(workspaceId, target.relativePath, {
+          minimumChildCount: target.minimumChildCount,
+          suppressIgnorableErrors: true,
+        })
+      }
+    },
+    [loadWorkspaceDirectoryChildren],
+  )
+
   const loadDirectoryChildren = useCallback(
     async (relativePath: string, options?: { append?: boolean }) => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -2333,89 +2628,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
-      const workspaceSession =
-        workspaceStateRef.current.workspacesById[activeWorkspaceId]
-      if (!workspaceSession) {
-        return
-      }
-
-      if (workspaceSession.loadingDirectories.includes(relativePath)) {
-        return
-      }
-
-      const appendChildren = options?.append === true
-      const directoryNode = findDirectoryNodeInTree(
-        workspaceSession.fileTree,
-        relativePath,
-      )
-      const offset = appendChildren ? (directoryNode?.children?.length ?? 0) : 0
-
-      setWorkspaceState((previous) =>
-        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-          ...currentSession,
-          loadingDirectories: [
-            ...currentSession.loadingDirectories,
-            relativePath,
-          ],
-        })),
-      )
-
-      try {
-        const result = await window.workspace.indexDirectory(
-          workspaceSession.rootPath,
-          relativePath,
-          {
-            offset,
-            limit: DIRECTORY_PAGE_SIZE,
-          },
-        )
-
-        if (workspaceStateRef.current.activeWorkspaceId !== activeWorkspaceId) {
-          return
-        }
-
-        if (!result.ok) {
-          setBannerMessage(
-            result.error
-              ? `Failed to load directory: ${result.error}`
-              : 'Failed to load directory.',
-          )
-          return
-        }
-
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            fileTree: mergeDirectoryChildren(
-              currentSession.fileTree,
-              relativePath,
-              result.children,
-              result.childrenStatus,
-              result.totalChildCount,
-              { appendChildren },
-            ),
-            loadingDirectories: currentSession.loadingDirectories.filter(
-              (dir) => dir !== relativePath,
-            ),
-          })),
-        )
-      } catch (error) {
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            loadingDirectories: currentSession.loadingDirectories.filter(
-              (dir) => dir !== relativePath,
-            ),
-          })),
-        )
-        setBannerMessage(
-          error instanceof Error
-            ? `Failed to load directory: ${error.message}`
-            : 'Failed to load directory.',
-        )
-      }
+      await loadWorkspaceDirectoryChildren(activeWorkspaceId, relativePath, options)
     },
-    [],
+    [loadWorkspaceDirectoryChildren],
   )
 
   const searchFiles = useCallback(

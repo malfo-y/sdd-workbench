@@ -3777,6 +3777,217 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('rehydrates expanded directories after watcher structure refresh', async () => {
+    const workspaceRoot = '/Users/tester/watch-expanded-rehydrate'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'nested',
+                relativePath: 'src/nested',
+                kind: 'directory',
+                children: [
+                  {
+                    name: 'feature.ts',
+                    relativePath: 'src/nested/feature.ts',
+                    kind: 'file',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+            childrenStatus: 'not-loaded',
+          },
+        ],
+      })
+    indexDirectoryMock
+      .mockResolvedValueOnce({
+        ok: true,
+        children: [
+          {
+            name: 'nested',
+            relativePath: 'src/nested',
+            kind: 'directory',
+            children: [],
+            childrenStatus: 'not-loaded',
+          },
+        ],
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: [
+          {
+            name: 'feature.ts',
+            relativePath: 'src/nested/feature.ts',
+            kind: 'file',
+          },
+        ],
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'nested' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'nested' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'feature.ts' })).toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: [],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(indexDirectoryMock).toHaveBeenNthCalledWith(
+        1,
+        workspaceRoot,
+        'src',
+        { offset: 0, limit: 500 },
+      )
+    })
+    await waitFor(() => {
+      expect(indexDirectoryMock).toHaveBeenNthCalledWith(
+        2,
+        workspaceRoot,
+        'src/nested',
+        { offset: 0, limit: 500 },
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'feature.ts' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'nested' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('reloads an expanded empty directory after watcher structure refresh', async () => {
+    const workspaceRoot = '/Users/tester/watch-expanded-empty-dir'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+            childrenStatus: 'not-loaded',
+          },
+        ],
+      })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [
+        {
+          name: 'new.ts',
+          relativePath: 'src/new.ts',
+          kind: 'file',
+        },
+      ],
+      childrenStatus: 'complete',
+      totalChildCount: 1,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.queryByRole('button', { name: 'new.ts' })).not.toBeInTheDocument()
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: [],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(indexDirectoryMock).toHaveBeenCalledWith(
+        workspaceRoot,
+        'src',
+        { offset: 0, limit: 500 },
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'new.ts' })).toBeInTheDocument()
+    })
+  })
+
   it('clears active file when watcher structure refresh removes it from tree', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-remove'
 

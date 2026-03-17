@@ -59,6 +59,12 @@ import {
   parseAppearanceTheme,
   type AppearanceTheme,
 } from '../src/appearance-theme'
+import {
+  buildBrowserWindowStateOptions,
+  captureWindowState,
+  loadWindowState,
+  saveWindowState,
+} from './window-state'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -82,6 +88,11 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 
 let win: BrowserWindow | null
 let currentAppearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME
+
+const DEFAULT_WINDOW_WIDTH = 1440
+const DEFAULT_WINDOW_HEIGHT = 900
+const MIN_WINDOW_WIDTH = 1100
+const MIN_WINDOW_HEIGHT = 720
 
 type WorkspaceOpenDialogResult = {
   canceled: boolean
@@ -3318,18 +3329,66 @@ function installApplicationMenu() {
 }
 
 function createWindow() {
+  const savedWindowState = loadWindowState(app.getPath('userData'), {
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
+  })
+  let saveWindowStateTimeout: ReturnType<typeof setTimeout> | null = null
+
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'sdd_icon.png'),
-    width: 1440,
-    height: 900,
-    minWidth: 1100,
-    minHeight: 720,
+    width: DEFAULT_WINDOW_WIDTH,
+    height: DEFAULT_WINDOW_HEIGHT,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
+    ...buildBrowserWindowStateOptions(savedWindowState),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
 
+  if (savedWindowState?.isMaximized) {
+    win.maximize()
+  }
+
+  const flushWindowStateSave = () => {
+    if (!win) {
+      return
+    }
+
+    saveWindowState(app.getPath('userData'), captureWindowState(win))
+  }
+
+  const scheduleWindowStateSave = () => {
+    if (saveWindowStateTimeout !== null) {
+      clearTimeout(saveWindowStateTimeout)
+    }
+
+    saveWindowStateTimeout = setTimeout(() => {
+      saveWindowStateTimeout = null
+      flushWindowStateSave()
+    }, 150)
+  }
+
+  win.on('move', scheduleWindowStateSave)
+  win.on('resize', scheduleWindowStateSave)
+  win.on('maximize', scheduleWindowStateSave)
+  win.on('unmaximize', scheduleWindowStateSave)
+
+  win.on('close', () => {
+    if (saveWindowStateTimeout !== null) {
+      clearTimeout(saveWindowStateTimeout)
+      saveWindowStateTimeout = null
+    }
+
+    flushWindowStateSave()
+  })
+
   win.on('closed', () => {
+    if (saveWindowStateTimeout !== null) {
+      clearTimeout(saveWindowStateTimeout)
+      saveWindowStateTimeout = null
+    }
     win = null
   })
 
