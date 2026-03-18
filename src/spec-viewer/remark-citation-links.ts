@@ -1,4 +1,8 @@
-import { buildCitationHref, parseBracketCitationText } from './citation-target'
+import {
+  buildCitationHref,
+  parseBracketCitationText,
+  type CitationTarget,
+} from './citation-target'
 
 type MarkdownNode = {
   type?: string
@@ -19,6 +23,17 @@ const SKIPPED_NODE_TYPES = new Set([
 ])
 
 const BRACKET_CITATION_PATTERN = /\[[^\]\n]+\]/g
+
+function buildCitationLinkNode(
+  target: CitationTarget,
+  children: MarkdownNode[],
+): MarkdownNode {
+  return {
+    type: 'link',
+    url: buildCitationHref(target),
+    children,
+  }
+}
 
 function transformTextNode(node: MarkdownNode): MarkdownNode[] | null {
   if (node.type !== 'text' || typeof node.value !== 'string') {
@@ -43,16 +58,14 @@ function transformTextNode(node: MarkdownNode): MarkdownNode[] | null {
       })
     }
 
-    nextChildren.push({
-      type: 'link',
-      url: buildCitationHref(target),
-      children: [
+    nextChildren.push(
+      buildCitationLinkNode(target, [
         {
           type: 'text',
           value: rawCitation,
         },
-      ],
-    })
+      ]),
+    )
     lastIndex = matchIndex + rawCitation.length
   }
 
@@ -70,28 +83,119 @@ function transformTextNode(node: MarkdownNode): MarkdownNode[] | null {
   return nextChildren
 }
 
+function transformBracketWrappedInlineCodeCitation(
+  children: MarkdownNode[],
+  index: number,
+): { nextChildren: MarkdownNode[]; consumedChildCount: number } | null {
+  const previousText = children[index]
+  const inlineCodeNode = children[index + 1]
+  const nextText = children[index + 2]
+
+  if (
+    previousText?.type !== 'text' ||
+    typeof previousText.value !== 'string' ||
+    inlineCodeNode?.type !== 'inlineCode' ||
+    typeof inlineCodeNode.value !== 'string' ||
+    nextText?.type !== 'text' ||
+    typeof nextText.value !== 'string'
+  ) {
+    return null
+  }
+
+  if (
+    !previousText.value.endsWith('[') ||
+    !nextText.value.startsWith(']')
+  ) {
+    return null
+  }
+
+  const target = parseBracketCitationText(`[${inlineCodeNode.value}]`)
+  if (!target) {
+    return null
+  }
+
+  const nextChildren: MarkdownNode[] = []
+  const leadingText = previousText.value.slice(0, -1)
+  const trailingText = nextText.value.slice(1)
+
+  if (leadingText) {
+    nextChildren.push({
+      type: 'text',
+      value: leadingText,
+    })
+  }
+
+  nextChildren.push(
+    buildCitationLinkNode(target, [
+      {
+        type: 'text',
+        value: '[',
+      },
+      inlineCodeNode,
+      {
+        type: 'text',
+        value: ']',
+      },
+    ]),
+  )
+
+  if (trailingText) {
+    nextChildren.push({
+      type: 'text',
+      value: trailingText,
+    })
+  }
+
+  return {
+    nextChildren,
+    consumedChildCount: 3,
+  }
+}
+
 export function transformCitationTextNodes(node: MarkdownNode) {
   if (!Array.isArray(node.children) || SKIPPED_NODE_TYPES.has(node.type ?? '')) {
     return
   }
 
-  const nextChildren: MarkdownNode[] = []
-  let didChange = false
+  let currentChildren = node.children
 
-  for (const child of node.children) {
-    const transformedChildren = transformTextNode(child)
-    if (transformedChildren) {
-      nextChildren.push(...transformedChildren)
-      didChange = true
-      continue
+  while (true) {
+    const nextChildren: MarkdownNode[] = []
+    let didChange = false
+
+    for (let index = 0; index < currentChildren.length; index += 1) {
+      const inlineCodeCitation = transformBracketWrappedInlineCodeCitation(
+        currentChildren,
+        index,
+      )
+      if (inlineCodeCitation) {
+        nextChildren.push(...inlineCodeCitation.nextChildren)
+        didChange = true
+        index += inlineCodeCitation.consumedChildCount - 1
+        continue
+      }
+
+      const child = currentChildren[index]
+      const transformedChildren = transformTextNode(child)
+      if (transformedChildren) {
+        nextChildren.push(...transformedChildren)
+        didChange = true
+        continue
+      }
+
+      nextChildren.push(child)
     }
 
-    transformCitationTextNodes(child)
-    nextChildren.push(child)
+    if (!didChange) {
+      node.children = currentChildren
+      break
+    }
+
+    currentChildren = nextChildren
   }
 
-  if (didChange) {
-    node.children = nextChildren
+  for (const child of node.children) {
+    transformCitationTextNodes(child)
   }
 }
 

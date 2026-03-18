@@ -46,6 +46,49 @@ describe('transformCitationTextNodes', () => {
     ])
   })
 
+  it('replaces file-only prose citation text with internal link nodes', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: 'Before [src/app.py] after',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'text',
+        value: 'Before ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/app.py',
+          symbolName: null,
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[src/app.py]',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: ' after',
+      },
+    ])
+  })
+
   it('transforms multiple consecutive citations in one text node', () => {
     const tree = {
       type: 'root',
@@ -111,6 +154,319 @@ describe('transformCitationTextNodes', () => {
           symbolName: 'Worker.run',
         }),
         children: [{ type: 'text', value: '[src/app.py:Worker.run]' }],
+      },
+    ])
+  })
+
+  it('transforms prose citations that contain invisible whitespace artifacts', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value:
+                '이 핵심 오케스트레이터가 [\u200Bdrift/metrics.py:compute_all_metrics\u200B]이다.',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'text',
+        value: '이 핵심 오케스트레이터가 ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'drift/metrics.py',
+          symbolName: 'compute_all_metrics',
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[\u200Bdrift/metrics.py:compute_all_metrics\u200B]',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: '이다.',
+      },
+    ])
+  })
+
+  it('transforms bracket-wrapped inline code citations into internal links', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: 'Use [',
+            },
+            {
+              type: 'inlineCode',
+              value: 'src/app.py:Worker',
+            },
+            {
+              type: 'text',
+              value: '] as the primary entry point.',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'text',
+        value: 'Use ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/app.py',
+          symbolName: 'Worker',
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[',
+          },
+          {
+            type: 'inlineCode',
+            value: 'src/app.py:Worker',
+          },
+          {
+            type: 'text',
+            value: ']',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: ' as the primary entry point.',
+      },
+    ])
+  })
+
+  it('transforms multiple bracket-wrapped inline code citations in one paragraph', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: 'Use [',
+            },
+            {
+              type: 'inlineCode',
+              value: 'src/app.py',
+            },
+            {
+              type: 'text',
+              value: '], [',
+            },
+            {
+              type: 'inlineCode',
+              value: 'src/worker.py:Worker.run',
+            },
+            {
+              type: 'text',
+              value: '] together.',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'text',
+        value: 'Use ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/app.py',
+          symbolName: null,
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[',
+          },
+          {
+            type: 'inlineCode',
+            value: 'src/app.py',
+          },
+          {
+            type: 'text',
+            value: ']',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: ', ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/worker.py',
+          symbolName: 'Worker.run',
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[',
+          },
+          {
+            type: 'inlineCode',
+            value: 'src/worker.py:Worker.run',
+          },
+          {
+            type: 'text',
+            value: ']',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: ' together.',
+      },
+    ])
+  })
+
+  it('transforms bracket-wrapped file-only inline code citations into internal links', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: 'Use [',
+            },
+            {
+              type: 'inlineCode',
+              value: 'src/app.py',
+            },
+            {
+              type: 'text',
+              value: '] as the primary entry point.',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'text',
+        value: 'Use ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/app.py',
+          symbolName: null,
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[',
+          },
+          {
+            type: 'inlineCode',
+            value: 'src/app.py',
+          },
+          {
+            type: 'text',
+            value: ']',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: ' as the primary entry point.',
+      },
+    ])
+  })
+
+  it('transforms bracket-wrapped inline code citations into internal link nodes', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'text',
+              value: 'Use [',
+            },
+            {
+              type: 'inlineCode',
+              value: 'src/app.py:Worker.run',
+            },
+            {
+              type: 'text',
+              value: '] for the callback hook.',
+            },
+          ],
+        },
+      ],
+    }
+
+    transformCitationTextNodes(tree)
+
+    expect(tree.children[0]?.children).toEqual([
+      {
+        type: 'text',
+        value: 'Use ',
+      },
+      {
+        type: 'link',
+        url: buildCitationHref({
+          targetRelativePath: 'src/app.py',
+          symbolName: 'Worker.run',
+        }),
+        children: [
+          {
+            type: 'text',
+            value: '[',
+          },
+          {
+            type: 'inlineCode',
+            value: 'src/app.py:Worker.run',
+          },
+          {
+            type: 'text',
+            value: ']',
+          },
+        ],
+      },
+      {
+        type: 'text',
+        value: ' for the callback hook.',
       },
     ])
   })

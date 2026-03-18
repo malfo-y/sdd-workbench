@@ -1438,6 +1438,24 @@ function App() {
         fileContent = readResult.content
       }
 
+      if (target.symbolName === null) {
+        setSpecViewerNavigationRequest(null)
+        selectFile(target.targetRelativePath)
+        setActiveTab('code')
+        setSelectionRange({
+          startLine: 1,
+          endLine: 1,
+        })
+        queueCodeViewerJumpRequest({
+          targetRelativePath: target.targetRelativePath,
+          lineNumber: 1,
+          shouldHighlight: true,
+        })
+        return {
+          ok: true,
+        }
+      }
+
       const resolution = resolvePythonSymbol(fileContent, target.symbolName)
       if (!resolution.ok) {
         return {

@@ -75,7 +75,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({ ok: true }),
@@ -128,7 +128,7 @@ describe('SpecViewerPanel', () => {
     ) => boolean
     onOpenCitationTarget?: (target: {
       targetRelativePath: string
-      symbolName: string
+      symbolName: string | null
     }) => Promise<CitationNavigationResult>
     commentLineCounts?: ReadonlyMap<number, number>
     commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
@@ -377,7 +377,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({ ok: true })
@@ -405,7 +405,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({ ok: true })
@@ -435,7 +435,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({ ok: true })
@@ -466,7 +466,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({ ok: true })
@@ -496,7 +496,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({
@@ -525,7 +525,7 @@ describe('SpecViewerPanel', () => {
       .fn<
         (target: {
           targetRelativePath: string
-          symbolName: string
+          symbolName: string | null
         }) => Promise<CitationNavigationResult>
       >()
       .mockResolvedValue({ ok: true })
@@ -534,7 +534,10 @@ describe('SpecViewerPanel', () => {
       onOpenCitationTarget,
     })
 
-    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:Worker]' }), {
+    const citationLink = screen.getByRole('link', {
+      name: /\[\s*src\/app\.py:Worker\s*\]/,
+    })
+    fireEvent.click(citationLink, {
       clientX: 180,
       clientY: 220,
     })
@@ -543,6 +546,161 @@ describe('SpecViewerPanel', () => {
       expect(onOpenCitationTarget).toHaveBeenCalledWith({
         targetRelativePath: 'src/app.py',
         symbolName: 'Worker',
+      })
+    })
+  })
+
+  it('renders file-only inline code citations as clickable semantic navigation links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<
+        (target: {
+          targetRelativePath: string
+          symbolName: string | null
+        }) => Promise<CitationNavigationResult>
+      >()
+      .mockResolvedValue({ ok: true })
+    renderPanel({
+      markdownContent: 'Use `[src/app.py]` as the primary entry point.',
+      onOpenCitationTarget,
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py]' }), {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'src/app.py',
+        symbolName: null,
+      })
+    })
+  })
+
+  it('renders bracket-wrapped file-only inline code citations as clickable semantic navigation links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<
+        (target: {
+          targetRelativePath: string
+          symbolName: string | null
+        }) => Promise<CitationNavigationResult>
+      >()
+      .mockResolvedValue({ ok: true })
+    renderPanel({
+      markdownContent: 'Use [`src/app.py`] as the primary entry point.',
+      onOpenCitationTarget,
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[ src/app.py ]' }), {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'src/app.py',
+        symbolName: null,
+      })
+    })
+  })
+
+  it('renders bracket-wrapped inline code citations as clickable semantic navigation links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<
+        (target: {
+          targetRelativePath: string
+          symbolName: string | null
+        }) => Promise<CitationNavigationResult>
+      >()
+      .mockResolvedValue({ ok: true })
+    renderPanel({
+      markdownContent: 'Use [`src/app.py:Worker`] as the primary entry point.',
+      onOpenCitationTarget,
+    })
+
+    fireEvent.click(
+      screen.getByRole('link', {
+        name: /\[\s*src\/app\.py:Worker\s*\]/,
+      }),
+      {
+        clientX: 180,
+        clientY: 220,
+      },
+    )
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'src/app.py',
+        symbolName: 'Worker',
+      })
+    })
+  })
+
+  it('renders bracket-wrapped dotted inline code citations as clickable semantic navigation links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<
+        (target: {
+          targetRelativePath: string
+          symbolName: string | null
+        }) => Promise<CitationNavigationResult>
+      >()
+      .mockResolvedValue({ ok: true })
+    renderPanel({
+      markdownContent:
+        'Use [`src/app.py:Worker.run`] as the primary entry point.',
+      onOpenCitationTarget,
+    })
+
+    fireEvent.click(
+      screen.getByRole('link', {
+        name: /\[\s*src\/app\.py:Worker\.run\s*\]/,
+      }),
+      {
+        clientX: 180,
+        clientY: 220,
+      },
+    )
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'src/app.py',
+        symbolName: 'Worker.run',
+      })
+    })
+  })
+
+  it('renders multiple bracket-wrapped inline code citations on one line as separate links', async () => {
+    const onOpenCitationTarget = vi
+      .fn<
+        (target: {
+          targetRelativePath: string
+          symbolName: string | null
+        }) => Promise<CitationNavigationResult>
+      >()
+      .mockResolvedValue({ ok: true })
+    renderPanel({
+      markdownContent:
+        'Components: [`src/app.py`], [`src/worker.py:Worker.run`].',
+      onOpenCitationTarget,
+    })
+
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(2)
+
+    fireEvent.click(
+      screen.getByRole('link', {
+        name: /\[\s*src\/worker\.py:Worker\.run\s*\]/,
+      }),
+      {
+        clientX: 180,
+        clientY: 220,
+      },
+    )
+
+    await waitFor(() => {
+      expect(onOpenCitationTarget).toHaveBeenCalledWith({
+        targetRelativePath: 'src/worker.py',
+        symbolName: 'Worker.run',
       })
     })
   })

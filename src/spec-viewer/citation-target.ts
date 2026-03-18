@@ -1,11 +1,11 @@
 /**
  * Parsed citation target pointing to a Python symbol in a workspace file.
  * Format: `[relative/path.py:SymbolName]` or
- * `[relative/path.py:ClassName.methodName]`.
+ * `[relative/path.py:ClassName.methodName]` or file-only `[relative/path.py]`.
  */
 export type CitationTarget = {
   targetRelativePath: string
-  symbolName: string
+  symbolName: string | null
 }
 
 export type CitationNavigationResult =
@@ -24,6 +24,11 @@ const SIMPLE_SYMBOL_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 const QUALIFIED_METHOD_PATTERN = new RegExp(
   `^${IDENTIFIER_PATTERN}\\.${IDENTIFIER_PATTERN}$`,
 )
+const INVISIBLE_CITATION_WHITESPACE_PATTERN = /[\u200B-\u200D\uFEFF]/g
+
+function normalizeCitationWhitespace(input: string): string {
+  return input.replace(INVISIBLE_CITATION_WHITESPACE_PATTERN, '')
+}
 
 /**
  * Normalizes a POSIX-style path by resolving `.` and `..` segments and
@@ -66,7 +71,9 @@ export function normalizePosixPath(input: string): string {
 }
 
 function normalizeWorkspaceRelativePath(rawPath: string): string | null {
-  const normalizedPath = normalizePosixPath(rawPath.trim())
+  const normalizedPath = normalizePosixPath(
+    normalizeCitationWhitespace(rawPath).trim(),
+  )
   if (
     !normalizedPath ||
     normalizedPath === '.' ||
@@ -81,7 +88,7 @@ function normalizeWorkspaceRelativePath(rawPath: string): string | null {
 }
 
 function normalizeSymbolName(rawSymbolName: string): string | null {
-  const normalizedSymbolName = rawSymbolName.trim()
+  const normalizedSymbolName = normalizeCitationWhitespace(rawSymbolName).trim()
   if (
     !SIMPLE_SYMBOL_PATTERN.test(normalizedSymbolName) &&
     !QUALIFIED_METHOD_PATTERN.test(normalizedSymbolName)
@@ -92,14 +99,30 @@ function normalizeSymbolName(rawSymbolName: string): string | null {
   return normalizedSymbolName
 }
 
+function isFileOnlyCitationPath(targetRelativePath: string): boolean {
+  return targetRelativePath.endsWith('.py')
+}
+
 function parseCitationParts(rawValue: string): CitationTarget | null {
-  const trimmed = rawValue.trim()
+  const trimmed = normalizeCitationWhitespace(rawValue).trim()
   if (!trimmed) {
     return null
   }
 
   const separatorIndex = trimmed.lastIndexOf(':')
-  if (separatorIndex <= 0 || separatorIndex >= trimmed.length - 1) {
+  if (separatorIndex < 0) {
+    const targetRelativePath = normalizeWorkspaceRelativePath(trimmed)
+    if (!targetRelativePath || !isFileOnlyCitationPath(targetRelativePath)) {
+      return null
+    }
+
+    return {
+      targetRelativePath,
+      symbolName: null,
+    }
+  }
+
+  if (separatorIndex === 0 || separatorIndex >= trimmed.length - 1) {
     return null
   }
 
@@ -123,7 +146,7 @@ function parseCitationParts(rawValue: string): CitationTarget | null {
  * symbols, absolute paths, or parent-directory escapes.
  */
 export function parseBracketCitationText(rawValue: string): CitationTarget | null {
-  const trimmed = rawValue.trim()
+  const trimmed = normalizeCitationWhitespace(rawValue).trim()
   if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
     return null
   }
@@ -133,6 +156,10 @@ export function parseBracketCitationText(rawValue: string): CitationTarget | nul
 
 /** Serializes a `CitationTarget` into a URL-safe href string for use in rendered markdown links. */
 export function buildCitationHref(target: CitationTarget): string {
+  if (target.symbolName === null) {
+    return `${CITATION_LINK_PREFIX}${encodeURIComponent(target.targetRelativePath)}`
+  }
+
   return `${CITATION_LINK_PREFIX}${encodeURIComponent(target.targetRelativePath)}:${encodeURIComponent(target.symbolName)}`
 }
 
@@ -144,7 +171,15 @@ export function parseCitationHref(href: string): CitationTarget | null {
 
   const payload = href.slice(CITATION_LINK_PREFIX.length)
   const separatorIndex = payload.lastIndexOf(':')
-  if (separatorIndex <= 0 || separatorIndex >= payload.length - 1) {
+  if (separatorIndex < 0) {
+    try {
+      return parseCitationParts(decodeURIComponent(payload))
+    } catch {
+      return null
+    }
+  }
+
+  if (separatorIndex === 0 || separatorIndex >= payload.length - 1) {
     return null
   }
 
