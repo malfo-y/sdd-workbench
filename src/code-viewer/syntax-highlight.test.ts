@@ -27,6 +27,17 @@ describe('escapeHtml', () => {
 })
 
 describe('highlightLines', () => {
+  function extractColors(lines: string[]) {
+    const colorPattern = /color:([^";]+)/g
+    const colors = new Set<string>()
+    for (const line of lines) {
+      for (const match of line.matchAll(colorPattern)) {
+        colors.add(match[1])
+      }
+    }
+    return colors
+  }
+
   it('returns one entry per source line for typescript code', async () => {
     const code = 'const x = 1\nconst y = 2\nconst z = x + y'
     const result = await highlightLines(code, 'typescript')
@@ -34,13 +45,22 @@ describe('highlightLines', () => {
     expect(result).toHaveLength(3)
   })
 
-  it('entries contain Shiki inline styles for typescript', async () => {
+  it('entries contain token-level Shiki inline styles for typescript', async () => {
     const code = 'const x: number = 42'
     const result = await highlightLines(code, 'typescript')
 
-    // Shiki with github-dark theme produces hex-colour inline styles
     const hasColorSpan = result.some((line) => line.includes('<span style="color:'))
     expect(hasColorSpan).toBe(true)
+    expect(extractColors(result).size).toBeGreaterThan(1)
+  })
+
+  it('entries contain token-level Shiki inline styles for python', async () => {
+    const code = 'async def run(self):\n    await worker()'
+    const result = await highlightLines(code, 'python')
+
+    const hasColorSpan = result.some((line) => line.includes('<span style="color:'))
+    expect(hasColorSpan).toBe(true)
+    expect(extractColors(result).size).toBeGreaterThan(1)
   })
 
   it('changes highlighted output when the appearance theme changes', async () => {

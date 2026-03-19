@@ -5,7 +5,6 @@
 export const quietLightTheme = {
   name: 'quiet-light',
   type: 'light' as const,
-  settings: [] as [],
   colors: {
     'editor.background': '#f5f5f5',
     'editor.foreground': '#333333',

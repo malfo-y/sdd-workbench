@@ -23,7 +23,12 @@ import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import type { CodeComment } from '../code-comments/comment-types'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { buildCopyActiveFilePathPayload } from '../context-copy/copy-payload'
-import { escapeHtml, highlightLines } from '../code-viewer/syntax-highlight'
+import {
+  escapeHtml,
+  highlightLineTokens,
+  type HighlightLineToken,
+  renderLineTokensToHtml,
+} from '../code-viewer/syntax-highlight'
 import type { HighlightLanguage } from '../code-viewer/language-map'
 import { extractMarkdownHeadings } from './markdown-utils'
 import {
@@ -423,13 +428,13 @@ function mapSearchMatchLinesToRenderedSourceLines(
   return Array.from(mappedCounts.keys()).sort((left, right) => left - right)
 }
 
-function renderCodeLineWithCitationMatches({
-  line,
+function renderHighlightedCodeLineWithCitationMatches({
+  tokens,
   lineNumber,
   matches,
   onCitationClick,
 }: {
-  line: string
+  tokens: readonly HighlightLineToken[]
   lineNumber: number
   matches: readonly CodeBlockCitationMatch[]
   onCitationClick: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
@@ -440,17 +445,40 @@ function renderCodeLineWithCitationMatches({
 
   const segments: ReactNode[] = []
   let cursor = 0
+  let tokenKey = 0
+  let matchIndex = 0
+  let activeMatch: CodeBlockCitationMatch | null = null
+  let activeMatchChildren: ReactNode[] = []
 
-  matches.forEach((match, matchIndex) => {
-    if (match.startOffset > cursor) {
-      segments.push(
-        <Fragment key={`code-line-${lineNumber}-text-${matchIndex}`}>
-          {line.slice(cursor, match.startOffset)}
-        </Fragment>,
-      )
+  const appendSegment = (text: string, color: string | null, insideCitation: boolean) => {
+    if (text.length === 0) {
+      return
     }
 
-    const href = buildCitationHref(match.target)
+    const key = `code-line-${lineNumber}-token-${tokenKey}`
+    tokenKey += 1
+    const segmentNode = color ? (
+      <span key={key} style={{ color }}>
+        {text}
+      </span>
+    ) : (
+      <Fragment key={key}>{text}</Fragment>
+    )
+
+    if (insideCitation) {
+      activeMatchChildren.push(segmentNode)
+      return
+    }
+
+    segments.push(segmentNode)
+  }
+
+  const flushActiveCitation = () => {
+    if (!activeMatch) {
+      return
+    }
+
+    const href = buildCitationHref(activeMatch.target)
     segments.push(
       <a
         className="spec-code-citation-link"
@@ -458,20 +486,71 @@ function renderCodeLineWithCitationMatches({
         href={href}
         key={`code-line-${lineNumber}-citation-${matchIndex}`}
         onClick={(event) => onCitationClick(event, href)}
-        title={match.rawText}
+        title={activeMatch.rawText}
       >
-        {match.rawText}
+        {activeMatchChildren}
       </a>,
     )
-    cursor = match.endOffset
-  })
+    activeMatch = null
+    activeMatchChildren = []
+    matchIndex += 1
+  }
 
-  if (cursor < line.length) {
-    segments.push(
-      <Fragment key={`code-line-${lineNumber}-suffix`}>
-        {line.slice(cursor)}
-      </Fragment>,
-    )
+  for (const token of tokens) {
+    let tokenCursor = 0
+
+    while (tokenCursor < token.content.length) {
+      if (!activeMatch) {
+        const nextMatch = matches[matchIndex]
+        if (!nextMatch) {
+          appendSegment(token.content.slice(tokenCursor), token.color, false)
+          cursor += token.content.length - tokenCursor
+          tokenCursor = token.content.length
+          continue
+        }
+
+        if (cursor < nextMatch.startOffset) {
+          const plainLength = Math.min(
+            token.content.length - tokenCursor,
+            nextMatch.startOffset - cursor,
+          )
+          appendSegment(
+            token.content.slice(tokenCursor, tokenCursor + plainLength),
+            token.color,
+            false,
+          )
+          cursor += plainLength
+          tokenCursor += plainLength
+          continue
+        }
+
+        activeMatch = nextMatch
+        activeMatchChildren = []
+        continue
+      }
+
+      if (cursor < activeMatch.endOffset) {
+        const citationLength = Math.min(
+          token.content.length - tokenCursor,
+          activeMatch.endOffset - cursor,
+        )
+        appendSegment(
+          token.content.slice(tokenCursor, tokenCursor + citationLength),
+          token.color,
+          true,
+        )
+        cursor += citationLength
+        tokenCursor += citationLength
+      }
+
+      if (cursor >= activeMatch.endOffset) {
+        flushActiveCitation()
+      }
+    }
+  }
+
+  if (activeMatch) {
+    flushActiveCitation()
   }
 
   return segments
@@ -488,7 +567,9 @@ function HighlightedCodeBlock({
   appearanceTheme: AppearanceTheme
   onCitationClick: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
 }) {
-  const [highlightedLines, setHighlightedLines] = useState<string[] | null>(null)
+  const [highlightedLineTokens, setHighlightedLineTokens] = useState<
+    HighlightLineToken[][] | null
+  >(null)
   const codeLines = useMemo(() => code.split('\n'), [code])
   const citationMatches = useMemo(
     () => extractCodeBlockCitationMatches(code),
@@ -507,9 +588,9 @@ function HighlightedCodeBlock({
 
   useEffect(() => {
     let cancelled = false
-    highlightLines(code, language, appearanceTheme).then((lines) => {
+    highlightLineTokens(code, language, appearanceTheme).then((tokenLines) => {
       if (!cancelled) {
-        setHighlightedLines(lines)
+        setHighlightedLineTokens(tokenLines)
       }
     })
     return () => {
@@ -518,7 +599,7 @@ function HighlightedCodeBlock({
   }, [appearanceTheme, code, language])
 
   const renderedLines =
-    highlightedLines ??
+    highlightedLineTokens?.map((lineTokens) => renderLineTokensToHtml(lineTokens)) ??
     codeLines.map((line) => (line.length > 0 ? escapeHtml(line) : ' '))
 
   return (
@@ -526,8 +607,16 @@ function HighlightedCodeBlock({
       {renderedLines.map((renderedLine, index) => {
         const lineNumber = index + 1
         const matches = citationMatchesByLineNumber.get(lineNumber) ?? []
-        const renderedCitationSegments = renderCodeLineWithCitationMatches({
-          line: codeLines[index] ?? '',
+        const renderedCitationSegments = renderHighlightedCodeLineWithCitationMatches({
+          tokens:
+            highlightedLineTokens?.[index] ??
+            [
+              {
+                content:
+                  (codeLines[index] ?? '').length > 0 ? codeLines[index] ?? '' : ' ',
+                color: null,
+              },
+            ],
           lineNumber,
           matches,
           onCitationClick,

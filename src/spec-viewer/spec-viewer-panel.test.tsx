@@ -491,6 +491,20 @@ describe('SpecViewerPanel', () => {
     })
   })
 
+  it('preserves syntax highlighting inside fenced code citation links', async () => {
+    renderPanel({
+      markdownContent: '```python\n# [src/app.py:Worker.run]\n```',
+    })
+
+    const citationLink = await screen.findByRole('link', {
+      name: '[src/app.py:Worker.run]',
+    })
+
+    await waitFor(() => {
+      expect(citationLink.innerHTML).toContain('<span style="color:')
+    })
+  })
+
   it('shows the citation failure reason in the fallback popover', async () => {
     const onOpenCitationTarget = vi
       .fn<
@@ -1025,8 +1039,9 @@ describe('SpecViewerPanel', () => {
   it('resolves exact source range inside fenced code blocks when available', async () => {
     const markdownContent =
       '# Title\n\n```json\n{\n  "first": 1,\n  "second": 2,\n  "third": 3\n}\n```'
-    const expectedStartOffset = markdownContent.indexOf('"third"')
-    const expectedEndOffset = expectedStartOffset + '"third"'.length
+    const targetFragment = 'third'
+    const expectedStartOffset = markdownContent.indexOf(targetFragment)
+    const expectedEndOffset = expectedStartOffset + targetFragment.length
     const { onGoToSourceLine, onRequestAddComment } = renderPanel({
       markdownContent,
     })
@@ -1040,13 +1055,13 @@ describe('SpecViewerPanel', () => {
     }
 
     await waitFor(() => {
-      expect(findTextNodeContaining(codeElement, '"third"')).not.toBeNull()
+      expect(findTextNodeContaining(codeElement, targetFragment)).not.toBeNull()
     })
-    const selectionTextNode = findTextNodeContaining(codeElement, '"third"')
+    const selectionTextNode = findTextNodeContaining(codeElement, targetFragment)
     if (!selectionTextNode) {
       throw new Error('Expected code text node to contain target fragment')
     }
-    const anchorOffset = selectionTextNode.data.indexOf('"third"')
+    const anchorOffset = selectionTextNode.data.indexOf(targetFragment)
     if (anchorOffset < 0) {
       throw new Error('Expected text node to include target fragment')
     }
@@ -1063,8 +1078,8 @@ describe('SpecViewerPanel', () => {
       anchorNode: selectionTextNode,
       anchorOffset,
       focusNode: selectionTextNode,
-      focusOffset: anchorOffset + '"third"'.length,
-      toString: () => '"third"',
+      focusOffset: anchorOffset + targetFragment.length,
+      toString: () => targetFragment,
     } as unknown as Selection)
 
     const contextMenuTarget =

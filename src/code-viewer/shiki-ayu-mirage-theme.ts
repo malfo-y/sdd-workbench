@@ -5,7 +5,6 @@
 export const ayuMirageTheme = {
   name: 'ayu-mirage',
   type: 'dark' as const,
-  settings: [] as [],
   colors: {
     'editor.background': '#1f2430',
     'editor.foreground': '#cccac2',

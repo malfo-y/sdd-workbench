@@ -14,6 +14,12 @@ import {
 import type { HighlightLanguage } from './language-map'
 import { ayuMirageTheme } from './shiki-ayu-mirage-theme'
 import { quietLightTheme } from './shiki-quiet-light-theme'
+import pythonLanguage from 'shiki/langs/python.mjs'
+
+export type HighlightLineToken = {
+  content: string
+  color: string | null
+}
 
 const LANG_IMPORTS: Record<string, LanguageInput> = {
   typescript: () => import('shiki/langs/typescript.mjs'),
@@ -23,7 +29,7 @@ const LANG_IMPORTS: Record<string, LanguageInput> = {
   json: () => import('shiki/langs/json.mjs'),
   css: () => import('shiki/langs/css.mjs'),
   markdown: () => import('shiki/langs/markdown.mjs'),
-  python: () => import('shiki/langs/python.mjs'),
+  python: pythonLanguage,
   html: () => import('shiki/langs/html.mjs'),
   xml: () => import('shiki/langs/xml.mjs'),
   yaml: () => import('shiki/langs/yaml.mjs'),
@@ -97,36 +103,64 @@ function escapeHtmlForLines(lines: string[]): string[] {
   return lines.map((line) => (line.length > 0 ? escapeHtml(line) : ' '))
 }
 
-function splitToEscapedLines(code: string): string[] {
-  return code.split('\n').map((line) => (line.length > 0 ? escapeHtml(line) : ' '))
+function splitToPlaintextLineTokens(code: string): HighlightLineToken[][] {
+  return code.split('\n').map((line) => [
+    {
+      content: line.length > 0 ? line : ' ',
+      color: null,
+    },
+  ])
 }
 
-export async function highlightLines(
+export function renderLineTokensToHtml(
+  lineTokens: readonly HighlightLineToken[],
+): string {
+  if (lineTokens.length === 0) {
+    return ' '
+  }
+
+  const allEmpty = lineTokens.every((token) => token.content.length === 0)
+  if (allEmpty) {
+    return ' '
+  }
+
+  return lineTokens
+    .map((token) => {
+      const escaped = escapeHtml(token.content)
+      if (token.color) {
+        return `<span style="color:${token.color}">${escaped}</span>`
+      }
+      return escaped
+    })
+    .join('')
+}
+
+export async function highlightLineTokens(
   code: string,
   language: HighlightLanguage,
   appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
-): Promise<string[]> {
+): Promise<HighlightLineToken[][]> {
   if (language === 'plaintext' || !code) {
-    return splitToEscapedLines(code)
+    return splitToPlaintextLineTokens(code)
   }
 
   let highlighter: HighlighterCore
   try {
     highlighter = await getOrCreateHighlighter(appearanceTheme)
   } catch {
-    return splitToEscapedLines(code)
+    return splitToPlaintextLineTokens(code)
   }
 
   const loadedLangs = highlighter.getLoadedLanguages()
   if (!loadedLangs.includes(language)) {
     const langImporter = LANG_IMPORTS[language]
     if (!langImporter) {
-      return splitToEscapedLines(code)
+      return splitToPlaintextLineTokens(code)
     }
     try {
       await highlighter.loadLanguage(langImporter)
     } catch {
-      return splitToEscapedLines(code)
+      return splitToPlaintextLineTokens(code)
     }
   }
 
@@ -138,24 +172,28 @@ export async function highlightLines(
 
   return tokens.map((lineTokens) => {
     if (lineTokens.length === 0) {
-      return ' '
+      return [{ content: ' ', color: null }]
     }
 
-    const allEmpty = lineTokens.every((t) => t.content.length === 0)
+    const allEmpty = lineTokens.every((token) => token.content.length === 0)
     if (allEmpty) {
-      return ' '
+      return [{ content: ' ', color: null }]
     }
 
-    return lineTokens
-      .map((token) => {
-        const escaped = escapeHtml(token.content)
-        if (token.color) {
-          return `<span style="color:${token.color}">${escaped}</span>`
-        }
-        return escaped
-      })
-      .join('')
+    return lineTokens.map((token) => ({
+      content: token.content,
+      color: token.color ?? null,
+    }))
   })
+}
+
+export async function highlightLines(
+  code: string,
+  language: HighlightLanguage,
+  appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
+): Promise<string[]> {
+  const tokenLines = await highlightLineTokens(code, language, appearanceTheme)
+  return tokenLines.map((lineTokens) => renderLineTokensToHtml(lineTokens))
 }
 
 export async function highlightPreviewLines(
