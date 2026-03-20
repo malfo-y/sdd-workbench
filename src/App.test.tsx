@@ -88,6 +88,28 @@ function getCM6View(container: HTMLElement): EditorView | null {
   return cmEditor ? EditorView.findFromDOM(cmEditor as HTMLElement) : null
 }
 
+type EditorKeydownHandler = (view: EditorView, event: KeyboardEvent) => boolean
+
+type EditorInputStateLike = {
+  handlers?: {
+    keydown?: {
+      handlers?: EditorKeydownHandler[]
+    }
+  }
+}
+
+function getKeydownHandlers(view: EditorView): EditorKeydownHandler[] {
+  const inputState = (view as { inputState?: EditorInputStateLike }).inputState
+  return inputState?.handlers?.keydown?.handlers ?? []
+}
+
+function dispatchKeyToView(view: EditorView, event: KeyboardEvent): void {
+  const handlers = getKeydownHandlers(view)
+  for (const handler of handlers) {
+    handler(view, event)
+  }
+}
+
 function findTextNodeContaining(root: Node, fragment: string): Text | null {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let currentNode = walker.nextNode()
@@ -3798,6 +3820,61 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(1)
   })
 
+  it('refreshes the workspace root when watcher reports a new root-level directory', async () => {
+    const workspaceRoot = '/Users/tester/watch-root-directory-refresh'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [
+        {
+          name: 'notes',
+          relativePath: 'notes',
+          kind: 'directory',
+          children: [],
+        },
+      ],
+      childrenStatus: 'complete',
+      totalChildCount: 1,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'notes' })).not.toBeInTheDocument()
+    })
+
+    emitWatchEvent({
+      workspaceId: workspaceRoot,
+      changedRelativePaths: ['notes'],
+      hasStructureChanges: true,
+    })
+
+    await waitFor(() => {
+      expect(indexDirectoryMock).toHaveBeenCalledWith(
+        workspaceRoot,
+        '',
+        { offset: 0, limit: 500 },
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'notes' })).toBeInTheDocument()
+    })
+    expect(indexWorkspaceMock).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps file tree visible while structure refresh is in flight', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-inflight'
 
@@ -4398,7 +4475,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('shows preview unavailable state for files larger than 2MB', async () => {
+  it('shows preview unavailable state for files larger than 10MB', async () => {
     const indexedTree: WorkspaceFileNode[] = [
       {
         name: 'large.txt',
@@ -4438,7 +4515,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(
         screen.getByTestId('code-viewer-preview-unavailable'),
-      ).toHaveTextContent('Preview unavailable: file exceeds 2MB limit.')
+      ).toHaveTextContent('Preview unavailable: file exceeds 10MB limit.')
     })
   })
 
@@ -4977,7 +5054,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('copies relative path from file-tree file/directory context menu without changing active file', async () => {
+  it('copies relative and full path from file-tree file/directory context menu without changing active file', async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -5040,6 +5117,18 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(clipboardWriteText).toHaveBeenCalledWith('docs')
     })
 
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'docs' }), {
+      clientX: 70,
+      clientY: 90,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Full Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        '/Users/tester/projects/sdd-workbench/docs',
+      )
+    })
+
     fireEvent.contextMenu(screen.getByRole('button', { name: 'note.md' }), {
       clientX: 90,
       clientY: 110,
@@ -5049,10 +5138,95 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith('docs/note.md')
     })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'note.md' }), {
+      clientX: 90,
+      clientY: 110,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Full Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        '/Users/tester/projects/sdd-workbench/docs/note.md',
+      )
+    })
     expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
       'No active file',
     )
     expect(readFileMock).not.toHaveBeenCalled()
+  })
+
+  it('copies remote full path from file-tree context menu using remote root', async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
+
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-copy-full-path',
+      sessionId: 'session-remote-copy-full-path',
+      rootPath: 'remote://remote-copy-full-path',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'note.md',
+              relativePath: 'docs/note.md',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'remote.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/project-a' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-copy-full-path' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'note.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'note.md' }), {
+      clientX: 120,
+      clientY: 140,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Full Path' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('/srv/project-a/docs/note.md')
+    })
   })
 
   it('refreshes file tree immediately after deleting a file from context menu', async () => {
@@ -5130,6 +5304,78 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(confirmMock).toHaveBeenCalledTimes(1)
     window.confirm = originalConfirm
+  })
+
+  it('refreshes file tree immediately after creating a directory from context menu', async () => {
+    const workspaceRoot = '/Users/tester/projects/create-directory-refresh-workspace'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'utils',
+                relativePath: 'src/utils',
+                kind: 'directory',
+                children: [],
+              },
+            ],
+          },
+        ],
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'src' }), {
+      clientX: 120,
+      clientY: 140,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'New Directory here' }))
+
+    const input = screen.getByTestId('tree-inline-input')
+    fireEvent.change(input, { target: { value: 'utils' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(createDirectoryMock).toHaveBeenCalledWith(workspaceRoot, 'src/utils')
+    })
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'utils' })).toBeInTheDocument()
+    })
   })
 
   it('renders markdown in right spec panel when .md file is selected', async () => {
@@ -9915,6 +10161,158 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
       addEventListenerSpy.mockRestore()
       removeEventListenerSpy.mockRestore()
+    })
+
+    it('skips watcher-triggered active file reload immediately after save', async () => {
+      const workspaceRoot = '/Users/tester/save-undo-preserve'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'const value = 1' })
+      writeFileMock.mockResolvedValue({ ok: true })
+
+      render(
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      const container = screen.getByTestId('code-viewer-content')
+      await waitFor(() => {
+        expect(getCM6View(container)?.state.doc.toString()).toBe('const value = 1')
+      })
+
+      const view = getCM6View(container)
+      expect(view).not.toBeNull()
+      if (!view) return
+
+      view.dispatch({
+        changes: {
+          from: view.state.doc.length,
+          insert: '\nconst next = 2',
+        },
+      })
+
+      const saveEvent = new KeyboardEvent('keydown', {
+        key: 's',
+        ctrlKey: true,
+        keyCode: 83,
+        bubbles: true,
+        cancelable: true,
+      })
+      dispatchKeyToView(view, saveEvent)
+
+      await waitFor(() => {
+        expect(writeFileMock).toHaveBeenCalledWith(
+          workspaceRoot,
+          'a.ts',
+          'const value = 1\nconst next = 2',
+        )
+      })
+
+      emitWatchEvent({
+        workspaceId: workspaceRoot,
+        changedRelativePaths: ['a.ts'],
+        hasStructureChanges: false,
+      })
+
+      await waitFor(() => {
+        expect(readFileMock).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('refreshes active file git line markers immediately after save', async () => {
+      const workspaceRoot = '/Users/tester/save-git-markers-refresh'
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
+      })
+      readFileMock.mockResolvedValue({ ok: true, content: 'const value = 1' })
+      writeFileMock.mockResolvedValue({ ok: true })
+      getGitLineMarkersMock
+        .mockResolvedValueOnce({
+          ok: true,
+          markers: [],
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          markers: [{ line: 2, kind: 'modified' }],
+        })
+
+      render(
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      const container = screen.getByTestId('code-viewer-content')
+      await waitFor(() => {
+        expect(getCM6View(container)?.state.doc.toString()).toBe('const value = 1')
+      })
+
+      const view = getCM6View(container)
+      expect(view).not.toBeNull()
+      if (!view) return
+
+      view.dispatch({
+        changes: {
+          from: view.state.doc.length,
+          insert: '\nconst next = 2',
+        },
+      })
+
+      const saveEvent = new KeyboardEvent('keydown', {
+        key: 's',
+        ctrlKey: true,
+        keyCode: 83,
+        bubbles: true,
+        cancelable: true,
+      })
+      dispatchKeyToView(view, saveEvent)
+
+      await waitFor(() => {
+        expect(writeFileMock).toHaveBeenCalledWith(
+          workspaceRoot,
+          'a.ts',
+          'const value = 1\nconst next = 2',
+        )
+      })
+      await waitFor(() => {
+        expect(getGitLineMarkersMock).toHaveBeenCalledTimes(2)
+      })
+      expect(getGitLineMarkersMock).toHaveBeenLastCalledWith(
+        workspaceRoot,
+        'a.ts',
+      )
     })
   })
 })

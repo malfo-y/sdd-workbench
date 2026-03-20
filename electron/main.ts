@@ -49,6 +49,10 @@ import {
   type WorkspaceSyncVsCodeSshConfigResult,
 } from './vscode-ssh-config'
 import {
+  isPathInsideWorkspace,
+  isPathInsideWorkspaceOrRoot,
+} from './workspace-path'
+import {
   APPEARANCE_THEME_CHANGED_CHANNEL,
   buildApplicationMenuTemplate,
   sendAppearanceThemeMenuRequest,
@@ -443,7 +447,7 @@ const WORKSPACE_WATCH_IGNORE_NAMES = new Set([
 
 const WORKSPACE_INDEX_DIRECTORY_CHILD_CAP = 500
 
-const MAX_FILE_PREVIEW_BYTES = 2 * 1024 * 1024
+const MAX_FILE_PREVIEW_BYTES = 10 * 1024 * 1024
 const MAX_WORKSPACE_INDEX_NODES = 100_000
 const MAX_WORKSPACE_POLL_FILES = 10_000
 const WATCH_EVENT_DEBOUNCE_MS = 300
@@ -499,15 +503,6 @@ function hasIgnoredWorkspaceSegment(
     .split('/')
     .filter((segment) => segment.length > 0)
     .some((segment) => ignoreNames.has(segment))
-}
-
-function isPathInsideWorkspace(rootPath: string, targetPath: string) {
-  const relativePath = path.relative(rootPath, targetPath)
-  return (
-    relativePath !== '' &&
-    !relativePath.startsWith('..') &&
-    !path.isAbsolute(relativePath)
-  )
 }
 
 function getWorkspaceCommentPaths(rootPath: string) {
@@ -984,7 +979,7 @@ async function handleWorkspaceIndexDirectory(
       relativePath.trim().length > 0
         ? path.resolve(resolvedRootPath, relativePath)
         : resolvedRootPath
-    if (!isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)) {
+    if (!isPathInsideWorkspaceOrRoot(resolvedRootPath, resolvedTargetPath)) {
       return {
         ok: false,
         children: [],

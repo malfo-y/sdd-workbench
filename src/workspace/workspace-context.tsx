@@ -157,7 +157,7 @@ function getSpecPreviewUnavailableMessage(
   reason: WorkspacePreviewUnavailableReason,
 ) {
   if (reason === 'file_too_large') {
-    return 'Failed to render markdown preview: file exceeds 2MB limit.'
+    return 'Failed to render markdown preview: file exceeds 10MB limit.'
   }
 
   if (reason === 'blocked_resource') {
@@ -311,6 +311,13 @@ function findDirectoryNodeInTree(
 function getParentPath(relativePath: string): string {
   const lastSlash = relativePath.lastIndexOf('/')
   return lastSlash < 0 ? '' : relativePath.slice(0, lastSlash)
+}
+
+function buildSavedFileRefreshSuppressionKey(
+  workspaceId: WorkspaceId,
+  relativePath: string,
+) {
+  return `${workspaceId}::${relativePath}`
 }
 
 function buildDirectoryNodeMap(
@@ -664,6 +671,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     Record<WorkspaceId, number>
   >({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
+  const savedFileRefreshSuppressionRef = useRef<Set<string>>(new Set())
   const remoteBannerAutoDismissTimerRef = useRef<number | null>(null)
 
   const clearRemoteBannerAutoDismissTimer = useCallback(() => {
@@ -1340,7 +1348,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           setDirty(currentSession, false),
         ),
       )
-      void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
+      savedFileRefreshSuppressionRef.current.add(
+        buildSavedFileRefreshSuppressionKey(activeWorkspaceId, activeFile),
+      )
+      refreshWorkspaceGitDecorations(activeWorkspaceId, rootPath, activeFile)
       return true
     } catch (error) {
       const errorMessage =
@@ -1350,7 +1361,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setBannerMessage(errorMessage)
       return false
     }
-  }, [loadWorkspaceGitFileStatuses])
+  }, [refreshWorkspaceGitDecorations])
 
   const startWorkspaceWatch = useCallback(
     async (
@@ -1747,6 +1758,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete writeCommentsRequestIdByWorkspaceRef.current[workspaceId]
     delete readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
     delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
+    savedFileRefreshSuppressionRef.current.forEach((entryKey) => {
+      if (entryKey.startsWith(`${workspaceId}::`)) {
+        savedFileRefreshSuppressionRef.current.delete(entryKey)
+      }
+    })
     void stopWorkspaceWatch(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
   }, [disconnectRemoteWorkspace, getActiveIsDirty, stopWorkspaceWatch])
@@ -2288,6 +2304,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return false
       }
 
+      void loadWorkspaceIndex(activeWorkspaceId, rootPath, 'refresh')
+      void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
       return true
     } catch (error) {
       const errorMessage =
@@ -2297,7 +2315,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setBannerMessage(errorMessage)
       return false
     }
-  }, [])
+  }, [loadWorkspaceGitFileStatuses, loadWorkspaceIndex])
 
   const deleteFile = useCallback(async (relativePath: string) => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -3069,6 +3087,17 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         activeFile !== null &&
         normalizedChangedRelativePaths.includes(activeFile)
       const isCurrentlyDirty = workspaceSession?.isDirty ?? false
+      let suppressSavedActiveFileRefresh = false
+      if (activeFile !== null) {
+        const suppressionKey = buildSavedFileRefreshSuppressionKey(
+          watchEvent.workspaceId,
+          activeFile,
+        )
+        if (savedFileRefreshSuppressionRef.current.has(suppressionKey)) {
+          savedFileRefreshSuppressionRef.current.delete(suppressionKey)
+          suppressSavedActiveFileRefresh = true
+        }
+      }
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, watchEvent.workspaceId, (currentSession) => {
@@ -3092,7 +3121,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       )
 
       if (shouldRefreshActiveFile && activeFile !== null) {
-        if (isCurrentlyDirty) {
+        if (suppressSavedActiveFileRefresh) {
+          // Skip the first watcher echo for files we just saved to preserve editor undo history.
+        } else if (isCurrentlyDirty) {
           setExternalChangeDetected(true)
         } else {
           loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')
