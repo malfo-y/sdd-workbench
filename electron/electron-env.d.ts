@@ -327,6 +327,7 @@ interface SystemOpenInResult {
 
 interface SystemOpenInRequest {
   rootPath: string
+  relativePath?: string
   workspaceKind?: 'local' | 'remote'
   remoteProfile?: WorkspaceRemoteConnectionProfile | null
 }

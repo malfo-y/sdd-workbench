@@ -6,6 +6,7 @@ import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
 import type { AppearanceTheme } from '../appearance-theme'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
+import { findMostRecentCommentInSelectionRange } from '../code-comments/comment-line-index'
 import type { CodeComment } from '../code-comments/comment-types'
 import {
   normalizeSourceOffsetRange,
@@ -61,7 +62,10 @@ type CodeEditorPanelProps = {
     content: string
     selectionRange: LineSelectionRange
   }) => void
+  onRequestEditComment: (comment: CodeComment) => void
+  onRequestDeleteComment: (comment: CodeComment) => void
   onRequestGoToSpec: (input: { relativePath: string; lineNumber: number }) => void
+  onRequestEditInVsCode?: (relativePath: string) => void
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   gitLineMarkers?: ReadonlyMap<number, WorkspaceGitLineMarkerKind>
@@ -71,6 +75,8 @@ type CodeEditorPanelProps = {
   onSave?: (content: string) => void
   /** Called with true when the document is first modified */
   onDirtyChange?: (dirty: boolean) => void
+  /** Called with the full document string whenever editor content changes */
+  onContentChange?: (content: string) => void
   /** Called with the scroll top pixel offset when the editor is scrolled */
   onScrollChange?: (scrollTop: number) => void
   /** Pixel scroll offset to restore when the file content is loaded */
@@ -114,7 +120,7 @@ function getPreviewUnavailableMessage(
   reason: WorkspacePreviewUnavailableReason,
 ): string {
   if (reason === 'file_too_large') {
-    return 'Preview unavailable: file exceeds 2MB limit.'
+    return 'Preview unavailable: file exceeds 10MB limit.'
   }
   if (reason === 'blocked_resource') {
     return 'Preview unavailable: blocked resource by policy.'
@@ -235,6 +241,27 @@ function CopyPathIcon() {
   )
 }
 
+function EditInVsCodeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M4 17.25V20h2.75L17.8 8.94l-2.75-2.75L4 17.25Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M13.96 5.44 16.7 8.2"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Extension builder (shared between initial create and setState rebuilds)
 // ---------------------------------------------------------------------------
@@ -249,6 +276,7 @@ type ExtensionBuilderParams = {
   onSaveRef: MutableRefObject<((content: string) => void) | undefined>
   onSelectRangeRef: MutableRefObject<(range: LineSelectionRange | null) => void>
   onDirtyChangeRef: MutableRefObject<((dirty: boolean) => void) | undefined>
+  onContentChangeRef: MutableRefObject<((content: string) => void) | undefined>
   onCommentHoverRef: MutableRefObject<((lineNumber: number, rect: DOMRect) => void) | undefined>
   onCommentLeaveRef: MutableRefObject<(() => void) | undefined>
 }
@@ -267,6 +295,7 @@ function buildExtensions(
     onSaveRef,
     onSelectRangeRef,
     onDirtyChangeRef,
+    onContentChangeRef,
     onCommentHoverRef,
     onCommentLeaveRef,
   } = params
@@ -304,6 +333,7 @@ function buildExtensions(
         onSelectRangeRef.current?.(range)
       }
       if (update.docChanged) {
+        onContentChangeRef.current?.(update.state.doc.toString())
         onDirtyChangeRef.current?.(true)
       }
     }),
@@ -348,13 +378,17 @@ export function CodeEditorPanel({
   onRequestCopySelectedContent,
   onRequestCopyBoth,
   onRequestAddComment,
+  onRequestEditComment,
+  onRequestDeleteComment,
   onRequestGoToSpec,
+  onRequestEditInVsCode,
   commentLineCounts,
   commentLineEntries,
   gitLineMarkers,
   editable = false,
   onSave,
   onDirtyChange,
+  onContentChange,
   onScrollChange,
   restoredScrollTop = null,
 }: CodeEditorPanelProps) {
@@ -365,6 +399,7 @@ export function CodeEditorPanel({
   const onSelectRangeRef = useRef(onSelectRange)
   const onSaveRef = useRef(onSave)
   const onDirtyChangeRef = useRef(onDirtyChange)
+  const onContentChangeRef = useRef(onContentChange)
   const onScrollChangeRef = useRef(onScrollChange)
   const restoredScrollTopRef = useRef<number | null>(restoredScrollTop ?? null)
   const lastRenderedFileRef = useRef<string | null>(null)
@@ -410,6 +445,10 @@ export function CodeEditorPanel({
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange
   }, [onDirtyChange])
+
+  useEffect(() => {
+    onContentChangeRef.current = onContentChange
+  }, [onContentChange])
 
   useEffect(() => {
     onScrollChangeRef.current = onScrollChange
@@ -531,6 +570,13 @@ export function CodeEditorPanel({
   const displayLanguage = isImagePreviewMode
     ? 'image'
     : getDisplayLanguage(activeFile)
+  const editableComment =
+    contextMenuState && commentLineEntries
+      ? findMostRecentCommentInSelectionRange(
+          commentLineEntries,
+          contextMenuState.selectionRange,
+        )
+      : null
 
   const showEditor =
     activeFile !== null &&
@@ -558,6 +604,7 @@ export function CodeEditorPanel({
           onSaveRef,
           onSelectRangeRef,
           onDirtyChangeRef,
+          onContentChangeRef,
           onCommentHoverRef,
           onCommentLeaveRef,
         }),
@@ -626,6 +673,13 @@ export function CodeEditorPanel({
     }
 
     const newContent = activeFileContent ?? ''
+    if (
+      activeFile !== null &&
+      lastRenderedFileRef.current === activeFile &&
+      view.state.doc.toString() === newContent
+    ) {
+      return
+    }
     const previousSelection = view.state.selection.main
     const previousScrollTop = view.scrollDOM.scrollTop
     const shouldPreserveViewportState =
@@ -653,6 +707,7 @@ export function CodeEditorPanel({
           onSaveRef,
           onSelectRangeRef,
           onDirtyChangeRef,
+          onContentChangeRef,
           onCommentHoverRef,
           onCommentLeaveRef,
         },
@@ -718,17 +773,6 @@ export function CodeEditorPanel({
         }
       }
       lastRenderedFileRef.current = activeFile
-
-      // Dispatch gutter markers after setState so the new state includes the fields
-      const gitMap: Map<number, GitMarkerKind> = new Map()
-      gitLineMarkersRef.current?.forEach((kind, line) => gitMap.set(line, kind))
-      view.dispatch({ effects: setGitMarkers.of(gitMap) })
-
-      view.dispatch({
-        effects: setCommentMarkers.of(
-          buildCommentMarkersMap(commentLineCountsRef.current, commentLineEntriesRef.current),
-        ),
-      })
     }
 
     updateState()
@@ -736,7 +780,7 @@ export function CodeEditorPanel({
     return () => {
       cancelled = true
     }
-  }, [activeFileContent, activeFile, appearanceTheme, editable, scheduleNavigationLineHighlight])
+  }, [activeFileContent, activeFile, scheduleNavigationLineHighlight])
 
   // ---- Jump to line ------------------------------------------------------
   useEffect(() => {
@@ -831,8 +875,25 @@ export function CodeEditorPanel({
     >
       <header className="code-viewer-header">
         <div className="code-viewer-title-row">
-          <p className="label">Code Preview</p>
+          <p className="label">Code Viewer</p>
           <div className="code-viewer-header-actions">
+            <button
+              aria-label="Edit in VSCode"
+              className="code-viewer-edit-button"
+              data-testid="code-viewer-edit-in-vscode-button"
+              disabled={!activeFile || !onRequestEditInVsCode}
+              onClick={() => {
+                if (!activeFile || !onRequestEditInVsCode) {
+                  return
+                }
+                onRequestEditInVsCode(activeFile)
+              }}
+              title="Edit in VSCode"
+              type="button"
+            >
+              <EditInVsCodeIcon />
+              <span>Edit</span>
+            </button>
             <button
               aria-label="Toggle code wrap"
               aria-pressed={isLineWrapEnabled}
@@ -955,6 +1016,22 @@ export function CodeEditorPanel({
                 })
               },
             },
+            ...(editableComment
+              ? [
+                  {
+                    label: 'Edit Comment',
+                    onSelect: () => {
+                      onRequestEditComment(editableComment)
+                    },
+                  },
+                  {
+                    label: 'Delete Comment',
+                    onSelect: () => {
+                      onRequestDeleteComment(editableComment)
+                    },
+                  },
+                ]
+              : []),
             ...(isMarkdownSourceFile
               ? [
                   {

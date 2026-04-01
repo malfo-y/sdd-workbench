@@ -221,6 +221,93 @@
 
 ---
 
+## Copy Full Path Addendum (2026-03-20)
+
+### 1) Scope Covered
+
+- Ad-hoc implementation from discussion: `/_sdd/discussion/discussion_file_tree_copy_absolute_path.md`
+- Completed tasks:
+  - `CFP-1` copy payload builder for full paths
+  - `CFP-2` file tree context menu wiring
+  - `CFP-3` App clipboard orchestration for local/remote workspaces
+  - `CFP-4` regression tests for local/remote full-path copy
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| CFP-1 | `buildCopyFullPathPayload()` 추가 및 경로 정규화 규칙 구현 | P0 | - | completed | `src/context-copy/copy-payload.test.ts` pass |
+| CFP-2 | 파일 트리 컨텍스트 메뉴에 `Copy Full Path` 추가 | P0 | CFP-1 | completed | `src/file-tree/file-tree-panel.test.tsx` pass |
+| CFP-3 | 로컬은 `rootPath`, 원격은 `remoteProfile.remoteRoot` 기준으로 clipboard payload 생성 | P0 | CFP-1 | completed | `src/App.test.tsx` pass |
+| CFP-4 | 로컬/원격 full path 회귀 테스트 추가 | P1 | CFP-2, CFP-3 | completed | targeted vitest pass |
+
+### 2) Files Changed
+
+- `src/context-copy/copy-payload.ts`
+- `src/context-copy/copy-payload.test.ts`
+- `src/file-tree/file-tree-panel.tsx`
+- `src/file-tree/file-tree-panel.test.tsx`
+- `src/App.tsx`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Verification
+
+- `npx vitest run src/context-copy/copy-payload.test.ts` -> pass (`14 passed`)
+- `npx vitest run src/file-tree/file-tree-panel.test.tsx` -> pass (`47 passed`)
+- `npx vitest run src/App.test.tsx` -> pass (`134 passed`, `1 skipped`)
+
+### 4) Applied Decisions
+
+- 메뉴 라벨은 `Copy Absolute Path`가 아니라 `Copy Full Path`를 사용한다.
+- 원격 워크스페이스는 synthetic `remote://workspace-id`를 복사하지 않고 `remoteProfile.remoteRoot`를 기준으로 경로를 만든다.
+- 기존 `Copy Relative Path` 동작과 active file selection behavior는 유지한다.
+
+---
+
+## Preview Limit 10MB Addendum (2026-03-20)
+
+### 1) Scope Covered
+
+- Ad-hoc implementation from discussion: `/_sdd/discussion/discussion_preview_file_size_limit.md`
+- Completed tasks:
+  - `PL-1` local preview size guard 상향
+  - `PL-2` remote runtime preview size guard 상향
+  - `PL-3` user-facing unavailable message 갱신
+  - `PL-4` regression test 및 runtime payload 재생성
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| PL-1 | `electron/main.ts` preview size guard를 `10MB`로 상향 | P0 | - | completed | manual diff + App regression pass |
+| PL-2 | `electron/remote-agent/runtime/workspace-ops.ts`도 동일하게 `10MB`로 상향 | P0 | PL-1 | completed | `npm run build:remote-agent-runtime` pass |
+| PL-3 | code/spec preview unavailable 메시지를 `10MB` 기준으로 갱신 | P0 | PL-1 | completed | `src/code-editor/code-editor-panel.test.tsx` pass |
+| PL-4 | App/code-editor regression test 기대값 갱신 | P1 | PL-1, PL-3 | completed | targeted vitest pass |
+
+### 2) Files Changed
+
+- `electron/main.ts`
+- `electron/remote-agent/runtime/workspace-ops.ts`
+- `electron/remote-agent/runtime/generated-payload.ts`
+- `src/workspace/workspace-context.tsx`
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/App.test.tsx`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Verification
+
+- `npm run build:remote-agent-runtime` -> pass
+- `npx vitest run src/code-editor/code-editor-panel.test.tsx` -> pass (`49 passed`)
+- `npx vitest run src/App.test.tsx` -> pass (`134 passed`, `1 skipped`)
+
+### 4) Applied Decisions
+
+- preview 파일 크기 제한은 local/remote 공통으로 `10MB`를 사용한다.
+- 사용자 메시지와 테스트 기대값도 같은 수치로 동기화한다.
+- 이번 변경에서는 라인 수/렌더 시간 기반의 추가 보조 가드는 도입하지 않는다.
+
+---
+
 ## F29/F30 Addendum (2026-03-06)
 
 ### 1) Scope Covered (Phase/Task IDs)
@@ -1839,3 +1926,70 @@
   - positioning은 centered flex layout 위에 `translate3d(x, y, 0)` offset을 더하는 방식으로 구현해 기존 modal width/max-height CSS를 유지했다.
   - viewport clamp는 modal이 완전히 화면 밖으로 사라지지 않도록 최소 visible area를 남기는 contract로 통일했다.
   - jsdom pointer drag의 exact pixel 재현은 brittle해서, clamp/math는 shared utility unit test로 고정하고 App-level tests는 draggable shell wiring + 기존 flow 비회귀에 집중했다.
+
+---
+
+## F46 Addendum (2026-04-01)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f46_viewer_first_code_panel_vscode_edit_handoff.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `T1` (completed)
+  - Phase 2: `T2` (completed)
+  - Phase 3: `T3` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| T1 | Code 패널 viewer-first contract 정리 + header action slot 확장 | P0 | - | completed | `src/code-editor/code-editor-panel.test.tsx`, `npx tsc --noEmit` pass |
+| T2 | local/remote file-scoped VSCode open 계약 확장 | P0 | - | completed | `electron/system-open.test.ts`, `npx tsc --noEmit` pass |
+| T3 | App shell viewer wiring + `Edit in VSCode` 연결 + 문서 copy 정리 | P0 | T1, T2 | completed | `src/App.test.tsx`, `npm test -- --reporter=dot` pass |
+
+### 2) Files Changed (F46)
+
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `electron/system-open.ts`
+- `electron/system-open.test.ts`
+- `electron/preload.ts`
+- `electron/electron-env.d.ts`
+- `src/App.tsx`
+- `src/App.css`
+- `src/App.test.tsx`
+- `README.md`
+- `README_en.md`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+UNPLANNED_DEPENDENCY:
+- `electron/remote-agent/runtime/generated-payload.ts`
+  - Reason: `npm test` runs `build:remote-agent-runtime` first in this repo, so verification refreshed the generated payload as an environment side effect.
+
+### 3) Test and Quality Gate Status (F46)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.12.1`
+- `npm install`: skipped (package manifest unchanged)
+- `npx vitest run electron/system-open.test.ts src/code-editor/code-editor-panel.test.tsx src/App.test.tsx --reporter=dot`: pass (`3 files, 214 passed, 1 skipped`)
+- `npx tsc --noEmit`: pass
+- `npm test -- --reporter=dot`: pass (`70 files, 812 passed, 1 skipped`)
+
+### 4) Parallel Groups Executed (F46)
+
+- Group A (sequential fallback): `T1`
+  - Reason: `CodeEditorPanel` contract/copy/header action 변경이 단일 파일과 해당 unit test에 집중되어 있어 먼저 viewer-first baseline을 고정하는 편이 안전했다.
+- Group B (sequential fallback): `T2`
+  - Reason: main/preload/renderer type contract와 remote fallback policy가 같은 외부 도구 경계에 묶여 있어 single-session TDD가 충돌 위험이 낮았다.
+- Group C (sequential fallback): `T3`
+  - Reason: `App.tsx` wiring, `App.test.tsx`, README copy가 T1/T2 결과를 소비하므로 마지막 통합 단계로 순차 처리했다.
+
+### 5) Blockers and Decisions (F46)
+
+- Blockers: 없음
+- Applied decisions:
+  - Code 패널의 사용자 가시 명칭은 `Code Viewer`로 정리했다.
+  - Code 패널은 App wiring 기준 read-only viewer로 되돌리고, 검색/wrap/git marker/comment gutter/navigation highlight는 유지했다.
+  - 헤더 `Edit in VSCode` 액션은 icon + short label(`Edit`) 조합으로 추가했다.
+  - 로컬 `Edit in VSCode`는 active file 절대 경로를 직접 열도록 연결했다.
+  - 원격 `Edit in VSCode`는 `sshAlias` 기반 current-file open을 우선 시도하고, 실패 시 workspace root open으로 safe fallback 하도록 구현했다.
+  - 기존 편집 중심 App 테스트 3개는 viewer-first 계약에 맞는 external change / consistency regression으로 갱신했다.

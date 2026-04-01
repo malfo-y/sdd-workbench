@@ -1,13 +1,13 @@
 # SDD Workbench
 
 SDD Workbench is an Electron desktop app for spec-driven development workflows.
-It lets you browse code and Markdown specs, edit files, leave structured comments, and work with local or remote workspaces from one UI.
+It lets you browse code and Markdown specs, leave structured comments, and hand off file editing to VSCode while working with local or remote workspaces from one UI.
 
 ## Current Product Shape
 
 - 2-panel layout: left sidebar + right content tabs (`Code` / `Spec`)
 - Multi-workspace management (open/switch/close)
-- CodeMirror 6 editor (editable, save, search, wrap toggle)
+- CodeMirror 6 code viewer (search, wrap toggle, Git/comment markers, `Edit in VSCode`)
 - Rendered spec navigation (link jump, `Go to Source`, in-panel anchor scroll, spec search)
 - Inline comments on code/spec + global comments + bundle export
 - File tree CRUD (New File/Dir, Rename, Delete) + Copy/Paste (internal + macOS Finder clipboard)
@@ -72,7 +72,7 @@ Notes:
 
 ### 2) Switch content tabs
 
-- `Code` tab: editable code/file preview
+- `Code` tab: code/file viewer
 - `Spec` tab: rendered Markdown spec view
 - Auto tab switch:
   - `.md` file selection -> `Spec`
@@ -123,16 +123,14 @@ Behavior details:
   - `U` = untracked/added
   - `M` = modified
 
-### Code editor
+### Code viewer
 
 `Code` tab features:
-- direct editing
-- `Cmd+S` save
-- dirty state guard on navigation/close
 - search (`Cmd+F`) with next/prev and wrap-around
 - line wrap toggle (`Wrap On` / `Wrap Off`, default On)
 - line-level git markers for active file (`added` / `modified`)
 - inline comment badges in gutter with hover preview
+- `Edit in VSCode` handoff for the current file
 
 Context menu actions:
 - `Copy Line Contents`

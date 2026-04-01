@@ -75,12 +75,16 @@ function makeDefaultProps() {
     onRequestCopySelectedContent: vi.fn(),
     onRequestCopyBoth: vi.fn(),
     onRequestAddComment: vi.fn(),
+    onRequestEditComment: vi.fn(),
+    onRequestDeleteComment: vi.fn(),
     onRequestGoToSpec: vi.fn(),
+    onRequestEditInVsCode: vi.fn(),
     commentLineCounts: new Map<number, number>(),
     // T8: new props
     editable: false,
     onSave: vi.fn() as ((content: string) => void) | undefined,
     onDirtyChange: vi.fn() as ((dirty: boolean) => void) | undefined,
+    onContentChange: vi.fn() as ((content: string) => void) | undefined,
   }
 }
 
@@ -151,7 +155,7 @@ describe('CodeEditorPanel', () => {
       />,
     )
     expect(screen.getByTestId('code-viewer-preview-unavailable')).toHaveTextContent(
-      'Preview unavailable: file exceeds 2MB limit.',
+      'Preview unavailable: file exceeds 10MB limit.',
     )
   })
 
@@ -259,6 +263,30 @@ describe('CodeEditorPanel', () => {
     const button = screen.getByRole('button', { name: 'Copy active file path' })
     button.click()
     expect(props.onRequestCopyRelativePath).toHaveBeenCalledWith('src/example.ts')
+  })
+
+  it('shows "Code Viewer" in the header', () => {
+    render(<CodeEditorPanel {...makeDefaultProps()} />)
+    expect(screen.getByText('Code Viewer')).toBeInTheDocument()
+  })
+
+  it('requests VSCode editing for the active file from the header button', () => {
+    const props = makeDefaultProps()
+    render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent="line1"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in VSCode' }))
+    expect(props.onRequestEditInVsCode).toHaveBeenCalledWith('src/example.ts')
+  })
+
+  it('disables Edit in VSCode without an active file', () => {
+    render(<CodeEditorPanel {...makeDefaultProps()} />)
+    expect(screen.getByRole('button', { name: 'Edit in VSCode' })).toBeDisabled()
   })
 
   it('disables header copy button without active file', () => {
@@ -869,6 +897,86 @@ describe('CodeEditorPanel', () => {
     expect(callArg.content).toBe('line1\nline2\nline3')
   })
 
+  it('shows Edit Comment when the selected line already has comments', async () => {
+    const props = makeDefaultProps()
+    const existingComment = {
+      id: 'src/example.ts:1-1:aaaa:2026-02-22T00:00:00.000Z',
+      relativePath: 'src/example.ts',
+      startLine: 1,
+      endLine: 1,
+      body: 'Existing comment',
+      anchor: {
+        snippet: 'line1',
+        hash: 'aaaa',
+      },
+      createdAt: '2026-02-22T00:00:00.000Z',
+    }
+
+    render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        commentLineEntries={new Map([[1, [existingComment]]])}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    fireEvent.contextMenu(container, { clientX: 50, clientY: 50 })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Copy actions' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Comment' }))
+
+    expect(props.onRequestEditComment).toHaveBeenCalledWith(existingComment)
+  })
+
+  it('shows Delete Comment when the selected line already has comments', async () => {
+    const props = makeDefaultProps()
+    const existingComment = {
+      id: 'src/example.ts:1-1:aaaa:2026-02-22T00:00:00.000Z',
+      relativePath: 'src/example.ts',
+      startLine: 1,
+      endLine: 1,
+      body: 'Existing comment',
+      anchor: {
+        snippet: 'line1',
+        hash: 'aaaa',
+      },
+      createdAt: '2026-02-22T00:00:00.000Z',
+    }
+
+    render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+        commentLineEntries={new Map([[1, [existingComment]]])}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
+    })
+
+    fireEvent.contextMenu(container, { clientX: 50, clientY: 50 })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Copy actions' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Comment' }))
+
+    expect(props.onRequestDeleteComment).toHaveBeenCalledWith(existingComment)
+  })
+
   it('shows Go to Spec for markdown files and calls onRequestGoToSpec with the start line', async () => {
     const props = makeDefaultProps()
     render(
@@ -1058,6 +1166,7 @@ describe('CodeEditorPanel', () => {
     await waitFor(() => {
       const view = getCM6View(container)
       expect(view).not.toBeNull()
+      expect(view?.state.doc.toString()).toBe('initial content')
     })
 
     // Re-render with new content
@@ -1078,6 +1187,99 @@ describe('CodeEditorPanel', () => {
     })
   })
 
+  it('calls onContentChange when the editor document changes', async () => {
+    const onContentChange = vi.fn<(content: string) => void>()
+    render(
+      <CodeEditorPanel
+        {...makeDefaultProps()}
+        activeFile="src/example.ts"
+        activeFileContent="initial content"
+        editable
+        onContentChange={onContentChange}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      const view = getCM6View(container)
+      expect(view).not.toBeNull()
+    })
+
+    const view = getCM6View(container)
+    expect(view).not.toBeNull()
+    if (!view) return
+
+    act(() => {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: 'updated content',
+        },
+      })
+    })
+
+    expect(onContentChange).toHaveBeenLastCalledWith('updated content')
+  })
+
+  it('preserves undo history when same-file prop echo matches editor draft', async () => {
+    const props = makeDefaultProps()
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent="initial content"
+        editable
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      const view = getCM6View(container)
+      expect(view).not.toBeNull()
+      expect(view?.state.doc.toString()).toBe('initial content')
+    })
+
+    const view = getCM6View(container)
+    expect(view).not.toBeNull()
+    if (!view) return
+
+    act(() => {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: 'updated content',
+        },
+      })
+    })
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent="updated content"
+        editable
+      />,
+    )
+
+    act(() => {
+      dispatchKeyToView(
+        view,
+        new KeyboardEvent('keydown', {
+          key: 'z',
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(view.state.doc.toString()).toBe('initial content')
+    })
+  })
+
   it('preserves selection and focus on same-file content refresh', async () => {
     const props = makeDefaultProps()
     const { rerender } = render(
@@ -1092,6 +1294,7 @@ describe('CodeEditorPanel', () => {
     await waitFor(() => {
       const view = getCM6View(container)
       expect(view).not.toBeNull()
+      expect(view?.state.doc.toString()).toBe('line1\nline2\nline3')
     })
 
     const view = getCM6View(container)

@@ -1250,6 +1250,43 @@
   gap: 8px;
 }
 
+.code-viewer-edit-button {
+  align-items: center;
+  background: var(--theme-bg-surface-alt);
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 600;
+  gap: 6px;
+  height: 28px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 10px;
+}
+
+.code-viewer-edit-button:hover {
+  border-color: var(--theme-accent);
+}
+
+.code-viewer-edit-button:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 1px;
+}
+
+.code-viewer-edit-button:disabled {
+  border-color: var(--theme-border-subtle);
+  color: var(--theme-text-muted);
+  cursor: not-allowed;
+}
+
+.code-viewer-edit-button svg {
+  height: 14px;
+  width: 14px;
+}
+
 .code-viewer-wrap-toggle-button {
   align-items: center;
   background: var(--theme-bg-surface-alt);

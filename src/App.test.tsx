@@ -25,7 +25,11 @@ const appCssSource = readFileSync(resolve(process.cwd(), 'src/App.css'), 'utf8')
 function MarkDirtyButton() {
   const { markFileDirty } = useWorkspace()
   return (
-    <button data-testid="mark-dirty-btn" onClick={markFileDirty} type="button">
+    <button
+      data-testid="mark-dirty-btn"
+      onClick={() => markFileDirty()}
+      type="button"
+    >
       Mark Dirty
     </button>
   )
@@ -36,6 +40,72 @@ function AppWithMarkDirty() {
     <WorkspaceProvider>
       <App />
       <MarkDirtyButton />
+    </WorkspaceProvider>
+  )
+}
+
+type WorkspaceActionButtonProps = {
+  deleteDirectoryPath?: string
+  deleteFilePath?: string
+  rename?: {
+    fromPath: string
+    testId?: string
+    toPath: string
+  }
+}
+
+function WorkspaceActionButtons({
+  deleteDirectoryPath,
+  deleteFilePath,
+  rename,
+}: WorkspaceActionButtonProps) {
+  const { deleteDirectory, deleteFile, renameFileOrDirectory } = useWorkspace()
+
+  return (
+    <>
+      {rename ? (
+        <button
+          data-testid={rename.testId ?? 'rename-path-btn'}
+          onClick={() => {
+            void renameFileOrDirectory(rename.fromPath, rename.toPath)
+          }}
+          type="button"
+        >
+          Rename Path
+        </button>
+      ) : null}
+      {deleteFilePath ? (
+        <button
+          data-testid="delete-file-btn"
+          onClick={() => {
+            void deleteFile(deleteFilePath)
+          }}
+          type="button"
+        >
+          Delete File
+        </button>
+      ) : null}
+      {deleteDirectoryPath ? (
+        <button
+          data-testid="delete-directory-btn"
+          onClick={() => {
+            void deleteDirectory(deleteDirectoryPath)
+          }}
+          type="button"
+        >
+          Delete Directory
+        </button>
+      ) : null}
+    </>
+  )
+}
+
+function AppWithWorkspaceActions(props: WorkspaceActionButtonProps) {
+  return (
+    <WorkspaceProvider>
+      <App />
+      <MarkDirtyButton />
+      <WorkspaceActionButtons {...props} />
     </WorkspaceProvider>
   )
 }
@@ -86,28 +156,6 @@ function clearAppearanceThemeStorage() {
 function getCM6View(container: HTMLElement): EditorView | null {
   const cmEditor = container.querySelector('.cm-editor')
   return cmEditor ? EditorView.findFromDOM(cmEditor as HTMLElement) : null
-}
-
-type EditorKeydownHandler = (view: EditorView, event: KeyboardEvent) => boolean
-
-type EditorInputStateLike = {
-  handlers?: {
-    keydown?: {
-      handlers?: EditorKeydownHandler[]
-    }
-  }
-}
-
-function getKeydownHandlers(view: EditorView): EditorKeydownHandler[] {
-  const inputState = (view as { inputState?: EditorInputStateLike }).inputState
-  return inputState?.handlers?.keydown?.handlers ?? []
-}
-
-function dispatchKeyToView(view: EditorView, event: KeyboardEvent): void {
-  const handlers = getKeydownHandlers(view)
-  for (const handler of handlers) {
-    handler(view, event)
-  }
 }
 
 function findTextNodeContaining(root: Node, fragment: string): Text | null {
@@ -1493,6 +1541,153 @@ describe('F01/F02/F03/F04 workspace flow', () => {
           rootPath: '/Users/tester/projects/sdd-workbench',
           workspaceKind: 'local',
         },
+      )
+    })
+  })
+
+  it('opens the active file in VSCode from the Code Viewer header', async () => {
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [
+            {
+              name: 'auth.ts',
+              relativePath: 'src/auth.ts',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'export const auth = true',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: 'Edit in VSCode' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'auth.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'auth.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit in VSCode' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in VSCode' }))
+
+    await waitFor(() => {
+      expect(openInVsCodeMock).toHaveBeenCalledWith({
+        rootPath: '/Users/tester/projects/sdd-workbench',
+        relativePath: 'src/auth.ts',
+        workspaceKind: 'local',
+      })
+    })
+  })
+
+  it('passes active remote file context to VSCode from the Code Viewer header', async () => {
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId: 'remote-edit-file',
+      sessionId: 'session-remote-edit-file',
+      rootPath: 'remote://remote-edit-file',
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [
+            {
+              name: 'app.py',
+              relativePath: 'src/app.py',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'print(\"hello\")',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'remote.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: '/srv/remote-project' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-ssh-alias-input'), {
+      target: { value: 'remote-devbox' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: 'remote-edit-file' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'app.py' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'app.py' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit in VSCode' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in VSCode' }))
+
+    await waitFor(() => {
+      expect(openInVsCodeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rootPath: 'remote://remote-edit-file',
+          relativePath: 'src/app.py',
+          workspaceKind: 'remote',
+          remoteProfile: expect.objectContaining({
+            remoteRoot: '/srv/remote-project',
+            sshAlias: 'remote-devbox',
+          }),
+        }),
       )
     })
   })
@@ -5425,6 +5620,345 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('spec-viewer-toc')).toBeInTheDocument()
   })
 
+  it('keeps markdown content consistent between Code Viewer and Spec tabs', async () => {
+    const workspaceRoot = '/Users/tester/projects/sdd-workbench'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'README.md', relativePath: 'README.md', kind: 'file' }],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: '# Title\n\nOriginal body',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'Original body',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+
+    const codeContainer = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      const view = getCM6View(codeContainer)
+      expect(view).not.toBeNull()
+      expect(view?.state.doc.toString()).toContain('Original body')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Spec' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent(
+        'Original body',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+
+    await waitFor(() => {
+      expect(getCM6View(codeContainer)?.state.doc.toString()).toBe('# Title\n\nOriginal body')
+    })
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('renames a markdown directory without losing active file or spec session state', async () => {
+    const workspaceRoot = '/Users/tester/projects/rename-markdown-directory'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'docs',
+            relativePath: 'docs',
+            kind: 'directory',
+            children: [
+              {
+                name: 'README.md',
+                relativePath: 'docs/README.md',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'guides',
+            relativePath: 'guides',
+            kind: 'directory',
+            children: [
+              {
+                name: 'README.md',
+                relativePath: 'guides/README.md',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: '# Title\n\nBody',
+    })
+
+    render(
+      <AppWithWorkspaceActions
+        rename={{ fromPath: 'docs', toPath: 'guides' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/README.md',
+      )
+    })
+
+    fireEvent.click(screen.getByTestId('rename-path-btn'))
+
+    await waitFor(() => {
+      expect(renameMock).toHaveBeenCalledWith(workspaceRoot, 'docs', 'guides')
+    })
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'guides/README.md',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Code' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'guides/README.md',
+      )
+    })
+    expect(screen.getByTestId('spec-viewer-content')).toHaveTextContent('Body')
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks directory rename when the active file inside it has unsaved changes', async () => {
+    const workspaceRoot = '/Users/tester/projects/rename-dirty-directory'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'README.md',
+              relativePath: 'docs/README.md',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: '# Title\n\nBody',
+    })
+
+    render(
+      <AppWithWorkspaceActions
+        rename={{ fromPath: 'docs', toPath: 'guides' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/README.md',
+      )
+    })
+
+    fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+    fireEvent.click(screen.getByTestId('rename-path-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Cannot rename: unsaved changes exist. Please save the file first.',
+      )
+    })
+    expect(renameMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+      'docs/README.md',
+    )
+  })
+
+  it('clears stale active spec immediately when its directory is deleted', async () => {
+    const workspaceRoot = '/Users/tester/projects/delete-spec-directory'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'docs',
+            relativePath: 'docs',
+            kind: 'directory',
+            children: [
+              {
+                name: 'README.md',
+                relativePath: 'docs/README.md',
+                kind: 'file',
+              },
+            ],
+          },
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'app.ts',
+                relativePath: 'src/app.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'app.ts',
+                relativePath: 'src/app.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ],
+      })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content:
+        relativePath === 'docs/README.md'
+          ? '# Readme\n\nSpec body'
+          : 'export const app = 1',
+    }))
+
+    render(
+      <AppWithWorkspaceActions deleteDirectoryPath="docs" />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/README.md',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'app.ts' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'app.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/app.ts',
+      )
+    })
+    expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+      'docs/README.md',
+    )
+
+    fireEvent.click(screen.getByTestId('delete-directory-btn'))
+
+    await waitFor(() => {
+      expect(deleteDirectoryMock).toHaveBeenCalledWith(workspaceRoot, 'docs')
+    })
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'No active spec',
+      )
+    })
+
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+      'src/app.ts',
+    )
+    expect(screen.getByTestId('spec-viewer-empty')).toHaveTextContent(
+      'Select a Markdown file to render it in the spec panel.',
+    )
+  })
+
   it('keeps rendered spec visible while selecting a code file', async () => {
     const workspaceRoot = '/Users/tester/projects/sdd-workbench'
     const indexedTree: WorkspaceFileNode[] = [
@@ -7885,6 +8419,176 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('edits an existing code comment from the context menu', async () => {
+    const workspaceRoot = '/Users/tester/projects/edit-context-comment-workspace'
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'main.ts',
+          relativePath: 'main.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'const alpha = 1\nconst beta = 2',
+    })
+    readCommentsMock.mockResolvedValueOnce({
+      ok: true,
+      comments: [
+        {
+          id: 'main.ts:1-1:aaaa1111:2026-02-22T14:10:00.000Z',
+          relativePath: 'main.ts',
+          startLine: 1,
+          endLine: 1,
+          body: 'old body',
+          anchor: {
+            snippet: 'const alpha = 1',
+            hash: 'aaaa1111',
+          },
+          createdAt: '2026-02-22T14:10:00.000Z',
+        },
+      ],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'main.ts' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    fireEvent.contextMenu(screen.getByTestId('code-viewer-content'), {
+      clientX: 100,
+      clientY: 120,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Comment' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Edit comment' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByLabelText('Comment')).toHaveValue('old body')
+
+    fireEvent.change(screen.getByLabelText('Comment'), {
+      target: {
+        value: 'updated from context menu',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => {
+      expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+    })
+
+    const [writtenRootPath, writtenComments] = writeCommentsMock.mock.calls[0]
+    expect(writtenRootPath).toBe(workspaceRoot)
+    expect(writtenComments).toHaveLength(1)
+    expect(writtenComments[0]).toMatchObject({
+      id: 'main.ts:1-1:aaaa1111:2026-02-22T14:10:00.000Z',
+      body: 'updated from context menu',
+    })
+  })
+
+  it('deletes an existing code comment from the context menu after confirmation', async () => {
+    const workspaceRoot = '/Users/tester/projects/delete-context-comment-workspace'
+    const originalConfirm = window.confirm
+    const confirmMock = vi.fn(() => true)
+    window.confirm = confirmMock
+    try {
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'main.ts',
+            relativePath: 'main.ts',
+            kind: 'file',
+          },
+        ],
+      })
+      readFileMock.mockResolvedValueOnce({
+        ok: true,
+        content: 'const alpha = 1\nconst beta = 2',
+      })
+      readCommentsMock.mockResolvedValueOnce({
+        ok: true,
+        comments: [
+          {
+            id: 'main.ts:1-1:aaaa1111:2026-02-22T14:10:00.000Z',
+            relativePath: 'main.ts',
+            startLine: 1,
+            endLine: 1,
+            body: 'old body',
+            anchor: {
+              snippet: 'const alpha = 1',
+              hash: 'aaaa1111',
+            },
+            createdAt: '2026-02-22T14:10:00.000Z',
+          },
+        ],
+      })
+
+      render(
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'main.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+      })
+
+      fireEvent.contextMenu(screen.getByTestId('code-viewer-content'), {
+        clientX: 100,
+        clientY: 120,
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Comment' }))
+
+      await waitFor(() => {
+        expect(confirmMock).toHaveBeenCalledWith('Delete comment at main.ts:L1-L1?')
+      })
+
+      await waitFor(() => {
+        expect(writeCommentsMock).toHaveBeenCalledTimes(1)
+      })
+
+      const [writtenRootPath, writtenComments] = writeCommentsMock.mock.calls[0]
+      expect(writtenRootPath).toBe(workspaceRoot)
+      expect(writtenComments).toEqual([])
+    } finally {
+      window.confirm = originalConfirm
+    }
+  })
+
   it('persists exact source offsets when adding a comment from rendered markdown', async () => {
     const workspaceRoot = '/Users/tester/projects/spec-comment-workspace'
     const markdownContent = '# Title\n\nalpha **beta** gamma'
@@ -10163,7 +10867,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       removeEventListenerSpy.mockRestore()
     })
 
-    it('skips watcher-triggered active file reload immediately after save', async () => {
+    it('reloads the active file when watcher reports an external change in viewer mode', async () => {
       const workspaceRoot = '/Users/tester/save-undo-preserve'
       openDialogMock.mockResolvedValueOnce({
         canceled: false,
@@ -10173,8 +10877,9 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         ok: true,
         fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
       })
-      readFileMock.mockResolvedValue({ ok: true, content: 'const value = 1' })
-      writeFileMock.mockResolvedValue({ ok: true })
+      readFileMock
+        .mockResolvedValueOnce({ ok: true, content: 'const value = 1' })
+        .mockResolvedValueOnce({ ok: true, content: 'const value = 2' })
 
       render(
         <WorkspaceProvider>
@@ -10197,34 +10902,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         expect(getCM6View(container)?.state.doc.toString()).toBe('const value = 1')
       })
 
-      const view = getCM6View(container)
-      expect(view).not.toBeNull()
-      if (!view) return
-
-      view.dispatch({
-        changes: {
-          from: view.state.doc.length,
-          insert: '\nconst next = 2',
-        },
-      })
-
-      const saveEvent = new KeyboardEvent('keydown', {
-        key: 's',
-        ctrlKey: true,
-        keyCode: 83,
-        bubbles: true,
-        cancelable: true,
-      })
-      dispatchKeyToView(view, saveEvent)
-
-      await waitFor(() => {
-        expect(writeFileMock).toHaveBeenCalledWith(
-          workspaceRoot,
-          'a.ts',
-          'const value = 1\nconst next = 2',
-        )
-      })
-
       emitWatchEvent({
         workspaceId: workspaceRoot,
         changedRelativePaths: ['a.ts'],
@@ -10232,11 +10909,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       })
 
       await waitFor(() => {
-        expect(readFileMock).toHaveBeenCalledTimes(1)
+        expect(readFileMock).toHaveBeenCalledTimes(2)
+        expect(getCM6View(container)?.state.doc.toString()).toBe('const value = 2')
       })
     })
 
-    it('refreshes active file git line markers immediately after save', async () => {
+    it('refreshes active file git line markers after an external change in viewer mode', async () => {
       const workspaceRoot = '/Users/tester/save-git-markers-refresh'
       openDialogMock.mockResolvedValueOnce({
         canceled: false,
@@ -10247,7 +10925,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         fileTree: [{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }],
       })
       readFileMock.mockResolvedValue({ ok: true, content: 'const value = 1' })
-      writeFileMock.mockResolvedValue({ ok: true })
       getGitLineMarkersMock
         .mockResolvedValueOnce({
           ok: true,
@@ -10279,33 +10956,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         expect(getCM6View(container)?.state.doc.toString()).toBe('const value = 1')
       })
 
-      const view = getCM6View(container)
-      expect(view).not.toBeNull()
-      if (!view) return
-
-      view.dispatch({
-        changes: {
-          from: view.state.doc.length,
-          insert: '\nconst next = 2',
-        },
+      emitWatchEvent({
+        workspaceId: workspaceRoot,
+        changedRelativePaths: ['a.ts'],
+        hasStructureChanges: false,
       })
 
-      const saveEvent = new KeyboardEvent('keydown', {
-        key: 's',
-        ctrlKey: true,
-        keyCode: 83,
-        bubbles: true,
-        cancelable: true,
-      })
-      dispatchKeyToView(view, saveEvent)
-
-      await waitFor(() => {
-        expect(writeFileMock).toHaveBeenCalledWith(
-          workspaceRoot,
-          'a.ts',
-          'const value = 1\nconst next = 2',
-        )
-      })
       await waitFor(() => {
         expect(getGitLineMarkersMock).toHaveBeenCalledTimes(2)
       })

@@ -41,6 +41,23 @@ describe('electron/system-open', () => {
     ])
   })
 
+  it('builds VSCode remote file args from sshAlias and relative path', () => {
+    expect(
+      buildVsCodeRemoteArgs(
+        {
+          workspaceId: 'remote-a',
+          host: 'example.com',
+          remoteRoot: '/srv/project-a',
+          sshAlias: 'devbox-a',
+        },
+        'src/main.ts',
+      ),
+    ).toEqual([
+      '--file-uri',
+      'vscode-remote://ssh-remote+devbox-a/srv/project-a/src/main.ts',
+    ])
+  })
+
   it('throws when remote VSCode open has no sshAlias', () => {
     expect(() =>
       buildVsCodeRemoteArgs({
@@ -104,6 +121,37 @@ describe('electron/system-open', () => {
       '-a',
       'Visual Studio Code',
       '/Users/tester/project-a',
+    ])
+  })
+
+  it('opens local active files in VSCode when relativePath is provided', async () => {
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.resolve(),
+    )
+    const statPath = vi.fn(async (targetPath: string) => ({
+      isDirectory: () => targetPath === '/Users/tester/project-a',
+    }))
+
+    await expect(
+      openWorkspaceInExternalTool(
+        {
+          rootPath: '/Users/tester/project-a',
+          relativePath: 'src/main.ts',
+          workspaceKind: 'local',
+        },
+        'vscode',
+        {
+          platform: 'darwin',
+          execFile,
+          statPath,
+        },
+      ),
+    ).resolves.toEqual({ ok: true })
+
+    expect(execFile).toHaveBeenCalledWith('open', [
+      '-a',
+      'Visual Studio Code',
+      '/Users/tester/project-a/src/main.ts',
     ])
   })
 
@@ -189,6 +237,45 @@ describe('electron/system-open', () => {
     )
   })
 
+  it('opens remote active files in VSCode via the bundled CLI', async () => {
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.resolve(),
+    )
+    const execFileStdout = vi.fn<(file: string, args: string[]) => Promise<string>>(
+      () => Promise.resolve('/Applications/Visual Studio Code.app/\n'),
+    )
+
+    await expect(
+      openWorkspaceInExternalTool(
+        {
+          rootPath: 'remote://remote-a',
+          relativePath: 'src/main.ts',
+          workspaceKind: 'remote',
+          remoteProfile: {
+            workspaceId: 'remote-a',
+            host: 'example.com',
+            remoteRoot: '/srv/project-a',
+            sshAlias: 'devbox-a',
+          },
+        },
+        'vscode',
+        {
+          platform: 'darwin',
+          execFile,
+          execFileStdout,
+        },
+      ),
+    ).resolves.toEqual({ ok: true })
+
+    expect(execFile).toHaveBeenCalledWith(
+      '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
+      [
+        '--file-uri',
+        'vscode-remote://ssh-remote+devbox-a/srv/project-a/src/main.ts',
+      ],
+    )
+  })
+
   it('returns an explicit error when remote VSCode open has no sshAlias', async () => {
     const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
       () => Promise.resolve(),
@@ -249,6 +336,56 @@ describe('electron/system-open', () => {
     ).resolves.toEqual({ ok: true })
 
     expect(execFile).toHaveBeenCalledWith('open', [
+      '-a',
+      'Visual Studio Code',
+      '--args',
+      '--folder-uri',
+      'vscode-remote://ssh-remote+summer-test/srv/project-a',
+    ])
+  })
+
+  it('falls back to remote workspace root when remote file open fails', async () => {
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      async (_file, args) => {
+        if (args.includes('--file-uri')) {
+          throw new Error('remote file URI unsupported')
+        }
+      },
+    )
+    const execFileStdout = vi.fn<(file: string, args: string[]) => Promise<string>>(
+      () => Promise.reject(new Error('not found')),
+    )
+
+    await expect(
+      openWorkspaceInExternalTool(
+        {
+          rootPath: 'remote://remote-a',
+          relativePath: 'src/main.ts',
+          workspaceKind: 'remote',
+          remoteProfile: {
+            workspaceId: 'remote-a',
+            host: 'remote.example.com',
+            remoteRoot: '/srv/project-a',
+            sshAlias: 'summer-test',
+          },
+        },
+        'vscode',
+        {
+          platform: 'darwin',
+          execFile,
+          execFileStdout,
+        },
+      ),
+    ).resolves.toEqual({ ok: true })
+
+    expect(execFile).toHaveBeenNthCalledWith(1, 'open', [
+      '-a',
+      'Visual Studio Code',
+      '--args',
+      '--file-uri',
+      'vscode-remote://ssh-remote+summer-test/srv/project-a/src/main.ts',
+    ])
+    expect(execFile).toHaveBeenNthCalledWith(2, 'open', [
       '-a',
       'Visual Studio Code',
       '--args',

@@ -299,6 +299,7 @@ type WorkspaceDisconnectRemoteResult = {
 
 type SystemOpenInRequest = {
   rootPath: string
+  relativePath?: string
   workspaceKind?: 'local' | 'remote'
   remoteProfile?: WorkspaceRemoteConnectionProfile | null
 }

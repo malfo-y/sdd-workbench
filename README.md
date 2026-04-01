@@ -1,7 +1,7 @@
 # SDD Workbench
 
 SDD Workbench는 스펙 주도 개발(Spec-Driven Development) 워크플로우를 위한 Electron 데스크톱 앱입니다.
-코드와 Markdown 스펙을 한 UI에서 탐색/편집하고, 코멘트를 구조화해 LLM 협업 번들로 내보낼 수 있습니다.
+코드와 Markdown 스펙을 한 UI에서 탐색하고, 코멘트를 구조화해 LLM 협업 번들로 내보내며, 필요할 때 VSCode로 편집을 넘길 수 있습니다.
 
 - English README: [`README_en.md`](README_en.md)
 
@@ -11,7 +11,7 @@ SDD Workbench는 스펙 주도 개발(Spec-Driven Development) 워크플로우�
 
 - 2패널 레이아웃: 좌측 사이드바 + 우측 콘텐츠 탭(`Code` / `Spec`)
 - 멀티 워크스페이스(열기/전환/닫기)
-- CodeMirror 6 기반 코드 에디터(편집, 저장, 검색, 줄바꿈 토글)
+- CodeMirror 6 기반 코드 뷰어(검색, 줄바꿈 토글, Git/코멘트 마커, `Edit in VSCode`)
 - 렌더드 스펙 탐색(링크 점프, `Go to Source`, 문서 내 anchor 이동, 스펙 내 검색)
 - 코드/스펙 인라인 코멘트 + 글로벌 코멘트 + 번들 export
 - 파일 트리 CRUD(New File/Dir, Rename, Delete) + Copy/Paste(내부 + macOS Finder 클립보드)
@@ -76,7 +76,7 @@ npm run build
 
 ### 2) 콘텐츠 탭 전환
 
-- `Code` 탭: 코드/파일 프리뷰 및 편집
+- `Code` 탭: 코드/파일 뷰어
 - `Spec` 탭: Markdown 렌더 뷰
 - 자동 전환 규칙:
   - `.md` 파일 선택 -> `Spec`
@@ -128,16 +128,14 @@ npm run build
   - `U` = untracked/added
   - `M` = modified
 
-### 코드 에디터 (`Code`)
+### 코드 뷰어 (`Code`)
 
 주요 기능:
-- 직접 편집
-- `Cmd+S` 저장
-- dirty 상태에서 이동/종료 시 guard
 - `Cmd+F` 검색(이전/다음, wrap-around)
 - 줄바꿈 토글(`Wrap On` / `Wrap Off`, 기본 On)
 - 활성 파일 라인 Git 마커(`added` / `modified`)
 - 코멘트 gutter 배지 + hover preview
+- `Edit in VSCode`로 현재 파일 편집 handoff
 
 우클릭 액션:
 - `Copy Line Contents`

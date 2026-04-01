@@ -19,6 +19,7 @@ export type SystemOpenRemoteProfile = {
 
 export type SystemOpenInRequest = {
   rootPath: string
+  relativePath?: string
   workspaceKind?: 'local' | 'remote'
   remoteProfile?: SystemOpenRemoteProfile | null
 }
@@ -91,6 +92,53 @@ function escapeAppleScriptString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
+function normalizeWorkspaceRelativePath(relativePath: string): string {
+  return relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
+}
+
+function resolveLocalVsCodeTargetPath(
+  rootPath: string,
+  relativePath?: string,
+): string {
+  if (!relativePath) {
+    return rootPath
+  }
+
+  const normalizedRelativePath = normalizeWorkspaceRelativePath(relativePath)
+  const resolvedTargetPath = path.resolve(rootPath, normalizedRelativePath)
+  if (
+    resolvedTargetPath !== rootPath &&
+    !resolvedTargetPath.startsWith(rootPath + path.sep)
+  ) {
+    throw new Error('Selected file is outside the workspace root.')
+  }
+
+  return resolvedTargetPath
+}
+
+function resolveRemoteVsCodeTargetPath(
+  remoteRoot: string,
+  relativePath?: string,
+): string {
+  const normalizedRemoteRoot = path.posix.normalize(remoteRoot)
+  if (!relativePath) {
+    return normalizedRemoteRoot
+  }
+
+  const normalizedRelativePath = normalizeWorkspaceRelativePath(relativePath)
+  const resolvedTargetPath = path.posix.normalize(
+    path.posix.join(normalizedRemoteRoot, normalizedRelativePath),
+  )
+  if (
+    resolvedTargetPath !== normalizedRemoteRoot &&
+    !resolvedTargetPath.startsWith(normalizedRemoteRoot + '/')
+  ) {
+    throw new Error('Selected remote file is outside the workspace root.')
+  }
+
+  return resolvedTargetPath
+}
+
 export function buildRemoteItermCommand(
   profile: SystemOpenRemoteProfile,
 ): string {
@@ -113,6 +161,7 @@ export function buildRemoteItermCommand(
 
 export function buildVsCodeRemoteArgs(
   profile: SystemOpenRemoteProfile,
+  relativePath?: string,
 ): string[] {
   const sshAlias = profile.sshAlias?.trim()
   if (!sshAlias) {
@@ -122,11 +171,18 @@ export function buildVsCodeRemoteArgs(
   }
 
   const encodedPathUrl = new URL('vscode-remote://placeholder')
-  encodedPathUrl.pathname = profile.remoteRoot
+  encodedPathUrl.pathname = resolveRemoteVsCodeTargetPath(
+    profile.remoteRoot,
+    relativePath,
+  )
 
-  const remoteFolderUri = `vscode-remote://ssh-remote+${sshAlias}${encodedPathUrl.pathname}`
+  const remoteTargetUri = `vscode-remote://ssh-remote+${sshAlias}${encodedPathUrl.pathname}`
 
-  return ['--folder-uri', remoteFolderUri]
+  if (relativePath) {
+    return ['--file-uri', remoteTargetUri]
+  }
+
+  return ['--folder-uri', remoteTargetUri]
 }
 
 async function resolveVsCodeCliPath(
@@ -145,12 +201,15 @@ async function resolveVsCodeCliPath(
   }
 }
 
-function buildVsCodeOpenAppArgs(profile: SystemOpenRemoteProfile): string[] {
+function buildVsCodeOpenAppArgs(
+  profile: SystemOpenRemoteProfile,
+  relativePath?: string,
+): string[] {
   return [
     '-a',
     getApplicationName('vscode'),
     '--args',
-    ...buildVsCodeRemoteArgs(profile),
+    ...buildVsCodeRemoteArgs(profile, relativePath),
   ]
 }
 
@@ -179,6 +238,7 @@ function getUnsupportedRemoteTargetMessage(target: SystemOpenTarget): string {
 async function openLocalWorkspaceInExternalTool(
   target: SystemOpenTarget,
   rootPath: string,
+  relativePath: string | undefined,
   dependencies: Required<SystemOpenDependencies>,
 ): Promise<SystemOpenInResult> {
   try {
@@ -196,10 +256,15 @@ async function openLocalWorkspaceInExternalTool(
       return { ok: true }
     }
 
+    const openPath =
+      target === 'vscode'
+        ? resolveLocalVsCodeTargetPath(resolvedRootPath, relativePath)
+        : resolvedRootPath
+    await dependencies.statPath(openPath)
     await dependencies.execFile('open', [
       '-a',
       getApplicationName(target),
-      resolvedRootPath,
+      openPath,
     ])
     return { ok: true }
   } catch (error) {
@@ -215,6 +280,7 @@ async function openLocalWorkspaceInExternalTool(
 
 async function openRemoteWorkspaceInExternalTool(
   target: SystemOpenTarget,
+  request: SystemOpenInRequest,
   profile: SystemOpenRemoteProfile | null | undefined,
   dependencies: Required<SystemOpenDependencies>,
 ): Promise<SystemOpenInResult> {
@@ -239,19 +305,43 @@ async function openRemoteWorkspaceInExternalTool(
       return { ok: true }
     }
 
+    const primaryArgs = buildVsCodeRemoteArgs(profile, request.relativePath)
+    const fallbackArgs = request.relativePath
+      ? buildVsCodeRemoteArgs(profile)
+      : null
+
     // Launch the app-bundled CLI first so the remote folder args reach an
     // already-running VSCode instance reliably on macOS.
     const cliPath = await resolveVsCodeCliPath(dependencies)
     if (cliPath) {
       try {
-        await dependencies.execFile(cliPath, buildVsCodeRemoteArgs(profile))
+        await dependencies.execFile(cliPath, primaryArgs)
         return { ok: true }
       } catch {
-        // Fall through to app launch args when the bundled CLI is unavailable.
+        if (fallbackArgs) {
+          try {
+            await dependencies.execFile(cliPath, fallbackArgs)
+            return { ok: true }
+          } catch {
+            // Fall through to app launch args when the bundled CLI is unavailable.
+          }
+        }
       }
     }
 
-    await dependencies.execFile('open', buildVsCodeOpenAppArgs(profile))
+    try {
+      await dependencies.execFile(
+        'open',
+        buildVsCodeOpenAppArgs(profile, request.relativePath),
+      )
+      return { ok: true }
+    } catch (error) {
+      if (!fallbackArgs) {
+        throw error
+      }
+
+      await dependencies.execFile('open', buildVsCodeOpenAppArgs(profile))
+    }
     return { ok: true }
   } catch (error) {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -304,6 +394,7 @@ export async function openWorkspaceInExternalTool(
   if (getWorkspaceKind(request) === 'remote') {
     return openRemoteWorkspaceInExternalTool(
       target,
+      request,
       request.remoteProfile,
       resolvedDependencies,
     )
@@ -312,6 +403,7 @@ export async function openWorkspaceInExternalTool(
   return openLocalWorkspaceInExternalTool(
     target,
     rootPath,
+    request.relativePath,
     resolvedDependencies,
   )
 }

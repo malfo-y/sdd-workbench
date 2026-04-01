@@ -198,6 +198,93 @@ READY — F34/F35 markdown source `Go to Spec` + cross-panel navigation highligh
 
 - Integration: Electron native application menu가 `View > Theme > Dark Gray | Light` radio submenu를 제공하고, renderer/localStorage 기반 appearance state와 checked state가 IPC로 동기화된다.
 - UX impact: header의 큰 `Theme` group을 제거해 상단 폭을 회수했고, theme 전환의 primary entry point를 native menu로 옮겼다.
+
+---
+
+## Copy Full Path Addendum (2026-03-20)
+
+### Progress Summary
+
+- Total Tasks: 4
+- Completed: 4
+- Tests Added/Updated: 3 files
+- All Passing: Yes
+
+### Completed
+
+- [x] Task 1: full-path clipboard payload builder 추가
+- [x] Task 2: 파일 트리 컨텍스트 메뉴에 `Copy Full Path` 액션 추가
+- [x] Task 3: App에서 로컬/원격 workspace root 해석 후 clipboard payload 연결
+- [x] Task 4: 로컬/원격 회귀 테스트 보강
+
+### Files Modified
+
+- `src/context-copy/copy-payload.ts`
+- `src/context-copy/copy-payload.test.ts`
+- `src/file-tree/file-tree-panel.tsx`
+- `src/file-tree/file-tree-panel.test.tsx`
+- `src/App.tsx`
+- `src/App.test.tsx`
+
+### Test Summary
+
+- `npx vitest run src/context-copy/copy-payload.test.ts` -> pass (`14 passed`)
+- `npx vitest run src/file-tree/file-tree-panel.test.tsx` -> pass (`47 passed`)
+- `npx vitest run src/App.test.tsx` -> pass (`134 passed`, `1 skipped`)
+
+### Quality Assessment
+
+- Integration: file tree context menu에서 local workspace는 실제 절대 경로, remote workspace는 `remote://...` synthetic root를 제외한 `remoteRoot` 기준 full path를 클립보드에 쓴다.
+- Backward compatibility: 기존 `Copy Relative Path`, 파일 복사 `Copy`, active file 유지 동작은 그대로 유지된다.
+- Residual scope boundary: code editor/spec viewer의 `Copy Relative Path` 계열 액션에는 아직 `Copy Full Path`를 확장하지 않았다.
+
+### Conclusion
+
+READY — 파일 브라우저 `Copy Full Path` 구현 완료. 로컬/원격 경로 semantics와 회귀 테스트까지 반영됨.
+
+---
+
+## Preview Limit 10MB Addendum (2026-03-20)
+
+### Progress Summary
+
+- Total Tasks: 4
+- Completed: 4
+- Tests Added/Updated: 2 files
+- All Passing: Yes
+
+### Completed
+
+- [x] Task 1: local preview file size guard를 `10MB`로 상향
+- [x] Task 2: remote runtime preview file size guard를 `10MB`로 상향
+- [x] Task 3: code/spec preview unavailable 메시지를 `10MB` 기준으로 갱신
+- [x] Task 4: runtime payload 재생성 및 regression test 갱신
+
+### Files Modified
+
+- `electron/main.ts`
+- `electron/remote-agent/runtime/workspace-ops.ts`
+- `electron/remote-agent/runtime/generated-payload.ts`
+- `src/workspace/workspace-context.tsx`
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/App.test.tsx`
+
+### Test Summary
+
+- `npm run build:remote-agent-runtime` -> pass
+- `npx vitest run src/code-editor/code-editor-panel.test.tsx` -> pass (`49 passed`)
+- `npx vitest run src/App.test.tsx` -> pass (`134 passed`, `1 skipped`)
+
+### Quality Assessment
+
+- Integration: local Electron main process와 remote agent runtime이 동일한 `10MB` preview guard를 사용하도록 맞췄다.
+- Backward compatibility: `file_too_large` reason contract는 유지되고, 사용자에게 보이는 수치만 `10MB`로 업데이트됐다.
+- Residual scope boundary: 큰 파일에서의 렌더 시간/메모리 사용량을 줄이기 위한 line-count or time-budget guard는 아직 없다.
+
+### Conclusion
+
+READY — preview 파일 크기 제한 `10MB` 상향 구현 완료. local/remote guard, 사용자 메시지, 테스트, generated runtime payload까지 동기화됨.
 - Safety: `setApplicationMenu()`는 role-preserving template를 사용해 기존 표준 메뉴 동작을 유지한다.
 - Residual scope boundary: compact header fallback button, `system` mode, `true dark`, settings/tray 기반 theme control은 제외했다.
 
@@ -256,3 +343,129 @@ READY — F38 native `View > Theme` menu + header theme compaction 구현 완료
 ### Conclusion
 
 READY — F41/F42 draggable comment modal family 구현 완료. 스펙 동기화는 별도 `spec-update-done` 단계에서 반영 필요.
+
+---
+
+## F45 Addendum (2026-04-01)
+
+### Progress Summary
+
+- Total Tasks: 5
+- Completed: 5
+- Tests Added/Updated: 5 files
+- All Passing: Yes
+
+### Completed
+
+- [x] Task 1: `WorkspaceDocumentSession` / `DocumentSaveState` / path-keyed runtime cache contract 추가
+- [x] Task 2: `workspace-context`의 load/save/watch 흐름을 document session 기반으로 정리
+- [x] Task 3: `CodeEditorPanel` draft bridge(`onContentChange`)와 same-file echo 시 undo history 보존 처리 추가
+- [x] Task 4: same-path markdown Code/Spec 탭 draft 공유 및 external change -> conflict wiring 연결
+- [x] Task 5: model/editor/app regression test와 persistence exclusion 회귀 추가
+
+### Files Modified
+
+- `src/workspace/workspace-model.ts`
+- `src/workspace/workspace-context.tsx`
+- `src/code-editor/code-editor-panel.tsx`
+- `src/App.tsx`
+- `src/workspace/workspace-model.test.ts`
+- `src/workspace/workspace-persistence.test.ts`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `src/App.test.tsx`
+- `_sdd/implementation/test_results/test_result_20260401_105635.md`
+
+### Test Summary
+
+- `npx vitest run src/code-editor/code-editor-panel.test.tsx src/App.test.tsx src/workspace/workspace-model.test.ts src/workspace/workspace-persistence.test.ts --reporter=dot` -> pass (`4 files, 244 passed, 1 skipped`)
+- `npx vitest run src/spec-viewer/spec-viewer-panel.test.tsx --reporter=dot` -> pass (`1 file, 49 passed`)
+- `npx tsc --noEmit` -> pass
+- `npx vitest run src/code-editor/code-editor-panel.test.tsx src/App.test.tsx src/spec-viewer/spec-viewer-panel.test.tsx src/workspace/workspace-model.test.ts src/workspace/workspace-persistence.test.ts --reporter=dot` -> pass (`5 files, 293 passed, 1 skipped`)
+
+### Quality Assessment
+
+- Integration: text/markdown 문서의 draft/save/conflict lifecycle이 path-keyed document session으로 수렴했고, same-path markdown의 Code/Spec 탭이 동일 draft를 공유한다.
+- Editor safety: CodeMirror undo/redo와 selection은 editor-local로 유지되고, parent state echo가 same-file draft를 다시 주입해도 history가 깨지지 않는다.
+- Persistence boundary: runtime document session cache는 snapshot persistence에 포함되지 않아 앱 재시작 후 unsaved draft를 복원하지 않는다.
+- Residual scope boundary: conflict UX는 현재 `Reload` / `Dismiss(keep draft)` 수준이며, 3-way merge나 richer status chip은 이번 범위에 포함하지 않았다.
+
+### Conclusion
+
+READY — F45 document session 통합과 draft 기반 spec view 동작이 구현 및 검증 완료됐다. supporting spec sync는 `spec-update_done` 단계에서 planned wording을 실제 계약으로 갱신하면 된다.
+
+---
+
+## F46 Addendum (2026-04-01)
+
+### Progress Summary
+
+- Total Tasks: 3
+- Completed: 3
+- Tests Added/Updated: 4 files
+- All Passing: Yes
+
+### Parallel Execution Stats
+
+- Groups Dispatched: 3
+- Parallel Tasks: 0
+- Sequential Fallbacks: 3
+- Worker Failures: 0
+
+### Iteration History
+
+| Iteration | AC Status (MET/Total) | Critical | High | Re-executed Tasks | Result |
+|-----------|----------------------|----------|------|-------------------|--------|
+| 1 | 10 / 12 | 0 | 1 | `T3` | partial |
+| 2 | 12 / 12 | 0 | 0 | `T3` | pass |
+
+Iteration note:
+- Iteration 1에서 기존 편집 중심 App regression tests 3개가 F46 viewer-first 계약과 충돌했다.
+- Iteration 2에서 해당 테스트를 viewer/external-change semantics로 갱신하고 fresh verification을 다시 수행해 통과했다.
+
+### Completed Tasks
+
+- [x] Task T1: `CodeEditorPanel`을 viewer-first copy/contract로 정리하고 `Edit in VSCode` header action 추가
+- [x] Task T2: local/remote file-scoped VSCode open contract 추가 및 remote current-file -> root fallback 구현
+- [x] Task T3: App shell read-only wiring, `Edit in VSCode` payload 연결, README copy 갱신, regression update
+
+### Files Modified
+
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `electron/system-open.ts`
+- `electron/system-open.test.ts`
+- `electron/preload.ts`
+- `electron/electron-env.d.ts`
+- `src/App.tsx`
+- `src/App.css`
+- `src/App.test.tsx`
+- `README.md`
+- `README_en.md`
+
+UNPLANNED_DEPENDENCY:
+- `electron/remote-agent/runtime/generated-payload.ts`
+  - `npm test`가 `build:remote-agent-runtime`를 선행 실행해 generated runtime payload를 갱신했다. 제품 로직 변경이 아니라 verification side effect로 분류한다.
+
+### Test Summary
+
+- `npx vitest run electron/system-open.test.ts src/code-editor/code-editor-panel.test.tsx src/App.test.tsx --reporter=dot` -> pass (`3 files, 214 passed, 1 skipped`)
+- `npx tsc --noEmit` -> pass
+- `npm test -- --reporter=dot` -> pass (`70 files, 812 passed, 1 skipped`)
+
+### Quality Assessment
+
+- Integration: Code 탭은 read-only viewer로 동작하면서도 search, wrap, git line marker, comment gutter, navigation highlight, markdown `Go to Spec` 경로를 유지한다.
+- External tool handoff: Code Viewer header에서 local active file과 remote active file context를 VSCode로 직접 넘길 수 있고, remote current-file launch 실패 시 workspace root open으로 안전하게 degrade 된다.
+- Backward compatibility: 기존 사이드바 `Open In VSCode`와 remote `sshAlias` prerequisite contract는 유지된다.
+- Test quality: 기존 편집 가정 App tests를 viewer-first semantics로 재작성해 F46 계약을 regression으로 고정했다.
+- Residual scope boundary: document session/saveState 모델은 여전히 내부에 남아 있으며, 이번 작업은 UI/interaction surface를 viewer-first로 정리하는 데까지만 범위를 제한했다.
+
+### Issues Found
+
+| # | Severity | Description | Phase | Status |
+|---|----------|-------------|-------|--------|
+| 1 | High | 기존 App regression tests가 in-app editing/save를 전제로 하고 있어 F46 viewer-first 계약과 충돌함 | Iteration 1 / T3 | resolved |
+
+### Conclusion
+
+READY — F46 viewer-first Code panel + VSCode edit handoff 구현 완료. local/remote file-scoped handoff, remote safe fallback, Code Viewer copy, regression updates까지 fresh verification으로 통과했다.

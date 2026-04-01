@@ -28,6 +28,7 @@ import {
 } from './code-comments/export-comments-modal'
 import {
   buildCopyActiveFilePathPayload,
+  buildCopyFullPathPayload,
   buildCopySelectedContentPayload,
   buildCopySelectedLinesPayload,
 } from './context-copy/copy-payload'
@@ -125,11 +126,14 @@ type ResizeSession = {
 type ContentTab = 'code' | 'spec'
 
 type CommentDraftState = {
+  mode: 'add' | 'edit'
   workspaceId: string
   relativePath: string
   selectionRange: LineSelectionRange
+  commentId?: string
+  initialBody: string
   sourceOffsetRange?: SourceOffsetRange
-  fileContent: string
+  fileContent?: string
 }
 
 type GlobalCommentsModalState = {
@@ -502,8 +506,6 @@ function App() {
     reloadExternalChange,
     dismissExternalChange,
     isDirty,
-    saveFile,
-    markFileDirty,
     createFile,
     createDirectory,
     deleteFile,
@@ -516,6 +518,10 @@ function App() {
       ? formatRemoteWorkspaceSummaryPath(remoteProfile.remoteRoot)
       : formatWorkspaceSummaryPath(rootPath)
     : 'No workspace selected'
+  const activeWorkspaceFullRootPath =
+    isActiveRemoteWorkspace && remoteProfile
+      ? remoteProfile.remoteRoot
+      : rootPath
   const workspacePathTitle = isActiveRemoteWorkspace && remoteProfile
     ? formatRemoteWorkspaceTooltip(
         remoteProfile.host,
@@ -671,6 +677,21 @@ function App() {
     [activeWorkspaceId, writeToClipboard],
   )
 
+  const handleCopyFullPath = useCallback(
+    (relativePath: string) => {
+      if (activeWorkspaceId === null || !activeWorkspaceFullRootPath) {
+        return
+      }
+
+      const payload = buildCopyFullPathPayload(
+        activeWorkspaceFullRootPath,
+        relativePath,
+      )
+      void writeToClipboard(payload, 'Failed to copy full path.')
+    },
+    [activeWorkspaceFullRootPath, activeWorkspaceId, writeToClipboard],
+  )
+
   const handleCopyBoth = useCallback(
     (input: {
       relativePath: string
@@ -722,10 +743,40 @@ function App() {
       }
 
       setCommentDraftState({
+        mode: 'add',
         workspaceId: activeWorkspaceId,
         relativePath: input.relativePath,
         selectionRange: input.selectionRange,
+        initialBody: '',
         fileContent: input.content,
+      })
+    },
+    [activeWorkspaceId, showCommentBanner],
+  )
+
+  const handleRequestEditComment = useCallback(
+    (comment: {
+      id: string
+      relativePath: string
+      startLine: number
+      endLine: number
+      body: string
+    }) => {
+      if (!activeWorkspaceId) {
+        showCommentBanner('Cannot edit comment: no active workspace selected.')
+        return
+      }
+
+      setCommentDraftState({
+        mode: 'edit',
+        workspaceId: activeWorkspaceId,
+        relativePath: comment.relativePath,
+        selectionRange: {
+          startLine: comment.startLine,
+          endLine: comment.endLine,
+        },
+        commentId: comment.id,
+        initialBody: comment.body,
       })
     },
     [activeWorkspaceId, showCommentBanner],
@@ -743,13 +794,52 @@ function App() {
         return
       }
 
+      if (commentDraftState.mode === 'edit') {
+        if (!commentDraftState.commentId) {
+          showCommentBanner('Cannot update comment: target comment not found.')
+          return
+        }
+
+        const sanitizedBody = sanitizeCommentBody(body)
+        if (sanitizedBody.length === 0) {
+          showCommentBanner('Cannot save comment: comment body is empty.')
+          return
+        }
+
+        const hasTargetComment = comments.some(
+          (comment) => comment.id === commentDraftState.commentId,
+        )
+        if (!hasTargetComment) {
+          showCommentBanner('Cannot update comment: target comment not found.')
+          return
+        }
+
+        const nextComments = comments.map((comment) =>
+          comment.id === commentDraftState.commentId
+            ? {
+                ...comment,
+                body: sanitizedBody,
+              }
+            : comment,
+        )
+
+        const saved = await saveComments(nextComments)
+        if (!saved) {
+          return
+        }
+
+        setCommentDraftState(null)
+        showCommentBanner('Comment updated.')
+        return
+      }
+
       try {
         const nextComment = buildCodeComment({
           relativePath: commentDraftState.relativePath,
           selectionRange: commentDraftState.selectionRange,
           sourceOffsetRange: commentDraftState.sourceOffsetRange,
           body,
-          fileContent: commentDraftState.fileContent,
+          fileContent: commentDraftState.fileContent ?? '',
         })
 
         const saved = await saveComments([...comments, nextComment])
@@ -859,9 +949,11 @@ function App() {
       }
 
       setCommentDraftState({
+        mode: 'add',
         workspaceId: activeWorkspaceId,
         relativePath: input.relativePath,
         selectionRange: input.selectionRange,
+        initialBody: '',
         ...(input.sourceOffsetRange
           ? { sourceOffsetRange: input.sourceOffsetRange }
           : {}),
@@ -1096,6 +1188,30 @@ function App() {
     [activeWorkspaceId, comments, saveComments, showCommentBanner],
   )
 
+  const handleRequestDeleteComment = useCallback(
+    async (comment: {
+      id: string
+      relativePath: string
+      startLine: number
+      endLine: number
+    }) => {
+      if (!activeWorkspaceId) {
+        showCommentBanner('Cannot delete comment: no active workspace selected.')
+        return
+      }
+
+      const confirmed = window.confirm(
+        `Delete comment at ${comment.relativePath}:L${comment.startLine}-L${comment.endLine}?`,
+      )
+      if (!confirmed) {
+        return
+      }
+
+      await handleDeleteComment(comment.id)
+    },
+    [activeWorkspaceId, handleDeleteComment, showCommentBanner],
+  )
+
   const handleDeleteExportedComments = useCallback(async () => {
     if (!activeWorkspaceId) {
       showCommentBanner('Cannot delete exported comments: no active workspace selected.')
@@ -1120,7 +1236,7 @@ function App() {
   }, [activeWorkspaceId, comments, saveComments, showCommentBanner])
 
   const openWorkspaceInExternalApp = useCallback(
-    async (target: 'iterm' | 'vscode' | 'finder') => {
+    async (target: 'iterm' | 'vscode' | 'finder', relativePath?: string) => {
       if (!rootPath) {
         return
       }
@@ -1133,6 +1249,7 @@ function App() {
       const targetLabel = targetLabels[target]
       const openRequest: SystemOpenInRequest = {
         rootPath,
+        ...(relativePath ? { relativePath } : {}),
         workspaceKind: workspaceKind ?? 'local',
         ...(workspaceKind === 'remote' ? { remoteProfile } : {}),
       }
@@ -1153,6 +1270,13 @@ function App() {
       }
     },
     [remoteProfile, rootPath, showBanner, workspaceKind],
+  )
+
+  const openActiveFileInVsCode = useCallback(
+    async (relativePath: string) => {
+      await openWorkspaceInExternalApp('vscode', relativePath)
+    },
+    [openWorkspaceInExternalApp],
   )
 
   const handleWatchModePreferenceChange = useCallback(
@@ -2305,6 +2429,7 @@ function App() {
               loadingDirectories={loadingDirectories}
               isIndexing={isIndexing}
               onExpandedDirectoriesChange={setExpandedDirectories}
+              onRequestCopyFullPath={handleCopyFullPath}
               onRequestCopyRelativePath={handleCopyRelativePath}
               onRequestLoadDirectory={loadDirectoryChildren}
               onSearchFiles={searchFiles}
@@ -2351,13 +2476,13 @@ function App() {
               onRequestCopyRelativePath={handleCopyRelativePath}
               onRequestCopySelectedContent={handleCopySelectedContent}
               onRequestAddComment={handleRequestAddComment}
+              onRequestEditComment={handleRequestEditComment}
+              onRequestDeleteComment={handleRequestDeleteComment}
+              onRequestEditInVsCode={openActiveFileInVsCode}
               onRequestGoToSpec={handleRequestGoToSpec}
               previewUnavailableReason={previewUnavailableReason}
               readFileError={readFileError}
               selectionRange={selectionRange}
-              editable
-              onSave={saveFile}
-              onDirtyChange={(dirty) => { if (dirty) markFileDirty() }}
               onScrollChange={handleCodeScrollChange}
               restoredScrollTop={restoredCodeScrollTop}
             />
@@ -2379,6 +2504,8 @@ function App() {
                 navigationRequest={specViewerNavigationRequest}
                 onScrollPositionChange={handleSpecScrollPositionChange}
                 onRequestAddComment={handleRequestAddCommentFromSpec}
+                onRequestEditComment={handleRequestEditComment}
+                onRequestDeleteComment={handleRequestDeleteComment}
                 onRequestCopyBoth={handleCopyBoth}
                 onRequestCopyRelativePath={handleCopyRelativePath}
                 onRequestCopySelectedContent={handleCopySelectedContent}
@@ -2409,6 +2536,8 @@ function App() {
       <CommentEditorModal
         isOpen={commentDraftState !== null}
         isSaving={isWritingComments}
+        initialBody={commentDraftState?.initialBody ?? ''}
+        mode={commentDraftState?.mode ?? 'add'}
         onCancel={() => {
           if (!isWritingComments) {
             setCommentDraftState(null)
