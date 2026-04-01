@@ -22,6 +22,8 @@
 - `SystemOpenRemoteProfile = { workspaceId, host, remoteRoot, user?, port?, agentPath?, identityFile?, sshAlias?, requestTimeoutMs?, connectTimeoutMs? }`
 - `SystemOpenInResult = { ok, error? }`
 - `WorkspaceSyncVsCodeSshConfigRequest = { sshAlias, host, user?, port?, identityFile? }`
+- `DocumentSaveState = 'clean' | 'dirty' | 'saving' | 'conflict'`
+- `WorkspaceDocumentSession = { relativePath, savedContent, draftContent, saveState, conflictDiskContent }`
 
 ## 3. 전역 불변식
 
@@ -32,6 +34,9 @@
 5. `token`이 있는 navigation request는 같은 line/block 재이동에서도 highlight를 재트리거할 수 있어야 한다.
 6. source of truth가 다른 상태를 한 필드에 합치지 않는다.
    - 예: changed marker와 git status badge, search focus와 navigation highlight
+7. undo/redo stack과 selection은 editor-local state이며, path-keyed document session의 source of truth가 아니다.
+8. text/markdown 문서의 dirty/저장/외부 변경 충돌 판정은 가능한 한 `draftContent`/`savedContent`/`saveState`에서 파생한다.
+9. runtime document session cache는 기본적으로 앱 재시작 snapshot persistence 범위에 포함하지 않는다.
 
 ## 4. source of truth
 

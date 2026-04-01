@@ -1,206 +1,75 @@
-# Implementation Review: Python Citation Navigation
+# Implementation Review: F45 문서 세션 통합 + Draft 기반 Spec View
 
-**Review Date**: 2026-03-14
-**Review Mode**: Tier 1 — Plan-based full review (Feature Draft as Plan)
-**Reference**: `_sdd/drafts/feature_draft_python_citation_navigation.md`
-**Reviewer**: Claude Opus 4.6
-**Model**: claude-opus-4-6[1m]
+**Review Date**: 2026-04-01
+**Review Mode**: Tier 1 — feature draft Part 2 기반 full review
+**Reference**: `/Users/hyunjoonlee/github/sdd-workbench/_sdd/drafts/feature_draft_f45_document_session_unification.md`
+**Model**: GPT-5 Codex
 
----
+## 1. Findings
+### Critical (0)
+- 없음
 
-## 1. Progress Overview
+### High (1)
+- `renameFileOrDirectory()`가 F45의 path-keyed document session contract를 끝까지 따라가지 못합니다. [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L2646)에서 rename 성공 후 갱신하는 값은 `activeFile`뿐인데, canonical runtime state는 [workspace-model.ts](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-model.ts#L71) 의 `activeFile`/`activeSpec` + `documentSessionsByPath` 조합입니다. 현재 구현대로면 열린 markdown/spec 파일이나 그 파일이 포함된 디렉터리를 rename할 때 `activeSpec`, `activeSpecContent`, `fileLastLineByPath`, `fileHistory`, `documentSessionsByPath`의 key가 모두 옛 경로에 남습니다. 결과적으로 rename 직후 Code/Spec 포인터가 갈라지고, renamed path는 기존 draft/save/conflict 연속성을 잃습니다.
 
-### Task Completion
+### Medium (1)
+- delete 경로도 path-keyed session 정리가 불완전합니다. [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L2555) 와 [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L2606) 는 삭제 후 `activeFile` 쪽만 비우고 `activeSpec`, `activeSpecContent`, `documentSessionsByPath`는 그대로 둡니다. 그래서 현재 spec panel이 삭제된 markdown를 보고 있는 경우, async reindex가 끝날 때까지 삭제된 문서가 계속 렌더되거나 spec-origin action이 stale path를 참조할 수 있습니다. F45가 문서 lifecycle의 source of truth를 path-keyed session으로 옮겼기 때문에, structural delete도 동일한 정리 규칙을 즉시 적용해야 합니다.
 
-| ID | Task | Component | Priority | Code | Tests | Status |
-|----|------|-----------|----------|------|-------|--------|
-| 1 | Citation target grammar & shared helpers | Citation Target Grammar | P0 | ✓ | ✓ 13/13 | COMPLETE |
-| 2 | Python declaration resolver | Python Declaration Resolver | P0 | ✓ | ✓ 5/5 | COMPLETE |
-| 3 | Prose citation remark transform | Rendered Citation Adapters | P1 | ✓ | ✓ 2/2 | COMPLETE |
-| 4 | Fenced Python citation annotation | Rendered Citation Adapters | P1 | ✓ | ✓ 3/3 | COMPLETE |
-| 5 | Spec Viewer/App semantic jump orchestration | Navigation Orchestration | P0 | ✓ | ✓ All passing | COMPLETE |
-| 6 | Regression tests & fallback polish | Regression Test Suite | P1 | ✓ | ✓ All passing | COMPLETE |
+### Low (0)
+- 없음
 
-### Acceptance Criteria Summary
+## 2. AC Verdicts
+| AC ID | Description | Verdict | Evidence | Notes |
+|-------|-------------|---------|----------|-------|
+| AC1 | text/markdown 문서는 runtime document session에서 `savedContent`, `draftContent`, `saveState`를 함께 관리한다 | MET | [workspace-model.ts](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-model.ts#L10), [workspace-model.ts](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-model.ts#L59), [workspace-model.test.ts](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-model.test.ts#L479) | `DocumentSaveState`, `WorkspaceDocumentSession`, `documentSessionsByPath`와 transition helper가 구현됨 |
+| AC2 | 동일 markdown 파일에서 Code 탭 수정 후 Spec 탭으로 전환하면 저장하지 않은 변경이 즉시 반영된다 | MET | [App.test.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/App.test.tsx#L5432) | same-path markdown draft 공유 integration test 통과 |
+| AC3 | Code/Spec 탭 전환만으로 draft가 초기화되거나 저장되지 않는다 | MET | [code-editor-panel.test.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/code-editor/code-editor-panel.test.tsx#L1200), [App.test.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/App.test.tsx#L5499) | same-file prop echo가 undo history를 깨지 않음 |
+| AC4 | 저장 성공 시 draft와 saved content가 동기화되고 `saveState='clean'`으로 복귀한다 | MET | [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L1405), [workspace-model.test.ts](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-model.test.ts#L507) | save success/failure transition이 구현 및 테스트됨 |
+| AC5 | dirty 상태의 외부 파일 변경은 자동 reload 대신 `conflict`로 전환되고, 사용자에게 명시적 선택 UI를 제공한다 | MET | [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L3348), [App.test.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/App.test.tsx#L10029) | `conflict` 승격 + `Reload` / `Dismiss` 배너 검증됨 |
+| AC6 | 파일/워크스페이스 전환, rename/delete guard는 동일한 save-state contract를 사용한다 | NOT MET | [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L1833), [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L2555), [workspace-context.tsx](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-context.tsx#L2646) | workspace/file switch guard는 save-state 기반이지만, rename/delete는 path-keyed session과 active spec 정리가 미완성 |
+| AC7 | runtime draft/session cache는 앱 재시작 snapshot에 저장되지 않는다 | MET | [workspace-persistence.test.ts](/Users/hyunjoonlee/github/sdd-workbench/src/workspace/workspace-persistence.test.ts#L73) | snapshot JSON에 `documentSessionsByPath` 미포함 |
 
-- Total criteria: 18
-- Met: 18 (100%)
-- Not met: 0
-- Untested / 검증 불가: 0
+## 3. Verification Summary
 
-### Test Summary
+- 환경 확인:
+  - `node -v` -> `v25.2.1`
+  - `npm -v` -> `11.12.1`
+- Fresh verification:
+  - `npx vitest run src/workspace/workspace-model.test.ts src/workspace/workspace-persistence.test.ts src/code-editor/code-editor-panel.test.tsx src/spec-viewer/spec-viewer-panel.test.tsx src/App.test.tsx --reporter=dot` -> pass (`5 files, 293 passed, 1 skipped`)
+  - `npx tsc --noEmit` -> pass
+  - `npm test -- --reporter=dot` -> pass (`70 files, 798 passed, 1 skipped`)
+- 테스트 기준으로 save-state, same-path draft sharing, external conflict, persistence exclusion은 모두 재현 및 통과했다.
+- 다만 structural file operations(rename/delete)에서 path-keyed session continuity를 보장하는 검증은 부족했고, 코드 읽기 기준으로 실제 결함이 확인된다.
 
-- Total tests: 221
-- Passing: 220
-- Failing: 0
-- Skipped: 1
+## 4. Progress Overview
 
----
-
-## 2. Detailed Assessment
-
-### Completed Tasks
-
-#### Task 1: Citation target grammar & shared helpers
-- **citation-target.ts** (126줄): `CitationTarget` type, `parseBracketCitationText()`, `buildCitationHref()`, `parseCitationHref()` 정상 구현
-- **spec-link-utils.ts** (213줄): `SpecLinkResolution` union type (5 variant), `resolveSpecLink()` — semantic citation target (`workspace-symbol`) 분기 추가
-- Tests: 4 + 9 = 13 passing
-- Acceptance Criteria: 3/3 MET
-
-| # | Criterion | Code | Test | Status |
-|---|-----------|------|------|--------|
-| 1 | citation target shape가 prose/fenced block 양쪽 공통 사용 | citation-target.ts | ✓ | MET |
-| 2 | same-workspace relative path 제약과 symbol parsing 규칙 unit test | citation-target.test.ts | ✓ 4 tests | MET |
-| 3 | 기존 line-hash link behavior regression 없음 | spec-link-utils.test.ts | ✓ 9 tests | MET |
-
-#### Task 2: Python declaration resolver
-- **python-symbol-resolver.ts** (127줄): `@lezer/python` AST parser 기반 declaration lookup. function, class, method 지원
-- Tests: 5 passing
-- Acceptance Criteria: 3/3 MET
-
-| # | Criterion | Code | Test | Status |
-|---|-----------|------|------|--------|
-| 1 | top-level function, class, class method declaration lookup | python-symbol-resolver.ts | ✓ 3 success tests | MET |
-| 2 | unsupported pattern은 explicit failure | python-symbol-resolver.ts | ✓ 2 failure tests | MET |
-| 3 | 외부 parser dependency 없이 구현 | @lezer/python 재사용 | - | MET |
-
-#### Task 3: Prose citation remark transform
-- **remark-citation-links.ts** (82줄): bracket citation을 link node로 변환하는 remark plugin
-- Tests: 2 passing
-- Acceptance Criteria: 3/3 MET
-
-| # | Criterion | Code | Test | Status |
-|---|-----------|------|------|--------|
-| 1 | paragraph 등 prose 안 citation이 clickable target으로 렌더 | remark-citation-links.ts | ✓ | MET |
-| 2 | markdown link, inline code, heading anchor behavior 유지 | remark-citation-links.ts | ✓ skip test | MET |
-| 3 | plugin unit tests가 citation detection과 non-target exclusion 검증 | remark-citation-links.test.ts | ✓ 2 tests | MET |
-
-#### Task 4: Fenced Python citation annotation
-- **code-block-citation.ts** (27줄): full-line Python comment citation 감지, annotation metadata 생성
-- Tests: 3 passing
-- Acceptance Criteria: 3/3 MET
-
-| # | Criterion | Code | Test | Status |
-|---|-----------|------|------|--------|
-| 1 | python/py fenced block의 `# [path.py:Symbol]` line 감지 | code-block-citation.ts | ✓ | MET |
-| 2 | non-citation code line은 기존 highlight behavior 유지 | code-block-citation.ts | ✓ | MET |
-| 3 | annotation utility tests가 recognition과 false positive exclusion 검증 | code-block-citation.test.ts | ✓ 3 tests | MET |
-
-### Partial Tasks
-
-#### Task 5: Spec Viewer/App semantic jump orchestration
-- **spec-viewer-panel.tsx**: `handleMarkdownLinkClick`에 `workspace-symbol` 분기 추가, try/catch fallback UX 구현
-- **App.tsx**: `openCitationTarget` 함수 — 파일 읽기 → Python resolver 실행 → jump request
-- **App.test.tsx**: 2개 테스트 실패
-
-| # | Criterion | Code | Test | Status |
-|---|-----------|------|------|--------|
-| 1 | prose citation click이 App-level semantic jump flow 호출 | spec-viewer-panel.tsx:950-1024 | ✓ | MET |
-| 2 | fenced block citation click이 동일 flow 재사용 | spec-viewer-panel.tsx:415-479 | ✓ | MET |
-| 3 | 성공 시 Code tab이 열리고 declaration line highlight 적용 | App.tsx:1389-1437 | ✗ FAILING | NOT MET |
-| 4 | failure path에서 fallback UX 유지, file 자동 열기 없음 | spec-viewer-panel.tsx:974-987 | ✓ | MET |
-
-**실패 상세**:
-1. `renders file content and tracks selected line range` — 파일 트리에서 "docs" 디렉토리 버튼을 찾지 못함
-2. `citation navigation opens file and selects symbol` — selection이 `none`이어야 하는데 `L1-L1` 반환
-
-#### Task 6: Regression tests & fallback polish
-- Task 5의 2개 테스트 실패로 인해 회귀 검증 불완전
-
-| # | Criterion | Code | Test | Status |
-|---|-----------|------|------|--------|
-| 1 | 기존 line-range markdown link tests 통과 | spec-link-utils.test.ts | ✓ 9/9 | MET |
-| 2 | unresolved/unsupported citation이 silent failure 없음 | - | △ | UNTESTED |
-| 3 | prose/fenced 모두 success + failure integration coverage | App.test.tsx | ✗ 2 failing | NOT MET |
-
----
-
-## 3. Issues Found
-
-### Critical (2)
-
-1. **App.test.tsx: `renders file content and tracks selected line range` 실패**
-   - Location: `src/App.test.tsx`
-   - Issue: `Unable to find role="button" and name "docs"` — 파일 트리 렌더링 문제
-   - Impact: 기존 파일 선택 flow의 회귀 가능성
-   - Action: 테스트 fixture의 디렉토리 구조 또는 App의 파일 트리 렌더링 변경 확인 필요
-
-2. **App.test.tsx: citation navigation selection 상태 불일치**
-   - Location: `src/App.test.tsx:2188`
-   - Issue: 파일 전환 후 selection이 `none`이어야 하는데 `L1-L1` 반환
-   - Impact: citation navigation 후 선택 상태가 올바르지 않음
-   - Action: `openCitationTarget`의 selection 초기화 로직 검증 필요
-
-### Quality Issues (2)
-
-1. **`normalizePosixPath()` 코드 중복**
-   - Location: `citation-target.ts`, `spec-link-utils.ts` 양쪽에 동일 함수 존재
-   - Impact: 유지보수 부담, 미묘한 의미 차이 (backslash 처리)
-   - Action: 공통 유틸리티로 추출 권장
-
-2. **App.test.tsx citation 전용 테스트 부족**
-   - Location: `src/App.test.tsx`
-   - Issue: Python symbol resolution 실패, 파일 읽기 오류, 잘못된 workspace path 등의 시나리오 미검증
-   - Action: openCitationTarget의 failure path 테스트 추가 권장
-
-### Improvements (2)
-
-1. **remark-citation-links 테스트 보강**
-   - 다중 연속 citation, 빈 bracket, 깊은 중첩 노드 edge case 미검증
-   - Priority: Low
-
-2. **Citation 포맷 문서화**
-   - `[file:symbol]` 포맷에 대한 JSDoc 또는 코드 주석 부재
-   - Priority: Low
-
----
-
-## 4. Test Status
-
-### Test Summary
-
-| File | Tests | Status |
-|------|-------|--------|
-| citation-target.test.ts | 4 | ✓ All passing |
-| python-symbol-resolver.test.ts | 5 | ✓ All passing |
-| remark-citation-links.test.ts | 2 | ✓ All passing |
-| code-block-citation.test.ts | 3 | ✓ All passing |
-| spec-link-utils.test.ts | 9 | ✓ All passing |
-| spec-viewer-panel.test.tsx | 37+ | ✓ All passing |
-| App.test.tsx | 118 | ✗ 2 failing |
-
-### Untested Areas
-
-- `openCitationTarget` failure paths (파일 미존재, resolution 실패, 비-Python 파일)
-- 복수 citation이 동시에 존재하는 markdown prose
-- fenced block에서 citation click 후 fallback UX 통합 검증
-
----
+- 구현의 핵심 축은 잘 들어갔다.
+  - document session 모델
+  - CodeMirror draft bridge
+  - same-path markdown Code/Spec draft 공유
+  - watcher dirty -> conflict 승격
+  - runtime-only persistence exclusion
+- fresh verification도 전체적으로 안정적이다.
+- 남은 문제는 대부분 structural path mutation(rename/delete)에서 새 contract를 끝까지 밀어넣지 못한 부분이다.
 
 ## 5. Recommendations
 
-### Must Do (Blockers)
+### Must
+- rename 성공 시 `activeSpec`, `activeSpecContent`, `fileLastLineByPath`, `fileHistory`, `documentSessionsByPath`를 함께 rewrite하는 path-migration helper를 추가해야 한다.
+- delete 성공 시 삭제 경로와 관련된 `activeSpec` / `activeSpecContent` / `documentSessionsByPath`를 즉시 정리해야 한다.
 
-1. [ ] **App.test.tsx 2개 실패 테스트 수정** — 파일 트리 fixture와 selection 초기화 로직 점검
-   - `renders file content and tracks selected line range`: 디렉토리 구조 fixture 확인
-   - `citation navigation opens file and selects symbol`: selection 초기화 타이밍 확인
+### Should
+- rename/delete regression test를 추가해 active markdown/spec + dirty/clean session이 structural mutation 뒤에도 일관되게 유지되는지 고정해야 한다.
+- document session path migration/cleanup을 workspace-model helper로 끌어내려 context 분기 로직을 줄이는 편이 안전하다.
 
-### Should Do (Quality)
-
-2. [ ] `normalizePosixPath()` 공통 유틸리티로 추출 (DRY)
-3. [ ] `openCitationTarget` failure path 테스트 추가 (파일 미존재, resolution 실패)
-
-### Could Do (Improvements)
-
-4. [ ] remark-citation-links edge case 테스트 보강 (다중 citation, 빈 bracket)
-5. [ ] Citation 포맷 JSDoc 문서화
-
----
+### Could
+- conflict banner에서 `Dismiss`를 `Keep Draft`처럼 더 명시적인 문구로 바꾸면 save-state vocabulary가 UI까지 더 선명하게 이어진다.
 
 ## 6. Conclusion
 
-Python Citation Navigation 기능은 **아키텍처적으로 건실하게 구현**되었습니다. 6개 Task 중 4개(Task 1-4)가 완전히 완료되었고, 핵심 모듈(citation grammar, Python resolver, remark transform, code block annotation)은 모두 테스트 통과합니다.
+F45 구현은 핵심 happy path 기준으로는 잘 완성됐고, fresh verification도 전체적으로 통과했다. 하지만 이번 기능의 본질이 "path-keyed document session을 source of truth로 삼는다"는 데 있는 만큼, rename/delete 같은 structural path mutation에서 그 contract가 유지되지 않는 현재 상태는 그대로 넘어가기 어렵다. 따라서 평가는 "대부분 구현 완료, 그러나 rename/delete lifecycle 결함으로 최종 완료 판정은 보류"가 적절하다.
 
-**가장 큰 리스크**는 App.test.tsx의 2개 테스트 실패입니다. 하나는 기존 파일 트리 렌더링 회귀, 다른 하나는 citation navigation 후 selection 상태 불일치입니다. **가장 중요한 다음 행동**은 이 2개 테스트 실패를 수정하여 Task 5-6을 완료하는 것입니다.
+## 7. Assumptions
 
-Overall Progress: **4/6 tasks complete (67%), 15/18 criteria met (83%)**
+- Tier 1 기준은 feature draft Part 2를 active contract로 사용했다.
+- `_sdd/env.md`는 Node 20 / npm 10 권장을 적고 있지만, 이번 fresh verification은 Node 25.2.1 / npm 11.12.1에서 수행됐다. 현재 테스트는 모두 통과했지만, CI/배포 환경이 더 낮은 버전이라면 별도 확인이 필요하다.

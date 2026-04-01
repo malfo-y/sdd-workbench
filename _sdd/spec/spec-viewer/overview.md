@@ -7,6 +7,8 @@
 ## 2. 사용자 가시 동작
 
 - markdown 파일을 rendered spec으로 읽을 수 있다.
+- 동일 경로의 markdown 파일이 Code 탭에서 편집 중(draft)이라면, Spec 탭은 저장본이 아니라 **현재 draft**를 렌더한다.
+- Code/Spec 탭 전환만으로 draft가 저장되거나 초기화되지 않으며, 두 탭은 같은 문서 세션(draft text)을 공유한다.
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
 - rendered selection에서 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`, `Go to Source`, `Add Comment`를 호출할 수 있다.
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
@@ -31,6 +33,9 @@
   - `src/spec-viewer/python-symbol-resolver.ts`
   - `src/spec-viewer/remark-citation-links.ts`
   - `src/spec-viewer/code-block-citation.ts`
+- markdown draft baseline source:
+  - `src/workspace/workspace-model.ts` (path-keyed document session)
+  - `src/workspace/workspace-context.tsx` (selector/wiring)
 
 ## 4. 핵심 규칙
 
@@ -40,6 +45,7 @@
 - supported inline structure에서는 same-file raw markdown exact offset을 additive payload로 계산한다.
 - collapsed selection이나 unsupported structure는 line fallback으로 degrade 한다.
 - rendered selection copy action payload와 popover 설명 문자열은 same-file raw markdown line range를 source of truth로 사용한다.
+- same-path markdown draft가 존재하면, "same-file raw markdown" baseline은 저장본이 아니라 **draft text**를 기준으로 계산한다.
 - `Copy Relative Path`는 `relativePath:Lx` 또는 `relativePath:Lx-Ly` 형식으로 line anchor를 포함한다.
 
 ### 4.2 검색과 navigation
@@ -65,6 +71,7 @@
 
 - same-spec source jump는 가능한 경우 현재 rendered 문맥을 재사용한다.
 - spec scroll position은 런타임에서 workspace + activeSpecPath 기준으로 복원한다.
+- same-path markdown에서 content만 변하는 경우(저장 전 draft 반영)는 path navigation이 아니므로, 스크롤/문맥 보존은 best-effort로 유지하되 stale search/highlight 상태가 남지 않도록 reset 또는 재계산 규칙을 둔다.
 
 ## 5. 주요 코드
 
@@ -102,3 +109,4 @@
 
 - rendered block anchor와 interactive source metadata는 의도적으로 분리되어 있다.
 - source mapping을 바꾸면 comment anchor, copy payload, `Go to Source`, `Go to Spec`, navigation highlight 회귀를 같이 확인해야 한다.
+- draft 기반 렌더링을 도입하면 rendered DOM과 source baseline이 함께 움직여야 한다. draft 상태에서 search/copy/comment/go-to-source가 저장본을 참조해 어긋나지 않도록 회귀 테스트를 우선 고정한다.

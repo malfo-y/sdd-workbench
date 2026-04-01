@@ -42,6 +42,27 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-04-01 - F45 문서 세션 통합 + Draft 기반 Spec View
+
+- Context:
+  - 동일 markdown 문서를 Code 탭과 Spec 탭에서 번갈아 다루는 흐름에서, runtime state가 `activeFile`, `activeSpec`, 탭별 content, `isDirty`, 외부 변경 처리로 분산되어 있어 “저장 전 draft”, “저장된 내용”, “rendered spec”, “외부 변경 충돌”이 서로 다른 책임으로 흩어져 있었다.
+  - 이 구조는 기능 자체는 동작하지만, 파일 편집/저장/undo/redo/spec-code 전환 복잡도를 키우고 유지보수 시 mental model 비용이 커진다.
+- Decision:
+  - text/markdown 문서의 source of truth를 경로별 `document session`으로 통합한다.
+  - `DocumentSaveState = clean|dirty|saving|conflict` vocabulary를 canonical contract로 고정하고, confirm/banner/guard/외부 변경 처리 로직을 save-state 중심으로 일원화한다.
+  - 동일 경로 markdown의 Code/Spec 뷰는 같은 draft text를 공유하며, Spec 탭은 저장본이 아니라 현재 draft를 렌더한다.
+  - undo/redo, IME, selection은 editor-local(CodeMirror) 책임으로 유지하고, 앱 레벨은 문서 lifecycle(draft/save/conflict/navigation guard)만 책임진다.
+  - runtime draft/session cache는 기본적으로 앱 재시작 persistence 범위에 포함하지 않는다(unsaved draft 복원은 기본 범위 밖).
+- Rationale:
+  - “문서 하나를 두 뷰로 본다”를 contract로 승격하면, 탭 전환을 저장/초기화/복원의 트리거로 취급하지 않아도 되며, conflict/guard/외부 변경을 한 vocabulary로 설명할 수 있다.
+  - editor 내부 기능(undo/redo)을 앱 상태로 끌어올리지 않으면 blast radius와 회귀 위험을 크게 줄일 수 있다.
+- Changes:
+  - `code-editor`, `spec-viewer`, `workspace-and-file-tree`, `appearance-and-navigation` supporting docs에 contract를 반영하고, feature-index에 F45를 Done으로 등록한다.
+- Open Questions:
+  - unsaved draft를 앱 재시작 후에도 복원할 것인가? (이번 범위 기본값: 복원하지 않음)
+  - conflict UI를 배너만으로 둘지, header status chip 같은 affordance까지 둘지?
+  - same-path markdown draft 상태에서 Spec search 결과를 content 변경 시 즉시 재계산할지, 사용자가 다시 검색을 열 때만 갱신할지?
+
 ## 2026-03-14 - F41/F42 구현 완료 반영 + comment modal positioning contract 고정
 
 - Context:

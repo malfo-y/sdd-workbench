@@ -7,6 +7,8 @@
 ## 2. 사용자 가시 동작
 
 - Code/Spec 탭을 전환하면서 동일한 콘텐츠 영역을 재사용한다.
+- 동일 markdown 파일에서 Code 탭 편집(draft) 후 Spec 탭으로 전환하면 저장하지 않은 변경이 rendered spec에 즉시 반영된다.
+- Code/Spec 탭 전환 자체는 저장/undo/redo를 트리거하지 않으며, 문서 내용은 같은 document session(draft)을 공유한다.
 - Back/Forward, 워크스페이스 키보드 전환, Code/Spec 키보드 전환을 사용할 수 있다.
 - spec -> code, code -> spec 이동 후 도착 라인/블록이 잠깐 하이라이트된다.
 - native `View > Theme` 메뉴에서 `Dark Gray`/`Light`/`System`을 고를 수 있다.
@@ -32,6 +34,8 @@
 - 현재 레이아웃은 2패널(사이드바 + 탭 콘텐츠)이다.
 - 비활성 탭은 숨기되 언마운트하지 않아 스크롤/문맥을 보존한다.
 - `.md` 파일 선택은 기본적으로 Spec 탭을 열고, explicit source jump는 Code 탭을 우선 연다.
+- 동일 경로 markdown 파일이 active code 문서이자 active spec 문서인 경우, Spec 탭은 저장본이 아니라 document session의 draft를 렌더한다.
+- confirm/banner/guard 메시지는 단일 `saveState(clean|dirty|saving|conflict)` vocabulary로 일원화한다.
 
 ### 4.2 navigation highlight
 

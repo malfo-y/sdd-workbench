@@ -48,6 +48,7 @@ citation 세부 규칙:
 ### 4.1 spec -> code
 
 - `Go to Source`는 same-file raw markdown source를 우선 대상으로 한다.
+- same-path markdown draft가 존재하면 `Go to Source`의 same-file raw markdown baseline은 저장본이 아니라 draft text다.
 - exact offset이 있으면 CodeMirror selection을 사용한다.
 - exact offset이 없어도 line jump는 계속 지원한다.
 
@@ -145,6 +146,8 @@ Code Editor, File Browser, Spec Viewer 검색 규칙과 wildcard semantics를 �
   - 결과는 rendered `data-source-line` block에 `.is-spec-search-match` / `.is-spec-search-focus`로 표시한다.
   - `Enter` / `Shift+Enter`와 이전/다음 버튼 모두 wrap-around를 지원한다.
   - `activeSpecPath` 변경 시 검색 상태를 초기화한다.
+  - same-path markdown draft가 존재하면 검색은 저장본이 아니라 draft baseline을 대상으로 수행한다.
+  - same-path markdown에서 content만 갱신되는 경우(저장 전 draft 반영) stale match/focus를 남기지 않도록 검색 상태를 reset하거나 즉시 재계산한다.
 
 ## 6. discoverability
 

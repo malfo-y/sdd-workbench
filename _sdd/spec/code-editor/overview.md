@@ -4,6 +4,8 @@
 
 이 문서는 CodeMirror 6 기반 코드 에디터의 읽기/편집/저장/검색/jump/highlight 동작과 주요 구현 지점을 정리한다.
 
+추가로, markdown 문서를 Code/Spec 탭에서 번갈아 다루는 흐름에서 발생하는 편집/저장/undo/redo/외부 변경 처리 복잡도를 줄이기 위한 **문서 세션(document session) 통합**을 반영한다.
+
 ## 2. 사용자 가시 동작
 
 - 일반 텍스트와 코드 파일을 읽고 편집할 수 있다.
@@ -11,6 +13,7 @@
 - line wrap을 켜고 끌 수 있다.
 - 코드 검색, 코멘트 추가, Copy Relative Path, `Go to Spec` 같은 컨텍스트 액션을 사용할 수 있다.
 - git line marker, comment gutter, navigation highlight가 같은 에디터 안에서 공존한다.
+- same-path markdown 문서는 Code 탭과 Spec 탭이 같은 draft text를 공유하고, 탭 전환만으로 저장되거나 초기화되지 않는다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -26,14 +29,19 @@
   - `src/code-editor/cm6-language-map.ts`
   - `src/code-editor/cm6-dark-theme.ts`
   - `src/code-editor/cm6-light-theme.ts`
+- 문서 세션(document session) source of truth:
+  - `src/workspace/workspace-model.ts`
+  - `src/workspace/workspace-context.tsx`
 
 ## 4. 핵심 규칙
 
 ### 4.1 편집과 저장
 
-- `docChanged`가 발생하면 renderer session의 `isDirty=true`로 전환한다.
+- `docChanged`가 발생하면 active document session의 draft content를 업데이트하고 dirty 상태를 표시한다.
 - auto-save는 없고 `Cmd+S` 수동 저장만 지원한다.
 - dirty 상태에서 파일 전환/창 닫기/외부 변경 충돌은 confirm 또는 배너로 다룬다.
+- text/markdown 문서의 draft/save/conflict lifecycle은 path-keyed `document session`으로 통합하고, guard/배너/confirm은 `saveState(clean|dirty|saving|conflict)` vocabulary를 source of truth로 사용한다.
+- `isDirty`는 active document session의 `saveState`에서 파생되는 compatibility field로 유지한다.
 
 ### 4.2 검색 / wrap / fallback
 
@@ -77,3 +85,4 @@
 
 - line selection 모델과 exact offset selection 모델을 동시에 유지해야 한다.
 - 에디터 UI를 바꿀 때 context menu 액션 노출 조건과 jump/highlight 재트리거 규칙을 함께 봐야 한다.
+- undo/redo, IME, selection은 editor-local state로 유지하고, 앱 레벨의 문서 lifecycle(draft/save/conflict/navigation guard)은 document session 책임으로 분리한다.

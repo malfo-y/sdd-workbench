@@ -32,8 +32,11 @@
 ### 4.1 세션과 active file
 
 - 워크스페이스 상태는 `workspaceId` 기준으로 분리한다.
-- active file/content/dirty/git line marker는 renderer session 상태에서 관리한다.
+- active file/content/dirty/git line marker는 renderer session 상태에서 보이지만, text/markdown draft/save state는 path-keyed document session으로 관리한다.
 - active workspace 전환은 드롭다운(MRU 성격)과 키보드 순차 전환(`switchActiveWorkspace`)을 구분한다.
+- text/markdown 문서의 내용 lifecycle은 `activeFileContent`/`activeSpecContent` 같은 탭별 필드가 아니라 path-keyed `document session`으로 통합한다.
+- `activeFile`/`activeSpec`는 navigation pointer로 유지하되, `savedContent`/`draftContent`/`saveState(clean|dirty|saving|conflict)`가 문서 상태의 source of truth가 된다.
+- runtime document session cache는 기본적으로 앱 재시작 persistence 범위에 포함하지 않는다(unsaved draft 복원은 기본 범위 밖).
 
 ### 4.2 트리와 lazy indexing
 
