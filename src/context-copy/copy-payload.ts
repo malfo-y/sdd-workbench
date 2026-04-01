@@ -21,6 +21,46 @@ function normalizeLineNumber(lineNumber: number): number {
   return Math.max(1, Math.trunc(lineNumber))
 }
 
+function normalizeRootPathForJoin(rootPath: string, separator: '/' | '\\'): string {
+  if (separator === '\\') {
+    const normalized = rootPath.replace(/\//g, '\\')
+    if (/^[A-Za-z]:\\?$/.test(normalized)) {
+      return normalized.endsWith('\\') ? normalized.slice(0, -1) : normalized
+    }
+    return normalized.replace(/\\+$/, '')
+  }
+
+  if (rootPath === '/') {
+    return rootPath
+  }
+
+  return rootPath.replace(/\/+$/, '')
+}
+
+export function buildCopyFullPathPayload(
+  rootPath: string,
+  relativePath: string,
+): string {
+  const separator: '/' | '\\' = rootPath.includes('\\') ? '\\' : '/'
+  const normalizedRootPath = normalizeRootPathForJoin(rootPath, separator)
+  const normalizedRelativePath = relativePath
+    .replace(/^[\\/]+/, '')
+    .replace(/[\\/]+/g, separator)
+
+  if (normalizedRelativePath.length === 0) {
+    if (separator === '\\' && /^[A-Za-z]:$/.test(normalizedRootPath)) {
+      return `${normalizedRootPath}\\`
+    }
+    return normalizedRootPath
+  }
+
+  if (normalizedRootPath === separator) {
+    return `${separator}${normalizedRelativePath}`
+  }
+
+  return `${normalizedRootPath}${separator}${normalizedRelativePath}`
+}
+
 export function buildCopyActiveFilePathPayload(
   relativePath: string,
   selectionRange?: LineSelectionRange,

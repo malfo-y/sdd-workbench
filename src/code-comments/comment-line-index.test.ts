@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCommentLineEntryIndex,
   buildCommentLineIndex,
+  findMostRecentCommentInSelectionRange,
   getCommentLineEntries,
   getCommentLineCount,
   getCommentLineCounts,
@@ -100,6 +101,32 @@ describe('comment-line-index', () => {
     ])
     expect(fileEntries.has(4)).toBe(false)
     expect(getCommentLineEntries(index, 'missing.ts').size).toBe(0)
+  })
+
+  it('finds the newest comment within the selected line range', () => {
+    const lineEntries = new Map<number, readonly CodeComment[]>([
+      [2, [COMMENT_A, COMMENT_D]],
+      [3, [COMMENT_B]],
+    ])
+
+    expect(
+      findMostRecentCommentInSelectionRange(lineEntries, {
+        startLine: 2,
+        endLine: 2,
+      })?.id,
+    ).toBe(COMMENT_D.id)
+    expect(
+      findMostRecentCommentInSelectionRange(lineEntries, {
+        startLine: 1,
+        endLine: 3,
+      })?.id,
+    ).toBe(COMMENT_B.id)
+    expect(
+      findMostRecentCommentInSelectionRange(lineEntries, {
+        startLine: 8,
+        endLine: 9,
+      }),
+    ).toBeNull()
   })
 
   it('maps comment counts to rendered source lines with nearest fallback', () => {

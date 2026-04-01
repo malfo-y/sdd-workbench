@@ -38,6 +38,8 @@ describe('SpecViewerPanel', () => {
         sourceOffsetRange?: { startOffset: number; endOffset: number }
       }) => void
     >(),
+    onRequestEditComment = vi.fn<(comment: CodeComment) => void>(),
+    onRequestDeleteComment = vi.fn<(comment: CodeComment) => void>(),
     onRequestCopySelectedContent = vi.fn<
       (input: {
         relativePath: string
@@ -102,6 +104,8 @@ describe('SpecViewerPanel', () => {
       selectionRange: { startLine: number; endLine: number }
       sourceOffsetRange?: { startOffset: number; endOffset: number }
     }) => void
+    onRequestEditComment?: (comment: CodeComment) => void
+    onRequestDeleteComment?: (comment: CodeComment) => void
     onRequestCopySelectedContent?: (input: {
       relativePath: string
       content: string
@@ -144,6 +148,8 @@ describe('SpecViewerPanel', () => {
         navigationRequest={navigationRequest}
         onScrollPositionChange={onScrollPositionChange}
         onRequestAddComment={onRequestAddComment}
+        onRequestEditComment={onRequestEditComment}
+        onRequestDeleteComment={onRequestDeleteComment}
         onRequestCopyBoth={onRequestCopyBoth}
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onRequestCopySelectedContent={onRequestCopySelectedContent}
@@ -161,6 +167,8 @@ describe('SpecViewerPanel', () => {
       onGoToSourceLine,
       onOpenCitationTarget,
       onRequestAddComment,
+      onRequestEditComment,
+      onRequestDeleteComment,
       onRequestCopyBoth,
       onRequestCopyRelativePath,
       onRequestCopySelectedContent,
@@ -310,6 +318,8 @@ describe('SpecViewerPanel', () => {
         onGoToSourceLine={vi.fn()}
         onOpenRelativePath={vi.fn().mockReturnValue(true)}
         onRequestAddComment={vi.fn()}
+        onRequestEditComment={vi.fn()}
+        onRequestDeleteComment={vi.fn()}
         onRequestCopyBoth={vi.fn()}
         onRequestCopyRelativePath={vi.fn()}
         onRequestCopySelectedContent={vi.fn()}
@@ -932,6 +942,76 @@ describe('SpecViewerPanel', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Source actions' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows Edit Comment in source actions when the selected line already has a comment', async () => {
+    const existingComment: CodeComment = {
+      id: 'docs/spec.md:3-3:aaaa:2026-02-22T00:00:00.000Z',
+      relativePath: 'docs/spec.md',
+      startLine: 3,
+      endLine: 3,
+      body: 'Existing comment',
+      anchor: {
+        snippet: 'target paragraph',
+        hash: 'aaaa',
+      },
+      createdAt: '2026-02-22T00:00:00.000Z',
+    }
+    const { onRequestEditComment } = renderPanel({
+      markdownContent: '# Title\n\ntarget paragraph',
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [3, [existingComment]],
+      ]),
+    })
+
+    const paragraph = screen.getByText('target paragraph')
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Source actions' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Comment' }))
+
+    expect(onRequestEditComment).toHaveBeenCalledWith(existingComment)
+  })
+
+  it('shows Delete Comment in source actions when the selected line already has a comment', async () => {
+    const existingComment: CodeComment = {
+      id: 'docs/spec.md:3-3:aaaa:2026-02-22T00:00:00.000Z',
+      relativePath: 'docs/spec.md',
+      startLine: 3,
+      endLine: 3,
+      body: 'Existing comment',
+      anchor: {
+        snippet: 'target paragraph',
+        hash: 'aaaa',
+      },
+      createdAt: '2026-02-22T00:00:00.000Z',
+    }
+    const { onRequestDeleteComment } = renderPanel({
+      markdownContent: '# Title\n\ntarget paragraph',
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [3, [existingComment]],
+      ]),
+    })
+
+    const paragraph = screen.getByText('target paragraph')
+    fireEvent.contextMenu(paragraph, {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Source actions' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Comment' }))
+
+    expect(onRequestDeleteComment).toHaveBeenCalledWith(existingComment)
   })
 
   it('calls copy action callbacks with raw markdown selection data', () => {
@@ -1671,6 +1751,8 @@ describe('SpecViewerPanel', () => {
         onGoToSourceLine={vi.fn()}
         onOpenRelativePath={vi.fn().mockReturnValue(true)}
         onRequestAddComment={vi.fn()}
+        onRequestEditComment={vi.fn()}
+        onRequestDeleteComment={vi.fn()}
         onRequestCopyBoth={vi.fn()}
         onRequestCopyRelativePath={vi.fn()}
         onRequestCopySelectedContent={vi.fn()}
@@ -1725,6 +1807,8 @@ describe('SpecViewerPanel', () => {
         onGoToSourceLine={vi.fn()}
         onOpenRelativePath={vi.fn().mockReturnValue(true)}
         onRequestAddComment={vi.fn()}
+        onRequestEditComment={vi.fn()}
+        onRequestDeleteComment={vi.fn()}
         onRequestCopyBoth={vi.fn()}
         onRequestCopyRelativePath={vi.fn()}
         onRequestCopySelectedContent={vi.fn()}

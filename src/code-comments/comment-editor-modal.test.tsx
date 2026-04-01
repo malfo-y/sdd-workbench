@@ -204,4 +204,32 @@ describe('CommentEditorModal', () => {
 
     expect(onSave).toHaveBeenCalledWith('Move this modal but keep saving')
   })
+
+  it('prefills the body and updates labels in edit mode', () => {
+    const onSave = vi.fn()
+
+    render(
+      <CommentEditorModal
+        initialBody="Existing note"
+        isOpen
+        isSaving={false}
+        mode="edit"
+        onCancel={() => undefined}
+        onSave={onSave}
+        relativePath="src/app.ts"
+        selectionRange={{ startLine: 3, endLine: 5 }}
+      />,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Edit comment' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Comment' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Comment')).toHaveValue('Existing note')
+
+    fireEvent.change(screen.getByLabelText('Comment'), {
+      target: { value: 'Existing note updated' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    expect(onSave).toHaveBeenCalledWith('Existing note updated')
+  })
 })

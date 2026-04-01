@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   addOrFocusWorkspace,
   createEmptyWorkspaceState,
+  createWorkspaceDocumentSession,
   createWorkspaceId,
   updateWorkspaceSession,
 } from './workspace-model'
@@ -82,8 +83,15 @@ describe('workspace-persistence', () => {
       },
       watchModePreference: 'polling',
     }))
+    state = updateWorkspaceSession(state, workspaceId, (session) => ({
+      ...session,
+      documentSessionsByPath: {
+        'src/main.ts': createWorkspaceDocumentSession('src/main.ts', 'draft-only'),
+      },
+    }))
 
     const snapshot = createWorkspaceSessionSnapshot(state)
+    expect(JSON.stringify(snapshot)).not.toContain('documentSessionsByPath')
     saveWorkspaceSessionSnapshot(snapshot)
     const loadedSnapshot = loadWorkspaceSessionSnapshot()
 

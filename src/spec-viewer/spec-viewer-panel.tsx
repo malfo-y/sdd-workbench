@@ -16,6 +16,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
 import type { AppearanceTheme } from '../appearance-theme'
 import {
+  findMostRecentCommentInSelectionRange,
   mapCommentCountsToRenderedSourceLines,
   mapCommentEntriesToRenderedSourceLines,
 } from '../code-comments/comment-line-index'
@@ -94,6 +95,8 @@ type SpecViewerPanelProps = {
     selectionRange: { startLine: number; endLine: number }
     sourceOffsetRange?: SourceOffsetRange
   }) => void
+  onRequestEditComment: (comment: CodeComment) => void
+  onRequestDeleteComment: (comment: CodeComment) => void
   onRequestCopySelectedContent: (input: {
     relativePath: string
     content: string
@@ -650,6 +653,8 @@ export function SpecViewerPanel({
   onOpenCitationTarget,
   onGoToSourceLine,
   onRequestAddComment,
+  onRequestEditComment,
+  onRequestDeleteComment,
   onRequestCopySelectedContent,
   onRequestCopyBoth,
   onRequestCopyRelativePath,
@@ -714,6 +719,13 @@ export function SpecViewerPanel({
     () => new Set(resolvedSearchMatchLines),
     [resolvedSearchMatchLines],
   )
+  const editableComment =
+    sourcePopoverState
+      ? findMostRecentCommentInSelectionRange(
+          commentLineEntries,
+          sourcePopoverState.selectionRange,
+        )
+      : null
 
   const clearNavigationHighlight = useCallback(() => {
     if (navigationHighlightTimerRef.current) {
@@ -1791,6 +1803,24 @@ export function SpecViewerPanel({
               label: 'Add Comment',
               onSelect: handleAddComment,
             },
+            ...(editableComment
+              ? [
+                  {
+                    label: 'Edit Comment',
+                    onSelect: () => {
+                      onRequestEditComment(editableComment)
+                      setSourcePopoverState(null)
+                    },
+                  },
+                  {
+                    label: 'Delete Comment',
+                    onSelect: () => {
+                      onRequestDeleteComment(editableComment)
+                      setSourcePopoverState(null)
+                    },
+                  },
+                ]
+              : []),
             {
               label: 'Go to Source',
               onSelect: handleGoToSource,

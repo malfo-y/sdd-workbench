@@ -1,20 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import {
   addOrFocusWorkspace,
+  beginWorkspaceDocumentSave,
   canStepWorkspaceFileHistory,
   closeWorkspace,
+  completeWorkspaceDocumentSaveSuccess,
   createEmptyWorkspaceState,
+  createWorkspaceDocumentSession,
   createWorkspaceId,
   createWorkspaceSession,
+  deriveWorkspaceIsDirtyCompatibility,
   getWorkspaceFileLastLine,
+  getWorkspaceDocumentSession,
   MAX_WORKSPACE_FILE_HISTORY,
+  markWorkspaceDocumentDirtyCompatibility,
+  markWorkspaceDocumentConflict,
   mergeDirectoryChildren,
   pushWorkspaceFileHistory,
+  removeWorkspaceDocumentSession,
+  removeWorkspaceSessionPaths,
+  renameWorkspaceSessionPaths,
+  setWorkspaceDocumentDraftContent,
   setDirty,
   setWorkspaceSelectionRange,
   setActiveWorkspace,
   switchActiveWorkspace,
   stepWorkspaceFileHistory,
+  upsertWorkspaceDocumentSessionFromDisk,
   updateWorkspaceSession,
 } from './workspace-model'
 
@@ -434,6 +446,261 @@ describe('workspace-model', () => {
     // Reset dirty when "switching" to a new file
     const cleanAfterSwitch = setDirty(dirtySession, false)
     expect(cleanAfterSwitch.isDirty).toBe(false)
+  })
+
+  it('initializes documentSessionsByPath as empty runtime cache', () => {
+    const session = createWorkspaceSession(ROOT_A)
+    expect(session.documentSessionsByPath).toEqual({})
+  })
+
+  it('upserts disk content as a clean document session', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'hello')
+
+    const doc = getWorkspaceDocumentSession(session, 'docs/a.md')
+    expect(doc).not.toBeNull()
+    expect(doc?.relativePath).toBe('docs/a.md')
+    expect(doc?.savedContent).toBe('hello')
+    expect(doc?.draftContent).toBe('hello')
+    expect(doc?.saveState).toBe('clean')
+    expect(doc?.conflictDiskContent).toBeNull()
+  })
+
+  it('keeps document sessions separated by relative path', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'a0')
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/b.md', 'b0')
+    session = setWorkspaceDocumentDraftContent(session, 'docs/a.md', 'a1')
+
+    const a = getWorkspaceDocumentSession(session, 'docs/a.md')
+    const b = getWorkspaceDocumentSession(session, 'docs/b.md')
+    expect(a?.draftContent).toBe('a1')
+    expect(b?.draftContent).toBe('b0')
+  })
+
+  it('sets saveState to dirty when draft differs from saved and derives isDirty from active document session', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = {
+      ...session,
+      activeFile: 'docs/a.md',
+    }
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'hello')
+    session = setWorkspaceDocumentDraftContent(session, 'docs/a.md', 'hello world')
+
+    const doc = getWorkspaceDocumentSession(session, 'docs/a.md')
+    expect(doc?.saveState).toBe('dirty')
+    expect(deriveWorkspaceIsDirtyCompatibility(session)).toBe(true)
+  })
+
+  it('preserves active pointers when updating document draft', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = {
+      ...session,
+      activeFile: 'docs/a.md',
+      activeSpec: 'docs/a.md',
+    }
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'hello')
+    session = setWorkspaceDocumentDraftContent(session, 'docs/a.md', 'hello world')
+
+    expect(session.activeFile).toBe('docs/a.md')
+    expect(session.activeSpec).toBe('docs/a.md')
+  })
+
+  it('transitions dirty -> saving -> clean on save success', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = {
+      ...session,
+      activeFile: 'docs/a.md',
+    }
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'v0')
+    session = setWorkspaceDocumentDraftContent(session, 'docs/a.md', 'v1')
+
+    session = beginWorkspaceDocumentSave(session, 'docs/a.md')
+    expect(getWorkspaceDocumentSession(session, 'docs/a.md')?.saveState).toBe('saving')
+
+    session = completeWorkspaceDocumentSaveSuccess(session, 'docs/a.md', 'v1')
+    const doc = getWorkspaceDocumentSession(session, 'docs/a.md')
+    expect(doc?.saveState).toBe('clean')
+    expect(doc?.savedContent).toBe('v1')
+    expect(doc?.draftContent).toBe('v1')
+    expect(deriveWorkspaceIsDirtyCompatibility(session)).toBe(false)
+  })
+
+  it('transitions dirty -> conflict and stores conflict disk content', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'v0')
+    session = setWorkspaceDocumentDraftContent(session, 'docs/a.md', 'v1')
+
+    session = markWorkspaceDocumentConflict(session, 'docs/a.md', 'disk-v2')
+    const doc = getWorkspaceDocumentSession(session, 'docs/a.md')
+    expect(doc?.saveState).toBe('conflict')
+    expect(doc?.conflictDiskContent).toBe('disk-v2')
+  })
+
+  it('marks document dirty as a legacy compatibility bridge', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'v0')
+    session = markWorkspaceDocumentDirtyCompatibility(session, 'docs/a.md', 'v0')
+
+    expect(getWorkspaceDocumentSession(session, 'docs/a.md')?.saveState).toBe('dirty')
+  })
+
+  it('removes document sessions by path', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'v0')
+    expect(getWorkspaceDocumentSession(session, 'docs/a.md')).not.toBeNull()
+
+    session = removeWorkspaceDocumentSession(session, 'docs/a.md')
+    expect(getWorkspaceDocumentSession(session, 'docs/a.md')).toBeNull()
+  })
+
+  it('renames path-scoped session state for active file and spec', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/spec.md', '# Spec')
+    session = setWorkspaceDocumentDraftContent(
+      session,
+      'docs/spec.md',
+      '# Updated spec',
+    )
+    session = upsertWorkspaceDocumentSessionFromDisk(
+      session,
+      'docs/nested/guide.md',
+      '# Nested guide',
+    )
+    session = {
+      ...session,
+      changedFiles: ['docs/spec.md', 'docs/nested/guide.md', 'src/app.ts'],
+      fileLastLineByPath: {
+        'docs/spec.md': 42,
+        'docs/nested/guide.md': 12,
+        'src/app.ts': 7,
+      },
+      fileHistory: ['src/app.ts', 'docs/spec.md', 'docs/nested/guide.md'],
+      fileHistoryIndex: 2,
+      activeFile: 'docs/spec.md',
+      activeSpec: 'docs/spec.md',
+      activeFileContent: '# Updated spec',
+      activeSpecContent: '# Updated spec',
+      gitFileStatuses: {
+        'docs/spec.md': 'modified',
+        'docs/nested/guide.md': 'added',
+        'src/app.ts': 'modified',
+      },
+    }
+
+    session = renameWorkspaceSessionPaths(session, 'docs', 'guides')
+
+    expect(session.activeFile).toBe('guides/spec.md')
+    expect(session.activeSpec).toBe('guides/spec.md')
+    expect(session.activeFileContent).toBe('# Updated spec')
+    expect(session.activeSpecContent).toBe('# Updated spec')
+    expect(session.changedFiles).toEqual([
+      'guides/spec.md',
+      'guides/nested/guide.md',
+      'src/app.ts',
+    ])
+    expect(session.fileLastLineByPath).toEqual({
+      'guides/spec.md': 42,
+      'guides/nested/guide.md': 12,
+      'src/app.ts': 7,
+    })
+    expect(session.fileHistory).toEqual([
+      'src/app.ts',
+      'guides/spec.md',
+      'guides/nested/guide.md',
+    ])
+    expect(session.fileHistoryIndex).toBe(2)
+    expect(session.gitFileStatuses).toEqual({
+      'guides/spec.md': 'modified',
+      'guides/nested/guide.md': 'added',
+      'src/app.ts': 'modified',
+    })
+    expect(Object.keys(session.documentSessionsByPath).sort()).toEqual([
+      'guides/nested/guide.md',
+      'guides/spec.md',
+    ])
+    expect(
+      getWorkspaceDocumentSession(session, 'guides/spec.md')?.relativePath,
+    ).toBe('guides/spec.md')
+    expect(getWorkspaceDocumentSession(session, 'docs/spec.md')).toBeNull()
+  })
+
+  it('removes path-scoped session state and clears stale active spec state', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/spec.md', '# Spec')
+    session = upsertWorkspaceDocumentSessionFromDisk(
+      session,
+      'docs/nested/guide.md',
+      '# Guide',
+    )
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'src/app.ts', 'export {}')
+    session = {
+      ...session,
+      changedFiles: ['docs/spec.md', 'docs/nested/guide.md', 'src/app.ts'],
+      fileLastLineByPath: {
+        'docs/spec.md': 9,
+        'docs/nested/guide.md': 4,
+        'src/app.ts': 1,
+      },
+      fileHistory: ['src/app.ts', 'docs/spec.md', 'docs/nested/guide.md'],
+      fileHistoryIndex: 2,
+      activeFile: 'docs/spec.md',
+      activeSpec: 'docs/spec.md',
+      activeFileContent: '# Spec',
+      activeFileImagePreview: {
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,abc',
+      },
+      activeFileGitLineMarkers: [{ line: 1, kind: 'modified' }],
+      activeSpecContent: '# Spec',
+      isReadingFile: true,
+      isReadingSpec: true,
+      readFileError: 'read failed',
+      activeSpecReadError: 'spec failed',
+      previewUnavailableReason: 'binary_file',
+      selectionRange: { startLine: 2, endLine: 3 },
+      gitFileStatuses: {
+        'docs/spec.md': 'modified',
+        'docs/nested/guide.md': 'added',
+        'src/app.ts': 'modified',
+      },
+    }
+
+    session = removeWorkspaceSessionPaths(session, 'docs')
+
+    expect(session.activeFile).toBeNull()
+    expect(session.activeSpec).toBeNull()
+    expect(session.activeFileContent).toBeNull()
+    expect(session.activeFileImagePreview).toBeNull()
+    expect(session.activeFileGitLineMarkers).toEqual([])
+    expect(session.activeSpecContent).toBeNull()
+    expect(session.isReadingFile).toBe(false)
+    expect(session.isReadingSpec).toBe(false)
+    expect(session.readFileError).toBeNull()
+    expect(session.activeSpecReadError).toBeNull()
+    expect(session.previewUnavailableReason).toBeNull()
+    expect(session.selectionRange).toBeNull()
+    expect(session.changedFiles).toEqual(['src/app.ts'])
+    expect(session.fileLastLineByPath).toEqual({
+      'src/app.ts': 1,
+    })
+    expect(session.fileHistory).toEqual(['src/app.ts'])
+    expect(session.fileHistoryIndex).toBe(0)
+    expect(session.gitFileStatuses).toEqual({
+      'src/app.ts': 'modified',
+    })
+    expect(Object.keys(session.documentSessionsByPath)).toEqual(['src/app.ts'])
+  })
+
+  it('createWorkspaceDocumentSession creates a clean session snapshot', () => {
+    const doc = createWorkspaceDocumentSession('docs/a.md', 'alpha')
+    expect(doc).toEqual({
+      relativePath: 'docs/a.md',
+      savedContent: 'alpha',
+      draftContent: 'alpha',
+      saveState: 'clean',
+      conflictDiskContent: null,
+    })
   })
 })
 

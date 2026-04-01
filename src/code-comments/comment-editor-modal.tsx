@@ -6,6 +6,8 @@ import type { LineSelectionRange } from '../workspace/workspace-model'
 type CommentEditorModalProps = {
   isOpen: boolean
   isSaving: boolean
+  mode?: 'add' | 'edit'
+  initialBody?: string
   relativePath: string | null
   selectionRange: LineSelectionRange | null
   onCancel: () => void
@@ -15,6 +17,8 @@ type CommentEditorModalProps = {
 export function CommentEditorModal({
   isOpen,
   isSaving,
+  mode = 'add',
+  initialBody = '',
   relativePath,
   selectionRange,
   onCancel,
@@ -32,8 +36,8 @@ export function CommentEditorModal({
     if (!isOpen) {
       return
     }
-    setBody('')
-  }, [isOpen, relativePath, selectionRange])
+    setBody(initialBody)
+  }, [initialBody, isOpen, relativePath, selectionRange])
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,6 +64,13 @@ export function CommentEditorModal({
 
   const trimmedBody = body.trim()
   const canSave = trimmedBody.length > 0 && !isSaving
+  const modalTitle = mode === 'edit' ? 'Edit Comment' : 'Add Comment'
+  const modalAriaLabel = mode === 'edit' ? 'Edit comment' : 'Add comment'
+  const saveButtonLabel = mode === 'edit' ? 'Save Changes' : 'Save Comment'
+  const placeholder =
+    mode === 'edit'
+      ? 'Update what should be changed here'
+      : 'What should be changed here?'
 
   return (
     <div
@@ -69,7 +80,7 @@ export function CommentEditorModal({
       role="presentation"
     >
       <form
-        aria-label="Add comment"
+        aria-label={modalAriaLabel}
         className={`comment-modal is-draggable${isDragging ? ' is-dragging' : ''}`}
         onSubmit={(event) => {
           event.preventDefault()
@@ -88,7 +99,7 @@ export function CommentEditorModal({
           {...dragHandleProps}
         >
           <div className="comment-modal-header-main">
-            <h2>Add Comment</h2>
+            <h2>{modalTitle}</h2>
             <p className="comment-modal-target" title={relativePath}>
               {relativePath}:L{selectionRange.startLine}-L{selectionRange.endLine}
             </p>
@@ -105,7 +116,7 @@ export function CommentEditorModal({
           onChange={(event) => {
             setBody(event.target.value)
           }}
-          placeholder="What should be changed here?"
+          placeholder={placeholder}
           rows={6}
           value={body}
         />
@@ -114,7 +125,7 @@ export function CommentEditorModal({
             Cancel
           </button>
           <button disabled={!canSave} type="submit">
-            {isSaving ? 'Saving...' : 'Save Comment'}
+            {isSaving ? 'Saving...' : saveButtonLabel}
           </button>
         </div>
       </form>

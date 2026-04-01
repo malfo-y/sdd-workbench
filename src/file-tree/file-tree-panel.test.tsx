@@ -15,6 +15,7 @@ describe('FileTreePanel context copy', () => {
 
   it('shows copy popover on file context-menu and requests relative-path copy', () => {
     const onRequestCopyRelativePath = vi.fn()
+    const onRequestCopyFullPath = vi.fn()
 
     render(
       <FileTreePanel
@@ -37,6 +38,7 @@ describe('FileTreePanel context copy', () => {
         ]}
         isIndexing={false}
         onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyFullPath={onRequestCopyFullPath}
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onSelectFile={() => undefined}
         rootPath="/Users/tester/project"
@@ -61,6 +63,15 @@ describe('FileTreePanel context copy', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Copy actions' }),
     ).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'auth.ts' }), {
+      clientX: 120,
+      clientY: 160,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Full Path' }))
+
+    expect(onRequestCopyFullPath).toHaveBeenCalledWith('src/auth.ts')
   })
 
   it('shows copy popover on directory context-menu and preserves toggle behavior', () => {
@@ -1880,6 +1891,7 @@ describe('FileTreePanel clipboard copy/paste', () => {
         fileTree={fileTree}
         isIndexing={false}
         onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyFullPath={() => undefined}
         onRequestCopyRelativePath={() => undefined}
         onSelectFile={() => undefined}
         rootPath="/test"
@@ -1892,8 +1904,36 @@ describe('FileTreePanel clipboard copy/paste', () => {
       clientY: 100,
     })
 
+    expect(screen.getByText('Copy Full Path')).toBeInTheDocument()
     expect(screen.getByText('Copy')).toBeInTheDocument()
     expect(screen.getByText('Paste')).toBeInTheDocument()
+  })
+
+  it('calls onRequestCopyFullPath when Copy Full Path is selected from context menu', () => {
+    const onCopyFullPath = vi.fn()
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={fileTree}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyFullPath={onCopyFullPath}
+        onRequestCopyRelativePath={() => undefined}
+        onSelectFile={() => undefined}
+        rootPath="/test"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'app.ts' }), {
+      clientX: 100,
+      clientY: 100,
+    })
+    fireEvent.click(screen.getByText('Copy Full Path'))
+
+    expect(onCopyFullPath).toHaveBeenCalledWith('src/app.ts')
   })
 
   it('calls onRequestCopyToClipboard when Copy is selected from context menu', () => {

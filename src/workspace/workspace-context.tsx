@@ -9,20 +9,32 @@ import {
 } from 'react'
 import {
   addOrFocusWorkspace,
+  beginWorkspaceDocumentSave,
   canStepWorkspaceFileHistory,
   closeWorkspace as closeWorkspaceInState,
+  completeWorkspaceDocumentSaveFailure,
+  completeWorkspaceDocumentSaveSuccess,
   createEmptyWorkspaceState,
   createWorkspaceId,
   getWorkspaceFileLastLine,
+  getWorkspaceDocumentSession,
   listWorkspaces,
+  markWorkspaceDocumentConflict,
+  markWorkspaceDocumentDirtyCompatibility,
   mergeDirectoryChildren,
   pushWorkspaceFileHistory,
+  removeWorkspaceDocumentSession,
+  removeWorkspaceSessionPaths,
+  renameWorkspaceSessionPaths,
   setDirty,
+  setWorkspaceDocumentDraftContent,
   setWorkspaceSelectionRange as setWorkspaceSelectionRangeInModel,
   setActiveWorkspace as setActiveWorkspaceInState,
   switchActiveWorkspace as switchActiveWorkspaceInState,
   stepWorkspaceFileHistory,
+  upsertWorkspaceDocumentSessionFromDisk,
   updateWorkspaceSession,
+  type DocumentSaveState,
   type GitFileStatusKind,
   type LineSelectionRange,
   type WorkspaceId,
@@ -86,7 +98,7 @@ type WorkspaceContextValue = {
   isDirty: boolean
   externalChangeDetected: boolean
   bannerMessage: string | null
-  markFileDirty: () => void
+  markFileDirty: (draftContent?: string) => void
   openWorkspace: () => Promise<void>
   connectRemoteWorkspace: (profile: WorkspaceRemoteProfile) => Promise<boolean>
   disconnectRemoteWorkspace: (workspaceId?: WorkspaceId) => Promise<boolean>
@@ -151,6 +163,82 @@ const REMOTE_ABSOLUTE_PATH_PATTERN =
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
+}
+
+function getWorkspaceDocumentSaveState(
+  session: WorkspaceSession,
+  relativePath: string | null,
+): DocumentSaveState | null {
+  if (!relativePath) {
+    return null
+  }
+  const saveState = session.documentSessionsByPath[relativePath]?.saveState ?? null
+  if (saveState) {
+    return saveState
+  }
+  return relativePath === session.activeFile && session.isDirty ? 'dirty' : 'clean'
+}
+
+function getWorkspaceActiveDocumentSaveState(
+  session: WorkspaceSession,
+): DocumentSaveState | null {
+  return getWorkspaceDocumentSaveState(session, session.activeFile)
+}
+
+function getWorkspaceIsDirtyCompatibility(
+  session: WorkspaceSession,
+): boolean {
+  const saveState = getWorkspaceActiveDocumentSaveState(session)
+  if (saveState === null) {
+    return false
+  }
+  return saveState !== 'clean'
+}
+
+function hasUnsavedChanges(saveState: DocumentSaveState | null): boolean {
+  return saveState !== null && saveState !== 'clean'
+}
+
+function getWorkspaceDocumentDraftContent(
+  session: WorkspaceSession,
+  relativePath: string | null,
+): string | null {
+  if (!relativePath) {
+    return null
+  }
+
+  return getWorkspaceDocumentSession(session, relativePath)?.draftContent ?? null
+}
+
+function syncWorkspaceDisplayedDocumentContent(
+  session: WorkspaceSession,
+): WorkspaceSession {
+  const activeFileDraftContent = getWorkspaceDocumentDraftContent(
+    session,
+    session.activeFile,
+  )
+  const activeSpecDraftContent =
+    session.activeSpec !== null && isMarkdownFile(session.activeSpec)
+      ? getWorkspaceDocumentDraftContent(session, session.activeSpec)
+      : null
+
+  const nextActiveFileContent =
+    activeFileDraftContent ?? session.activeFileContent
+  const nextActiveSpecContent =
+    activeSpecDraftContent ?? session.activeSpecContent
+
+  if (
+    nextActiveFileContent === session.activeFileContent &&
+    nextActiveSpecContent === session.activeSpecContent
+  ) {
+    return session
+  }
+
+  return {
+    ...session,
+    activeFileContent: nextActiveFileContent,
+    activeSpecContent: nextActiveSpecContent,
+  }
 }
 
 function getSpecPreviewUnavailableMessage(
@@ -1332,6 +1420,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       return false
     }
 
+    setWorkspaceState((previous) =>
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+        const withDraft = setWorkspaceDocumentDraftContent(
+          currentSession,
+          activeFile,
+          content,
+        )
+        const saving = beginWorkspaceDocumentSave(withDraft, activeFile)
+        return setDirty(saving, true)
+      }),
+    )
+
     try {
       const writeResult = await window.workspace.writeFile(rootPath, activeFile, content)
 
@@ -1340,14 +1440,27 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           ? `Failed to save file: ${writeResult.error}`
           : 'Failed to save file.'
         setBannerMessage(errorMessage)
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+            const rolledBack = completeWorkspaceDocumentSaveFailure(
+              currentSession,
+              activeFile,
+            )
+            return setDirty(rolledBack, getWorkspaceIsDirtyCompatibility(rolledBack))
+          }),
+        )
         return false
       }
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
-          setDirty(currentSession, false),
+          setDirty(
+            completeWorkspaceDocumentSaveSuccess(currentSession, activeFile, content),
+            false,
+          ),
         ),
       )
+      setExternalChangeDetected(false)
       savedFileRefreshSuppressionRef.current.add(
         buildSavedFileRefreshSuppressionKey(activeWorkspaceId, activeFile),
       )
@@ -1359,6 +1472,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           ? `Failed to save file: ${error.message}`
           : 'Failed to save file.'
       setBannerMessage(errorMessage)
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+          const rolledBack = completeWorkspaceDocumentSaveFailure(
+            currentSession,
+            activeFile,
+          )
+          return setDirty(rolledBack, getWorkspaceIsDirtyCompatibility(rolledBack))
+        }),
+      )
       return false
     }
   }, [refreshWorkspaceGitDecorations])
@@ -1715,7 +1837,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     const session = activeWorkspaceId
       ? workspaceStateRef.current.workspacesById[activeWorkspaceId]
       : null
-    return session?.isDirty ?? false
+    return session ? getWorkspaceIsDirtyCompatibility(session) : false
   }, [])
 
   const setActiveWorkspace = useCallback((workspaceId: WorkspaceId) => {
@@ -1780,14 +1902,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
       const requestId = (readSpecRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
       readSpecRequestIdByWorkspaceRef.current[workspaceId] = requestId
-      const shouldPreserveCurrentContent = mode === 'refresh'
+      const existingDocumentSession = getWorkspaceDocumentSession(
+        workspaceSession,
+        relativePath,
+      )
+      const shouldPreserveCurrentContent =
+        mode === 'refresh' ||
+        hasUnsavedChanges(existingDocumentSession?.saveState ?? null)
 
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
           ...currentSession,
           activeSpec: relativePath,
           activeSpecContent: shouldPreserveCurrentContent
-            ? currentSession.activeSpecContent
+            ? getWorkspaceDocumentDraftContent(currentSession, relativePath) ??
+              currentSession.activeSpecContent
             : null,
           activeSpecReadError: shouldPreserveCurrentContent
             ? currentSession.activeSpecReadError
@@ -1857,12 +1986,29 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           }
 
           setWorkspaceState((previous) =>
-            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-              ...currentSession,
-              activeSpecContent: readResult.content ?? '',
-              activeSpecReadError: null,
-              isReadingSpec: false,
-            })),
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+              const shouldPreserveDraft = hasUnsavedChanges(
+                getWorkspaceDocumentSession(currentSession, relativePath)?.saveState ??
+                  null,
+              )
+              const nextSession = shouldPreserveDraft
+                ? currentSession
+                : upsertWorkspaceDocumentSessionFromDisk(
+                    currentSession,
+                    relativePath,
+                    readResult.content ?? '',
+                  )
+
+              return syncWorkspaceDisplayedDocumentContent({
+                ...nextSession,
+                activeSpecContent:
+                  getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
+                  readResult.content ??
+                  '',
+                activeSpecReadError: null,
+                isReadingSpec: false,
+              })
+            }),
           )
         } catch (error) {
           if (readSpecRequestIdByWorkspaceRef.current[workspaceId] !== requestId) {
@@ -1913,6 +2059,14 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const shouldUpdateSpec = selectingMarkdown && mode === 'select'
       const shouldRefreshSpec =
         selectingMarkdown && workspaceSession.activeSpec === relativePath
+      const existingDocumentSession = getWorkspaceDocumentSession(
+        workspaceSession,
+        relativePath,
+      )
+      const shouldReuseUnsavedDraft =
+        mode === 'select' &&
+        existingDocumentSession !== null &&
+        hasUnsavedChanges(existingDocumentSession.saveState)
       const canReuseActiveSpecContent =
         mode === 'select' &&
         selectingMarkdown &&
@@ -1921,7 +2075,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         workspaceSession.activeSpecReadError === null &&
         workspaceSession.previewUnavailableReason === null
 
-      if (canReuseActiveSpecContent) {
+      if (shouldReuseUnsavedDraft || canReuseActiveSpecContent) {
         setWorkspaceState((previous) =>
           updateWorkspaceSession(previous, workspaceId, (currentSession) => {
             const restoredLineNumber = getWorkspaceFileLastLine(
@@ -1933,9 +2087,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               currentSession.activeFile !== relativePath
                 ? currentSession.activeFile
                 : null
-            const activeSpecContent = currentSession.activeSpecContent ?? ''
-
-            return {
+            const reusableDocumentContent =
+              getWorkspaceDocumentDraftContent(currentSession, relativePath) ??
+              currentSession.activeSpecContent ??
+              ''
+            const nextSession = syncWorkspaceDisplayedDocumentContent({
               ...currentSession,
               ...(historyMode === 'push'
                 ? pushWorkspaceFileHistory(currentSession, relativePath)
@@ -1948,8 +2104,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
                       leavingActiveFile,
                     ),
               activeFile: relativePath,
-              activeSpec: relativePath,
-              activeFileContent: activeSpecContent,
+              activeSpec: shouldUpdateSpec ? relativePath : currentSession.activeSpec,
+              activeFileContent: reusableDocumentContent,
               activeFileImagePreview: null,
               activeFileGitLineMarkers: [],
               selectionRange:
@@ -1962,11 +2118,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               readFileError: null,
               previewUnavailableReason: null,
               isReadingFile: false,
-              activeSpecContent,
+              activeSpecContent: shouldUpdateSpec
+                ? reusableDocumentContent
+                : currentSession.activeSpecContent,
               activeSpecReadError: null,
               isReadingSpec: false,
-              isDirty: false,
-            }
+              isDirty: currentSession.isDirty,
+            })
+
+            return setDirty(nextSession, getWorkspaceIsDirtyCompatibility(nextSession))
           }),
         )
         void loadWorkspaceGitLineMarkers(
@@ -2106,34 +2266,72 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           }
 
           setWorkspaceState((previous) =>
-            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-              ...currentSession,
-              activeFileContent: readResult.imagePreview
-                ? null
-                : readResult.content ?? '',
-              activeFileImagePreview: readResult.imagePreview ?? null,
-              activeFileGitLineMarkers: readResult.imagePreview
-                ? []
-                : currentSession.activeFileGitLineMarkers,
-              selectionRange: readResult.imagePreview
-                ? null
-                : currentSession.selectionRange,
-              isReadingFile: false,
-              activeSpecContent:
-                shouldUpdateSpec || shouldRefreshSpec
-                  ? readResult.imagePreview
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+              if (readResult.imagePreview) {
+                return {
+                  ...currentSession,
+                  activeFileContent: null,
+                  activeFileImagePreview: readResult.imagePreview,
+                  activeFileGitLineMarkers: [],
+                  selectionRange: null,
+                  isReadingFile: false,
+                  activeSpecContent:
+                    shouldUpdateSpec || shouldRefreshSpec
+                      ? null
+                      : currentSession.activeSpecContent,
+                  activeSpecReadError:
+                    shouldUpdateSpec || shouldRefreshSpec
+                      ? null
+                      : currentSession.activeSpecReadError,
+                  isReadingSpec:
+                    shouldUpdateSpec || shouldRefreshSpec
+                      ? false
+                      : currentSession.isReadingSpec,
+                }
+              }
+
+              const shouldPreserveDraft = hasUnsavedChanges(
+                getWorkspaceDocumentSession(currentSession, relativePath)?.saveState ??
+                  null,
+              )
+              const nextSession = shouldPreserveDraft
+                ? currentSession
+                : upsertWorkspaceDocumentSessionFromDisk(
+                    currentSession,
+                    relativePath,
+                    readResult.content ?? '',
+                  )
+              const syncedSession = syncWorkspaceDisplayedDocumentContent({
+                ...nextSession,
+                activeFileContent:
+                  getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
+                  readResult.content ??
+                  '',
+                activeFileImagePreview: null,
+                activeFileGitLineMarkers: currentSession.activeFileGitLineMarkers,
+                selectionRange: currentSession.selectionRange,
+                isReadingFile: false,
+                activeSpecContent:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
+                      readResult.content ??
+                      ''
+                    : currentSession.activeSpecContent,
+                activeSpecReadError:
+                  shouldUpdateSpec || shouldRefreshSpec
                     ? null
-                    : readResult.content ?? ''
-                  : currentSession.activeSpecContent,
-              activeSpecReadError:
-                shouldUpdateSpec || shouldRefreshSpec
-                  ? null
-                  : currentSession.activeSpecReadError,
-              isReadingSpec:
-                shouldUpdateSpec || shouldRefreshSpec
-                  ? false
-                  : currentSession.isReadingSpec,
-            })),
+                    : currentSession.activeSpecReadError,
+                isReadingSpec:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? false
+                    : currentSession.isReadingSpec,
+              })
+
+              return setDirty(
+                syncedSession,
+                getWorkspaceIsDirtyCompatibility(syncedSession),
+              )
+            }),
           )
           if (!readResult.imagePreview) {
             void loadWorkspaceGitLineMarkers(
@@ -2195,9 +2393,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
 
     setWorkspaceState((previous) =>
-      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
-        setDirty(currentSession, false),
-      ),
+      updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+        const withoutDraft = removeWorkspaceDocumentSession(currentSession, activeFile)
+        return setDirty(withoutDraft, false)
+      }),
     )
     setExternalChangeDetected(false)
     loadWorkspaceFile(activeWorkspaceId, activeFile, 'refresh')
@@ -2207,7 +2406,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     setExternalChangeDetected(false)
   }, [])
 
-  const markFileDirty = useCallback(() => {
+  const markFileDirty = useCallback((draftContent?: string) => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
     if (!activeWorkspaceId) {
       return
@@ -2215,7 +2414,34 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
     setWorkspaceState((previous) =>
       updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) =>
-        setDirty(currentSession, true),
+        currentSession.activeFile
+          ? (() => {
+              const nextSession =
+                typeof draftContent === 'string'
+                  ? syncWorkspaceDisplayedDocumentContent({
+                      ...setWorkspaceDocumentDraftContent(
+                        currentSession,
+                        currentSession.activeFile,
+                        draftContent,
+                      ),
+                      activeFileContent: draftContent,
+                      activeSpecContent:
+                        currentSession.activeSpec === currentSession.activeFile &&
+                        isMarkdownFile(currentSession.activeFile)
+                          ? draftContent
+                          : currentSession.activeSpecContent,
+                    })
+                  : markWorkspaceDocumentDirtyCompatibility(
+                      currentSession,
+                      currentSession.activeFile,
+                      currentSession.activeFileContent ?? '',
+                    )
+              return setDirty(
+                nextSession,
+                getWorkspaceIsDirtyCompatibility(nextSession),
+              )
+            })()
+          : setDirty(currentSession, true),
       ),
     )
   }, [])
@@ -2328,7 +2554,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       return false
     }
 
-    const { rootPath, activeFile } = workspaceSession
+    const { rootPath } = workspaceSession
 
     try {
       const deleteResult = await window.workspace.deleteFile(rootPath, relativePath)
@@ -2341,19 +2567,19 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return false
       }
 
-      if (activeFile === relativePath) {
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            activeFile: null,
-            activeFileContent: null,
-            activeFileImagePreview: null,
-            activeFileGitLineMarkers: [],
-            isDirty: false,
-            previewUnavailableReason: null,
-          }))
-        )
-      }
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+          const removedSession = removeWorkspaceSessionPaths(
+            currentSession,
+            relativePath,
+          )
+          const syncedSession = syncWorkspaceDisplayedDocumentContent(removedSession)
+          return setDirty(
+            syncedSession,
+            getWorkspaceIsDirtyCompatibility(syncedSession),
+          )
+        }),
+      )
 
       void loadWorkspaceIndex(activeWorkspaceId, rootPath, 'refresh')
       void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
@@ -2379,7 +2605,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       return false
     }
 
-    const { rootPath, activeFile } = workspaceSession
+    const { rootPath } = workspaceSession
 
     try {
       const deleteResult = await window.workspace.deleteDirectory(rootPath, relativePath)
@@ -2392,19 +2618,19 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return false
       }
 
-      if (activeFile !== null && activeFile.startsWith(relativePath + '/')) {
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            activeFile: null,
-            activeFileContent: null,
-            activeFileImagePreview: null,
-            activeFileGitLineMarkers: [],
-            isDirty: false,
-            previewUnavailableReason: null,
-          }))
-        )
-      }
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+          const removedSession = removeWorkspaceSessionPaths(
+            currentSession,
+            relativePath,
+          )
+          const syncedSession = syncWorkspaceDisplayedDocumentContent(removedSession)
+          return setDirty(
+            syncedSession,
+            getWorkspaceIsDirtyCompatibility(syncedSession),
+          )
+        }),
+      )
 
       void loadWorkspaceIndex(activeWorkspaceId, rootPath, 'refresh')
       void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
@@ -2430,7 +2656,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       return false
     }
 
-    const { rootPath, activeFile, comments, isDirty } = workspaceSession
+    const { rootPath, activeFile, comments } = workspaceSession
 
     // Comment protection check
     const hasComments = comments.some(
@@ -2446,7 +2672,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }
 
     // Dirty state check
-    if (activeFile === oldRelativePath && isDirty) {
+    const activeFileIsBeingRenamed =
+      activeFile === oldRelativePath ||
+      (activeFile !== null && activeFile.startsWith(`${oldRelativePath}/`))
+    if (
+      activeFileIsBeingRenamed &&
+      getWorkspaceIsDirtyCompatibility(workspaceSession)
+    ) {
       setBannerMessage(
         'Cannot rename: unsaved changes exist. Please save the file first.',
       )
@@ -2468,25 +2700,23 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return false
       }
 
-      // Update activeFile path if it was renamed
-      if (activeFile === oldRelativePath) {
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            activeFile: newRelativePath,
-          })),
-        )
-      } else if (activeFile !== null && activeFile.startsWith(oldRelativePath + '/')) {
-        // Directory rename: update active file path prefix
-        const updatedActiveFile =
-          newRelativePath + activeFile.slice(oldRelativePath.length)
-        setWorkspaceState((previous) =>
-          updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
-            ...currentSession,
-            activeFile: updatedActiveFile,
-          })),
-        )
-      }
+      setWorkspaceState((previous) =>
+        updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => {
+          const renamedSession = renameWorkspaceSessionPaths(
+            currentSession,
+            oldRelativePath,
+            newRelativePath,
+          )
+          const syncedSession = syncWorkspaceDisplayedDocumentContent(renamedSession)
+          return setDirty(
+            syncedSession,
+            getWorkspaceIsDirtyCompatibility(syncedSession),
+          )
+        }),
+      )
+
+      void loadWorkspaceIndex(activeWorkspaceId, rootPath, 'refresh')
+      void loadWorkspaceGitFileStatuses(activeWorkspaceId, rootPath)
 
       return true
     } catch (error) {
@@ -2497,7 +2727,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setBannerMessage(errorMessage)
       return false
     }
-  }, [])
+  }, [loadWorkspaceGitFileStatuses, loadWorkspaceIndex])
 
   const goBackInHistory = useCallback(() => {
     const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -3124,6 +3354,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         if (suppressSavedActiveFileRefresh) {
           // Skip the first watcher echo for files we just saved to preserve editor undo history.
         } else if (isCurrentlyDirty) {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, watchEvent.workspaceId, (currentSession) => {
+              if (currentSession.activeFile !== activeFile) {
+                return currentSession
+              }
+
+              const conflictedSession = syncWorkspaceDisplayedDocumentContent(
+                markWorkspaceDocumentConflict(currentSession, activeFile, null),
+              )
+              return setDirty(
+                conflictedSession,
+                getWorkspaceIsDirtyCompatibility(conflictedSession),
+              )
+            }),
+          )
           setExternalChangeDetected(true)
         } else {
           loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')

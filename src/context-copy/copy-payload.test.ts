@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildCopyActiveFilePathPayload,
+  buildCopyFullPathPayload,
   buildCopySelectedContentPayload,
   buildCopySelectedLinesPayload,
 } from './copy-payload'
@@ -8,6 +9,24 @@ import {
 describe('copy-payload', () => {
   it('returns active file path payload as relative path', () => {
     expect(buildCopyActiveFilePathPayload('src/auth.ts')).toBe('src/auth.ts')
+  })
+
+  it('builds full path payload for unix-style roots', () => {
+    expect(
+      buildCopyFullPathPayload('/Users/tester/project', 'src/auth.ts'),
+    ).toBe('/Users/tester/project/src/auth.ts')
+  })
+
+  it('builds full path payload for remote roots without synthetic prefixes', () => {
+    expect(
+      buildCopyFullPathPayload('/srv/project-a/', 'docs/note.md'),
+    ).toBe('/srv/project-a/docs/note.md')
+  })
+
+  it('builds full path payload for windows-style roots', () => {
+    expect(
+      buildCopyFullPathPayload('C:\\Users\\tester\\project', 'src/auth.ts'),
+    ).toBe('C:\\Users\\tester\\project\\src\\auth.ts')
   })
 
   it('includes single line number when selectionRange is a single line', () => {

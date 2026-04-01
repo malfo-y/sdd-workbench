@@ -58,6 +58,7 @@ type FileTreePanelProps = {
   expandedDirectories: string[]
   loadingDirectories: string[]
   isIndexing: boolean
+  onRequestCopyFullPath?: (relativePath: string) => void
   onSelectFile: (relativePath: string) => void
   onRequestCopyRelativePath: (relativePath: string) => void
   onExpandedDirectoriesChange: (expandedDirectories: string[]) => void
@@ -536,6 +537,7 @@ export function FileTreePanel({
   expandedDirectories,
   loadingDirectories,
   isIndexing,
+  onRequestCopyFullPath,
   onSelectFile,
   onRequestCopyRelativePath,
   onExpandedDirectoriesChange,
@@ -952,6 +954,15 @@ export function FileTreePanel({
               onRequestCopyRelativePath(contextMenuState.relativePath)
             },
           })
+
+          if (onRequestCopyFullPath) {
+            actions.push({
+              label: 'Copy Full Path',
+              onSelect: () => {
+                onRequestCopyFullPath(contextMenuState.relativePath)
+              },
+            })
+          }
 
           actions.push({
             label: 'Copy',

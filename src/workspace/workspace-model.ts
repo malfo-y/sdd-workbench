@@ -7,6 +7,21 @@ export type LineSelectionRange = {
   endLine: number
 }
 
+export type DocumentSaveState = 'clean' | 'dirty' | 'saving' | 'conflict'
+
+export type WorkspaceDocumentSession = {
+  relativePath: string
+  savedContent: string
+  draftContent: string
+  saveState: DocumentSaveState
+  /**
+   * When `saveState === 'conflict'`, this holds the best-effort disk content that
+   * triggered the conflict. UI/workspace logic can use it to offer deterministic
+   * "Reload from disk" behavior.
+   */
+  conflictDiskContent: string | null
+}
+
 export type WorkspaceWatchMode = 'native' | 'polling'
 
 export type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
@@ -59,6 +74,11 @@ export type WorkspaceSession = {
   activeFileImagePreview: WorkspaceImagePreview | null
   activeFileGitLineMarkers: WorkspaceGitLineMarker[]
   activeSpecContent: string | null
+  /**
+   * Runtime-only, path-keyed cache for text/markdown documents.
+   * This is the canonical source of truth for draft/save/conflict lifecycle.
+   */
+  documentSessionsByPath: Record<string, WorkspaceDocumentSession>
   isIndexing: boolean
   isReadingFile: boolean
   isReadingSpec: boolean
@@ -171,6 +191,7 @@ export function createWorkspaceSession(
     activeFileImagePreview: null,
     activeFileGitLineMarkers: [],
     activeSpecContent: null,
+    documentSessionsByPath: {},
     isIndexing: false,
     isReadingFile: false,
     isReadingSpec: false,
@@ -194,6 +215,532 @@ export function createWorkspaceSession(
     isDirty: false,
     gitFileStatuses: {},
   }
+}
+
+export function createWorkspaceDocumentSession(
+  relativePath: string,
+  content: string,
+): WorkspaceDocumentSession {
+  return {
+    relativePath,
+    savedContent: content,
+    draftContent: content,
+    saveState: 'clean',
+    conflictDiskContent: null,
+  }
+}
+
+export function getWorkspaceDocumentSession(
+  session: WorkspaceSession,
+  relativePath: string,
+): WorkspaceDocumentSession | null {
+  return session.documentSessionsByPath[relativePath] ?? null
+}
+
+export function upsertWorkspaceDocumentSessionFromDisk(
+  session: WorkspaceSession,
+  relativePath: string,
+  diskContent: string,
+): WorkspaceSession {
+  const existing = session.documentSessionsByPath[relativePath]
+  const next =
+    existing === undefined
+      ? createWorkspaceDocumentSession(relativePath, diskContent)
+      : {
+          ...existing,
+          savedContent: diskContent,
+          draftContent: diskContent,
+          saveState: 'clean' as const,
+          conflictDiskContent: null,
+        }
+
+  if (existing === next) {
+    return session
+  }
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: next,
+    },
+  }
+}
+
+export function setWorkspaceDocumentDraftContent(
+  session: WorkspaceSession,
+  relativePath: string,
+  draftContent: string,
+): WorkspaceSession {
+  const existing =
+    session.documentSessionsByPath[relativePath] ??
+    createWorkspaceDocumentSession(relativePath, draftContent)
+
+  const nextSaveState: DocumentSaveState =
+    existing.saveState === 'conflict' || existing.saveState === 'saving'
+      ? existing.saveState
+      : draftContent === existing.savedContent
+        ? 'clean'
+        : 'dirty'
+
+  const next =
+    existing.draftContent === draftContent && existing.saveState === nextSaveState
+      ? existing
+      : {
+          ...existing,
+          draftContent,
+          saveState: nextSaveState,
+        }
+
+  if (next === existing) {
+    return session
+  }
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: next,
+    },
+  }
+}
+
+/**
+ * Legacy compatibility helper: mark a document as dirty even if the editor draft
+ * has not yet been bridged into workspace state (pre-T3).
+ *
+ * This function intentionally does not attempt to infer the actual draft text.
+ * The save-state remains the canonical indicator for guards/external-change logic
+ * until editor draft bridging is implemented.
+ */
+export function markWorkspaceDocumentDirtyCompatibility(
+  session: WorkspaceSession,
+  relativePath: string,
+  baselineContent: string,
+): WorkspaceSession {
+  const existing =
+    session.documentSessionsByPath[relativePath] ??
+    createWorkspaceDocumentSession(relativePath, baselineContent)
+
+  if (existing.saveState === 'dirty' || existing.saveState === 'saving') {
+    return session
+  }
+
+  if (existing.saveState === 'conflict') {
+    return session
+  }
+
+  const next: WorkspaceDocumentSession = {
+    ...existing,
+    saveState: 'dirty',
+  }
+
+  if (next === existing) {
+    return session
+  }
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: next,
+    },
+  }
+}
+
+export function beginWorkspaceDocumentSave(
+  session: WorkspaceSession,
+  relativePath: string,
+): WorkspaceSession {
+  const existing = session.documentSessionsByPath[relativePath]
+  if (!existing) {
+    return session
+  }
+
+  if (existing.saveState === 'saving') {
+    return session
+  }
+
+  const next: WorkspaceDocumentSession = {
+    ...existing,
+    saveState: 'saving',
+  }
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: next,
+    },
+  }
+}
+
+export function completeWorkspaceDocumentSaveSuccess(
+  session: WorkspaceSession,
+  relativePath: string,
+  savedContent: string,
+): WorkspaceSession {
+  const existing = session.documentSessionsByPath[relativePath]
+  if (!existing) {
+    return session
+  }
+
+  const next: WorkspaceDocumentSession = {
+    ...existing,
+    savedContent,
+    draftContent: savedContent,
+    saveState: 'clean',
+    conflictDiskContent: null,
+  }
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: next,
+    },
+  }
+}
+
+export function completeWorkspaceDocumentSaveFailure(
+  session: WorkspaceSession,
+  relativePath: string,
+): WorkspaceSession {
+  const existing = session.documentSessionsByPath[relativePath]
+  if (!existing) {
+    return session
+  }
+
+  if (existing.saveState !== 'saving') {
+    return session
+  }
+
+  const nextSaveState: DocumentSaveState =
+    existing.draftContent === existing.savedContent ? 'clean' : 'dirty'
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: {
+        ...existing,
+        saveState: nextSaveState,
+      },
+    },
+  }
+}
+
+export function markWorkspaceDocumentConflict(
+  session: WorkspaceSession,
+  relativePath: string,
+  diskContent: string | null,
+): WorkspaceSession {
+  const existing = session.documentSessionsByPath[relativePath]
+  if (!existing) {
+    return session
+  }
+
+  const next: WorkspaceDocumentSession =
+    existing.saveState === 'conflict' && existing.conflictDiskContent === diskContent
+      ? existing
+      : {
+          ...existing,
+          saveState: 'conflict',
+          conflictDiskContent: diskContent,
+        }
+
+  if (next === existing) {
+    return session
+  }
+
+  return {
+    ...session,
+    documentSessionsByPath: {
+      ...session.documentSessionsByPath,
+      [relativePath]: next,
+    },
+  }
+}
+
+export function removeWorkspaceDocumentSession(
+  session: WorkspaceSession,
+  relativePath: string,
+): WorkspaceSession {
+  if (session.documentSessionsByPath[relativePath] === undefined) {
+    return session
+  }
+
+  const next = { ...session.documentSessionsByPath }
+  delete next[relativePath]
+
+  return {
+    ...session,
+    documentSessionsByPath: next,
+  }
+}
+
+function matchesWorkspacePathScope(
+  candidatePath: string,
+  targetPath: string,
+): boolean {
+  return (
+    candidatePath === targetPath ||
+    candidatePath.startsWith(`${targetPath}/`)
+  )
+}
+
+function renameWorkspacePath(
+  candidatePath: string,
+  oldPath: string,
+  newPath: string,
+): string {
+  if (!matchesWorkspacePathScope(candidatePath, oldPath)) {
+    return candidatePath
+  }
+  return `${newPath}${candidatePath.slice(oldPath.length)}`
+}
+
+function filterWorkspaceHistoryPaths(
+  fileHistory: string[],
+  fileHistoryIndex: number,
+  shouldRemove: (relativePath: string) => boolean,
+): {
+  fileHistory: string[]
+  fileHistoryIndex: number
+} {
+  if (fileHistory.length === 0) {
+    return {
+      fileHistory,
+      fileHistoryIndex,
+    }
+  }
+
+  const nextFileHistory: string[] = []
+  let removedAtOrBeforeIndex = 0
+
+  fileHistory.forEach((relativePath, index) => {
+    if (shouldRemove(relativePath)) {
+      if (index <= fileHistoryIndex) {
+        removedAtOrBeforeIndex += 1
+      }
+      return
+    }
+    nextFileHistory.push(relativePath)
+  })
+
+  if (
+    nextFileHistory.length === fileHistory.length &&
+    removedAtOrBeforeIndex === 0
+  ) {
+    return {
+      fileHistory,
+      fileHistoryIndex,
+    }
+  }
+
+  if (nextFileHistory.length === 0) {
+    return {
+      fileHistory: [],
+      fileHistoryIndex: -1,
+    }
+  }
+
+  const nextHistoryIndex = Math.max(
+    0,
+    Math.min(
+      fileHistoryIndex - removedAtOrBeforeIndex,
+      nextFileHistory.length - 1,
+    ),
+  )
+
+  return {
+    fileHistory: nextFileHistory,
+    fileHistoryIndex: nextHistoryIndex,
+  }
+}
+
+export function renameWorkspaceSessionPaths(
+  session: WorkspaceSession,
+  oldPath: string,
+  newPath: string,
+): WorkspaceSession {
+  if (oldPath === newPath) {
+    return session
+  }
+
+  let changed = false
+  const renameIfMatched = (relativePath: string): string => {
+    const nextRelativePath = renameWorkspacePath(relativePath, oldPath, newPath)
+    if (nextRelativePath !== relativePath) {
+      changed = true
+    }
+    return nextRelativePath
+  }
+
+  const nextDocumentSessionsByPath: Record<string, WorkspaceDocumentSession> = {}
+  Object.entries(session.documentSessionsByPath).forEach(([relativePath, doc]) => {
+    const nextRelativePath = renameIfMatched(relativePath)
+    nextDocumentSessionsByPath[nextRelativePath] =
+      nextRelativePath === relativePath
+        ? doc
+        : {
+            ...doc,
+            relativePath: nextRelativePath,
+          }
+  })
+
+  const nextFileLastLineByPath: Record<string, number> = {}
+  Object.entries(session.fileLastLineByPath).forEach(([relativePath, lineNumber]) => {
+    nextFileLastLineByPath[renameIfMatched(relativePath)] = lineNumber
+  })
+
+  const nextGitFileStatuses: Record<string, GitFileStatusKind> = {}
+  Object.entries(session.gitFileStatuses).forEach(([relativePath, status]) => {
+    nextGitFileStatuses[renameIfMatched(relativePath)] = status
+  })
+
+  const nextChangedFiles = session.changedFiles.map(renameIfMatched)
+  const nextFileHistory = session.fileHistory.map(renameIfMatched)
+  const nextActiveFile = session.activeFile ? renameIfMatched(session.activeFile) : null
+  const nextActiveSpec = session.activeSpec ? renameIfMatched(session.activeSpec) : null
+
+  if (!changed) {
+    return session
+  }
+
+  return {
+    ...session,
+    changedFiles: nextChangedFiles,
+    fileLastLineByPath: nextFileLastLineByPath,
+    fileHistory: nextFileHistory,
+    activeFile: nextActiveFile,
+    activeSpec: nextActiveSpec,
+    documentSessionsByPath: nextDocumentSessionsByPath,
+    gitFileStatuses: nextGitFileStatuses,
+  }
+}
+
+export function removeWorkspaceSessionPaths(
+  session: WorkspaceSession,
+  targetPath: string,
+): WorkspaceSession {
+  const shouldRemovePath = (relativePath: string) =>
+    matchesWorkspacePathScope(relativePath, targetPath)
+
+  let changed = false
+  const nextDocumentSessionsByPath: Record<string, WorkspaceDocumentSession> = {}
+  Object.entries(session.documentSessionsByPath).forEach(([relativePath, doc]) => {
+    if (shouldRemovePath(relativePath)) {
+      changed = true
+      return
+    }
+    nextDocumentSessionsByPath[relativePath] = doc
+  })
+
+  const nextFileLastLineByPath: Record<string, number> = {}
+  Object.entries(session.fileLastLineByPath).forEach(([relativePath, lineNumber]) => {
+    if (shouldRemovePath(relativePath)) {
+      changed = true
+      return
+    }
+    nextFileLastLineByPath[relativePath] = lineNumber
+  })
+
+  const nextGitFileStatuses: Record<string, GitFileStatusKind> = {}
+  Object.entries(session.gitFileStatuses).forEach(([relativePath, status]) => {
+    if (shouldRemovePath(relativePath)) {
+      changed = true
+      return
+    }
+    nextGitFileStatuses[relativePath] = status
+  })
+
+  const nextChangedFiles = session.changedFiles.filter((relativePath) => {
+    const shouldRemove = shouldRemovePath(relativePath)
+    if (shouldRemove) {
+      changed = true
+    }
+    return !shouldRemove
+  })
+
+  const {
+    fileHistory: nextFileHistory,
+    fileHistoryIndex: nextFileHistoryIndex,
+  } = filterWorkspaceHistoryPaths(
+    session.fileHistory,
+    session.fileHistoryIndex,
+    shouldRemovePath,
+  )
+  if (
+    nextFileHistory !== session.fileHistory ||
+    nextFileHistoryIndex !== session.fileHistoryIndex
+  ) {
+    changed = true
+  }
+
+  const nextActiveFile =
+    session.activeFile && shouldRemovePath(session.activeFile)
+      ? null
+      : session.activeFile
+  const nextActiveSpec =
+    session.activeSpec && shouldRemovePath(session.activeSpec)
+      ? null
+      : session.activeSpec
+
+  if (nextActiveFile !== session.activeFile || nextActiveSpec !== session.activeSpec) {
+    changed = true
+  }
+
+  if (!changed) {
+    return session
+  }
+
+  const clearedActiveFile = nextActiveFile === null
+  const clearedActiveSpec = nextActiveSpec === null
+
+  return {
+    ...session,
+    changedFiles: nextChangedFiles,
+    fileLastLineByPath: nextFileLastLineByPath,
+    fileHistory: nextFileHistory,
+    fileHistoryIndex: nextFileHistoryIndex,
+    activeFile: nextActiveFile,
+    activeSpec: nextActiveSpec,
+    activeFileContent: clearedActiveFile ? null : session.activeFileContent,
+    activeFileImagePreview: clearedActiveFile ? null : session.activeFileImagePreview,
+    activeFileGitLineMarkers: clearedActiveFile ? [] : session.activeFileGitLineMarkers,
+    activeSpecContent: clearedActiveSpec ? null : session.activeSpecContent,
+    documentSessionsByPath: nextDocumentSessionsByPath,
+    isReadingFile: clearedActiveFile ? false : session.isReadingFile,
+    isReadingSpec: clearedActiveSpec ? false : session.isReadingSpec,
+    readFileError: clearedActiveFile ? null : session.readFileError,
+    activeSpecReadError: clearedActiveSpec ? null : session.activeSpecReadError,
+    previewUnavailableReason: clearedActiveFile
+      ? null
+      : session.previewUnavailableReason,
+    selectionRange: clearedActiveFile ? null : session.selectionRange,
+    gitFileStatuses: nextGitFileStatuses,
+  }
+}
+
+export function getActiveWorkspaceDocumentSaveState(
+  session: WorkspaceSession,
+): DocumentSaveState | null {
+  const activeFile = session.activeFile
+  if (!activeFile) {
+    return null
+  }
+  return session.documentSessionsByPath[activeFile]?.saveState ?? null
+}
+
+export function deriveWorkspaceIsDirtyCompatibility(
+  session: WorkspaceSession,
+): boolean {
+  const saveState = getActiveWorkspaceDocumentSaveState(session)
+  if (saveState === null) {
+    return false
+  }
+  return saveState !== 'clean'
 }
 
 export function setDirty(

@@ -81,6 +81,39 @@ export function getCommentLineEntries(
   return index.get(relativePath) ?? EMPTY_LINE_ENTRY_MAP
 }
 
+export function findMostRecentCommentInSelectionRange(
+  commentLineEntries: ReadonlyMap<number, readonly CodeComment[]>,
+  selectionRange: {
+    startLine: number
+    endLine: number
+  },
+): CodeComment | null {
+  const startLine = Math.max(
+    1,
+    Math.min(selectionRange.startLine, selectionRange.endLine),
+  )
+  const endLine = Math.max(
+    1,
+    Math.max(selectionRange.startLine, selectionRange.endLine),
+  )
+  const matchingComments: CodeComment[] = []
+
+  for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+    const lineComments = commentLineEntries.get(lineNumber)
+    if (!lineComments || lineComments.length === 0) {
+      continue
+    }
+
+    matchingComments.push(...lineComments)
+  }
+
+  if (matchingComments.length === 0) {
+    return null
+  }
+
+  return [...matchingComments].sort(compareCodeComments).at(-1) ?? null
+}
+
 function findNearestRenderedSourceLine(
   sortedRenderedLines: readonly number[],
   sourceLine: number,
