@@ -1993,3 +1993,54 @@ UNPLANNED_DEPENDENCY:
   - 로컬 `Edit in VSCode`는 active file 절대 경로를 직접 열도록 연결했다.
   - 원격 `Edit in VSCode`는 `sshAlias` 기반 current-file open을 우선 시도하고, 실패 시 workspace root open으로 safe fallback 하도록 구현했다.
   - 기존 편집 중심 App 테스트 3개는 viewer-first 계약에 맞는 external change / consistency regression으로 갱신했다.
+
+---
+
+## F47 Addendum (2026-04-02)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f47_cm6_viewer_engine_strategy.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `T1` (completed)
+  - Phase 2: `T2` (completed)
+  - Phase 3: `T3` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| T1 | CM6 viewer engine 결정과 non-goal을 문서/코드 주석에 반영 | P0 | - | completed | `src/code-editor/code-editor-panel.test.tsx`, `npx tsc --noEmit` pass |
+| T2 | `CodeEditorPanel`의 editor-centric public surface 축소 | P0 | T1 | completed | `src/code-editor/code-editor-panel.test.tsx`, `npx tsc --noEmit` pass |
+| T3 | CM6 viewer invariants 회귀 테스트 고정 | P0 | T2 | completed | targeted `vitest`, full `npm test` pass |
+
+### 2) Files Changed (F47)
+
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `README.md`
+- `README_en.md`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+### 3) Test and Quality Gate Status (F47)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.12.1`
+- `npm install`: skipped (package manifest unchanged)
+- `npx vitest run src/code-editor/code-editor-panel.test.tsx src/App.test.tsx --reporter=dot`: pass (`2 files, 194 passed, 1 skipped`)
+- `npx tsc --noEmit`: pass
+- `npm test -- --reporter=dot`: pass (`70 files, 805 passed, 1 skipped`)
+
+### 4) Parallel Groups Executed (F47)
+
+- Group A (sequential fallback): `T1 -> T2 -> T3`
+  - Reason: `CodeEditorPanel` contract, its unit tests, and README wording all describe the same viewer-engine decision, so splitting them would create unnecessary churn and file overlap.
+
+### 5) Blockers and Decisions (F47)
+
+- Blockers: 없음
+- Applied decisions:
+  - CM6는 계속 Code Viewer의 read-only interaction engine으로 유지하고, viewer-first를 새 정적 렌더러 도입으로 해석하지 않도록 문서와 코드 주석을 정리했다.
+  - `CodeEditorPanel` public contract에서 `editable`, `onSave`, `onDirtyChange`, `onContentChange`, `Mod-s` save path를 제거했다.
+  - CM6 read-only facet만으로는 DOM `contenteditable`이 꺼지지 않아 `EditorView.editable.of(false)`를 추가해 viewer contract를 DOM 레벨까지 고정했다.
+  - `history()`/`historyKeymap`/`defaultKeymap`은 성급히 축소하지 않고 유지했다. 이번 단계에서는 editor residue만 제거하고 CM6 extension 최소화는 future consideration으로 남겼다.
+  - `App.tsx`와 `src/App.test.tsx`는 inspection 결과 이미 viewer-first contract와 일치해 추가 수정 없이 fresh verification만 수행했다.

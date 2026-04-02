@@ -7,7 +7,7 @@ It lets you browse code and Markdown specs, leave structured comments, and hand 
 
 - 2-panel layout: left sidebar + right content tabs (`Code` / `Spec`)
 - Multi-workspace management (open/switch/close)
-- CodeMirror 6 code viewer (search, wrap toggle, Git/comment markers, `Edit in VSCode`)
+- CodeMirror 6 read-only code viewer (search, wrap toggle, selection/jump, Git/comment markers, `Edit in VSCode`)
 - Rendered spec navigation (link jump, `Go to Source`, in-panel anchor scroll, spec search)
 - Inline comments on code/spec + global comments + bundle export
 - File tree CRUD (New File/Dir, Rename, Delete) + Copy/Paste (internal + macOS Finder clipboard)
@@ -126,6 +126,7 @@ Behavior details:
 ### Code viewer
 
 `Code` tab features:
+- interaction-capable viewer powered by a read-only CM6 engine
 - search (`Cmd+F`) with next/prev and wrap-around
 - line wrap toggle (`Wrap On` / `Wrap Off`, default On)
 - line-level git markers for active file (`added` / `modified`)
@@ -275,7 +276,7 @@ src/
   App.tsx                     # App shell and orchestration
   workspace/                  # Workspace state, persistence, remote connect modal
   file-tree/                  # File tree UI, lazy loading, CRUD interactions
-  code-editor/                # CodeMirror 6 editor and gutter extensions
+  code-editor/                # CodeMirror 6 viewer engine and gutter extensions for the Code Viewer
   spec-viewer/                # Rendered Markdown view + link/source actions
   code-comments/              # Comment domain, modals, export
 electron/

@@ -69,14 +69,6 @@ type CodeEditorPanelProps = {
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   gitLineMarkers?: ReadonlyMap<number, WorkspaceGitLineMarkerKind>
-  /** Whether the editor is editable (default: false / read-only) */
-  editable?: boolean
-  /** Called with the full document string when Cmd+S / Ctrl+S is pressed */
-  onSave?: (content: string) => void
-  /** Called with true when the document is first modified */
-  onDirtyChange?: (dirty: boolean) => void
-  /** Called with the full document string whenever editor content changes */
-  onContentChange?: (content: string) => void
   /** Called with the scroll top pixel offset when the editor is scrolled */
   onScrollChange?: (scrollTop: number) => void
   /** Pixel scroll offset to restore when the file content is loaded */
@@ -267,16 +259,11 @@ function EditInVsCodeIcon() {
 // ---------------------------------------------------------------------------
 
 type ExtensionBuilderParams = {
-  readOnlyCompartment: Compartment
   themeCompartment: Compartment
   wrapCompartment: Compartment
   appearanceTheme: AppearanceTheme
-  editable: boolean
   isLineWrapEnabled: boolean
-  onSaveRef: MutableRefObject<((content: string) => void) | undefined>
   onSelectRangeRef: MutableRefObject<(range: LineSelectionRange | null) => void>
-  onDirtyChangeRef: MutableRefObject<((dirty: boolean) => void) | undefined>
-  onContentChangeRef: MutableRefObject<((content: string) => void) | undefined>
   onCommentHoverRef: MutableRefObject<((lineNumber: number, rect: DOMRect) => void) | undefined>
   onCommentLeaveRef: MutableRefObject<(() => void) | undefined>
 }
@@ -286,16 +273,11 @@ function buildExtensions(
   langSupport?: Awaited<ReturnType<typeof getCM6Language>>,
 ) {
   const {
-    readOnlyCompartment,
     themeCompartment,
     wrapCompartment,
     appearanceTheme,
-    editable,
     isLineWrapEnabled,
-    onSaveRef,
     onSelectRangeRef,
-    onDirtyChangeRef,
-    onContentChangeRef,
     onCommentHoverRef,
     onCommentLeaveRef,
   } = params
@@ -309,20 +291,15 @@ function buildExtensions(
       () => onCommentLeaveRef.current?.(),
     ),
     ...createNavigationHighlightExtension(),
+    // CM6 remains our interaction-capable viewer engine even in viewer-first mode.
     history(),
-    readOnlyCompartment.of(EditorState.readOnly.of(!editable)),
+    EditorState.readOnly.of(true),
+    EditorView.editable.of(false),
     wrapCompartment.of(isLineWrapEnabled ? EditorView.lineWrapping : []),
     lineNumbers(),
     drawSelection(),
     search(),
     keymap.of([
-      {
-        key: 'Mod-s',
-        run: (v) => {
-          onSaveRef.current?.(v.state.doc.toString())
-          return true
-        },
-      },
       ...historyKeymap,
       ...searchKeymap,
       ...defaultKeymap,
@@ -331,10 +308,6 @@ function buildExtensions(
       if (update.selectionSet) {
         const range = selectionToLineRange(update.state)
         onSelectRangeRef.current?.(range)
-      }
-      if (update.docChanged) {
-        onContentChangeRef.current?.(update.state.doc.toString())
-        onDirtyChangeRef.current?.(true)
       }
     }),
   ]
@@ -363,6 +336,8 @@ function buildCommentMarkersMap(
 // Component
 // ---------------------------------------------------------------------------
 
+// Product surface is a viewer; CM6 stays underneath as the read-only engine
+// because search, selection, jump/highlight, and gutter interactions all depend on it.
 export function CodeEditorPanel({
   activeFile,
   activeFileContent,
@@ -385,10 +360,6 @@ export function CodeEditorPanel({
   commentLineCounts,
   commentLineEntries,
   gitLineMarkers,
-  editable = false,
-  onSave,
-  onDirtyChange,
-  onContentChange,
   onScrollChange,
   restoredScrollTop = null,
 }: CodeEditorPanelProps) {
@@ -397,13 +368,9 @@ export function CodeEditorPanel({
   const lastHandledJumpTokenRef = useRef<number | null>(null)
   const jumpRequestRef = useRef(jumpRequest)
   const onSelectRangeRef = useRef(onSelectRange)
-  const onSaveRef = useRef(onSave)
-  const onDirtyChangeRef = useRef(onDirtyChange)
-  const onContentChangeRef = useRef(onContentChange)
   const onScrollChangeRef = useRef(onScrollChange)
   const restoredScrollTopRef = useRef<number | null>(restoredScrollTop ?? null)
   const lastRenderedFileRef = useRef<string | null>(null)
-  const readOnlyCompartment = useRef(new Compartment())
   const themeCompartment = useRef(new Compartment())
   const wrapCompartment = useRef(new Compartment())
   const [isLineWrapEnabled, setIsLineWrapEnabled] = useState(true)
@@ -437,18 +404,6 @@ export function CodeEditorPanel({
   useEffect(() => {
     onSelectRangeRef.current = onSelectRange
   }, [onSelectRange])
-
-  useEffect(() => {
-    onSaveRef.current = onSave
-  }, [onSave])
-
-  useEffect(() => {
-    onDirtyChangeRef.current = onDirtyChange
-  }, [onDirtyChange])
-
-  useEffect(() => {
-    onContentChangeRef.current = onContentChange
-  }, [onContentChange])
 
   useEffect(() => {
     onScrollChangeRef.current = onScrollChange
@@ -595,16 +550,11 @@ export function CodeEditorPanel({
       state: EditorState.create({
         doc: '',
         extensions: buildExtensions({
-          readOnlyCompartment: readOnlyCompartment.current,
           themeCompartment: themeCompartment.current,
           wrapCompartment: wrapCompartment.current,
           appearanceTheme,
-          editable,
           isLineWrapEnabled,
-          onSaveRef,
           onSelectRangeRef,
-          onDirtyChangeRef,
-          onContentChangeRef,
           onCommentHoverRef,
           onCommentLeaveRef,
         }),
@@ -626,19 +576,6 @@ export function CodeEditorPanel({
     // Re-run when showEditor changes so we create the view after container mounts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showEditor])
-
-  // ---- Reconfigure readOnly compartment when editable prop changes --------
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) {
-      return
-    }
-    view.dispatch({
-      effects: readOnlyCompartment.current.reconfigure(
-        EditorState.readOnly.of(!editable),
-      ),
-    })
-  }, [editable])
 
   // ---- Reconfigure line wrap compartment when wrap toggle changes ---------
   useEffect(() => {
@@ -698,16 +635,11 @@ export function CodeEditorPanel({
 
       const extensions = buildExtensions(
         {
-          readOnlyCompartment: readOnlyCompartment.current,
           themeCompartment: themeCompartment.current,
           wrapCompartment: wrapCompartment.current,
           appearanceTheme,
-          editable,
           isLineWrapEnabled: isLineWrapEnabledRef.current,
-          onSaveRef,
           onSelectRangeRef,
-          onDirtyChangeRef,
-          onContentChangeRef,
           onCommentHoverRef,
           onCommentLeaveRef,
         },

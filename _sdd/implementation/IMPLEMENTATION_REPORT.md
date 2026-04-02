@@ -469,3 +469,68 @@ UNPLANNED_DEPENDENCY:
 ### Conclusion
 
 READY — F46 viewer-first Code panel + VSCode edit handoff 구현 완료. local/remote file-scoped handoff, remote safe fallback, Code Viewer copy, regression updates까지 fresh verification으로 통과했다.
+
+---
+
+## F47 Addendum (2026-04-02)
+
+### Progress Summary
+
+- Total Tasks: 3
+- Completed: 3
+- Tests Added/Updated: 1 file
+- All Passing: Yes
+
+### Parallel Execution Stats
+
+- Groups Dispatched: 1
+- Parallel Tasks: 0
+- Sequential Fallbacks: 1
+- Worker Failures: 0
+
+### Iteration History
+
+| Iteration | AC Status (MET/Total) | Critical | High | Re-executed Tasks | Result |
+|-----------|----------------------|----------|------|-------------------|--------|
+| 1 | 11 / 12 | 0 | 1 | `T2`, `T3` | partial |
+| 2 | 12 / 12 | 0 | 0 | `T2`, `T3` | pass |
+
+Iteration note:
+- Iteration 1에서 `EditorState.readOnly.of(true)`만으로는 DOM `contenteditable`이 유지되어 viewer contract test가 실패했다.
+- Iteration 2에서 `EditorView.editable.of(false)`를 추가해 DOM 레벨 read-only contract까지 맞춘 뒤 fresh verification을 다시 수행해 통과했다.
+
+### Completed Tasks
+
+- [x] Task T1: README와 code-editor layer 설명을 CM6 read-only viewer engine 기준으로 정리
+- [x] Task T2: `CodeEditorPanel` public contract에서 editor-centric props/save path 제거
+- [x] Task T3: panel/app regression을 viewer invariants 기준으로 재검증
+
+### Files Modified
+
+- `src/code-editor/code-editor-panel.tsx`
+- `src/code-editor/code-editor-panel.test.tsx`
+- `README.md`
+- `README_en.md`
+
+### Test Summary
+
+- `npx vitest run src/code-editor/code-editor-panel.test.tsx src/App.test.tsx --reporter=dot` -> pass (`2 files, 194 passed, 1 skipped`)
+- `npx tsc --noEmit` -> pass
+- `npm test -- --reporter=dot` -> pass (`70 files, 805 passed, 1 skipped`)
+
+### Quality Assessment
+
+- Viewer contract: Code Viewer는 여전히 CM6 위에서 search, wrap, selection, jump/highlight, git/comment gutter를 제공하지만, public surface는 더 이상 in-app editing/save semantics를 노출하지 않는다.
+- DOM semantics: `EditorView.editable.of(false)`까지 적용해 CM6 root가 실제 read-only viewer로 동작하도록 고정했다.
+- Scope control: App wiring은 이미 viewer-first contract와 일치해 추가 변경 없이 유지했고, CM6 extension 최소화 같은 범위 확장은 의도적으로 제외했다.
+- Documentation: README와 project structure 설명이 `code-editor/`를 Code Viewer의 CM6 viewer engine layer로 더 정확히 설명하게 됐다.
+
+### Issues Found
+
+| # | Severity | Description | Phase | Status |
+|---|----------|-------------|-------|--------|
+| 1 | High | CM6 `readOnly` facet만으로는 DOM `contenteditable`이 `true`로 남아 viewer contract test가 실패함 | Iteration 1 / T2-T3 | resolved |
+
+### Conclusion
+
+READY — F47 CM6 viewer engine strategy 구현 완료. Code Viewer는 CM6 read-only engine 위에 남기되, editor-centric public contract와 save residue를 제거하고 viewer semantics를 테스트와 문서로 고정했다.

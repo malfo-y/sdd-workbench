@@ -44,18 +44,6 @@ function getKeydownHandlers(view: EditorView): EditorKeydownHandler[] {
   return inputState?.handlers?.keydown?.handlers ?? []
 }
 
-/**
- * Dispatch a keydown event to the CM6 view's keymap handlers.
- * Uses the internal inputState handler mechanism because jsdom does not
- * fully emulate browser keyboard handling that CM6 relies on.
- */
-function dispatchKeyToView(view: EditorView, event: KeyboardEvent): void {
-  const handlers = getKeydownHandlers(view)
-  for (const h of handlers) {
-    h(view, event)
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Default props factory
 // ---------------------------------------------------------------------------
@@ -80,11 +68,6 @@ function makeDefaultProps() {
     onRequestGoToSpec: vi.fn(),
     onRequestEditInVsCode: vi.fn(),
     commentLineCounts: new Map<number, number>(),
-    // T8: new props
-    editable: false,
-    onSave: vi.fn() as ((content: string) => void) | undefined,
-    onDirtyChange: vi.fn() as ((dirty: boolean) => void) | undefined,
-    onContentChange: vi.fn() as ((content: string) => void) | undefined,
   }
 }
 
@@ -370,143 +353,25 @@ describe('CodeEditorPanel', () => {
     expect(screen.getByTestId('code-viewer-panel')).toBeInTheDocument()
   })
 
-  // ---- T8: edit mode, Cmd+S keymap, dirty tracking ----------------------
+  // ---- Viewer contract: read-only CM6 engine ----------------------------
 
-  it('accepts editable prop without error', () => {
-    // Verifies that the new prop is accepted by the component type
-    expect(() =>
-      render(
-        <CodeEditorPanel
-          {...makeDefaultProps()}
-          activeFile="src/example.ts"
-          activeFileContent="hello world"
-          editable={true}
-        />,
-      ),
-    ).not.toThrow()
-  })
-
-  it('accepts onSave prop without error', () => {
-    const onSave = vi.fn()
-    expect(() =>
-      render(
-        <CodeEditorPanel
-          {...makeDefaultProps()}
-          activeFile="src/example.ts"
-          activeFileContent="hello world"
-          onSave={onSave}
-        />,
-      ),
-    ).not.toThrow()
-  })
-
-  it('accepts onDirtyChange prop without error', () => {
-    const onDirtyChange = vi.fn()
-    expect(() =>
-      render(
-        <CodeEditorPanel
-          {...makeDefaultProps()}
-          activeFile="src/example.ts"
-          activeFileContent="hello world"
-          onDirtyChange={onDirtyChange}
-        />,
-      ),
-    ).not.toThrow()
-  })
-
-  it('Cmd+S / Ctrl+S keymap calls onSave with document content', () => {
-    const onSave = vi.fn()
+  it('renders CM6 as a read-only viewer engine', async () => {
     render(
       <CodeEditorPanel
         {...makeDefaultProps()}
         activeFile="src/example.ts"
         activeFileContent="const hello = 1"
-        editable={true}
-        onSave={onSave}
       />,
     )
 
     const container = screen.getByTestId('code-viewer-content')
-    const view = getCM6View(container)
-    expect(view).not.toBeNull()
-    if (!view) return
-
-    // Dispatch Ctrl+S (Mod-s on non-Mac platforms)
-    const ctrlSEvent = new KeyboardEvent('keydown', {
-      key: 's',
-      ctrlKey: true,
-      keyCode: 83,
-      bubbles: true,
-      cancelable: true,
-    })
-    dispatchKeyToView(view, ctrlSEvent)
-
-    // CodeMirror keymap calls onSave
-    expect(onSave).toHaveBeenCalledTimes(1)
-    expect(typeof onSave.mock.calls[0][0]).toBe('string')
-  })
-
-  it('Mod-s keymap returns true (handled = prevents default browser save dialog)', () => {
-    const onSave = vi.fn()
-    render(
-      <CodeEditorPanel
-        {...makeDefaultProps()}
-        activeFile="src/example.ts"
-        activeFileContent="const hello = 1"
-        editable={true}
-        onSave={onSave}
-      />,
-    )
-
-    const container = screen.getByTestId('code-viewer-content')
-    const view = getCM6View(container)
-    expect(view).not.toBeNull()
-    if (!view) return
-
-    // The keymap `run` function must return true so CM6 marks it handled
-    // (which causes the keymap plugin to preventDefault on the DOM event).
-    // We verify this by calling the run function directly through the internal
-    // keymap structure.
-    const keydownHandlers = getKeydownHandlers(view)
-
-    const event = new KeyboardEvent('keydown', {
-      key: 's',
-      ctrlKey: true,
-      keyCode: 83,
-      bubbles: true,
-      cancelable: true,
+    await waitFor(() => {
+      expect(getCM6View(container)).not.toBeNull()
     })
 
-    // At least one handler must process the event (return truthy or call onSave)
-    dispatchKeyToView(view, event)
-    expect(onSave).toHaveBeenCalled()
-    expect(keydownHandlers.length).toBeGreaterThan(0)
-  })
-
-  it('docChanged triggers onDirtyChange(true)', () => {
-    const onDirtyChange = vi.fn()
-    render(
-      <CodeEditorPanel
-        {...makeDefaultProps()}
-        activeFile="src/example.ts"
-        activeFileContent="initial content"
-        editable={true}
-        onDirtyChange={onDirtyChange}
-      />,
-    )
-
-    const container = screen.getByTestId('code-viewer-content')
-    const view = getCM6View(container)
-    expect(view).not.toBeNull()
-    if (!view) return
-
-    // Directly dispatch a document change transaction on the CM6 view
-    view.dispatch({
-      changes: { from: 0, insert: 'x' },
-    })
-
-    // After modification onDirtyChange(true) should be called
-    expect(onDirtyChange).toHaveBeenCalledWith(true)
+    const content = container.querySelector('.cm-content')
+    expect(content).not.toBeNull()
+    expect(content).toHaveAttribute('contenteditable', 'false')
   })
 
   // ---- T11+T12: gutter extension props ------------------------------------
@@ -1184,99 +1049,6 @@ describe('CodeEditorPanel', () => {
       if (!view) return
       const doc = view.state.doc.toString()
       expect(doc).toBe('updated content')
-    })
-  })
-
-  it('calls onContentChange when the editor document changes', async () => {
-    const onContentChange = vi.fn<(content: string) => void>()
-    render(
-      <CodeEditorPanel
-        {...makeDefaultProps()}
-        activeFile="src/example.ts"
-        activeFileContent="initial content"
-        editable
-        onContentChange={onContentChange}
-      />,
-    )
-
-    const container = screen.getByTestId('code-viewer-content')
-    await waitFor(() => {
-      const view = getCM6View(container)
-      expect(view).not.toBeNull()
-    })
-
-    const view = getCM6View(container)
-    expect(view).not.toBeNull()
-    if (!view) return
-
-    act(() => {
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: 'updated content',
-        },
-      })
-    })
-
-    expect(onContentChange).toHaveBeenLastCalledWith('updated content')
-  })
-
-  it('preserves undo history when same-file prop echo matches editor draft', async () => {
-    const props = makeDefaultProps()
-    const { rerender } = render(
-      <CodeEditorPanel
-        {...props}
-        activeFile="src/example.ts"
-        activeFileContent="initial content"
-        editable
-      />,
-    )
-
-    const container = screen.getByTestId('code-viewer-content')
-    await waitFor(() => {
-      const view = getCM6View(container)
-      expect(view).not.toBeNull()
-      expect(view?.state.doc.toString()).toBe('initial content')
-    })
-
-    const view = getCM6View(container)
-    expect(view).not.toBeNull()
-    if (!view) return
-
-    act(() => {
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: 'updated content',
-        },
-      })
-    })
-
-    rerender(
-      <CodeEditorPanel
-        {...props}
-        activeFile="src/example.ts"
-        activeFileContent="updated content"
-        editable
-      />,
-    )
-
-    act(() => {
-      dispatchKeyToView(
-        view,
-        new KeyboardEvent('keydown', {
-          key: 'z',
-          ctrlKey: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      )
-    })
-
-    await waitFor(() => {
-      expect(view.state.doc.toString()).toBe('initial content')
     })
   })
 

@@ -11,7 +11,7 @@ SDD Workbench는 스펙 주도 개발(Spec-Driven Development) 워크플로우�
 
 - 2패널 레이아웃: 좌측 사이드바 + 우측 콘텐츠 탭(`Code` / `Spec`)
 - 멀티 워크스페이스(열기/전환/닫기)
-- CodeMirror 6 기반 코드 뷰어(검색, 줄바꿈 토글, Git/코멘트 마커, `Edit in VSCode`)
+- CodeMirror 6 기반 read-only 코드 뷰어(검색, 줄바꿈 토글, selection/jump, Git/코멘트 마커, `Edit in VSCode`)
 - 렌더드 스펙 탐색(링크 점프, `Go to Source`, 문서 내 anchor 이동, 스펙 내 검색)
 - 코드/스펙 인라인 코멘트 + 글로벌 코멘트 + 번들 export
 - 파일 트리 CRUD(New File/Dir, Rename, Delete) + Copy/Paste(내부 + macOS Finder 클립보드)
@@ -131,6 +131,7 @@ npm run build
 ### 코드 뷰어 (`Code`)
 
 주요 기능:
+- CM6 read-only viewer engine 기반 상호작용 뷰어
 - `Cmd+F` 검색(이전/다음, wrap-around)
 - 줄바꿈 토글(`Wrap On` / `Wrap Off`, 기본 On)
 - 활성 파일 라인 Git 마커(`added` / `modified`)
@@ -280,7 +281,7 @@ src/
   App.tsx                     # 앱 셸/오케스트레이션
   workspace/                  # 워크스페이스 상태, 영속화, remote connect modal
   file-tree/                  # 파일 트리 UI, lazy loading, CRUD 인터랙션
-  code-editor/                # CodeMirror 6 에디터 + gutter 확장
+  code-editor/                # Code Viewer를 구현하는 CodeMirror 6 viewer engine + gutter 확장
   spec-viewer/                # 렌더드 Markdown 뷰 + 링크/소스 액션
   code-comments/              # 코멘트 도메인, 모달, export
 electron/
