@@ -65,10 +65,10 @@
 - 변경 시 주의점:
   - 검색은 lazy-loaded tree와 독립적이며, remote/local 공통 contract를 유지해야 한다.
 
-## 4. Code Viewer / CM6 Viewer Engine
+## 4. Code Editor / CM6 Extensions
 
 - 책임:
-  - viewer-first Code 탭의 검색, wrap, selection bridge, jump/highlight, git/comment gutter, language/theme routing
+  - 편집, 저장, 검색, wrap, selection bridge, jump/highlight, git/comment gutter, language/theme routing
 - 핵심 파일:
   - `src/code-editor/code-editor-panel.tsx`
   - `src/code-editor/cm6-dark-theme.ts`
@@ -87,9 +87,7 @@
   - `src/code-editor/cm6-git-gutter.test.ts`
   - `src/code-editor/cm6-comment-gutter.test.ts`
 - 변경 시 주의점:
-  - `src/code-editor/`는 제품상 Code Viewer를 구현하는 CM6 viewer engine layer다.
   - CM6 쪽 selection/jump 변경은 spec-origin exact offset 경로와 쉽게 충돌한다.
-  - editor-centric affordance를 다시 추가할 때는 viewer-first contract와 충돌하지 않는지 먼저 확인해야 한다.
 
 ## 5. Spec Viewer / Source Mapping
 

@@ -42,40 +42,6 @@
 
 ## 정책/구조 결정 (Active)
 
-## 2026-04-02 - F47 구현 완료 반영 + CM6를 Code Viewer의 표준 read-only engine으로 고정
-
-- Context:
-  - F46으로 Code 탭이 viewer-first로 전환됐지만, 스펙과 구현 설명에는 여전히 `editor` vocabulary와 save/draft callback 관성이 남아 있었음.
-  - 실제 구현은 `CodeEditorPanel` public surface에서 `editable`, `onSave`, `onDirtyChange`, `onContentChange`, `Mod-s` save path를 제거하고, CM6를 read-only interaction engine으로 유지했음.
-- Decision:
-  - Code Viewer의 표준 renderer는 CodeMirror 6 read-only engine으로 고정한다.
-  - viewer-first 전환은 정적 syntax highlighter나 다른 viewer engine으로의 즉시 migration을 의미하지 않는다.
-  - `CodeEditorPanel` public surface는 viewer contract 기준으로 유지하고, editor-centric save/draft mutation callback은 canonical contract에서 제외한다.
-  - `src/code-editor/` 경로명은 유지하되, 문서에서는 Code Viewer의 CM6 viewer engine layer로 설명한다.
-- Rationale:
-  - 현재 제품 가치인 search, selection, jump/highlight, git/comment gutter, 긴 파일 대응은 editor-grade interaction engine과 더 잘 맞는다.
-  - 구현체를 바꾸지 않고 public contract를 viewer 기준으로 정리하는 편이 회귀 위험이 낮고, 사용자 mental model과도 더 잘 맞는다.
-- Impact / follow-up:
-  - `code-editor/overview.md`, `code-editor/contracts.md`, `code-map.md`, `feature-index.md`는 viewer-first + CM6 유지 기준으로 동기화한다.
-  - CM6 extension 최소화나 directory rename은 후속 최적화/리팩터링 과제로 남긴다.
-
-## 2026-04-01 - F46 구현 완료 반영 + Code 탭 viewer-first / `Edit in VSCode` handoff 고정
-
-- Context:
-  - Code 탭이 제품 메시지상 `Code Preview` 성격을 띠고 있었지만, 구현은 in-app editing/save 흐름까지 함께 안고 있어 제품 역할과 사용 의도가 섞여 있었음.
-  - 실제 구현은 Code 탭을 read-only viewer로 되돌리고, 현재 파일 편집은 header의 `Edit in VSCode` 액션으로 handoff하도록 정리했음.
-- Decision:
-  - Code 탭의 1차 역할은 editor가 아니라 viewer로 고정한다.
-  - 검색, wrap, git line marker, comment gutter, navigation highlight, markdown `Go to Spec`는 viewer mode에서도 유지한다.
-  - 편집이 필요하면 header `Edit in VSCode`를 통해 current file context를 VSCode로 넘긴다.
-  - 원격 워크스페이스는 `sshAlias` 기반 current-file open을 우선 시도하고, 실패 시 workspace root open으로 safe fallback 한다.
-- Rationale:
-  - 제품의 핵심 강점은 spec/code navigation과 workspace orchestration이지, 앱 안에서의 본격 편집이 아니다.
-  - viewer-first로 역할을 정리하면 UX와 설명이 단순해지고, VSCode handoff로 실제 편집 경로도 더 자연스럽게 만든다.
-- Impact / follow-up:
-  - Code 탭 copy는 `Code Viewer` 기준으로 통일한다.
-  - document session/saveState 모델 제거는 별도 리팩터링으로 분리하고, 이번 단계에서는 viewer surface 정리에 집중한다.
-
 ## 2026-04-01 - F45 문서 세션 통합 + Draft 기반 Spec View
 
 - Context:
