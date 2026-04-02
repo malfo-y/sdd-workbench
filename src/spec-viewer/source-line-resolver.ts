@@ -77,6 +77,30 @@ function toElement(node: Node | null): Element | null {
   return node instanceof Element ? node : node.parentElement
 }
 
+function findClosestAncestorByTagName(
+  node: Node | null,
+  tagNames: readonly string[],
+): HTMLElement | null {
+  const element = toElement(node)
+  if (!element) {
+    return null
+  }
+
+  const normalizedTagNames = new Set(tagNames.map((tagName) => tagName.toLowerCase()))
+  let current: Element | null = element
+  while (current) {
+    if (
+      current instanceof HTMLElement &&
+      normalizedTagNames.has(current.tagName.toLowerCase())
+    ) {
+      return current
+    }
+    current = current.parentElement
+  }
+
+  return null
+}
+
 function clampNodeOffset(node: Node, rawOffset: number | undefined): number {
   const maxOffset =
     node instanceof CharacterData ? node.data.length : node.childNodes.length
@@ -164,6 +188,27 @@ function resolveNodeTextOffsetWithinElement(
   } catch {
     return null
   }
+}
+
+function findUniqueSubstringIndex(
+  content: string,
+  searchText: string,
+): number | null {
+  if (searchText.length === 0) {
+    return 0
+  }
+
+  const firstIndex = content.indexOf(searchText)
+  if (firstIndex < 0) {
+    return null
+  }
+
+  const secondIndex = content.indexOf(searchText, firstIndex + 1)
+  if (secondIndex >= 0) {
+    return null
+  }
+
+  return firstIndex
 }
 
 function estimateLineFromSpanOffset(
@@ -315,8 +360,8 @@ function resolveExactSourceOffsetFromElement(
     sourceOffsetSpan.startOffset,
     sourceOffsetSpan.endOffset,
   )
-  const contentIndex = rawSlice.indexOf(renderedText)
-  if (contentIndex < 0) {
+  const contentIndex = findUniqueSubstringIndex(rawSlice, renderedText)
+  if (contentIndex === null) {
     return null
   }
 
@@ -417,6 +462,12 @@ export function resolveSourceSelectionRangeFromSelection(
   }
 
   if (!sourceText || selection.isCollapsed) {
+    return lineRange
+  }
+
+  const anchorCell = findClosestAncestorByTagName(selection.anchorNode, ['td', 'th'])
+  const focusCell = findClosestAncestorByTagName(selection.focusNode, ['td', 'th'])
+  if ((anchorCell || focusCell) && anchorCell !== focusCell) {
     return lineRange
   }
 

@@ -206,6 +206,85 @@ describe('source-line-resolver', () => {
     })
   })
 
+  it('falls back to line-only range when selection spans different table cells', () => {
+    const row = document.createElement('tr')
+    const firstCell = document.createElement('td')
+    firstCell.setAttribute('data-source-line-start', '5')
+    firstCell.setAttribute('data-source-line-end', '5')
+    const firstLeaf = document.createElement('span')
+    firstLeaf.setAttribute('data-source-text-leaf', 'true')
+    firstLeaf.setAttribute('data-source-line-start', '5')
+    firstLeaf.setAttribute('data-source-line-end', '5')
+    firstLeaf.setAttribute('data-source-offset-start', '24')
+    firstLeaf.setAttribute('data-source-offset-end', '29')
+    const firstText = document.createTextNode('alpha')
+    firstLeaf.append(firstText)
+    firstCell.append(firstLeaf)
+
+    const secondCell = document.createElement('td')
+    secondCell.setAttribute('data-source-line-start', '5')
+    secondCell.setAttribute('data-source-line-end', '5')
+    const secondLeaf = document.createElement('span')
+    secondLeaf.setAttribute('data-source-text-leaf', 'true')
+    secondLeaf.setAttribute('data-source-line-start', '5')
+    secondLeaf.setAttribute('data-source-line-end', '5')
+    secondLeaf.setAttribute('data-source-offset-start', '32')
+    secondLeaf.setAttribute('data-source-offset-end', '36')
+    const secondText = document.createTextNode('beta')
+    secondLeaf.append(secondText)
+    secondCell.append(secondLeaf)
+
+    row.append(firstCell, secondCell)
+
+    const selection = {
+      anchorNode: firstText,
+      anchorOffset: 1,
+      focusNode: secondText,
+      focusOffset: 3,
+      isCollapsed: false,
+    } as unknown as Selection
+
+    expect(
+      resolveSourceSelectionRangeFromSelection(
+        selection,
+        '# Title\n\n| left | right |\n| --- | --- |\n| alpha | beta |\n',
+      ),
+    ).toEqual({
+      startLine: 5,
+      endLine: 5,
+    })
+  })
+
+  it('drops exact offsets when a non-leaf source span contains repeated rendered text', () => {
+    const paragraph = document.createElement('p')
+    paragraph.setAttribute('data-source-line', '3')
+    paragraph.setAttribute('data-source-line-start', '3')
+    paragraph.setAttribute('data-source-line-end', '3')
+    const ambiguousSpan = document.createElement('span')
+    ambiguousSpan.setAttribute('data-source-line-start', '3')
+    ambiguousSpan.setAttribute('data-source-line-end', '3')
+    ambiguousSpan.setAttribute('data-source-offset-start', '0')
+    ambiguousSpan.setAttribute('data-source-offset-end', '7')
+    const textNode = document.createTextNode('dup')
+    ambiguousSpan.append(textNode)
+    paragraph.append(ambiguousSpan)
+
+    const selection = {
+      anchorNode: textNode,
+      anchorOffset: 0,
+      focusNode: textNode,
+      focusOffset: textNode.data.length,
+      isCollapsed: false,
+    } as unknown as Selection
+
+    expect(
+      resolveSourceSelectionRangeFromSelection(selection, 'dup dup'),
+    ).toEqual({
+      startLine: 3,
+      endLine: 3,
+    })
+  })
+
   it('normalizes range across two nodes with different source spans', () => {
     const firstBlock = document.createElement('p')
     firstBlock.setAttribute('data-source-line', '4')

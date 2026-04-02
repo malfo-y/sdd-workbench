@@ -18,10 +18,9 @@ import type { AppearanceTheme } from '../appearance-theme'
 import {
   findMostRecentCommentInSelectionRange,
   mapCommentCountsToRenderedSourceLines,
-  mapCommentEntriesToRenderedSourceLines,
 } from '../code-comments/comment-line-index'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
-import type { CodeComment } from '../code-comments/comment-types'
+import { compareCodeComments, type CodeComment } from '../code-comments/comment-types'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { buildCopyActiveFilePathPayload } from '../context-copy/copy-payload'
 import {
@@ -41,6 +40,8 @@ import { SpecLinkPopover } from './spec-link-popover'
 import {
   buildSourceLineAttributes,
   getMarkdownNodeSourceLine,
+  getMarkdownNodeSourceLineSpan,
+  getMarkdownNodeSourceOffsetSpan,
   SOURCE_TEXT_LEAF_ATTRIBUTE,
   type MarkdownNodeWithPosition,
 } from './source-line-metadata'
@@ -147,6 +148,8 @@ type CommentHoverState = {
 const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'blocked placeholder text'
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
 const NAVIGATION_HIGHLIGHT_DURATION_MS = 1600
+const COMMENT_MARKER_ANCHOR_ATTRIBUTE = 'data-comment-marker-anchor'
+const COMMENT_MARKER_KEY_ATTRIBUTE = 'data-comment-marker-key'
 
 function isMarkerContainerTag(tagName: string) {
   return tagName === 'blockquote' || tagName === 'li'
@@ -206,14 +209,19 @@ function shouldSuppressMarkerForNestedSameLineChild(
 function renderBlockWithSourceLine(
   tagName: string,
   props: Record<string, unknown>,
-  markerCountsByLine: ReadonlyMap<number, number>,
-  markerEntriesByLine: ReadonlyMap<number, readonly CodeComment[]>,
+  markerCountsByKey: ReadonlyMap<string, number>,
+  markerEntriesByKey: ReadonlyMap<string, readonly CodeComment[]>,
   onMarkerMouseEnter: (
     event: MouseEvent<HTMLElement>,
     lineNumber: number,
     comments: readonly CodeComment[],
   ) => void,
   onMarkerMouseLeave: () => void,
+  options?: {
+    includeAnchorLine?: boolean
+    markerAnchor?: boolean
+    markerPlacement?: 'inside' | 'before'
+  },
 ) {
   const { node, children, ...restProps } = props as {
     node?: MarkdownNodeWithPosition
@@ -221,10 +229,11 @@ function renderBlockWithSourceLine(
     className?: string
   }
   const sourceLine = getMarkdownNodeSourceLine(node)
+  const markerAnchorKey = buildCommentMarkerAnchorKey(node)
   const markerCount =
-    sourceLine !== undefined ? markerCountsByLine.get(sourceLine) ?? 0 : 0
+    markerAnchorKey !== null ? markerCountsByKey.get(markerAnchorKey) ?? 0 : 0
   const markerComments =
-    sourceLine !== undefined ? markerEntriesByLine.get(sourceLine) ?? [] : []
+    markerAnchorKey !== null ? markerEntriesByKey.get(markerAnchorKey) ?? [] : []
   const hasCommentMarker =
     markerCount > 0 &&
     markerComments.length > 0 &&
@@ -237,34 +246,53 @@ function renderBlockWithSourceLine(
   ]
     .filter((value) => value.length > 0)
     .join(' ')
-  const sourceLineAttributes = buildSourceLineAttributes(node)
+  const sourceLineAttributes = buildSourceLineAttributes(node, {
+    includeAnchorLine: options?.includeAnchorLine,
+  })
   const baseProps: Record<string, unknown> = {
     ...restProps,
     ...sourceLineAttributes,
     className: mergedClassName.length > 0 ? mergedClassName : undefined,
     'data-has-comment-marker': hasCommentMarker ? 'true' : undefined,
     'data-comment-count': hasCommentMarker ? String(markerCount) : undefined,
+    [COMMENT_MARKER_ANCHOR_ATTRIBUTE]:
+      options?.markerAnchor === false || markerAnchorKey === null
+        ? undefined
+        : 'true',
+    [COMMENT_MARKER_KEY_ATTRIBUTE]:
+      options?.markerAnchor === false ? undefined : markerAnchorKey ?? undefined,
   }
 
   if (!hasCommentMarker || sourceLine === undefined) {
     return createElement(tagName, baseProps, children ?? null)
   }
 
+  const markerElement = createElement(
+    'span',
+    {
+      className: 'spec-comment-marker',
+      'data-testid': `spec-comment-marker-${sourceLine}`,
+      onMouseEnter: (event: MouseEvent<HTMLElement>) => {
+        onMarkerMouseEnter(event, sourceLine, markerComments)
+      },
+      onMouseLeave: onMarkerMouseLeave,
+    },
+    String(markerCount),
+  )
+
+  if (options?.markerPlacement === 'before') {
+    return createElement(
+      Fragment,
+      null,
+      markerElement,
+      createElement(tagName, baseProps, children ?? null),
+    )
+  }
+
   return createElement(
     tagName,
     baseProps,
-    createElement(
-      'span',
-      {
-        className: 'spec-comment-marker',
-        'data-testid': `spec-comment-marker-${sourceLine}`,
-        onMouseEnter: (event: MouseEvent<HTMLElement>) => {
-          onMarkerMouseEnter(event, sourceLine, markerComments)
-        },
-        onMouseLeave: onMarkerMouseLeave,
-      },
-      String(markerCount),
-    ),
+    markerElement,
     children ?? null,
   )
 }
@@ -292,8 +320,8 @@ function renderElementWithSourceLine(
 }
 
 function areLineCountMapsEqual(
-  left: ReadonlyMap<number, number>,
-  right: ReadonlyMap<number, number>,
+  left: ReadonlyMap<string, number>,
+  right: ReadonlyMap<string, number>,
 ) {
   if (left.size !== right.size) {
     return false
@@ -309,8 +337,8 @@ function areLineCountMapsEqual(
 }
 
 function areLineCommentMapsEqual(
-  left: ReadonlyMap<number, readonly CodeComment[]>,
-  right: ReadonlyMap<number, readonly CodeComment[]>,
+  left: ReadonlyMap<string, readonly CodeComment[]>,
+  right: ReadonlyMap<string, readonly CodeComment[]>,
 ) {
   if (left.size !== right.size) {
     return false
@@ -365,6 +393,312 @@ function collectRenderedSourceLines(containerElement: HTMLElement): number[] {
     }
   }
   return Array.from(values)
+}
+
+type RenderedCommentMarkerAnchor = {
+  key: string
+  tagName: string
+  startLine: number
+  endLine: number
+  startOffset: number | null
+  endOffset: number | null
+  spanLength: number
+  depth: number
+}
+
+function getElementDepth(element: Element): number {
+  let depth = 0
+  let current: Element | null = element
+  while (current) {
+    depth += 1
+    current = current.parentElement
+  }
+  return depth
+}
+
+function readNumericAttribute(
+  element: HTMLElement,
+  attributeName: string,
+): number | null {
+  const rawValue = element.getAttribute(attributeName)
+  if (!rawValue) {
+    return null
+  }
+  const parsed = Number(rawValue)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+  const normalized = Math.trunc(parsed)
+  return normalized >= 0 ? normalized : null
+}
+
+function buildCommentMarkerAnchorKey(
+  node: MarkdownNodeWithPosition | undefined,
+): string | null {
+  const lineSpan = getMarkdownNodeSourceLineSpan(node)
+  if (!lineSpan) {
+    return null
+  }
+
+  const offsetSpan = getMarkdownNodeSourceOffsetSpan(node)
+  const tagName =
+    typeof node?.tagName === 'string' && node.tagName.length > 0
+      ? node.tagName
+      : node?.type ?? 'node'
+
+  return [
+    tagName,
+    lineSpan.startLine,
+    lineSpan.endLine,
+    offsetSpan?.startOffset ?? 'na',
+    offsetSpan?.endOffset ?? 'na',
+  ].join(':')
+}
+
+function collectRenderedCommentMarkerAnchors(
+  containerElement: HTMLElement,
+): RenderedCommentMarkerAnchor[] {
+  const anchors = Array.from(
+    containerElement.querySelectorAll<HTMLElement>(
+      `[${COMMENT_MARKER_ANCHOR_ATTRIBUTE}="true"]`,
+    ),
+  )
+
+  return anchors
+    .map((element) => {
+      const key = element.getAttribute(COMMENT_MARKER_KEY_ATTRIBUTE)
+      if (!key) {
+        return null
+      }
+
+      const lineNumber =
+        readNumericAttribute(element, 'data-source-line') ??
+        readNumericAttribute(element, 'data-source-line-start')
+      const startLine = readNumericAttribute(element, 'data-source-line-start')
+      const endLine = readNumericAttribute(element, 'data-source-line-end')
+      const normalizedStartLine = startLine ?? lineNumber
+      const normalizedEndLine = endLine ?? lineNumber ?? startLine
+      if (
+        normalizedStartLine === null ||
+        normalizedEndLine === null ||
+        normalizedStartLine < 1 ||
+        normalizedEndLine < 1
+      ) {
+        return null
+      }
+
+      const startOffset = readNumericAttribute(element, 'data-source-offset-start')
+      const endOffset = readNumericAttribute(element, 'data-source-offset-end')
+      const spanLength =
+        startOffset !== null &&
+        endOffset !== null &&
+        endOffset >= startOffset
+          ? endOffset - startOffset
+          : Number.POSITIVE_INFINITY
+
+      return {
+        key,
+        tagName: element.tagName.toLowerCase(),
+        startLine: Math.min(normalizedStartLine, normalizedEndLine),
+        endLine: Math.max(normalizedStartLine, normalizedEndLine),
+        startOffset,
+        endOffset,
+        spanLength,
+        depth: getElementDepth(element),
+      } satisfies RenderedCommentMarkerAnchor
+    })
+    .filter((anchor): anchor is RenderedCommentMarkerAnchor => anchor !== null)
+}
+
+function compareMarkerAnchorDistance(
+  anchor: RenderedCommentMarkerAnchor,
+  lineNumber: number,
+) {
+  if (lineNumber < anchor.startLine) {
+    return anchor.startLine - lineNumber
+  }
+  if (lineNumber > anchor.endLine) {
+    return lineNumber - anchor.endLine
+  }
+  return 0
+}
+
+function selectNeutralTableAnchor(
+  anchors: readonly RenderedCommentMarkerAnchor[],
+  lineNumber: number,
+): RenderedCommentMarkerAnchor | null {
+  const containingTableAnchors = anchors
+    .filter(
+      (anchor) =>
+        anchor.tagName === 'table' && compareMarkerAnchorDistance(anchor, lineNumber) === 0,
+    )
+    .sort((left, right) => {
+      if (left.spanLength !== right.spanLength) {
+        return left.spanLength - right.spanLength
+      }
+      if (left.depth !== right.depth) {
+        return right.depth - left.depth
+      }
+      if (left.startLine !== right.startLine) {
+        return left.startLine - right.startLine
+      }
+      return left.key.localeCompare(right.key)
+    })
+
+  return containingTableAnchors[0] ?? null
+}
+
+function selectBestRenderedCommentMarkerAnchor(
+  anchors: readonly RenderedCommentMarkerAnchor[],
+  comment: CodeComment,
+): RenderedCommentMarkerAnchor | null {
+  const startOffset = comment.anchor.startOffset
+  const endOffset = comment.anchor.endOffset
+  if (
+    typeof startOffset === 'number' &&
+    Number.isFinite(startOffset) &&
+    typeof endOffset === 'number' &&
+    Number.isFinite(endOffset)
+  ) {
+    const offsetMatches = anchors
+      .filter(
+        (anchor) =>
+          anchor.startOffset !== null &&
+          anchor.endOffset !== null &&
+          anchor.startOffset <= startOffset &&
+          anchor.endOffset >= endOffset,
+      )
+      .sort((left, right) => {
+        if (left.spanLength !== right.spanLength) {
+          return left.spanLength - right.spanLength
+        }
+        if (left.depth !== right.depth) {
+          return right.depth - left.depth
+        }
+        if (left.startLine !== right.startLine) {
+          return left.startLine - right.startLine
+        }
+        return left.key.localeCompare(right.key)
+      })
+
+    if (offsetMatches.length > 0) {
+      return offsetMatches[0] ?? null
+    }
+  }
+
+  const commentLine = Math.max(1, comment.startLine)
+  const neutralTableAnchor = selectNeutralTableAnchor(anchors, commentLine)
+  if (neutralTableAnchor) {
+    return neutralTableAnchor
+  }
+
+  return (
+    [...anchors].sort((left, right) => {
+      const leftDistance = compareMarkerAnchorDistance(left, commentLine)
+      const rightDistance = compareMarkerAnchorDistance(right, commentLine)
+      if (leftDistance !== rightDistance) {
+        return leftDistance - rightDistance
+      }
+      if (left.startLine !== right.startLine) {
+        return left.startLine - right.startLine
+      }
+      if (left.depth !== right.depth) {
+        return right.depth - left.depth
+      }
+      return left.key.localeCompare(right.key)
+    })[0] ?? null
+  )
+}
+
+function selectBestRenderedCommentMarkerAnchorForLine(
+  anchors: readonly RenderedCommentMarkerAnchor[],
+  lineNumber: number,
+): RenderedCommentMarkerAnchor | null {
+  const neutralTableAnchor = selectNeutralTableAnchor(anchors, lineNumber)
+  if (neutralTableAnchor) {
+    return neutralTableAnchor
+  }
+
+  return (
+    [...anchors].sort((left, right) => {
+      const leftDistance = compareMarkerAnchorDistance(left, lineNumber)
+      const rightDistance = compareMarkerAnchorDistance(right, lineNumber)
+      if (leftDistance !== rightDistance) {
+        return leftDistance - rightDistance
+      }
+      if (left.startLine !== right.startLine) {
+        return left.startLine - right.startLine
+      }
+      if (left.depth !== right.depth) {
+        return right.depth - left.depth
+      }
+      return left.key.localeCompare(right.key)
+    })[0] ?? null
+  )
+}
+
+function mapCommentEntriesToMarkerAnchors(
+  commentLineEntries: ReadonlyMap<number, readonly CodeComment[]>,
+  anchors: readonly RenderedCommentMarkerAnchor[],
+) {
+  const mappedEntries = new Map<string, CodeComment[]>()
+  const mappedCounts = new Map<string, number>()
+  const entryCountsByLine = new Map<number, number>()
+
+  for (const [commentLine, entries] of commentLineEntries.entries()) {
+    entryCountsByLine.set(
+      commentLine,
+      (entryCountsByLine.get(commentLine) ?? 0) + entries.length,
+    )
+    for (const comment of entries) {
+      const anchor = selectBestRenderedCommentMarkerAnchor(anchors, comment)
+      if (!anchor) {
+        continue
+      }
+
+      const nextEntries = mappedEntries.get(anchor.key) ?? []
+      nextEntries.push(comment)
+      mappedEntries.set(anchor.key, nextEntries)
+      mappedCounts.set(anchor.key, (mappedCounts.get(anchor.key) ?? 0) + 1)
+    }
+  }
+
+  for (const [key, entries] of mappedEntries.entries()) {
+    mappedEntries.set(
+      key,
+      [...entries].sort(compareCodeComments),
+    )
+  }
+
+  return {
+    counts: mappedCounts as ReadonlyMap<string, number>,
+    entries: mappedEntries as ReadonlyMap<string, readonly CodeComment[]>,
+    lineEntryCounts: entryCountsByLine as ReadonlyMap<number, number>,
+  }
+}
+
+function mapCommentCountsToMarkerAnchors(
+  commentLineCounts: ReadonlyMap<number, number>,
+  anchors: readonly RenderedCommentMarkerAnchor[],
+  entryCountsByLine: ReadonlyMap<number, number>,
+): ReadonlyMap<string, number> {
+  const mappedCounts = new Map<string, number>()
+
+  for (const [commentLine, count] of commentLineCounts.entries()) {
+    const remainingCount = count - (entryCountsByLine.get(commentLine) ?? 0)
+    if (remainingCount <= 0) {
+      continue
+    }
+
+    const anchor = selectBestRenderedCommentMarkerAnchorForLine(anchors, commentLine)
+    if (!anchor) {
+      continue
+    }
+
+    mappedCounts.set(anchor.key, (mappedCounts.get(anchor.key) ?? 0) + remainingCount)
+  }
+
+  return mappedCounts
 }
 
 function containsSelectionNode(
@@ -683,9 +1017,9 @@ export function SpecViewerPanel({
     useState<CommentHoverState | null>(null)
   const [isTocExpanded, setIsTocExpanded] = useState(false)
   const [resolvedCommentMarkerCounts, setResolvedCommentMarkerCounts] =
-    useState<ReadonlyMap<number, number>>(new Map())
+    useState<ReadonlyMap<string, number>>(new Map())
   const [resolvedCommentMarkerEntries, setResolvedCommentMarkerEntries] =
-    useState<ReadonlyMap<number, readonly CodeComment[]>>(new Map())
+    useState<ReadonlyMap<string, readonly CodeComment[]>>(new Map())
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentSearchMatchIndex, setCurrentSearchMatchIndex] = useState(0)
@@ -982,21 +1316,25 @@ export function SpecViewerPanel({
       return
     }
 
-    const renderedSourceLines = collectRenderedSourceLines(containerElement)
-    const mappedCounts = mapCommentCountsToRenderedSourceLines(
+    const anchors = collectRenderedCommentMarkerAnchors(containerElement)
+    const mappedEntries = mapCommentEntriesToMarkerAnchors(commentLineEntries, anchors)
+    const mappedCounts = new Map(mappedEntries.counts)
+    const remainingCounts = mapCommentCountsToMarkerAnchors(
       commentLineCounts,
-      renderedSourceLines,
+      anchors,
+      mappedEntries.lineEntryCounts,
     )
-    const mappedEntries = mapCommentEntriesToRenderedSourceLines(
-      commentLineEntries,
-      renderedSourceLines,
-    )
+    for (const [key, count] of remainingCounts.entries()) {
+      mappedCounts.set(key, (mappedCounts.get(key) ?? 0) + count)
+    }
 
     setResolvedCommentMarkerCounts((previous) =>
       areLineCountMapsEqual(previous, mappedCounts) ? previous : mappedCounts,
     )
     setResolvedCommentMarkerEntries((previous) =>
-      areLineCommentMapsEqual(previous, mappedEntries) ? previous : mappedEntries,
+      areLineCommentMapsEqual(previous, mappedEntries.entries)
+        ? previous
+        : mappedEntries.entries,
     )
   }, [activeSpecPath, commentLineCounts, commentLineEntries, markdownContent])
 
@@ -1553,19 +1891,38 @@ export function SpecViewerPanel({
           resolvedCommentMarkerEntries,
           handleCommentMarkerMouseEnter,
           scheduleCommentHoverClose,
+          {
+            markerPlacement: 'before',
+          },
         ),
       tr: (props) =>
         renderElementWithSourceLine('tr', props as Record<string, unknown>, {
           includeAnchorLine: false,
         }),
       th: (props) =>
-        renderElementWithSourceLine('th', props as Record<string, unknown>, {
-          includeAnchorLine: false,
-        }),
+        renderBlockWithSourceLine(
+          'th',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+          {
+            includeAnchorLine: false,
+          },
+        ),
       td: (props) =>
-        renderElementWithSourceLine('td', props as Record<string, unknown>, {
-          includeAnchorLine: false,
-        }),
+        renderBlockWithSourceLine(
+          'td',
+          props as Record<string, unknown>,
+          resolvedCommentMarkerCounts,
+          resolvedCommentMarkerEntries,
+          handleCommentMarkerMouseEnter,
+          scheduleCommentHoverClose,
+          {
+            includeAnchorLine: false,
+          },
+        ),
       h1: (props) =>
         renderBlockWithSourceLine(
           'h1',

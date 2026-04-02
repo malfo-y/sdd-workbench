@@ -2044,3 +2044,83 @@ UNPLANNED_DEPENDENCY:
   - CM6 read-only facet만으로는 DOM `contenteditable`이 꺼지지 않아 `EditorView.editable.of(false)`를 추가해 viewer contract를 DOM 레벨까지 고정했다.
   - `history()`/`historyKeymap`/`defaultKeymap`은 성급히 축소하지 않고 유지했다. 이번 단계에서는 editor residue만 제거하고 CM6 extension 최소화는 future consideration으로 남겼다.
   - `App.tsx`와 `src/App.test.tsx`는 inspection 결과 이미 viewer-first contract와 일치해 추가 수정 없이 fresh verification만 수행했다.
+
+---
+
+## F48 Addendum (2026-04-02)
+
+### 1) Scope Covered (Phase/Task IDs)
+
+- Active plan: `/_sdd/drafts/feature_draft_f48_spec_table_cell_anchor_precision.md` (Part 2)
+- Covered tasks:
+  - Phase 1: `T1` (completed)
+  - Phase 2: `T2` (completed)
+  - Phase 3: `T3` (completed)
+  - Phase 4: `T4` (completed)
+
+| ID | Task | Priority | Dependencies | Status | Tests |
+|----|------|----------|--------------|--------|-------|
+| T1 | table cell source metadata와 leaf wrapping contract를 정리한다 | P0 | - | completed | `src/spec-viewer/rehype-source-text-leaves.test.ts` pass |
+| T2 | table selection과 repeated-text ambiguity guard를 함께 resolver에 통합한다 | P0 | T1 | completed | `src/spec-viewer/source-line-resolver.test.ts`, `npx tsc --noEmit` pass |
+| T3 | table-aware marker mapping과 source action wiring을 통합한다 | P1 | T2 | completed | `src/spec-viewer/spec-viewer-panel.test.tsx`, `npm test` pass |
+| T4 | table 전용 unit/integration regression matrix를 추가한다 | P0 | T1, T2, T3 | completed | targeted `vitest`, `npm test`, `npm run build` pass |
+
+### 2) Files Changed (F48)
+
+- `src/spec-viewer/source-line-resolver.ts`
+- `src/spec-viewer/source-line-resolver.test.ts`
+- `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `src/spec-viewer/rehype-source-text-leaves.test.ts`
+- `_sdd/implementation/IMPLEMENTATION_PROGRESS.md`
+- `_sdd/implementation/IMPLEMENTATION_REPORT.md`
+
+Implementation note:
+- `T1`의 metadata hardening은 inspection 결과 기존 `rehype-source-text-leaves` contract가 same-cell scope를 이미 만족하고 있어 코드 변경 없이 regression test 추가로 고정했다.
+- `T3`의 marker mapping은 `src/code-comments/comment-line-index.ts`까지 확장하지 않고 `spec-viewer-panel` 내부 anchor-key mapping으로 해결했다.
+
+### 3) Test and Quality Gate Status (F48)
+
+- `node -v`: `v25.2.1`
+- `npm -v`: `11.12.1`
+- `npm install`: skipped (package manifest unchanged)
+- `npx vitest run src/spec-viewer/source-line-resolver.test.ts src/spec-viewer/spec-viewer-panel.test.tsx src/spec-viewer/rehype-source-text-leaves.test.ts`: pass (`3 files, 72 passed`)
+- `npx tsc --noEmit`: pass
+- `npm test`: pass (`71 files, 812 tests: 811 passed | 1 skipped`)
+- `npm run build`: pass
+
+Historical note:
+- Earlier `npm test -- --runInBand` failed because this repo's `vitest run` does not accept `--runInBand`; no product issue was implied. Fresh verification used supported commands only.
+
+### 4) Parallel Groups Executed (F48)
+
+- Group A (sequential fallback): `T1 -> T2 -> T3 -> T4`
+  - Reason: resolver, panel renderer, and panel integration tests all share the same selection/marker contract and overlap on the same `spec-viewer` files, so splitting work would create avoidable merge and debugging churn.
+
+### 5) Blockers and Decisions (F48)
+
+- Blockers: 없음
+- Applied decisions:
+  - same-cell selection만 exact anchor hardening 대상으로 포함하고, cross-cell selection은 기존 normalized line range + fallback 계약을 유지했다.
+  - repeated-text ambiguity는 table 전용 special case가 아니라 공통 uniqueness guard로 처리했다.
+  - table-origin marker는 source line fan-out 대신 anchor key로 매핑하고, offset이 있으면 same-cell representative anchor를 우선 사용하도록 바꿨다.
+  - count 표시값은 `commentLineCounts`를 유지하되, hover/comment payload는 anchor-key로 정렬된 `commentLineEntries`를 사용하도록 분리했다.
+  - `rehype-source-text-leaves`와 existing metadata contract는 same-cell scope에서 충분하다고 판단해 불필요한 metadata surface expansion은 하지 않았다.
+
+### 6) Review Follow-up (F48-R1)
+
+- Trigger: `/_sdd/implementation/IMPLEMENTATION_REVIEW.md` medium findings 2건
+- Scope: same-line multi-cell count aggregation 보정 + offset-less table comment neutral fallback
+- Files changed:
+  - `src/spec-viewer/spec-viewer-panel.tsx`
+  - `src/spec-viewer/spec-viewer-panel.test.tsx`
+- Fix summary:
+  - line baseline count를 anchor별 exact entry count와 직접 `Math.max` merge하지 않고, line별 loaded entry count를 차감한 remainder만 fallback anchor에 투영하도록 수정했다.
+  - offset-less table comment는 arbitrary `td`가 아니라 neutral `table` anchor로 보내도록 fallback policy를 조정했다.
+  - `table` marker는 invalid DOM nesting warning을 피하기 위해 element 내부가 아니라 sibling marker placement로 렌더한다.
+- Fresh verification:
+  - `npx vitest run src/spec-viewer/spec-viewer-panel.test.tsx` -> pass (`53 tests`)
+  - `npx vitest run src/spec-viewer/source-line-resolver.test.ts src/spec-viewer/spec-viewer-panel.test.tsx src/spec-viewer/rehype-source-text-leaves.test.ts` -> pass (`3 files, 74 passed`)
+  - `npx tsc --noEmit` -> pass
+  - `npm test` -> pass (`71 files, 813 passed, 1 skipped`)
+  - `npm run build` -> pass

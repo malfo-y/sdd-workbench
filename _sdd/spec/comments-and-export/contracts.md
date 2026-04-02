@@ -45,9 +45,11 @@
 ## 5. marker / hover preview 규칙
 
 1. 코드 뷰어 마커는 `startLine` 기준 badge + hover preview를 제공한다.
-2. rendered markdown 마커는 `data-source-line` 매핑을 사용한다.
-3. nearest fallback이 필요하면 더 작은 line을 우선한다.
-4. hover preview는 최대 3개 코멘트만 보여주고 초과분은 `+N more`로 요약한다.
+2. rendered markdown 마커는 rendered source metadata의 line/offset anchor를 사용한다.
+3. exact offset이 있는 rendered markdown comment는 same-cell 또는 가장 좁은 포함 anchor를 우선 사용한다.
+4. exact offset이 없는 legacy/imported table comment는 임의 cell에 false precision으로 붙이지 않고 neutral table anchor로 degrade 한다.
+5. nearest fallback이 필요하면 더 작은 line을 우선한다. 단, table neutral fallback이 가능한 경우 그 anchor를 우선한다.
+6. hover preview는 최대 3개 코멘트만 보여주고 초과분은 `+N more`로 요약한다.
 
 ## 6. modal positioning 규칙
 
@@ -69,6 +71,7 @@
 - `src/code-comments/comment-list-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
 - `src/code-comments/global-comments-modal.tsx`
+- `src/spec-viewer/spec-viewer-panel.tsx`
 
 ## 8. 관련 테스트
 
@@ -80,4 +83,5 @@
 - `src/code-comments/comment-editor-modal.test.tsx`
 - `src/code-comments/global-comments-modal.test.tsx`
 - `src/code-comments/export-comments-modal.test.tsx`
+- `src/spec-viewer/spec-viewer-panel.test.tsx`
 - `src/App.test.tsx`

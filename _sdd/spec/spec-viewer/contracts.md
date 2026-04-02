@@ -41,7 +41,9 @@ citation 세부 규칙:
 2. fenced code block에서는 newline offset 기반 line 정밀도를 유지한다.
 3. 일반 markdown paragraph/list/blockquote/table cell은 `data-source-line-start/end` descendant metadata를 우선 사용한다.
 4. exact offset mapping은 지원 구조에서만 additive payload로 계산한다.
-5. collapsed selection과 unsupported structure는 nearest line fallback으로 degrade 한다.
+5. table exact offset은 same-cell selection에서만 허용한다.
+6. repeated rendered text 때문에 exact source span이 ambiguous하면 exact offset을 버리고 line fallback으로 degrade 한다.
+7. collapsed selection, cross-cell table selection, unsupported structure는 nearest line fallback으로 degrade 한다.
 
 ## 4. spec -> code / code -> spec 규칙
 
@@ -50,6 +52,7 @@ citation 세부 규칙:
 - `Go to Source`는 same-file raw markdown source를 우선 대상으로 한다.
 - same-path markdown draft가 존재하면 `Go to Source`의 same-file raw markdown baseline은 저장본이 아니라 draft text다.
 - exact offset이 있으면 CodeMirror selection을 사용한다.
+- table exact offset은 same-cell + unique match 조건을 만족할 때만 사용한다.
 - exact offset이 없어도 line jump는 계속 지원한다.
 
 ### 4.2 code -> spec

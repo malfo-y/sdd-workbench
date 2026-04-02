@@ -3,7 +3,7 @@
 > 로컬/원격 워크스페이스에서 코드와 Markdown 스펙을 왕복 탐색·편집·리뷰하는 Electron 기반 워크벤치
 
 **Version**: 0.49.1
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-04-02
 **Status**: In Review
 
 ## Table of Contents
@@ -86,7 +86,7 @@ SDD Workbench는 코드 편집기, Markdown 스펙 뷰어, 원격 작업 도구,
 
 핵심 설계 아이디어는 “파일 시스템과 외부 세계는 main process가 책임지고, 사용자가 체감하는 문맥은 renderer state가 책임진다”는 분리다. `App`는 탭 전환, 점프 요청, 모달, 배너, 코멘트 export 같은 상호작용을 조정하고 [src/App.tsx:App], `WorkspaceProvider`는 active workspace, active file/spec, dirty state, comments, remote connection state를 한 session 모델로 유지한다 [src/workspace/workspace-context.tsx:WorkspaceProvider]. 이 위에서 spec viewer는 markdown AST에 line/offset metadata를 심어 raw source와 rendered block을 잇고 [src/spec-viewer/source-line-metadata.ts:buildSourceLineAttributes], main process는 같은 `workspace:*` invoke surface 뒤에 local backend와 remote backend를 숨긴다 [electron/main.ts:registerIpcHandlers].
 
-이 구조가 중요한 이유는 세 가지다. 첫째, Code 탭과 Spec 탭은 같은 콘텐츠 영역을 공유하지만 비활성 탭을 언마운트하지 않아 스크롤과 문맥을 보존한다 [src/App.tsx:App]. 둘째, selection 모델은 line range를 source of truth로 두고, exact offset은 지원 구조에서만 additive payload로 계산해 안정성과 정밀도를 모두 챙긴다 [src/spec-viewer/source-line-resolver.ts:resolveSourceLine] [src/spec-viewer/source-line-metadata.ts:buildSourceLineAttributes]. 셋째, 원격 워크스페이스는 연결 수립 후 remote backend를 등록하는 방식이라, renderer는 local/remote 차이를 거의 의식하지 않고 동일한 액션을 계속 사용할 수 있다 [electron/main.ts:handleWorkspaceConnectRemote].
+이 구조가 중요한 이유는 세 가지다. 첫째, Code 탭과 Spec 탭은 같은 콘텐츠 영역을 공유하지만 비활성 탭을 언마운트하지 않아 스크롤과 문맥을 보존한다 [src/App.tsx:App]. 둘째, selection 모델은 line range를 source of truth로 두고, exact offset은 지원 구조에서만 additive payload로 계산해 안정성과 정밀도를 모두 챙긴다. 특히 table selection은 same-cell 범위에서만 exact offset을 시도하고, repeated text나 cross-cell selection은 잘못된 exact match보다 line fallback을 우선한다 [src/spec-viewer/source-line-resolver.ts:resolveSourceLine] [src/spec-viewer/source-line-metadata.ts:buildSourceLineAttributes]. 셋째, 원격 워크스페이스는 연결 수립 후 remote backend를 등록하는 방식이라, renderer는 local/remote 차이를 거의 의식하지 않고 동일한 액션을 계속 사용할 수 있다 [electron/main.ts:handleWorkspaceConnectRemote].
 
 ### Algorithm / Logic Flow
 
@@ -207,7 +207,7 @@ export function renderCommentsMarkdown(
 | Renderer state를 문맥의 source of truth로 유지 | 탭/스크롤/selection/comment/search 상태를 사용자 관점에서 일관되게 유지하기 쉽다 | main process 중심 상태 관리 |
 | FS/OS 접근을 main process로 제한 | workspace 경계 검증, watcher lifecycle, system open, export I/O를 안전하게 통제할 수 있다 | renderer 직접 접근 |
 | local/remote 공통 `workspace:*` surface | 기능 추가 시 renderer 분기를 줄이고 테스트 범위를 단순화한다 | 원격 전용 별도 API |
-| line range 우선 + exact offset additive | 대부분의 markdown 구조에서 안정적으로 degrade 하면서 세밀한 selection도 지원한다 | exact offset only, line only |
+| line range 우선 + exact offset additive | 대부분의 markdown 구조에서 안정적으로 degrade 하면서 세밀한 selection도 지원한다. table은 same-cell exact path만 허용하고 ambiguity/cross-cell은 line fallback으로 내린다 | exact offset only, line only |
 | comment modal drag는 transient UI state로 유지 | 열린 세션 안에서는 사용자가 모달을 옮겨 코드/스펙을 계속 볼 수 있고, reopen 시에는 stale 좌표를 남기지 않는다 [src/modal-drag-position.ts:useModalDragPosition] [src/code-comments/comment-list-modal.tsx:CommentListModal] | persisted modal coordinates |
 | `display: none` 기반 탭 보존 | Code/Spec 탭 전환 시 스크롤 위치와 문맥 유지가 쉽다 | 탭 전환 시 패널 unmount/remount |
 | renderer theme authoritative + menu mirror | storage failure와 app menu sync를 동시에 단순하게 처리한다 | main process authoritative theme |

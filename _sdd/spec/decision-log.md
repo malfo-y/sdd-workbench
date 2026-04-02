@@ -712,3 +712,25 @@
 - Impact / follow-up:
   - `workspace-and-file-tree.md`, `ipc-contracts.md`, `main.md`를 동기화했다.
   - `bplist-parser`는 `package.json`에 아직 남아 있으나 코드에서 더 이상 사용하지 않으므로 향후 정리 대상이다.
+
+## 2026-04-02 - F48 table same-cell exact anchor + repeated text ambiguity hardening
+
+- Context:
+  - F32/F33 이후 rendered spec selection은 일반 paragraph/list/blockquote에서는 충분히 안정적이었지만, GFM table에서는 same-line row 구조와 pipe syntax 때문에 exact offset과 marker placement가 쉽게 어긋났음.
+  - substring 기반 exact offset 복원은 같은 rendered text가 가까운 source span 안에 반복될 때 오탐을 만들 수 있었음.
+  - implementation review 후 same-line multi-cell marker count aggregation과 offset-less legacy table marker fallback도 추가 보정이 필요하다는 점이 확인됐음.
+- Decision:
+  - table exact offset은 same-cell selection에서만 허용한다.
+  - repeated text로 exact source span이 ambiguous하면 optimistic exact offset을 버리고 line fallback을 선택한다.
+  - rendered table comment marker는 exact offset이 있으면 same-cell anchor를 우선 사용하고, exact offset이 없는 legacy/imported comment는 neutral table anchor로 degrade 한다.
+  - same-line multi-cell comment count는 line baseline을 그대로 한 cell에 투영하지 않고, exact-anchor entry count를 우선 source of truth로 삼는다.
+- Rationale:
+  - table에서 false precision은 line fallback보다 더 해로운 UX를 만든다. 잘못된 cell에 정확한 것처럼 보이는 marker를 붙이기보다, neutral anchor나 line fallback으로 보수적으로 degrade 하는 편이 안전하다.
+  - repeated text ambiguity는 tokenization 없이도 uniqueness guard만으로 false-positive exact offset을 크게 줄일 수 있다.
+- Alternatives considered:
+  - table도 기존 generic nearest-line heuristic만 유지
+  - repeated text exact match를 그대로 허용
+  - offset-less legacy table comment를 임의 `td/th`에 계속 붙임
+- Impact / follow-up:
+  - `main.md`, `spec-viewer/overview.md`, `spec-viewer/contracts.md`, `comments-and-export/contracts.md`, `feature-index.md`를 F48 완료 기준으로 동기화한다.
+  - token-level markdown tokenization과 same-row representative anchor 세분화는 future improvement로 남긴다.

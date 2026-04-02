@@ -43,10 +43,14 @@
 
 - 기본 selection 모델은 line range를 유지한다.
 - supported inline structure에서는 same-file raw markdown exact offset을 additive payload로 계산한다.
+- GFM table은 same-cell selection에서만 cell-local exact offset을 시도한다.
+- repeated text로 exact match가 ambiguous하면 optimistic exact offset을 버리고 line fallback을 선택한다.
+- cross-cell selection은 새 exact heuristic을 도입하지 않고 normalized line range fallback을 유지한다.
 - collapsed selection이나 unsupported structure는 line fallback으로 degrade 한다.
 - rendered selection copy action payload와 popover 설명 문자열은 same-file raw markdown line range를 source of truth로 사용한다.
 - same-path markdown draft가 존재하면, "same-file raw markdown" baseline은 저장본이 아니라 **draft text**를 기준으로 계산한다.
 - `Copy Relative Path`는 `relativePath:Lx` 또는 `relativePath:Lx-Ly` 형식으로 line anchor를 포함한다.
+- rendered table comment marker는 exact offset이 있으면 same-cell anchor에 붙고, exact offset이 없는 legacy/imported table comment는 false precision을 피하기 위해 neutral table anchor로 degrade 한다.
 
 ### 4.2 검색과 navigation
 
@@ -110,3 +114,4 @@
 - rendered block anchor와 interactive source metadata는 의도적으로 분리되어 있다.
 - source mapping을 바꾸면 comment anchor, copy payload, `Go to Source`, `Go to Spec`, navigation highlight 회귀를 같이 확인해야 한다.
 - draft 기반 렌더링을 도입하면 rendered DOM과 source baseline이 함께 움직여야 한다. draft 상태에서 search/copy/comment/go-to-source가 저장본을 참조해 어긋나지 않도록 회귀 테스트를 우선 고정한다.
+- table source mapping을 바꿀 때는 same-cell exact path뿐 아니라 multi-comment same-line marker count, offset-less legacy marker fallback도 함께 확인해야 한다.

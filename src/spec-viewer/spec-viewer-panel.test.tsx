@@ -1301,6 +1301,64 @@ describe('SpecViewerPanel', () => {
     ).toBe(cellSourceLine)
   })
 
+  it('emits exact offset ranges for inline code selections inside a table cell when available', () => {
+    const markdownContent =
+      '# Title\n\n| left | right |\n| --- | --- |\n| alpha | `gamma` |\n'
+    const expectedStartOffset = markdownContent.indexOf('gamma')
+    const expectedEndOffset = expectedStartOffset + 'gamma'.length
+    const { onGoToSourceLine, onRequestAddComment } = renderPanel({
+      markdownContent,
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const codeElement = screen.getByText(
+      (_content, element) => element?.tagName === 'CODE' && element.textContent === 'gamma',
+    )
+    const selectionTextNode = findTextNodeContaining(codeElement, 'gamma')
+    const cell = codeElement.closest('td')
+    const cellSourceLine = Number(cell?.getAttribute('data-source-line-start'))
+    if (!selectionTextNode || !cell || !Number.isFinite(cellSourceLine)) {
+      throw new Error('Expected inline code inside table cell with source metadata')
+    }
+
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset: 0,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => 'gamma',
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(codeElement, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }))
+
+    expect(onRequestAddComment).toHaveBeenCalledWith({
+      relativePath: 'docs/spec.md',
+      selectionRange: {
+        startLine: cellSourceLine,
+        endLine: cellSourceLine,
+      },
+      sourceOffsetRange: {
+        startOffset: expectedStartOffset,
+        endOffset: expectedEndOffset,
+      },
+    })
+
+    fireEvent.contextMenu(codeElement, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    expect(onGoToSourceLine).toHaveBeenCalledWith(cellSourceLine, {
+      startOffset: expectedStartOffset,
+      endOffset: expectedEndOffset,
+    })
+  })
+
   it('emits exact offset ranges for mixed paragraph selections when available', () => {
     const markdownContent = '# Title\n\nalpha **beta** gamma'
     const expectedStartOffset = markdownContent.indexOf('gamma')
@@ -1492,6 +1550,150 @@ describe('SpecViewerPanel', () => {
       const paragraph = screen.getByText('Paragraph').closest('p')
       expect(paragraph).toHaveAttribute('data-has-comment-marker', 'true')
       expect(paragraph).toHaveAttribute('data-comment-count', '2')
+    })
+  })
+
+  it('renders a table comment marker on the table cell instead of the table block', async () => {
+    const markdownContent =
+      '# Title\n\n| left | right |\n| --- | --- |\n| alpha | beta |\n'
+    const betaStartOffset = markdownContent.indexOf('beta')
+    const betaEndOffset = betaStartOffset + 'beta'.length
+    if (betaStartOffset < 0) {
+      throw new Error('Expected beta cell text in markdown source')
+    }
+
+    renderPanel({
+      markdownContent,
+      commentLineCounts: new Map<number, number>([[5, 1]]),
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [
+          5,
+          [
+            {
+              id: 'table-comment-1',
+              relativePath: 'docs/spec.md',
+              startLine: 5,
+              endLine: 5,
+              body: 'cell comment',
+              anchor: {
+                snippet: 'beta',
+                hash: 't111',
+                startOffset: betaStartOffset,
+                endOffset: betaEndOffset,
+              },
+              createdAt: '2026-02-22T00:00:00.000Z',
+            },
+          ],
+        ],
+      ]),
+    })
+
+    await waitFor(() => {
+      const betaCell = screen.getByText('beta').closest('td')
+      const alphaCell = screen.getByText('alpha').closest('td')
+      expect(betaCell).toHaveAttribute('data-has-comment-marker', 'true')
+      expect(alphaCell).not.toHaveAttribute('data-has-comment-marker', 'true')
+      expect(screen.queryByRole('table')).not.toHaveAttribute(
+        'data-has-comment-marker',
+        'true',
+      )
+    })
+  })
+
+  it('keeps per-cell marker counts stable when same-row table comments share a source line', async () => {
+    const markdownContent =
+      '# Title\n\n| left | right |\n| --- | --- |\n| alpha | beta |\n'
+    const alphaStartOffset = markdownContent.indexOf('alpha')
+    const betaStartOffset = markdownContent.indexOf('beta')
+    if (alphaStartOffset < 0 || betaStartOffset < 0) {
+      throw new Error('Expected table cell text in markdown source')
+    }
+
+    renderPanel({
+      markdownContent,
+      commentLineCounts: new Map<number, number>([[5, 2]]),
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [
+          5,
+          [
+            {
+              id: 'table-comment-alpha',
+              relativePath: 'docs/spec.md',
+              startLine: 5,
+              endLine: 5,
+              body: 'alpha comment',
+              anchor: {
+                snippet: 'alpha',
+                hash: 'ta11',
+                startOffset: alphaStartOffset,
+                endOffset: alphaStartOffset + 'alpha'.length,
+              },
+              createdAt: '2026-02-22T00:00:00.000Z',
+            },
+            {
+              id: 'table-comment-beta',
+              relativePath: 'docs/spec.md',
+              startLine: 5,
+              endLine: 5,
+              body: 'beta comment',
+              anchor: {
+                snippet: 'beta',
+                hash: 'tb11',
+                startOffset: betaStartOffset,
+                endOffset: betaStartOffset + 'beta'.length,
+              },
+              createdAt: '2026-02-22T00:00:01.000Z',
+            },
+          ],
+        ],
+      ]),
+    })
+
+    await waitFor(() => {
+      const alphaCell = screen.getByText('alpha').closest('td')
+      const betaCell = screen.getByText('beta').closest('td')
+      expect(alphaCell).toHaveAttribute('data-comment-count', '1')
+      expect(betaCell).toHaveAttribute('data-comment-count', '1')
+      expect(screen.queryByRole('table')).not.toHaveAttribute(
+        'data-has-comment-marker',
+        'true',
+      )
+    })
+  })
+
+  it('renders offset-less table comments on the table container instead of an arbitrary cell', async () => {
+    renderPanel({
+      markdownContent:
+        '# Title\n\n| left | right |\n| --- | --- |\n| alpha | beta |\n',
+      commentLineCounts: new Map<number, number>([[5, 1]]),
+      commentLineEntries: new Map<number, readonly CodeComment[]>([
+        [
+          5,
+          [
+            {
+              id: 'table-comment-legacy',
+              relativePath: 'docs/spec.md',
+              startLine: 5,
+              endLine: 5,
+              body: 'legacy table comment',
+              anchor: {
+                snippet: 'beta',
+                hash: 'legacy1',
+              },
+              createdAt: '2026-02-22T00:00:00.000Z',
+            },
+          ],
+        ],
+      ]),
+    })
+
+    await waitFor(() => {
+      const alphaCell = screen.getByText('alpha').closest('td')
+      const betaCell = screen.getByText('beta').closest('td')
+      const table = screen.getByRole('table')
+      expect(table).toHaveAttribute('data-has-comment-marker', 'true')
+      expect(alphaCell).not.toHaveAttribute('data-has-comment-marker', 'true')
+      expect(betaCell).not.toHaveAttribute('data-has-comment-marker', 'true')
     })
   })
 
