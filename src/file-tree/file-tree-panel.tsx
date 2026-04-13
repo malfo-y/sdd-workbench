@@ -74,6 +74,7 @@ type FileTreePanelProps = {
   onRequestCopyToClipboard?: (entries: { relativePath: string; kind: 'file' | 'directory' }[]) => void
   onRequestPasteFromClipboard?: (destDir: string) => void
   onSearchFiles?: (query: string) => Promise<WorkspaceSearchFilesResult>
+  onRequestRefresh?: () => void
 }
 
 type RenderBudget = {
@@ -550,6 +551,7 @@ export function FileTreePanel({
   onRequestCopyToClipboard,
   onRequestPasteFromClipboard,
   onSearchFiles,
+  onRequestRefresh,
 }: FileTreePanelProps) {
   const [contextMenuState, setContextMenuState] = useState<{
     x: number
@@ -928,6 +930,14 @@ export function FileTreePanel({
             type="search"
             value={searchQuery}
           />
+          <button
+            className="tree-refresh-button"
+            data-testid="file-tree-refresh-button"
+            disabled
+            type="button"
+          >
+            Refresh
+          </button>
         </div>
         <p className="tree-empty">Indexing workspace files...</p>
       </section>
@@ -1056,6 +1066,17 @@ export function FileTreePanel({
           type="search"
           value={searchQuery}
         />
+        <button
+          className="tree-refresh-button"
+          data-testid="file-tree-refresh-button"
+          disabled={!onRequestRefresh}
+          onClick={() => {
+            onRequestRefresh?.()
+          }}
+          type="button"
+        >
+          Refresh
+        </button>
         {searchQuery.length > 0 && (
           <button
             className="tree-search-clear-button"

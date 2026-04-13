@@ -126,6 +126,7 @@ type WorkspaceContextValue = {
     relativePath: string,
     options?: { append?: boolean },
   ) => Promise<void>
+  refreshFileTree: () => Promise<void>
   searchFiles: (query: string) => Promise<WorkspaceSearchFilesResult>
   setWatchModePreference: (
     preference: WorkspaceWatchModePreference,
@@ -3003,6 +3004,31 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     [loadWorkspaceDirectoryChildren],
   )
 
+  const refreshFileTree = useCallback(async () => {
+    const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+    if (!activeWorkspaceId) {
+      return
+    }
+
+    const workspaceSession =
+      workspaceStateRef.current.workspacesById[activeWorkspaceId]
+    if (!workspaceSession) {
+      return
+    }
+
+    const indexStatus = await loadWorkspaceIndex(
+      activeWorkspaceId,
+      workspaceSession.rootPath,
+      'refresh',
+    )
+    if (indexStatus === 'success') {
+      void loadWorkspaceGitFileStatuses(
+        activeWorkspaceId,
+        workspaceSession.rootPath,
+      )
+    }
+  }, [loadWorkspaceGitFileStatuses, loadWorkspaceIndex])
+
   const searchFiles = useCallback(
     async (query: string): Promise<WorkspaceSearchFilesResult> => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -3587,6 +3613,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setSelectionRange,
       setExpandedDirectories,
       loadDirectoryChildren,
+      refreshFileTree,
       searchFiles,
       setWatchModePreference,
       clearBanner,
@@ -3625,6 +3652,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setSelectionRange,
       setExpandedDirectories,
       loadDirectoryChildren,
+      refreshFileTree,
       searchFiles,
       setWatchModePreference,
       clearBanner,

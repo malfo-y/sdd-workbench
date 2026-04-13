@@ -499,6 +499,7 @@ function App() {
     setSelectionRange,
     setExpandedDirectories,
     loadDirectoryChildren,
+    refreshFileTree,
     searchFiles,
     setWatchModePreference,
     clearBanner,
@@ -2442,6 +2443,9 @@ function App() {
               onRequestRename={handleRequestRename}
               onRequestCopyToClipboard={handleRequestCopyToClipboard}
               onRequestPasteFromClipboard={handleRequestPasteFromClipboard}
+              onRequestRefresh={() => {
+                void refreshFileTree()
+              }}
             />
           </section>
         </div>
@@ -2469,6 +2473,7 @@ function App() {
               commentLineEntries={activeFileCommentLineEntries}
               commentLineCounts={activeFileCommentLineCounts}
               gitLineMarkers={activeFileGitLineMarkerMap}
+              isActive={activeTab === 'code'}
               isReadingFile={isReadingFile}
               jumpRequest={codeViewerJumpRequest}
               onSelectRange={setSelectionRange}

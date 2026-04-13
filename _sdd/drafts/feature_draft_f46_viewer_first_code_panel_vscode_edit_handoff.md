@@ -13,6 +13,7 @@
 ## Background & Motivation Updates
 
 ### Update: Code 패널의 제품 역할을 "앱 내 편집기"보다 "탐색 중심 뷰어"로 재정의
+
 **Priority**: High
 **Target Section**: `/_sdd/spec/code-editor/overview.md` > `1. 목적`, `2. 사용자 가시 동작`; `/_sdd/spec/feature-index.md` > `1. Foundation / Workspace / Viewer`
 
@@ -28,6 +29,7 @@ Code 탭의 1차 역할을 read-only viewer로 재정의한다. 앱은 파일 �
 ## Design Changes
 
 ### Design Change: Viewer-first Code 패널 계약
+
 **Priority**: High
 **Target Section**: `/_sdd/spec/code-editor/overview.md` > `2. 사용자 가시 동작`, `4.2 검색 / wrap / fallback`, `4.3 jump와 highlight`; `/_sdd/spec/code-editor/contracts.md` > `2. 핵심 타입`, `3. 전역 불변식`
 
@@ -52,6 +54,7 @@ Code 패널은 read-only를 기본 동작으로 삼는다. 다음 기능은 유�
 - Code 패널을 편집기처럼 설명하는 UI copy
 
 **Acceptance Criteria**:
+
 - [ ] Code 패널은 기본적으로 read-only viewer로 동작한다.
 - [ ] 검색, wrap, selection, jump/highlight는 기존 의미를 유지한다.
 - [ ] git line marker와 comment gutter는 viewer 모드에서도 유지된다.
@@ -60,6 +63,7 @@ Code 패널은 read-only를 기본 동작으로 삼는다. 다음 기능은 유�
 - [ ] Code 패널의 사용자 가시 copy는 `Code Viewer` 기준으로 정리된다.
 
 ### Design Change: File-scoped VS Code 편집 handoff 추가
+
 **Priority**: High
 **Target Section**: `/_sdd/spec/appearance-and-navigation/overview.md` > `2. 사용자 가시 동작`, `4.1 레이아웃과 탭`; `/_sdd/spec/remote-workspace/contracts.md` > `2.3 system:openInIterm / system:openInVsCode / system:openInFinder`
 
@@ -75,6 +79,7 @@ Code 패널 헤더에 `Edit in VSCode` 액션을 추가한다. 기존 사이드�
 fallback은 silent degrade가 아니라 사용자 기대를 깨지 않는 수준의 명시적 동작이어야 한다.
 
 **Acceptance Criteria**:
+
 - [ ] Code 패널 헤더에 `Edit in VSCode` 버튼/아이콘이 추가된다.
 - [ ] active file이 없으면 버튼은 disabled 상태다.
 - [ ] 헤더 액션은 icon + short label 조합으로 노출된다.
@@ -88,6 +93,7 @@ fallback은 silent degrade가 아니라 사용자 기대를 깨지 않는 수준
 ## New Features
 
 ### Feature: F46 Viewer-first Code 패널
+
 **Priority**: High
 **Category**: UX / Product Focus
 **Target Component**: `src/code-editor/code-editor-panel.tsx`, `src/App.tsx`, `src/App.css`
@@ -97,6 +103,7 @@ fallback은 silent degrade가 아니라 사용자 기대를 깨지 않는 수준
 Code 탭을 read-only viewer로 되돌리되, 탐색성과 변경 가시성에 필요한 핵심 기능은 유지한다. 특히 검색, git line marker, navigation highlight, comment gutter, markdown `Go to Spec`는 회귀 없이 남아 있어야 한다.
 
 **Acceptance Criteria**:
+
 - [ ] Code 탭은 직접 편집 없이 파일 내용을 안정적으로 보여준다.
 - [ ] viewer 모드에서 `Cmd+F` 검색이 유지된다.
 - [ ] viewer 모드에서 git line marker(`added`/`modified`)가 유지된다.
@@ -105,6 +112,7 @@ Code 탭을 read-only viewer로 되돌리되, 탐색성과 변경 가시성에 �
 - [ ] image/binary/too-large fallback UI는 기존 동작을 유지한다.
 
 ### Feature: F46.1 VS Code 편집 아이콘
+
 **Priority**: High
 **Category**: External Tool Integration
 **Target Component**: `src/code-editor/code-editor-panel.tsx`, `src/App.tsx`, `electron/system-open.ts`
@@ -114,6 +122,7 @@ Code 탭을 read-only viewer로 되돌리되, 탐색성과 변경 가시성에 �
 Code 패널 헤더에 file-scoped `Edit in VSCode` 액션을 제공한다. 사용자는 현재 파일을 읽다가 필요 시 한 번의 클릭으로 VS Code에서 편집을 이어갈 수 있어야 한다.
 
 **Acceptance Criteria**:
+
 - [ ] 헤더 액션은 현재 active file 기준으로 동작한다.
 - [ ] 버튼은 icon + short label(`Edit`) 조합이며 tooltip/aria-label을 통해 의도가 명확하다.
 - [ ] 로컬 파일은 직접 열리고, 원격 파일은 Remote-SSH 흐름으로 연결된다.
@@ -124,6 +133,7 @@ Code 패널 헤더에 file-scoped `Edit in VSCode` 액션을 제공한다. 사�
 ## Improvements
 
 ### Improvement: VS Code 저장 후 앱 복귀 흐름을 viewer 관점에서 재정의
+
 **Priority**: Medium
 **Target Section**: `/_sdd/spec/workspace-and-file-tree/overview.md` > `4.1 세션과 active file`; `/_sdd/spec/code-editor/overview.md` > `4.1 편집과 저장`
 
@@ -137,6 +147,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 현재 아키텍처를 한 번에 단순화하기보다, 사용자 경험을 먼저 viewer 중심으로 바꾸고 내부 상태 모델 정리는 후속 단계로 분리하는 편이 안전하다.
 
 **Acceptance Criteria**:
+
 - [ ] VS Code에서 저장한 뒤 앱이 watcher 경로로 내용을 반영한다.
 - [ ] active file git line marker가 외부 저장 후에도 갱신된다.
 - [ ] viewer 전환이 document session 제거를 의미하지 않음을 명시한다.
@@ -154,9 +165,11 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 ## Notes
 
 ### Context
+
 이번 변경은 "편집 기능을 완전히 삭제"하는 작업이 아니라, 제품의 기본 사용 흐름을 viewer-first로 재정렬하고, 편집은 VS Code로 넘기는 handoff를 강화하는 작업이다.
 
 ### Constraints
+
 - 기존 search / git marker / navigation highlight / comment gutter는 유지해야 한다.
 - 앱 내부 draft line marker는 새로 추가하지 않는다.
 - workspace-level `Open In VSCode`는 유지한다.
@@ -183,6 +196,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 ## Scope
 
 ### In Scope
+
 - Code 패널을 read-only viewer 기본값으로 재정의
 - 검색, git marker, comment gutter, jump/highlight 유지
 - Code 패널 헤더 `Edit in VSCode` 액션 추가
@@ -190,6 +204,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 - 회귀 테스트 업데이트
 
 ### Out of Scope
+
 - document session / saveState 모델 제거
 - 앱 내부 draft 기반 modified line marker 추가
 - VS Code extension 개발
@@ -204,16 +219,19 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 ## Implementation Phases
 
 ### Phase 1: Code 패널 viewer contract 정리
+
 | ID | Task | Priority | Dependencies | Component |
 |---|---|---|---|---|
 | T1 | Code 패널을 viewer-first contract로 정리하고 header action slot을 확장한다 | P0 | - | Code Viewer Layer |
 
 ### Phase 2: VS Code file handoff 경로 확장
+
 | ID | Task | Priority | Dependencies | Component |
 |---|---|---|---|---|
 | T2 | local/remote file-scoped VS Code open 계약을 추가한다 | P0 | - | External Tool Handoff Layer |
 
 ### Phase 3: App shell 연결 및 회귀 검증
+
 | ID | Task | Priority | Dependencies | Component |
 |---|---|---|---|---|
 | T3 | App shell에서 viewer 기본화와 `Edit in VSCode` 액션을 연결한다 | P0 | T1, T2 | App Shell Wiring Layer |
@@ -221,6 +239,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 ## Task Details
 
 ### Task T1: Code 패널을 viewer-first contract로 정리하고 header action slot을 확장한다
+
 **Component**: Code Viewer Layer
 **Priority**: P0
 **Type**: Refactor
@@ -229,6 +248,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 `CodeEditorPanel`을 제품 의미상 viewer 중심으로 재정리한다. 편집에 직접 필요한 props와 UI copy를 재검토하고, read-only 모드에서 필요한 기능(search, wrap, selection, jump/highlight, git/comment gutter)가 그대로 유지되도록 정리한다. 동시에 헤더에 `Edit in VSCode` 액션이 들어갈 자리를 만든다.
 
 **Acceptance Criteria**:
+
 - [ ] Code 패널이 read-only 기본 동작으로 렌더된다.
 - [ ] `Cmd+F` 검색과 wrap toggle이 기존처럼 동작한다.
 - [ ] git line marker / comment gutter / navigation highlight가 유지된다.
@@ -236,17 +256,20 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 - [ ] 편집/저장 중심 copy가 `Code Viewer` 기준 viewer-first copy로 정리된다.
 
 **Target Files**:
+
 - [M] `src/code-editor/code-editor-panel.tsx` -- read-only 기본 동작, header action 확장, viewer copy 정리
 - [M] `src/code-editor/code-editor-panel.test.tsx` -- viewer mode에서 search/wrap/git marker/header action 회귀 고정
 - [M] `src/App.css` -- Code 패널 헤더 버튼 스타일 보강
 
 **Technical Notes**:
+
 - 현재 컴포넌트는 이미 `editable = false` 기본값을 가지므로, T1은 구조적 재작성보다 App wiring과 copy 정리에 가깝다.
 - 검색과 git gutter는 CM6 extension 레벨 기능이므로 read-only 전환과 분리해서 유지 검증한다.
 
 **Dependencies**: -
 
 ### Task T2: local/remote file-scoped VS Code open 계약을 추가한다
+
 **Component**: External Tool Handoff Layer
 **Priority**: P0
 **Type**: Feature
@@ -255,6 +278,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 기존 workspace-level `system:openInVsCode` 계약을 current-file context까지 다룰 수 있도록 확장한다. 로컬은 active file 직접 open, 원격은 Remote-SSH current-file targeting을 best-effort로 시도하되 필요한 경우 workspace root fallback 또는 명시적 오류를 제공한다.
 
 **Acceptance Criteria**:
+
 - [ ] renderer에서 active file path를 포함한 VS Code open 요청을 보낼 수 있다.
 - [ ] local workspace에서 file-scoped open이 동작한다.
 - [ ] remote workspace에서 기존 Remote-SSH 흐름은 유지된다.
@@ -264,6 +288,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 - [ ] preload/type/test 계약이 함께 갱신된다.
 
 **Target Files**:
+
 - [M] `electron/system-open.ts` -- file-scoped VS Code open 및 remote fallback 정책 구현
 - [M] `electron/system-open.test.ts` -- local file open / remote fallback / failure path 테스트 추가
 - [M] `electron/preload.ts` -- 확장된 open request bridge 반영
@@ -271,6 +296,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 - [M] `electron/vscode-ssh-config.ts` -- 필요 시 current-file handoff prerequisite 문서화/타입 보강
 
 **Technical Notes**:
+
 - 기존 workspace-level open path를 깨지 않도록 request payload는 backward-compatible optional field 추가가 안전하다.
 - remote current-file open은 `sshAlias` + remote absolute file path를 조합한 VS Code Remote-SSH CLI/URI 경로를 우선 검토한다.
 - remote current-file open 보장은 VS Code CLI/URI 제약에 좌우될 수 있으므로 fallback 정책을 먼저 문서화하고 구현해야 한다.
@@ -279,6 +305,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 **Dependencies**: -
 
 ### Task T3: App shell에서 viewer 기본화와 `Edit in VSCode` 액션을 연결한다
+
 **Component**: App Shell Wiring Layer
 **Priority**: P0
 **Type**: Feature
@@ -287,6 +314,7 @@ viewer-first 단계에서는 외부 편집 후 watcher refresh와 git marker ref
 App shell에서 Code 패널을 read-only viewer로 연결하고, active file 기준 `Edit in VSCode` 액션을 wiring한다. 실패 시 기존 banner 시스템을 활용하고, workspace-level `Open In VSCode`는 유지한다.
 
 **Acceptance Criteria**:
+
 - [ ] `CodeEditorPanel`에 `editable`을 강제로 켜지 않는다.
 - [ ] `Edit in VSCode` 클릭 시 active file context로 open 요청이 전달된다.
 - [ ] active file이 없으면 버튼이 disabled다.
@@ -294,12 +322,14 @@ App shell에서 Code 패널을 read-only viewer로 연결하고, active file 기
 - [ ] App-level 회귀 테스트가 viewer-first와 VS Code handoff를 검증한다.
 
 **Target Files**:
+
 - [M] `src/App.tsx` -- Code 패널 read-only wiring, VS Code handoff handler, banner 연동
 - [M] `src/App.test.tsx` -- viewer mode 기본값, header action 동작, disabled/error/fallback 회귀 테스트
 - [M] `README.md` -- 제품 설명을 viewer-first + VS Code handoff 기준으로 보정
 - [M] `README_en.md` -- 영문 제품 설명 동기화
 
 **Technical Notes**:
+
 - watcher/external-change banner는 기존 구현을 최대한 재사용하고, viewer-first 전환으로 즉시 제거하지 않는다.
 - 문서 세션 로직을 그대로 둘 경우에도 UI 표면은 "viewer + external edit" 중심으로 설명해야 한다.
 

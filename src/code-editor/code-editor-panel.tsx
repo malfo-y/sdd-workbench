@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { EditorView, lineNumbers, drawSelection, keymap } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
-import { search, searchKeymap } from '@codemirror/search'
+import { openSearchPanel, search, searchKeymap } from '@codemirror/search'
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
 import type { AppearanceTheme } from '../appearance-theme'
 import type { LineSelectionRange } from '../workspace/workspace-model'
@@ -40,6 +40,7 @@ type CodeEditorPanelProps = {
   activeFileContent: string | null
   activeFileImagePreview: WorkspaceImagePreview | null
   appearanceTheme?: AppearanceTheme
+  isActive?: boolean
   isReadingFile: boolean
   readFileError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
@@ -167,6 +168,20 @@ function clampSelectionPosition(position: number, docLength: number): number {
     return 0
   }
   return Math.max(0, Math.min(position, docLength))
+}
+
+function isEditableElement(target: EventTarget | null): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  const tagName = target.tagName
+  return (
+    tagName === 'INPUT' ||
+    tagName === 'TEXTAREA' ||
+    tagName === 'SELECT' ||
+    target.isContentEditable
+  )
 }
 
 function applyJumpRequestToView(
@@ -343,6 +358,7 @@ export function CodeEditorPanel({
   activeFileContent,
   activeFileImagePreview,
   appearanceTheme = 'dark-gray',
+  isActive = true,
   isReadingFile,
   readFileError,
   previewUnavailableReason,
@@ -781,6 +797,41 @@ export function CodeEditorPanel({
       effects: setCommentMarkers.of(buildCommentMarkersMap(commentLineCounts, commentLineEntries)),
     })
   }, [commentLineCounts, commentLineEntries])
+
+  useEffect(() => {
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      const isFindShortcut =
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'f'
+      if (!isFindShortcut || !isActive || !showEditor) {
+        return
+      }
+
+      const container = containerRef.current
+      if (
+        isEditableElement(event.target) &&
+        (!container || !container.contains(event.target))
+      ) {
+        return
+      }
+
+      const view = viewRef.current
+      if (!view) {
+        return
+      }
+
+      event.preventDefault()
+      openSearchPanel(view)
+      view.focus()
+    }
+
+    window.addEventListener('keydown', handleWindowKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown)
+    }
+  }, [isActive, showEditor])
 
   // ---- Reset context menu on file change ---------------------------------
   useEffect(() => {
