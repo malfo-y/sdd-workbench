@@ -898,11 +898,13 @@ function HighlightedCodeBlock({
   language,
   appearanceTheme,
   onCitationClick,
+  sourceLineStart,
 }: {
   code: string
   language: HighlightLanguage
   appearanceTheme: AppearanceTheme
   onCitationClick: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
+  sourceLineStart?: number
 }) {
   const [highlightedLineTokens, setHighlightedLineTokens] = useState<
     HighlightLineToken[][] | null
@@ -959,13 +961,18 @@ function HighlightedCodeBlock({
           onCitationClick,
         })
 
+        const sourceLineValue =
+          sourceLineStart != null ? sourceLineStart + index : undefined
+
         return (
           <Fragment key={`code-line-${lineNumber}`}>
-            {renderedCitationSegments ? (
-              renderedCitationSegments
-            ) : (
-              <span dangerouslySetInnerHTML={{ __html: renderedLine }} />
-            )}
+            <span data-source-line={sourceLineValue}>
+              {renderedCitationSegments ? (
+                renderedCitationSegments
+              ) : (
+                <span dangerouslySetInnerHTML={{ __html: renderedLine }} />
+              )}
+            </span>
             {lineNumber < renderedLines.length ? '\n' : null}
           </Fragment>
         )
@@ -1844,6 +1851,7 @@ export function SpecViewerPanel({
             code={codeText}
             language={language}
             onCitationClick={handleMarkdownLinkClick}
+            sourceLineStart={node?.position?.start?.line}
           />
         )
       },
@@ -1896,9 +1904,7 @@ export function SpecViewerPanel({
           },
         ),
       tr: (props) =>
-        renderElementWithSourceLine('tr', props as Record<string, unknown>, {
-          includeAnchorLine: false,
-        }),
+        renderElementWithSourceLine('tr', props as Record<string, unknown>),
       th: (props) =>
         renderBlockWithSourceLine(
           'th',

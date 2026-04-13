@@ -14,6 +14,7 @@
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
 - prose, inline code span, 또는 fenced code block 안의 `[path.py:Symbol]` / `[path.py:Class.method]` bracket citation을 클릭해 Python 선언 위치로 점프할 수 있다.
 - citation 해석에 실패하면 기존 link popover 안에서 실패 이유를 확인할 수 있다.
+- rendered spec의 각 블록 요소(p, h1~h6, li) 좌측에 원문 `.md` 줄번호가 거터 형태로 표시된다. 테이블 행(`tr`)에도 줄번호가 표시된다. fenced code block 내부의 각 줄에도 원문 줄번호가 `<span data-source-line>` 방식으로 표시된다. `blockquote`, `table` 컨테이너와 `pre` 래퍼는 줄번호를 표시하지 않는다(`pre`는 내부 줄별 `<span>`과의 중복 방지). `th`/`td` 셀은 행 단위 표시로 충분하므로 개별 줄번호를 표시하지 않는다. 기존 comment marker와 공존한다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -115,3 +116,4 @@
 - source mapping을 바꾸면 comment anchor, copy payload, `Go to Source`, `Go to Spec`, navigation highlight 회귀를 같이 확인해야 한다.
 - draft 기반 렌더링을 도입하면 rendered DOM과 source baseline이 함께 움직여야 한다. draft 상태에서 search/copy/comment/go-to-source가 저장본을 참조해 어긋나지 않도록 회귀 테스트를 우선 고정한다.
 - table source mapping을 바꿀 때는 same-cell exact path뿐 아니라 multi-comment same-line marker count, offset-less legacy marker fallback도 함께 확인해야 한다.
+- 코드 블록 source mapping(`pre` suppression + 내부 `<span>` 줄번호)을 바꿀 때는 citation navigation, syntax highlighting, 기존 `pre`-level source action 회귀를 함께 확인해야 한다.

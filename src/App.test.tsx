@@ -3591,7 +3591,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('opens spec search with Cmd+F only when the Spec tab is active', async () => {
+  it('opens code/spec search with Cmd+F for the active tab', async () => {
     const workspaceRoot = '/Users/tester/spec-search-hotkey'
 
     openDialogMock.mockResolvedValueOnce({
@@ -3655,10 +3655,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     window.dispatchEvent(codeFindEvent)
 
-    expect(codeFindEvent.defaultPrevented).toBe(false)
-    expect(
-      screen.queryByTestId('spec-viewer-search-input'),
-    ).not.toBeInTheDocument()
+    expect(codeFindEvent.defaultPrevented).toBe(true)
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('code-viewer-content').querySelector('.cm-search'),
+      ).not.toBeNull()
+    })
+    expect(screen.queryByTestId('spec-viewer-search-input')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'guide.md' }))
     await waitFor(() => {
@@ -4068,6 +4071,42 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(screen.getByRole('button', { name: 'notes' })).toBeInTheDocument()
     })
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes file tree from the refresh button', async () => {
+    const workspaceRoot = '/Users/tester/manual-tree-refresh'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'docs', relativePath: 'docs', kind: 'directory', children: [] }],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'notes', relativePath: 'notes', kind: 'directory', children: [] }],
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('file-tree-refresh-button'))
+
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('button', { name: 'notes' })).toBeInTheDocument()
+    })
   })
 
   it('keeps file tree visible while structure refresh is in flight', async () => {
@@ -10969,6 +11008,71 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         workspaceRoot,
         'a.ts',
       )
+    })
+  })
+
+  describe('source line gutter CSS', () => {
+    it('defines ::before pseudo-element for data-source-line blocks inside spec-viewer-content', () => {
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s+\[data-source-line\]::before/,
+      )
+    })
+
+    it('uses content: attr(data-source-line) to display the line number', () => {
+      expect(appCssSource).toMatch(
+        /content:\s*attr\(data-source-line\)/,
+      )
+    })
+
+    it('suppresses line number display on blockquote and table containers', () => {
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s+blockquote\[data-source-line\]::before/,
+      )
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s+table\[data-source-line\]::before/,
+      )
+    })
+
+    it('provides left padding and position: relative on spec-viewer-content for the gutter area', () => {
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s*\{[\s\S]*?padding-left:\s*4\.5rem/,
+      )
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s*\{[\s\S]*?position:\s*relative/,
+      )
+    })
+
+    it('uses monospace font and muted color for line numbers', () => {
+      const gutterRule = appCssSource.match(
+        /\.spec-viewer-content\s+\[data-source-line\]::before\s*\{([^}]*)\}/,
+      )
+      expect(gutterRule).toBeTruthy()
+      const ruleBody = gutterRule?.[1] ?? ''
+      expect(ruleBody).toMatch(/font-family:.*monospace/)
+      expect(ruleBody).toMatch(/var\(--theme-text-muted\)/)
+    })
+
+    it('adjusts layout so comment marker and line number do not overlap', () => {
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s+\.spec-comment-marker/,
+      )
+    })
+
+    it('suppresses line number display on pre elements to avoid duplication with inner code spans (V4)', () => {
+      expect(appCssSource).toMatch(
+        /\.spec-viewer-content\s+pre\[data-source-line\]::before/,
+      )
+      const preRule = appCssSource.match(
+        /\.spec-viewer-content\s+pre\[data-source-line\]::before\s*[,{][^}]*content:\s*none/,
+      )
+      expect(preRule).toBeTruthy()
+    })
+
+    it('maintains table container suppression (V5)', () => {
+      const tableRule = appCssSource.match(
+        /\.spec-viewer-content\s+table\[data-source-line\]::before/,
+      )
+      expect(tableRule).toBeTruthy()
     })
   })
 })

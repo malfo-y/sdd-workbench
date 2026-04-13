@@ -682,6 +682,8 @@
   box-shadow: var(--theme-surface-shadow);
   overflow: auto;
   padding: 12px;
+  padding-left: 4.5rem;
+  position: relative;
   min-height: 0;
   height: 100%;
 }
@@ -1070,6 +1072,40 @@
   min-height: 0;
   height: 100%;
   width: 100%;
+}
+
+.tree-search-bar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tree-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-refresh-button,
+.tree-search-clear-button {
+  background: var(--theme-bg-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  color: var(--theme-text-primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 10px;
+}
+
+.tree-refresh-button:disabled,
+.tree-search-clear-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.tree-refresh-button:not(:disabled):hover,
+.tree-search-clear-button:not(:disabled):hover {
+  background: var(--theme-bg-ghost);
 }
 
 .tree-list {
@@ -1475,9 +1511,59 @@
 }
 
 
-.spec-viewer-content [data-has-comment-marker='true'] {
-  padding-left: 1.8rem;
-  position: relative;
+/* --- Source line gutter -------------------------------------------------- */
+/* Line numbers are positioned relative to .spec-viewer-content (which has
+   position: relative + padding-left: 3.5rem).  Individual elements do NOT
+   get position: relative, so ::before's containing block is the container
+   itself — this keeps every line number in a fixed left column regardless
+   of content indentation (lists, blockquotes, etc.).                       */
+
+.spec-viewer-content [data-source-line]::before {
+  color: var(--theme-text-muted);
+  content: attr(data-source-line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.72rem;
+  left: 0;
+  line-height: inherit;
+  opacity: 0.5;
+  pointer-events: none;
+  position: absolute;
+  text-align: right;
+  user-select: none;
+  width: 3rem;
+}
+
+/* Suppress gutter on container elements — only leaf children show numbers.
+   pre is also suppressed because inner code-line <span>s carry their own
+   data-source-line (added by HighlightedCodeBlock).
+   NOTE: tr is NOT suppressed — its ::before uses position:absolute which
+   leaves normal table-row flow, so it renders correctly in Chromium/Electron.
+   table is suppressed because tr children carry their own line numbers.      */
+.spec-viewer-content blockquote[data-source-line]::before,
+.spec-viewer-content table[data-source-line]::before,
+.spec-viewer-content pre[data-source-line]::before {
+  content: none;
+}
+
+/* Code-block inner line numbers — each code line is wrapped in an inline
+   <span data-source-line="N"> inside <code>.  The spans remain inline so
+   that the inter-line '\n' text nodes are the sole line-break mechanism
+   (consistent with resolveCodeBlockLineOffset which counts '\n' in DOM
+   text).  The ::before pseudo-element uses position:absolute with
+   .spec-viewer-content as containing block, keeping line numbers in the
+   fixed left gutter column.                                                  */
+
+/* --- Comment marker + line gutter coexistence ----------------------------- */
+/* Both line numbers (::before) and comment markers are positioned relative
+   to .spec-viewer-content.  No element needs position: relative, so the
+   gutter column stays fixed regardless of content nesting depth.
+   Layout:  [0…3rem line#] [3.1rem…~4.4rem marker] [4.5rem content]         */
+
+.spec-viewer-content .spec-comment-marker {
+  left: 3.1rem;
+  top: auto;
+  margin-top: 0.15rem;
 }
 
 .spec-viewer-content .is-spec-search-match {

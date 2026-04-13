@@ -1844,7 +1844,7 @@ describe('SpecViewerPanel', () => {
     )
   })
 
-  it('maps table row matches to the rendered table block', async () => {
+  it('maps table row matches to the matching tr element', async () => {
     renderPanel({
       markdownContent:
         '# Title\n\n| Name | Value |\n| --- | --- |\n| Guide row | 1 |\n| Other | 2 |',
@@ -1854,11 +1854,17 @@ describe('SpecViewerPanel', () => {
     fireEvent.keyDown(window, { key: 'f', metaKey: true })
 
     const input = await screen.findByTestId('spec-viewer-search-input')
-    const table = screen.getByRole('table') as HTMLElement
-    const tableScrollIntoView = vi.fn()
-    Object.defineProperty(table, 'scrollIntoView', {
+    const content = screen.getByTestId('spec-viewer-content')
+
+    // Find the tr that contains "Guide row" — it now has data-source-line
+    const allRows = Array.from(content.querySelectorAll('tr'))
+    const guideRow = allRows.find((row) => row.textContent?.includes('Guide row'))
+    expect(guideRow).toBeTruthy()
+
+    const rowScrollIntoView = vi.fn()
+    Object.defineProperty(guideRow!, 'scrollIntoView', {
       configurable: true,
-      value: tableScrollIntoView,
+      value: rowScrollIntoView,
     })
 
     fireEvent.change(input, { target: { value: 'guide' } })
@@ -1866,9 +1872,9 @@ describe('SpecViewerPanel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('spec-viewer-search-count')).toHaveTextContent('1 / 1')
     })
-    expect(table).toHaveClass('is-spec-search-match')
-    expect(table).toHaveClass('is-spec-search-focus')
-    expect(tableScrollIntoView).toHaveBeenCalled()
+    expect(guideRow).toHaveClass('is-spec-search-match')
+    expect(guideRow).toHaveClass('is-spec-search-focus')
+    expect(rowScrollIntoView).toHaveBeenCalled()
   })
 
   it('navigates between search results and closes search on Escape', async () => {
@@ -2036,5 +2042,120 @@ describe('SpecViewerPanel', () => {
     fireEvent.keyDown(window, { key: 'f', metaKey: true })
 
     expect(screen.queryByTestId('spec-viewer-search-input')).not.toBeInTheDocument()
+  })
+
+  describe('source line gutter', () => {
+    it('attaches data-source-line to leaf block elements (p, li, h1-h6, pre)', () => {
+      renderPanel({
+        markdownContent: '# Heading\n\nParagraph text\n\n- item one\n- item two\n\n```js\nconsole.log("hi")\n```',
+      })
+
+      const content = screen.getByTestId('spec-viewer-content')
+      const heading = content.querySelector('h1')
+      const paragraph = content.querySelector('p')
+      const listItems = content.querySelectorAll('li')
+      const preBlock = content.querySelector('pre')
+
+      expect(heading).toBeTruthy()
+      expect(heading?.getAttribute('data-source-line')).toBeTruthy()
+
+      expect(paragraph).toBeTruthy()
+      expect(paragraph?.getAttribute('data-source-line')).toBeTruthy()
+
+      expect(listItems.length).toBeGreaterThanOrEqual(2)
+      for (const li of listItems) {
+        expect(li.getAttribute('data-source-line')).toBeTruthy()
+      }
+
+      expect(preBlock).toBeTruthy()
+      expect(preBlock?.getAttribute('data-source-line')).toBeTruthy()
+    })
+
+    it('attaches data-source-line to blockquote container but CSS should suppress its gutter display', () => {
+      renderPanel({
+        markdownContent: '> quoted paragraph\n>\n> second paragraph',
+      })
+
+      const content = screen.getByTestId('spec-viewer-content')
+      const blockquote = content.querySelector('blockquote')
+      const innerParagraphs = blockquote?.querySelectorAll('p') ?? []
+
+      expect(blockquote).toBeTruthy()
+      expect(blockquote?.getAttribute('data-source-line')).toBeTruthy()
+
+      expect(innerParagraphs.length).toBeGreaterThanOrEqual(1)
+      for (const p of innerParagraphs) {
+        expect(p.getAttribute('data-source-line')).toBeTruthy()
+      }
+    })
+
+    it('attaches data-source-line to table container but th/td use data-source-line-start only', () => {
+      renderPanel({
+        markdownContent: '| A | B |\n|---|---|\n| x | y |',
+      })
+
+      const content = screen.getByTestId('spec-viewer-content')
+      const table = content.querySelector('table')
+
+      expect(table).toBeTruthy()
+      expect(table?.getAttribute('data-source-line')).toBeTruthy()
+
+      const cells = content.querySelectorAll('th, td')
+      for (const cell of cells) {
+        expect(cell.getAttribute('data-source-line')).toBeNull()
+        expect(cell.getAttribute('data-source-line-start')).toBeTruthy()
+      }
+    })
+
+    it('attaches data-source-line to tr elements for table row line numbers (V1)', () => {
+      renderPanel({
+        markdownContent: '# Title\n\n| Col A | Col B |\n|-------|-------|\n| val1  | val2  |\n| val3  | val4  |',
+      })
+
+      const content = screen.getByTestId('spec-viewer-content')
+      const rows = content.querySelectorAll('tr')
+
+      expect(rows.length).toBeGreaterThanOrEqual(2)
+      for (const row of rows) {
+        expect(row.getAttribute('data-source-line')).toBeTruthy()
+      }
+    })
+
+    it('does not attach data-source-line to th/td cells — only tr rows get it (V2)', () => {
+      renderPanel({
+        markdownContent: '| A | B |\n|---|---|\n| x | y |',
+      })
+
+      const content = screen.getByTestId('spec-viewer-content')
+      const cells = content.querySelectorAll('th, td')
+      for (const cell of cells) {
+        expect(cell.getAttribute('data-source-line')).toBeNull()
+      }
+    })
+
+    it('attaches data-source-line to spans inside fenced code blocks (V3)', async () => {
+      renderPanel({
+        markdownContent: '# Title\n\n```python\ndef hello():\n    print("world")\n```',
+      })
+
+      const content = screen.getByTestId('spec-viewer-content')
+      const codeElement = content.querySelector('pre code')
+      expect(codeElement).toBeTruthy()
+
+      const lineSpans = codeElement?.querySelectorAll('span[data-source-line]') ?? []
+      expect(lineSpans.length).toBe(2)
+
+      // In this markdown: line 1 = "# Title", line 2 = "", line 3 = "```python",
+      // line 4 = "def hello():", line 5 = '    print("world")', line 6 = "```".
+      // The remark code node's position.start.line points to the opening fence
+      // (line 3), so sourceLineStart = 3.  The first code line gets 3+0=3 and
+      // the second gets 3+1=4.  This is consistent with the existing
+      // resolveCodeBlockLineOffset logic in source-line-resolver.ts which also
+      // uses pre's data-source-line-start (opening fence) as the base.
+      const firstLineNum = Number(lineSpans[0]?.getAttribute('data-source-line'))
+      const secondLineNum = Number(lineSpans[1]?.getAttribute('data-source-line'))
+      expect(firstLineNum).toBe(3)
+      expect(secondLineNum).toBe(4)
+    })
   })
 })
