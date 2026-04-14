@@ -7,17 +7,24 @@ export type RenderLlmBundleInput = {
 }
 
 function renderCommentBlock(comment: CodeComment): string {
-  return [
-    `### ${comment.relativePath}:L${comment.startLine}-L${comment.endLine}`,
-    '',
-    comment.body,
-    '',
-    `- anchor.hash: ${comment.anchor.hash}`,
-    `- anchor.snippet: ${comment.anchor.snippet || '(empty)'}`,
-    ...(comment.anchor.before ? [`- anchor.before: ${comment.anchor.before}`] : []),
-    ...(comment.anchor.after ? [`- anchor.after: ${comment.anchor.after}`] : []),
-    `- createdAt: ${comment.createdAt}`,
-  ].join('\n')
+  const header =
+    comment.startLine === comment.endLine
+      ? `### ${comment.relativePath}:L${comment.startLine}`
+      : `### ${comment.relativePath}:L${comment.startLine} (~L${comment.endLine})`
+
+  const snippetFirstLine = comment.anchor.snippet
+    ? comment.anchor.snippet.split('\n')[0]
+    : ''
+
+  const lines: string[] = [header, '']
+
+  if (snippetFirstLine) {
+    lines.push(`> ${snippetFirstLine}`, '')
+  }
+
+  lines.push(comment.body)
+
+  return lines.join('\n')
 }
 
 function normalizeGlobalComments(globalComments: string | undefined): string {
