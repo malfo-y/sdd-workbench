@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   browseRemoteDirectories,
+  buildBrowseSshArgs,
   buildRemoteDirectoryBrowseScript,
 } from './directory-browser'
 
@@ -103,6 +104,26 @@ describe('remote-agent/directory-browser', () => {
     })
   })
 
+  it('surfaces trimmed stderr for non-auth ssh failures', async () => {
+    await expect(
+      browseRemoteDirectories(
+        {
+          host: 'example.com',
+        },
+        {
+          runSshCommand: async () => ({
+            exitCode: 1,
+            stdout: '',
+            stderr: '  ssh: connection reset by peer  \n',
+          }),
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'CONNECTION_CLOSED',
+      message: 'ssh: connection reset by peer',
+    })
+  })
+
   it('builds browse script with target path and limit', () => {
     const script = buildRemoteDirectoryBrowseScript({
       targetPath: '~/workspace',
@@ -112,5 +133,41 @@ describe('remote-agent/directory-browser', () => {
     expect(script).toContain("requested_path='~/workspace'")
     expect(script).toContain('limit=123')
     expect(script).toContain('__SDD_BROWSE_ENTRY__')
+  })
+
+  it('uses shared ssh args and rejects option-like destinations', () => {
+    expect(
+      buildBrowseSshArgs(
+        {
+          host: 'example.com',
+          user: 'tester',
+          port: 2222,
+          identityFile: '~/.ssh/id_ed25519',
+        },
+        'echo browse',
+      ),
+    ).toEqual([
+      '-p',
+      '2222',
+      '-i',
+      expect.stringContaining('/.ssh/id_ed25519'),
+      '-o',
+      'IdentitiesOnly=yes',
+      '-o',
+      'ConnectTimeout=10',
+      'tester@example.com',
+      'sh',
+      '-lc',
+      "'echo browse'",
+    ])
+
+    expect(() =>
+      buildBrowseSshArgs(
+        {
+          host: '-oProxyCommand=evil',
+        },
+        "'echo browse'",
+      ),
+    ).toThrow('host must not start with "-"')
   })
 })

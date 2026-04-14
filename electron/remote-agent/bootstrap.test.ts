@@ -1,11 +1,15 @@
+import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   bootstrapRemoteAgent,
+  buildInstallAgentScript,
+  buildProbeAgentScript,
   buildSshArgs,
   isSshNodeRuntimeMissing,
   normalizeLocalIdentityFilePath,
+  resolveRemoteAgentPath,
 } from './bootstrap'
 import { RemoteAgentError, REMOTE_AGENT_PROTOCOL_VERSION } from './protocol'
 import type { RemoteConnectionProfile } from './types'
@@ -14,6 +18,28 @@ const profile: RemoteConnectionProfile = {
   workspaceId: 'workspace-a',
   host: 'example.com',
   remoteRoot: '/repo',
+}
+
+function resolveShellVariable(
+  assignment: string,
+  variableName: string,
+  homeDir: string,
+): string {
+  return execFileSync(
+    'sh',
+    [
+      '-lc',
+      `${assignment}
+printf '%s' "$${variableName}"`,
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    },
+  )
 }
 
 describe('remote-agent/bootstrap', () => {
@@ -78,6 +104,46 @@ describe('remote-agent/bootstrap', () => {
       '-lc',
       "'echo hello'",
     ])
+  })
+
+  it('preserves $HOME expansion for generated bootstrap script assignments', () => {
+    const agentPath = resolveRemoteAgentPath({
+      ...profile,
+      agentPath: "~/bin/agent's folder/remote agent",
+    })
+    const homeDir = '/tmp/bootstrap home'
+
+    expect(agentPath).toBe("$HOME/bin/agent's folder/remote agent")
+
+    const probeScript = buildProbeAgentScript(agentPath)
+    const installScript = buildInstallAgentScript(agentPath)
+    const [probeAgentPathAssignment] = probeScript.split('\n')
+    const [installAgentPathAssignment, installAgentDirAssignment] =
+      installScript.split('\n')
+
+    expect(resolveShellVariable(probeAgentPathAssignment, 'agent_path', homeDir)).toBe(
+      "/tmp/bootstrap home/bin/agent's folder/remote agent",
+    )
+    expect(
+      resolveShellVariable(installAgentPathAssignment, 'agent_path', homeDir),
+    ).toBe("/tmp/bootstrap home/bin/agent's folder/remote agent")
+    expect(resolveShellVariable(installAgentDirAssignment, 'agent_dir', homeDir)).toBe(
+      "/tmp/bootstrap home/bin/agent's folder",
+    )
+    expect(probeScript).toContain(`agent_path="$HOME"'/bin/agent'"'"'s folder/remote agent'`)
+    expect(probeScript).toContain('"$agent_path" --protocol-version')
+    expect(installScript).toContain('mkdir -p "$agent_dir"')
+    expect(installScript).toContain(`cat > "$agent_path" <<'__SDD_REMOTE_AGENT__'`)
+    expect(installScript).toContain('"$agent_path" --protocol-version')
+  })
+
+  it('rejects control characters in agentPath', () => {
+    expect(() =>
+      resolveRemoteAgentPath({
+        ...profile,
+        agentPath: '/tmp/agent\nmalicious',
+      }),
+    ).toThrow('agentPath contains unsupported control characters.')
   })
 
   it('reinstalls even when agent already exists with compatible version', async () => {

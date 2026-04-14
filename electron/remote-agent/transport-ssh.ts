@@ -15,13 +15,17 @@ import {
   type JsonLineFramingError,
 } from './framing'
 import {
-  NODE_RUNTIME_MISSING_MESSAGE,
   bootstrapRemoteAgent,
-  normalizeLocalIdentityFilePath,
   isSshNodeRuntimeMissing,
   type RemoteAgentBootstrapResult,
   type RemoteAgentBootstrapper,
 } from './bootstrap'
+import {
+  NODE_RUNTIME_MISSING_MESSAGE,
+  buildSshBaseArgs,
+  shellEscape,
+  shellEscapeRemotePath,
+} from './ssh-utils'
 import type { RemoteConnectionProfile } from './types'
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
@@ -246,8 +250,28 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
         timeoutHandle,
       })
 
+      const stdin = this.process?.stdin
+      if (!stdin || stdin.destroyed || !stdin.writable) {
+        clearTimeout(timeoutHandle)
+        this.pendingRequests.delete(requestId)
+        reject(
+          new RemoteAgentError(
+            'CONNECTION_CLOSED',
+            'Remote agent session stdin is no longer writable.',
+          ),
+        )
+        return
+      }
+
       try {
-        this.process?.stdin.write(frame)
+        stdin.write(frame, (error) => {
+          if (!error) {
+            return
+          }
+          clearTimeout(timeoutHandle)
+          this.pendingRequests.delete(requestId)
+          reject(toRemoteAgentError(error, 'CONNECTION_CLOSED'))
+        })
       } catch (error) {
         clearTimeout(timeoutHandle)
         this.pendingRequests.delete(requestId)
@@ -459,48 +483,17 @@ function spawnSshProcess(
   })
 }
 
-function appendIdentityArgs(
-  profile: RemoteConnectionProfile,
-  args: string[],
-): void {
-  const identityFile = profile.identityFile?.trim()
-  if (!identityFile) {
-    return
-  }
-  args.push('-i', normalizeLocalIdentityFilePath(identityFile))
-  args.push('-o', 'IdentitiesOnly=yes')
-}
-
 export function buildSshProcessArgs(
   profile: RemoteConnectionProfile,
   bootstrap: RemoteAgentBootstrapResult,
 ): string[] {
-  const args: string[] = []
-  if (profile.port) {
-    args.push('-p', String(profile.port))
-  }
-  appendIdentityArgs(profile, args)
-
-  const timeoutSeconds = Math.max(
-    1,
-    Math.floor((profile.connectTimeoutMs ?? 10_000) / 1000),
-  )
-  args.push('-o', `ConnectTimeout=${timeoutSeconds}`)
-  args.push(profile.user ? `${profile.user}@${profile.host}` : profile.host)
-
   const remoteCommand = [
-    bootstrap.agentPath,
+    shellEscapeRemotePath(bootstrap.agentPath),
     '--stdio',
     '--protocol-version',
     REMOTE_AGENT_PROTOCOL_VERSION,
     '--workspace-root',
     shellEscape(profile.remoteRoot),
   ].join(' ')
-  args.push('sh', '-lc', shellEscape(remoteCommand))
-
-  return args
-}
-
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`
+  return [...buildSshBaseArgs(profile), 'sh', '-lc', shellEscape(remoteCommand)]
 }

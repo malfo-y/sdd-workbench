@@ -1,7 +1,13 @@
-import { execFile, type ExecFileException } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { buildSshArgs } from './bootstrap'
 import { RemoteAgentError, toRemoteAgentError, type RemoteAgentErrorCode } from './protocol'
+import {
+  buildSshArgs,
+  extractNumericExitCode,
+  isSshAuthFailure,
+  normalizeSshErrorMessage,
+  shellEscape,
+} from './ssh-utils'
 
 const DEFAULT_BROWSE_LIMIT = 500
 const MAX_BROWSE_LIMIT = 5_000
@@ -310,11 +316,7 @@ function parseErrorCode(rawCode: string | undefined): RemoteAgentErrorCode {
   return 'UNKNOWN'
 }
 
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`
-}
-
-function buildBrowseSshArgs(
+export function buildBrowseSshArgs(
   request: RemoteDirectoryBrowseRequest,
   command: string,
 ): string[] {
@@ -361,7 +363,7 @@ async function runSshCommand(
           return
         }
 
-        const exitCode = getNumericExitCode(error)
+        const exitCode = extractNumericExitCode(error)
         if (typeof exitCode === 'number') {
           resolve({
             exitCode,
@@ -377,28 +379,9 @@ async function runSshCommand(
   })
 }
 
-function getNumericExitCode(error: ExecFileException): number | undefined {
-  if (typeof error.code === 'number') {
-    return error.code
-  }
-  return undefined
-}
-
 function isTimeoutError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false
   }
   return /timeout|timed out|etimedout/i.test(error.message)
-}
-
-function isSshAuthFailure(stderr: string): boolean {
-  return stderr.toLowerCase().includes('permission denied')
-}
-
-function normalizeSshErrorMessage(stderr: string, fallback: string): string {
-  const trimmed = stderr.trim()
-  if (!trimmed) {
-    return fallback
-  }
-  return trimmed
 }

@@ -1,5 +1,4 @@
-import { execFile, type ExecFileException } from 'node:child_process'
-import os from 'node:os'
+import { execFile } from 'node:child_process'
 import path from 'node:path'
 import {
   RemoteAgentError,
@@ -8,6 +7,16 @@ import {
   toRemoteAgentError,
 } from './protocol'
 import { REMOTE_AGENT_RUNTIME_PAYLOAD } from './runtime/generated-payload'
+import {
+  buildSshArgs,
+  extractNumericExitCode,
+  isSshAuthFailure,
+  isSshNodeRuntimeMissing,
+  normalizeLocalIdentityFilePath,
+  normalizeSshErrorMessage,
+  shellEscape,
+  shellEscapeRemotePath,
+} from './ssh-utils'
 import type { RemoteConnectionProfile } from './types'
 
 const DEFAULT_REMOTE_AGENT_PATH = '$HOME/.sdd-workbench/bin/sdd-remote-agent'
@@ -15,8 +24,6 @@ const SSH_MAX_BUFFER_BYTES = 1024 * 1024
 const PROBE_MISSING_MARKER = '__SDD_REMOTE_AGENT_MISSING__'
 const PROBE_READY_MARKER = '__SDD_REMOTE_AGENT_READY__'
 const PROBE_STUB_MARKER = '__SDD_REMOTE_AGENT_STUB__'
-export const NODE_RUNTIME_MISSING_MESSAGE =
-  'Remote Node.js runtime is missing on the target host. Install Node.js and ensure "node" is available in non-interactive SSH shell PATH.'
 
 export type RemoteAgentProbeResult = {
   exists: boolean
@@ -82,18 +89,7 @@ export function createDefaultBootstrapDeps(): RemoteAgentBootstrapDeps {
   return {
     probeAgent: async (profile) => {
       const agentPath = resolveRemoteAgentPath(profile)
-      const probeScript = [
-        `if [ -x ${agentPath} ]; then`,
-        `  ${agentPath} --protocol-version`,
-        `  if ${agentPath} --healthcheck >/dev/null 2>&1; then`,
-        `    echo ${PROBE_READY_MARKER}`,
-        '  else',
-        `    echo ${PROBE_STUB_MARKER}`,
-        '  fi',
-        'else',
-        `  echo ${PROBE_MISSING_MARKER}`,
-        'fi',
-      ].join('\n')
+      const probeScript = buildProbeAgentScript(agentPath)
 
       const result = await runSshCommand(profile, probeScript)
       if (result.exitCode === 255 && isSshAuthFailure(result.stderr)) {
@@ -141,15 +137,7 @@ export function createDefaultBootstrapDeps(): RemoteAgentBootstrapDeps {
     },
     installAgent: async (profile) => {
       const agentPath = resolveRemoteAgentPath(profile)
-      const installScript = [
-        `mkdir -p ${path.posix.dirname(agentPath)}`,
-        `cat > ${agentPath} <<'__SDD_REMOTE_AGENT__'`,
-        REMOTE_AGENT_RUNTIME_PAYLOAD,
-        '__SDD_REMOTE_AGENT__',
-        `chmod +x ${agentPath}`,
-        `${agentPath} --healthcheck >/dev/null 2>&1`,
-        `${agentPath} --protocol-version`,
-      ].join('\n')
+      const installScript = buildInstallAgentScript(agentPath)
 
       const result = await runSshCommand(profile, installScript)
       if (result.exitCode === 255 && isSshAuthFailure(result.stderr)) {
@@ -168,7 +156,42 @@ export function createDefaultBootstrapDeps(): RemoteAgentBootstrapDeps {
   }
 }
 
-function resolveRemoteAgentPath(profile: RemoteConnectionProfile): string {
+export function buildProbeAgentScript(agentPath: string): string {
+  const escapedAgentPath = shellEscapeRemotePath(agentPath)
+
+  return [
+    `agent_path=${escapedAgentPath}`,
+    'if [ -x "$agent_path" ]; then',
+    '  "$agent_path" --protocol-version',
+    '  if "$agent_path" --healthcheck >/dev/null 2>&1; then',
+    `    echo ${PROBE_READY_MARKER}`,
+    '  else',
+    `    echo ${PROBE_STUB_MARKER}`,
+    '  fi',
+    'else',
+    `  echo ${PROBE_MISSING_MARKER}`,
+    'fi',
+  ].join('\n')
+}
+
+export function buildInstallAgentScript(agentPath: string): string {
+  const escapedAgentPath = shellEscapeRemotePath(agentPath)
+  const escapedAgentDir = shellEscapeRemotePath(path.posix.dirname(agentPath))
+
+  return [
+    `agent_path=${escapedAgentPath}`,
+    `agent_dir=${escapedAgentDir}`,
+    'mkdir -p "$agent_dir"',
+    `cat > "$agent_path" <<'__SDD_REMOTE_AGENT__'`,
+    REMOTE_AGENT_RUNTIME_PAYLOAD,
+    '__SDD_REMOTE_AGENT__',
+    'chmod +x "$agent_path"',
+    '"$agent_path" --healthcheck >/dev/null 2>&1',
+    '"$agent_path" --protocol-version',
+  ].join('\n')
+}
+
+export function resolveRemoteAgentPath(profile: RemoteConnectionProfile): string {
   const configuredAgentPath = profile.agentPath?.trim() || DEFAULT_REMOTE_AGENT_PATH
   if (!configuredAgentPath) {
     throw new RemoteAgentError('BOOTSTRAP_FAILED', 'agentPath is required.')
@@ -177,51 +200,21 @@ function resolveRemoteAgentPath(profile: RemoteConnectionProfile): string {
   const normalizedPath = configuredAgentPath.startsWith('~/')
     ? `$HOME/${configuredAgentPath.slice(2)}`
     : configuredAgentPath
-  const isSafePathExpression = /^[A-Za-z0-9_./$~-]+$/.test(normalizedPath)
-  if (!isSafePathExpression) {
+
+  if (/[\0\r\n]/.test(normalizedPath)) {
     throw new RemoteAgentError(
       'BOOTSTRAP_FAILED',
-      'agentPath contains unsupported characters for MVP bootstrap.',
+      'agentPath contains unsupported control characters.',
     )
   }
 
   return normalizedPath
 }
 
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`
-}
-
-function appendIdentityArgs(
-  profile: RemoteConnectionProfile,
-  args: string[],
-): void {
-  const identityFile = profile.identityFile?.trim()
-  if (!identityFile) {
-    return
-  }
-  args.push('-i', normalizeLocalIdentityFilePath(identityFile))
-  args.push('-o', 'IdentitiesOnly=yes')
-}
-
-export function buildSshArgs(
-  profile: RemoteConnectionProfile,
-  command: string,
-): string[] {
-  const args: string[] = []
-  if (profile.port) {
-    args.push('-p', String(profile.port))
-  }
-  appendIdentityArgs(profile, args)
-
-  const timeoutSeconds = Math.max(
-    1,
-    Math.floor((profile.connectTimeoutMs ?? 10_000) / 1000),
-  )
-  args.push('-o', `ConnectTimeout=${timeoutSeconds}`)
-  args.push(profile.user ? `${profile.user}@${profile.host}` : profile.host)
-  args.push('sh', '-lc', command)
-  return args
+export {
+  buildSshArgs,
+  isSshNodeRuntimeMissing,
+  normalizeLocalIdentityFilePath,
 }
 
 async function runSshCommand(
@@ -246,7 +239,7 @@ async function runSshCommand(
           return
         }
 
-        const exitCode = getNumericExitCode(error)
+        const exitCode = extractNumericExitCode(error)
         if (typeof exitCode === 'number') {
           resolve({
             exitCode,
@@ -260,74 +253,6 @@ async function runSshCommand(
       },
     )
   })
-}
-
-function getNumericExitCode(error: ExecFileException): number | undefined {
-  if (typeof error.code === 'number') {
-    return error.code
-  }
-  return undefined
-}
-
-function isSshAuthFailure(stderr: string): boolean {
-  return stderr.toLowerCase().includes('permission denied')
-}
-
-export function isSshNodeRuntimeMissing(stderr: string): boolean {
-  const normalized = stderr.toLowerCase()
-  if (!normalized.trim()) {
-    return false
-  }
-
-  if (normalized.includes('node: not found')) {
-    return true
-  }
-
-  if (normalized.includes('node: command not found')) {
-    return true
-  }
-
-  if (
-    normalized.includes('/usr/bin/env') &&
-    normalized.includes('node') &&
-    normalized.includes('no such file or directory')
-  ) {
-    return true
-  }
-
-  return false
-}
-
-export function normalizeLocalIdentityFilePath(identityFile: string): string {
-  const trimmed = identityFile.trim()
-  if (!trimmed) {
-    return trimmed
-  }
-
-  if (trimmed === '~') {
-    return os.homedir()
-  }
-
-  if (trimmed.startsWith('~/')) {
-    return path.join(os.homedir(), trimmed.slice(2))
-  }
-
-  if (trimmed.startsWith('$HOME/')) {
-    return path.join(os.homedir(), trimmed.slice('$HOME/'.length))
-  }
-
-  return trimmed
-}
-
-function normalizeSshErrorMessage(stderr: string, fallback: string): string {
-  const trimmed = stderr.trim()
-  if (!trimmed) {
-    return fallback
-  }
-  if (isSshNodeRuntimeMissing(trimmed)) {
-    return NODE_RUNTIME_MISSING_MESSAGE
-  }
-  return trimmed
 }
 
 function extractProtocolVersion(output: string): string | undefined {

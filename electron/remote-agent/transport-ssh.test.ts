@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -37,6 +38,44 @@ const bootstrapResult: RemoteAgentBootstrapResult = {
   agentPath: '/agent',
   protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
   installed: false,
+}
+
+function decodeShLcArgument(commandArg: string, homeDir: string): string {
+  return execFileSync(
+    'sh',
+    [
+      '-lc',
+      `set -- ${commandArg}
+printf '%s' "$1"`,
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    },
+  )
+}
+
+function parseShellWords(command: string, homeDir: string): string[] {
+  const output = execFileSync(
+    'sh',
+    [
+      '-lc',
+      `set -- ${command}
+printf '%s\n' "$@"`,
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    },
+  )
+
+  return output.trimEnd().split('\n')
 }
 
 function wireHealthcheckResponder(
@@ -103,8 +142,9 @@ describe('remote-agent/transport-ssh', () => {
       '-lc',
       expect.any(String),
     ])
-    expect(args.at(-1)).toContain('/agent --stdio --protocol-version')
+    expect(args.at(-1)).toContain('--stdio --protocol-version')
     expect(args.at(-1)).toContain(` ${REMOTE_AGENT_PROTOCOL_VERSION} `)
+    expect(args.at(-1)).toContain("'/agent'")
     expect(args.at(-1)).toContain('--workspace-root')
     expect(args.at(-1)).toContain('/repo')
     expect(args.at(-1)?.startsWith("'")).toBe(true)
@@ -122,12 +162,61 @@ describe('remote-agent/transport-ssh', () => {
       '-lc',
       expect.any(String),
     ])
-    expect(args.at(-1)).toContain('/agent --stdio --protocol-version')
+    expect(args.at(-1)).toContain('--stdio --protocol-version')
     expect(args.at(-1)).toContain(` ${REMOTE_AGENT_PROTOCOL_VERSION} `)
+    expect(args.at(-1)).toContain("'/agent'")
     expect(args.at(-1)).toContain('--workspace-root')
     expect(args.at(-1)).toContain('/repo')
     expect(args.at(-1)?.startsWith("'")).toBe(true)
     expect(args.at(-1)?.endsWith("'")).toBe(true)
+  })
+
+  it('preserves $HOME expansion in the remote stdio command', () => {
+    const homeDir = '/tmp/transport home'
+    const args = buildSshProcessArgs(
+      {
+        ...profile,
+        remoteRoot: '/repo with spaces',
+      },
+      {
+        ...bootstrapResult,
+        agentPath: "$HOME/.sdd-workbench/bin/agent's folder/remote agent",
+      },
+    )
+
+    const innerCommand = decodeShLcArgument(args.at(-1) ?? '', homeDir)
+    const parsedWords = parseShellWords(innerCommand, homeDir)
+
+    expect(parsedWords).toEqual([
+      "/tmp/transport home/.sdd-workbench/bin/agent's folder/remote agent",
+      '--stdio',
+      '--protocol-version',
+      REMOTE_AGENT_PROTOCOL_VERSION,
+      '--workspace-root',
+      '/repo with spaces',
+    ])
+  })
+
+  it('rejects ssh destinations that look like options', () => {
+    expect(() =>
+      buildSshProcessArgs(
+        {
+          ...profile,
+          host: '-oProxyCommand=evil',
+        },
+        bootstrapResult,
+      ),
+    ).toThrow('host must not start with "-"')
+
+    expect(() =>
+      buildSshProcessArgs(
+        {
+          ...profile,
+          user: '-oProxyCommand=evil',
+        },
+        bootstrapResult,
+      ),
+    ).toThrow('user must not start with "-"')
   })
 
   it('matches responses by request id', async () => {
@@ -187,6 +276,56 @@ describe('remote-agent/transport-ssh', () => {
 
     vi.useRealTimers()
     await transport.stop()
+  })
+
+  it('fails request immediately when stdin is no longer writable', async () => {
+    const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+    await transport.start()
+
+    fakeProcess.stdin.destroy()
+
+    await expect(transport.request('slow-op')).rejects.toMatchObject({
+      code: 'CONNECTION_CLOSED',
+      message: expect.stringContaining('stdin is no longer writable'),
+    })
+  })
+
+  it('surfaces stdin write callback failures without waiting for timeout', async () => {
+    const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+    await transport.start()
+
+    const originalWrite = fakeProcess.stdin.write.bind(fakeProcess.stdin)
+    vi
+      .spyOn(fakeProcess.stdin, 'write')
+      .mockImplementation(((chunk: never, encoding?: never, callback?: never) => {
+        const writeCallback =
+          typeof encoding === 'function'
+            ? encoding
+            : typeof callback === 'function'
+              ? callback
+              : undefined
+        queueMicrotask(() => {
+          writeCallback?.(new Error('EPIPE: broken pipe'))
+        })
+        return originalWrite(chunk)
+      }) as typeof fakeProcess.stdin.write)
+
+    await expect(transport.request('slow-op')).rejects.toMatchObject({
+      code: 'CONNECTION_CLOSED',
+      message: expect.stringContaining('broken pipe'),
+    })
   })
 
   it('maps stub runtime startup failure to BOOTSTRAP_FAILED', async () => {
