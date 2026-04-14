@@ -85,10 +85,7 @@ export const MARKDOWN_SANITIZE_SCHEMA: Schema = {
       toArrayValue(BASE_SANITIZE_ATTRIBUTES.code),
       ['className'],
     ),
-    span: withUniquePropertyNames(
-      toArrayValue(BASE_SANITIZE_ATTRIBUTES.span),
-      ['style'],
-    ),
+    span: toArrayValue(BASE_SANITIZE_ATTRIBUTES.span),
   },
 }
 

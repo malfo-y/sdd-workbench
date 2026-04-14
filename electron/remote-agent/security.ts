@@ -34,7 +34,7 @@ const KEY_VALUE_SECRET_PATTERN =
   /\b(password|passphrase|token|secret)\s*[:=]\s*([^\s,;]+)/gi
 const SSH_STDERR_PATTERN = /\bssh(?:\s+\w+)*\s+stderr\s*:\s*/gi
 const WHITESPACE_PATTERN = /\s+/g
-const MAX_REDATED_MESSAGE_LENGTH = 240
+const MAX_REDACTED_MESSAGE_LENGTH = 240
 
 export function getAllowedRemoteWorkspaceMethods(): readonly string[] {
   return REMOTE_WORKSPACE_METHOD_ALLOWLIST
@@ -72,8 +72,8 @@ export function redactRemoteErrorMessage(
     return fallbackMessage
   }
 
-  if (sanitized.length > MAX_REDATED_MESSAGE_LENGTH) {
-    sanitized = `${sanitized.slice(0, MAX_REDATED_MESSAGE_LENGTH).trimEnd()}...`
+  if (sanitized.length > MAX_REDACTED_MESSAGE_LENGTH) {
+    sanitized = `${sanitized.slice(0, MAX_REDACTED_MESSAGE_LENGTH).trimEnd()}...`
   }
 
   return sanitized

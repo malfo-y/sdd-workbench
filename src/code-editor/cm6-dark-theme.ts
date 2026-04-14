@@ -182,4 +182,3 @@ export const darkGrayTheme: Extension[] = [
   syntaxHighlighting(ayuMirageHighlightStyle),
 ]
 
-export const darkTheme = darkGrayTheme

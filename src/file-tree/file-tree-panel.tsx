@@ -317,19 +317,17 @@ function renderFileTreeNodes(
           </button>
           {isExpanded &&
             node.childrenStatus === 'not-loaded' ? (
-              isExpanded && (
-                <div
-                  className="tree-node tree-node-placeholder"
-                  key={`${node.relativePath}--placeholder`}
-                  style={{ paddingLeft: `${(depth + 1) * 12}px` }}
-                >
-                  <span className="tree-placeholder-text">
-                    {loadingDirectoriesSet.has(node.relativePath)
-                      ? 'Loading...'
-                      : ''}
-                  </span>
-                </div>
-              )
+              <div
+                className="tree-node tree-node-placeholder"
+                key={`${node.relativePath}--placeholder`}
+                style={{ paddingLeft: `${(depth + 1) * 12}px` }}
+              >
+                <span className="tree-placeholder-text">
+                  {loadingDirectoriesSet.has(node.relativePath)
+                    ? 'Loading...'
+                    : ''}
+                </span>
+              </div>
             ) : isExpanded ? (
               <>
                 {renderFileTreeNodes(
@@ -432,7 +430,11 @@ function renderFileTreeNodes(
 function validateInlineInputName(name: string): string | null {
   if (!name.trim()) return 'Name cannot be empty.'
   if (name.includes('/')) return 'Name cannot contain "/".'
+  if (name.includes('\\')) return 'Name cannot contain "\\".'
   if (name === '.' || name === '..') return 'Name cannot be "." or "..".'
+  // Block NUL byte and ASCII control characters (0x00-0x1F)
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f]/.test(name)) return 'Name cannot contain control characters.'
   return null
 }
 
@@ -777,14 +779,29 @@ export function FileTreePanel({
       ? `${inlineInput.parentRelativePath}/${name}`
       : name
 
-    if (inlineInput.type === 'rename') {
-      if (name !== inlineInput.originalName) {
-        onRequestRename?.(inlineInput.originalRelativePath, fullRelativePath)
+    const handleError = (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Operation failed.'
+      setInlineInputError(message)
+    }
+    const guardPromise = (value: unknown) => {
+      if (value && typeof (value as Promise<void>).catch === 'function') {
+        (value as Promise<void>).catch(handleError)
       }
-    } else if (inlineInput.type === 'file') {
-      onRequestCreateFile?.(fullRelativePath)
-    } else {
-      onRequestCreateDirectory?.(fullRelativePath)
+    }
+
+    try {
+      if (inlineInput.type === 'rename') {
+        if (name !== inlineInput.originalName) {
+          guardPromise(onRequestRename?.(inlineInput.originalRelativePath, fullRelativePath))
+        }
+      } else if (inlineInput.type === 'file') {
+        guardPromise(onRequestCreateFile?.(fullRelativePath))
+      } else {
+        guardPromise(onRequestCreateDirectory?.(fullRelativePath))
+      }
+    } catch (err) {
+      handleError(err)
+      return
     }
     setInlineInput(null)
     setInlineInputValue('')

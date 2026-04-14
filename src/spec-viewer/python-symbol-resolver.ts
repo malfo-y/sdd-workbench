@@ -1,6 +1,10 @@
 import { parser } from '@lezer/python'
 import type { TreeCursor } from '@lezer/common'
 import type { SourceOffsetRange } from '../source-selection'
+import {
+  SIMPLE_SYMBOL_PATTERN,
+  QUALIFIED_METHOD_PATTERN,
+} from './citation-target'
 
 type PythonSymbolResolution =
   | {
@@ -18,12 +22,6 @@ type SymbolDeclaration = {
   startOffset: number
   endOffset: number
 }
-
-const IDENTIFIER_PATTERN = '[A-Za-z_][A-Za-z0-9_]*'
-const SIMPLE_SYMBOL_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
-const QUALIFIED_METHOD_PATTERN = new RegExp(
-  `^${IDENTIFIER_PATTERN}\\.${IDENTIFIER_PATTERN}$`,
-)
 
 function collectDeclarations(code: string): SymbolDeclaration[] {
   const declarations: SymbolDeclaration[] = []

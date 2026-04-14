@@ -8,7 +8,7 @@ export type CodeBlockCitationMatch = {
   target: CitationTarget
 }
 
-const BRACKET_CITATION_PATTERN = /\[[^\]\n]+\]/g
+export const BRACKET_CITATION_PATTERN = /\[[^\]\n]+\]/g
 
 /**
  * Extracts valid `[path:symbol]` citations from fenced code blocks regardless of

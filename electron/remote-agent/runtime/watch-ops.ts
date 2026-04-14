@@ -232,12 +232,7 @@ export class RuntimeWatchService {
     fallbackApplied: boolean
     error?: string
   }> {
-    const pollIntervalOverride =
-      watchModePreference === 'native' || watchModePreference === 'polling'
-        ? DEFAULT_POLL_INTERVAL_MS
-        : DEFAULT_POLL_INTERVAL_MS
-
-    this.pollIntervalMs = pollIntervalOverride
+    this.pollIntervalMs = DEFAULT_POLL_INTERVAL_MS
     this.snapshot = await buildWorkspacePollingSnapshot(this.rootPath)
 
     if (this.pollTimer === null) {

@@ -524,6 +524,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     }
   }
 
+  const emitWatchFallbackEvent = (event: WorkspaceWatchFallbackEvent) => {
+    for (const listener of watchFallbackListeners) {
+      listener(event)
+    }
+  }
+
   const emitHistoryNavigateEvent = (event: WorkspaceHistoryNavigationEvent) => {
     for (const listener of historyNavigateListeners) {
       listener(event)
@@ -731,6 +737,98 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
       'Polling',
     )
+    expect(screen.queryByTestId('workspace-remote-badge')).not.toBeInTheDocument()
+  })
+
+  it('auto-dismisses watchStart fallback banner after 5 seconds', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+    const workspaceRoot = '/Users/tester/watch-fallback-autodismiss'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+    watchStartMock.mockResolvedValueOnce({
+      ok: true,
+      watchMode: 'polling',
+      isRemoteMounted: false,
+      fallbackApplied: true,
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Fallback to polling watcher is active.',
+      )
+    })
+
+    const autoDismissCall = setTimeoutSpy.mock.calls.find(
+      (call) => call[1] === 5000,
+    )
+    expect(autoDismissCall).toBeDefined()
+    const timeoutHandler = autoDismissCall?.[0]
+    expect(typeof timeoutHandler).toBe('function')
+
+    await act(async () => {
+      const dismissBanner = timeoutHandler as () => void
+      dismissBanner()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  it('keeps local fallback watcher state from showing a REMOTE badge', async () => {
+    const workspaceRoot = '/Users/tester/local-watch-fallback-event'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
+        'Native',
+      )
+    })
+
+    act(() => {
+      emitWatchFallbackEvent({
+        workspaceId: workspaceRoot,
+        watchMode: 'polling',
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-watch-mode-value')).toHaveTextContent(
+        'Polling',
+      )
+    })
+    expect(screen.queryByTestId('workspace-remote-badge')).not.toBeInTheDocument()
   })
 
   it('renders header action groups in stable order', () => {
@@ -1636,7 +1734,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     readFileMock.mockResolvedValueOnce({
       ok: true,
-      content: 'print(\"hello\")',
+      content: 'print("hello")',
     })
 
     render(
@@ -3511,7 +3609,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
-  it('switches Code/Spec tabs with Cmd+Ctrl+Left/Right only', async () => {
+  it('switches Code/Spec tabs with Cmd+Shift+Left/Right only', async () => {
     const workspaceRoot = '/Users/tester/keyboard-tab-switch'
 
     openDialogMock.mockResolvedValueOnce({
@@ -3560,17 +3658,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       metaKey: true,
       shiftKey: true,
     })
-    expect(
-      screen
-        .getByTestId('content-tab-bar')
-        .querySelector('.content-tab-button.is-active'),
-    ).toHaveTextContent('Code')
-
-    fireEvent.keyDown(window, {
-      key: 'ArrowRight',
-      metaKey: true,
-      ctrlKey: true,
-    })
     await waitFor(() => {
       const activeTab = screen
         .getByTestId('content-tab-bar')
@@ -3581,7 +3668,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.keyDown(window, {
       key: 'ArrowLeft',
       metaKey: true,
-      ctrlKey: true,
+      shiftKey: true,
     })
     await waitFor(() => {
       const activeTab = screen
@@ -3589,6 +3676,17 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         .querySelector('.content-tab-button.is-active')
       expect(activeTab).toHaveTextContent('Code')
     })
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowRight',
+      metaKey: true,
+      ctrlKey: true,
+    })
+    expect(
+      screen
+        .getByTestId('content-tab-bar')
+        .querySelector('.content-tab-button.is-active'),
+    ).toHaveTextContent('Code')
   })
 
   it('opens code/spec search with Cmd+F for the active tab', async () => {
@@ -3685,7 +3783,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     ).toBeInTheDocument()
   })
 
-  it('switches workspace with Cmd+Ctrl+Up/Down only', async () => {
+  it('switches workspace with Cmd+Shift+Up/Down only', async () => {
     const workspaceARoot = '/Users/tester/keyboard-workspace-a'
     const workspaceBRoot = '/Users/tester/keyboard-workspace-b'
 
@@ -3730,13 +3828,6 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       metaKey: true,
       shiftKey: true,
     })
-    expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
-
-    fireEvent.keyDown(window, {
-      key: 'ArrowUp',
-      metaKey: true,
-      ctrlKey: true,
-    })
     await waitFor(() => {
       expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceARoot)
     })
@@ -3744,11 +3835,18 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.keyDown(window, {
       key: 'ArrowDown',
       metaKey: true,
-      ctrlKey: true,
+      shiftKey: true,
     })
     await waitFor(() => {
       expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
     })
+
+    fireEvent.keyDown(window, {
+      key: 'ArrowUp',
+      metaKey: true,
+      ctrlKey: true,
+    })
+    expect(screen.getByTestId('workspace-path')).toHaveAttribute('title', workspaceBRoot)
   })
 
   it('applies watcher changed indicators per workspace', async () => {

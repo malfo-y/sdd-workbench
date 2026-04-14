@@ -15,4 +15,9 @@ describe('remote-agent/runtime/payload', () => {
     expect(REMOTE_AGENT_RUNTIME_PAYLOAD).toContain('--healthcheck')
     expect(REMOTE_AGENT_RUNTIME_PAYLOAD).toContain('workspace.watchStart')
   })
+
+  it('does not contain the heredoc marker used for installation', () => {
+    const HEREDOC_MARKER = '__SDD_REMOTE_AGENT__'
+    expect(REMOTE_AGENT_RUNTIME_PAYLOAD).not.toContain(HEREDOC_MARKER)
+  })
 })

@@ -1,6 +1,41 @@
 # Spec Rewrite Report
 
-## Latest Rewrite Run
+## Latest Run: Spec Upgrade Validation (2026-04-14)
+
+- **Target**: 전체 스펙 문서군 — thin global model 적합도 검증 + supporting doc 동기화
+- **Execution timestamp**: 2026-04-14
+- **Mode**: Upgrade validation (부분 보강)
+- **Canonical spec impact**: `main.md` 본문/구조 변경 없음 (이미 thin model)
+- **Why now**: 2026-04-13 upgrade 이후 supporting docs(`summary.md`)의 메타데이터가 stale 상태
+
+### What Was Changed
+
+| 대상 | 처리 | 이유 |
+|------|------|------|
+| `summary.md` 메타데이터 | 버전 0.49.1→0.50.0, 날짜 2026-03-18→2026-04-14 | main.md v0.50.0과 동기화 |
+| `summary.md` Current Snapshot | viewer-first/CM6 engine 반영, whitepaper→thin global spec 용어 정리 | 2026-04-13 upgrade 결과와 정합 |
+| `summary.md` Read This First | main.md 설명을 “thin global spec”으로 갱신 | canonical 문서 역할 정확히 기술 |
+| `REWRITE_REPORT.md` | 이번 upgrade validation 기록 추가 | 이력 보존 |
+
+### Gap Analysis Result
+
+| 축 | 판정 |
+|---|---|
+| Thinness | 양호 — main.md ~134줄, core 3섹션 |
+| Decision-bearing truth | 양호 — Core Design + Key Decisions에 근거/대안 포함 |
+| Anti-duplication | 경미한 주의 — summary.md가 다시 커지지 않도록 유의 필요 |
+| Navigation + surface fit | 양호 — Spec Map + Component Directories가 허브 역할 |
+
+### Not Changed (and Why)
+
+- `main.md`: 이미 2026-04-13에 670줄→~134줄 thin global spec으로 완료
+- `decision-log.md`: archived 테이블 정리는 rewrite 성격이므로 이번 scope 제외
+- component `overview.md` / `contracts.md`: feature-level detail 적절히 분리되어 있음
+- `operations.md`, `code-map.md`, `feature-index.md`: 구조 변경 불필요
+
+---
+
+## Prior Run: summary.md Cleanup (2026-03-13)
 
 - **Target**: `_sdd/spec/summary.md` 중심 supporting-doc cleanup
 - **Execution timestamp**: 2026-03-13 23:24:56 +09:00

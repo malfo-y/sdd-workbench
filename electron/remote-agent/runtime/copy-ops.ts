@@ -55,7 +55,7 @@ export function workspaceCopyEntries(
   // Ensure destDir is within workspace
   const normalizedRoot = path.resolve(rootPath)
   const normalizedDest = path.resolve(resolvedDestDir)
-  if (!normalizedDest.startsWith(normalizedRoot)) {
+  if (normalizedDest !== normalizedRoot && !normalizedDest.startsWith(normalizedRoot + path.sep)) {
     return { ok: false, error: 'destDir is outside workspace root (path denied).' }
   }
 
@@ -68,7 +68,7 @@ export function workspaceCopyEntries(
       return { ok: false, error: `Entry path is outside workspace root (path denied): ${entry.relativePath}` }
     }
     const normalizedSrc = path.resolve(resolvedSrc)
-    if (!normalizedSrc.startsWith(normalizedRoot)) {
+    if (normalizedSrc !== normalizedRoot && !normalizedSrc.startsWith(normalizedRoot + path.sep)) {
       return { ok: false, error: `Entry path is outside workspace root (path denied): ${entry.relativePath}` }
     }
 

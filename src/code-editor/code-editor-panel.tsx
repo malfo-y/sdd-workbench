@@ -643,8 +643,15 @@ export function CodeEditorPanel({
 
     // Build extensions including async language support
     let cancelled = false
+    let rafHandle1: number | undefined
+    let rafHandle2: number | undefined
     const updateState = async () => {
-      const langSupport = await getCM6Language(activeFile)
+      let langSupport: Awaited<ReturnType<typeof getCM6Language>> | null = null
+      try {
+        langSupport = await getCM6Language(activeFile)
+      } catch {
+        // Language loading failed — proceed without syntax highlighting
+      }
       if (cancelled) {
         return
       }
@@ -696,7 +703,7 @@ export function CodeEditorPanel({
             head: nextHead,
           },
         })
-        requestAnimationFrame(() => {
+        rafHandle1 = requestAnimationFrame(() => {
           if (!cancelled) {
             view.scrollDOM.scrollTop = Math.max(0, Math.trunc(previousScrollTop))
             if (shouldRestoreFocus) {
@@ -713,7 +720,7 @@ export function CodeEditorPanel({
           targetScrollTop > 0
         ) {
           const scrollTop = Math.trunc(targetScrollTop)
-          requestAnimationFrame(() => {
+          rafHandle2 = requestAnimationFrame(() => {
             if (!cancelled) {
               view.scrollDOM.scrollTop = scrollTop
             }
@@ -727,8 +734,15 @@ export function CodeEditorPanel({
 
     return () => {
       cancelled = true
+      if (rafHandle1 !== undefined) cancelAnimationFrame(rafHandle1)
+      if (rafHandle2 !== undefined) cancelAnimationFrame(rafHandle2)
     }
-  }, [activeFileContent, activeFile, scheduleNavigationLineHighlight])
+  }, [
+    activeFileContent,
+    activeFile,
+    appearanceTheme,
+    scheduleNavigationLineHighlight,
+  ])
 
   // ---- Jump to line ------------------------------------------------------
   useEffect(() => {

@@ -19,9 +19,9 @@ export type CitationNavigationResult =
 
 export const CITATION_LINK_PREFIX = '#sdd-citation:'
 
-const IDENTIFIER_PATTERN = '[A-Za-z_][A-Za-z0-9_]*'
-const SIMPLE_SYMBOL_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
-const QUALIFIED_METHOD_PATTERN = new RegExp(
+export const IDENTIFIER_PATTERN = '[A-Za-z_][A-Za-z0-9_]*'
+export const SIMPLE_SYMBOL_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+export const QUALIFIED_METHOD_PATTERN = new RegExp(
   `^${IDENTIFIER_PATTERN}\\.${IDENTIFIER_PATTERN}$`,
 )
 const INVISIBLE_CITATION_WHITESPACE_PATTERN = /[\u200B-\u200D\uFEFF]/g

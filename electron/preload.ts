@@ -7,332 +7,47 @@ import {
   parseAppearanceTheme,
   type AppearanceTheme,
 } from '../src/appearance-theme'
-
-type WorkspaceOpenDialogResult = {
-  canceled: boolean
-  selectedPath: string | null
-  error?: string
-}
-
-type WorkspaceFileNode = {
-  name: string
-  relativePath: string
-  kind: 'file' | 'directory'
-  children?: WorkspaceFileNode[]
-  childrenStatus?: 'complete' | 'not-loaded' | 'partial'
-  totalChildCount?: number
-}
-
-type WorkspaceIndexDirectoryResult = {
-  ok: boolean
-  children: WorkspaceFileNode[]
-  childrenStatus: 'complete' | 'partial'
-  totalChildCount: number
-  error?: string
-}
-
-type WorkspaceIndexDirectoryOptions = {
-  offset?: number
-  limit?: number
-}
-
-type WorkspaceSearchFilesOptions = {
-  maxDepth?: number
-  maxResults?: number
-  maxDirectoryChildren?: number
-  timeBudgetMs?: number
-}
-
-type WorkspaceIndexResult = {
-  ok: boolean
-  fileTree: WorkspaceFileNode[]
-  truncated?: boolean
-  error?: string
-}
-
-type WorkspaceSearchFileMatch = {
-  relativePath: string
-  fileName: string
-  parentRelativePath: string
-}
-
-type WorkspaceSearchFilesResult = {
-  ok: boolean
-  results: WorkspaceSearchFileMatch[]
-  truncated: boolean
-  skippedLargeDirectoryCount: number
-  depthLimitHit: boolean
-  timedOut: boolean
-  error?: string
-}
-
-type WorkspacePreviewUnavailableReason =
-  | 'file_too_large'
-  | 'binary_file'
-  | 'blocked_resource'
-
-type WorkspaceImagePreview = {
-  mimeType: string
-  dataUrl: string
-}
-
-type WorkspaceReadFileResult = {
-  ok: boolean
-  content: string | null
-  imagePreview?: WorkspaceImagePreview
-  error?: string
-  previewUnavailableReason?: WorkspacePreviewUnavailableReason
-}
-
-type WorkspaceWriteFileResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceCreateFileResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceCreateDirectoryResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceDeleteFileResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceDeleteDirectoryResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceGitLineMarkerKind = 'added' | 'modified'
-
-type WorkspaceGitLineMarker = {
-  line: number
-  kind: WorkspaceGitLineMarkerKind
-}
-
-type WorkspaceGetGitLineMarkersResult = {
-  ok: boolean
-  markers: WorkspaceGitLineMarker[]
-  error?: string
-}
-
-type CodeCommentRecord = {
-  id: string
-  relativePath: string
-  startLine: number
-  endLine: number
-  body: string
-  anchor: {
-    snippet: string
-    hash: string
-    before?: string
-    after?: string
-  }
-  createdAt: string
-  exportedAt?: string
-}
-
-type WorkspaceReadCommentsResult = {
-  ok: boolean
-  comments: CodeCommentRecord[]
-  error?: string
-}
-
-type WorkspaceWriteCommentsResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceReadGlobalCommentsResult = {
-  ok: boolean
-  body: string
-  error?: string
-}
-
-type WorkspaceWriteGlobalCommentsResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceExportCommentsBundleRequest = {
-  rootPath: string
-  commentsMarkdown?: string
-  bundleMarkdown?: string
-  writeCommentsFile: boolean
-  writeBundleFile: boolean
-}
-
-type WorkspaceExportCommentsBundleResult = {
-  ok: boolean
-  commentsPath?: string
-  bundlePath?: string
-  error?: string
-}
-
-type WorkspaceWatchMode = 'native' | 'polling'
-
-type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
-
-type WorkspaceWatchControlResult = {
-  ok: boolean
-  watchMode?: WorkspaceWatchMode
-  isRemoteMounted?: boolean
-  fallbackApplied?: boolean
-  error?: string
-}
-
-type WorkspaceWatchFallbackEvent = {
-  workspaceId: string
-  watchMode: WorkspaceWatchMode
-}
-
-type WorkspaceWatchEvent = {
-  workspaceId: string
-  changedRelativePaths: string[]
-  hasStructureChanges?: boolean
-}
-
-type WorkspaceHistoryNavigationDirection = 'back' | 'forward'
-
-type WorkspaceHistoryNavigationSource = 'app-command' | 'swipe'
-
-type WorkspaceHistoryNavigationEvent = {
-  direction: WorkspaceHistoryNavigationDirection
-  source: WorkspaceHistoryNavigationSource
-}
-
-type WorkspaceRemoteConnectionProfile = {
-  workspaceId: string
-  host: string
-  remoteRoot: string
-  user?: string
-  port?: number
-  agentPath?: string
-  identityFile?: string
-  sshAlias?: string
-  requestTimeoutMs?: number
-  connectTimeoutMs?: number
-}
-
-type WorkspaceRemoteDirectoryBrowseRequest = {
-  host: string
-  user?: string
-  port?: number
-  identityFile?: string
-  targetPath?: string
-  connectTimeoutMs?: number
-  limit?: number
-}
-
-type WorkspaceRemoteDirectoryEntry = {
-  name: string
-  path: string
-  kind: 'directory' | 'symlink'
-}
-
-type WorkspaceRemoteDirectoryBrowseResult = {
-  ok: boolean
-  currentPath: string
-  entries: WorkspaceRemoteDirectoryEntry[]
-  truncated: boolean
-  errorCode?: string
-  error?: string
-}
-
-type WorkspaceSyncVsCodeSshConfigRequest = {
-  sshAlias: string
-  host: string
-  user?: string
-  port?: number
-  identityFile?: string
-}
-
-type WorkspaceSyncVsCodeSshConfigResult =
-  | {
-      ok: true
-      configPath: string
-      managedConfigPath: string
-      includeInserted: boolean
-      entryUpdated: boolean
-    }
-  | {
-      ok: false
-      error: string
-    }
-
-type WorkspaceRemoteConnectionEvent = {
-  workspaceId: string
-  sessionId?: string
-  state: 'connecting' | 'connected' | 'degraded' | 'disconnected'
-  errorCode?: string
-  message?: string
-  occurredAt: string
-}
-
-type WorkspaceConnectRemoteResult =
-  | {
-      ok: true
-      workspaceId: string
-      sessionId: string
-      rootPath: string
-      remoteConnectionState: 'connected' | 'degraded'
-      state: 'connected' | 'degraded'
-    }
-  | {
-      ok: false
-      workspaceId: string
-      errorCode: string
-      error: string
-    }
-
-type WorkspaceDisconnectRemoteResult = {
-  ok: boolean
-  workspaceId: string
-  error?: string
-}
-
-type SystemOpenInRequest = {
-  rootPath: string
-  relativePath?: string
-  workspaceKind?: 'local' | 'remote'
-  remoteProfile?: WorkspaceRemoteConnectionProfile | null
-}
-
-type SystemOpenInResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceSetFileClipboardResult = {
-  ok: boolean
-  error?: string
-}
-
-type WorkspaceReadFileClipboardResult = {
-  ok: boolean
-  hasFiles: boolean
-  source: 'internal' | 'finder' | 'none'
-  error?: string
-}
-
-type WorkspaceCopyEntriesResult = {
-  ok: boolean
-  copiedPaths?: string[]
-  error?: string
-}
-
-type WorkspacePasteFromClipboardResult = {
-  ok: boolean
-  pastedPaths?: string[]
-  source: 'internal' | 'finder' | 'none'
-  error?: string
-}
+import type {
+  CodeCommentRecord,
+  SystemOpenInRequest,
+  SystemOpenInResult,
+  WorkspaceConnectRemoteResult,
+  WorkspaceCopyEntriesResult,
+  WorkspaceCreateDirectoryResult,
+  WorkspaceCreateFileResult,
+  WorkspaceDeleteDirectoryResult,
+  WorkspaceDeleteFileResult,
+  WorkspaceDisconnectRemoteResult,
+  WorkspaceExportCommentsBundleRequest,
+  WorkspaceExportCommentsBundleResult,
+  WorkspaceGetGitFileStatusesResult,
+  WorkspaceGetGitLineMarkersResult,
+  WorkspaceIndexDirectoryOptions,
+  WorkspaceIndexDirectoryResult,
+  WorkspaceIndexResult,
+  WorkspaceOpenDialogResult,
+  WorkspacePasteFromClipboardResult,
+  WorkspaceReadCommentsResult,
+  WorkspaceReadFileClipboardResult,
+  WorkspaceReadFileResult,
+  WorkspaceReadGlobalCommentsResult,
+  WorkspaceRemoteConnectionEvent,
+  WorkspaceRemoteConnectionProfile,
+  WorkspaceRemoteDirectoryBrowseRequest,
+  WorkspaceRemoteDirectoryBrowseResult,
+  WorkspaceRenameResult,
+  WorkspaceSearchFilesOptions,
+  WorkspaceSearchFilesResult,
+  WorkspaceSetFileClipboardResult,
+  WorkspaceSyncVsCodeSshConfigRequest,
+  WorkspaceSyncVsCodeSshConfigResult,
+  WorkspaceWatchControlResult,
+  WorkspaceWatchFallbackEvent,
+  WorkspaceWatchModePreference,
+  WorkspaceWriteCommentsResult,
+  WorkspaceWriteFileResult,
+  WorkspaceWriteGlobalCommentsResult,
+} from './ipc-types'
 
 const workspaceApi = {
   openDialog() {
@@ -491,10 +206,10 @@ const workspaceApi = {
       workspaceId,
     }) as Promise<WorkspaceDisconnectRemoteResult>
   },
-  onWatchEvent(listener: (event: WorkspaceWatchEvent) => void) {
+  onWatchEvent(listener: (event: WorkspaceWatchEventPayload) => void) {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      payload: WorkspaceWatchEvent,
+      payload: WorkspaceWatchEventPayload,
     ) => {
       listener(payload)
     }
@@ -530,11 +245,11 @@ const workspaceApi = {
     }
   },
   onHistoryNavigate(
-    listener: (event: WorkspaceHistoryNavigationEvent) => void,
+    listener: (event: WorkspaceHistoryNavigationEventPayload) => void,
   ) {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      payload: WorkspaceHistoryNavigationEvent,
+      payload: WorkspaceHistoryNavigationEventPayload,
     ) => {
       listener(payload)
     }

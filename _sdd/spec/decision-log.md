@@ -1,5 +1,31 @@
 # Decision Log
 
+## Spec Upgrade: Thin Global Model 마이그레이션 (2026-04-13)
+
+`main.md`를 670줄 → ~160줄 thin global spec으로 재구성했다.
+
+**제거/이동한 섹션:**
+- §4 Component Details → 각 `<component>/overview.md`로 위임
+- §5 Usage Guide & Expected Results → `operations.md` 수동 스모크로 위임
+- §6 Data Models → 각 `contracts.md`로 위임
+- §7 API Reference → 각 `contracts.md`로 위임
+- §2 코드 스니펫 3개 → 코드에서 직접 읽으면 됨
+- Appendix Code Reference Index → `code-map.md`로 위임
+
+**구조 변경:**
+- §1 Background → "1. 배경 및 High-Level Concept" (축약)
+- §2 Core Design + §3 Architecture → "3. 핵심 설계와 주요 결정" (통합, 판단 근거만)
+- Cross-Cutting Invariants → "2. Scope / Non-goals / Guardrails" 내 Guardrails로 이동
+- Supporting Spec Map 유지, Component Directories 요약 추가
+
+**신규 생성:**
+- `CLAUDE.md` — 에이전트/개발자용 프로젝트 진입 가이드
+- `AGENTS.md` — 에이전트 작업 지침
+
+**보존한 문서:** feature-index.md, code-map.md, operations.md, summary.md, decision-log.md, 모든 component overview/contracts, appendix 전체.
+
+---
+
 ## 구현 완료 반영 요약 (Archived)
 
 구현 완료 후 스펙에 반영된 엔트리들의 요약이다. 상세 원문은 `prev/` 백업에 보존되어 있다.
@@ -41,6 +67,24 @@
 | 2026-02-24 | F22 구현 완료 반영(Cmd+Shift+Up/Down 워크스페이스 키보드 전환) | `switchActiveWorkspace` 순수 함수를 추가한다. `setActiveWorkspace`와 동일하되 `workspaceOrder`를 재배열하지 않는다. |
 
 ## 정책/구조 결정 (Active)
+
+## 2026-04-14 - 코드 리팩토링 로드맵 완료 반영 + boundary-oriented split 유지
+
+- Context:
+  - `src/spec-viewer/spec-viewer-panel.tsx`, `electron/main.ts`, `src/App.tsx`, `src/workspace/workspace-context.tsx`가 각각 큰 단일 파일로 남아 있어 변경 범위 추적과 회귀 검증 비용이 커지고 있었음.
+  - 구현은 public surface를 바꾸지 않고 책임별 모듈과 custom hook으로 분리하는 방향으로 정리되었고, workspace/renderer IPC stale-request 패턴도 공통 helper로 수렴했음.
+- Decision:
+  - 대형 엔트리 파일은 boundary-oriented split을 유지한다.
+  - main/preload shared 타입은 `electron/ipc-types.ts`를 canonical source로 유지한다.
+  - renderer shell은 wiring 중심으로 유지하고, 세부 책임은 `src/hooks/` 및 `src/workspace/`의 전용 hook/helper로 분리한다.
+  - `workspace-context.tsx`는 public `WorkspaceContextValue` surface를 유지하되, comments/file operations/git/remote/watcher/snapshot 책임을 개별 hook으로 위임한다.
+  - 반복되는 requestId/stale IPC 추적은 `src/workspace/ipc-call-helper.ts`를 공통 경로로 사용한다.
+- Rationale:
+  - public contract를 유지한 채 내부 구조만 분리하면 회귀 위험을 낮추면서도 탐색성과 테스트 가능성을 크게 높일 수 있다.
+  - shared IPC 타입과 tracked IPC helper를 고정하면 main/preload/renderer 간 drift를 줄이고, stale response 처리 규칙을 재사용 가능하게 유지할 수 있다.
+- Impact / follow-up:
+  - 이후 구조 리팩토링도 public surface invariants를 먼저 고정한 뒤 내부 모듈화를 적용한다.
+  - global spec은 이 구조적 결정만 유지하고, phase/task 단위 실행 정보는 pipeline log/report에만 남긴다.
 
 ## 2026-04-02 - F47 구현 완료 반영 + CM6를 Code Viewer의 표준 read-only engine으로 고정
 

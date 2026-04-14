@@ -314,7 +314,7 @@ function getSourceSpanDistance(span: SourceLineRange, lineNumber: number): numbe
   return 0
 }
 
-function getElementDepth(element: Element): number {
+export function getElementDepth(element: Element): number {
   let depth = 0
   let current: Element | null = element
   while (current) {

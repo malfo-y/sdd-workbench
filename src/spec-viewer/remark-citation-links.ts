@@ -3,6 +3,7 @@ import {
   parseBracketCitationText,
   type CitationTarget,
 } from './citation-target'
+import { BRACKET_CITATION_PATTERN } from './code-block-citation'
 
 type MarkdownNode = {
   type?: string
@@ -21,8 +22,6 @@ const SKIPPED_NODE_TYPES = new Set([
   'link',
   'linkReference',
 ])
-
-const BRACKET_CITATION_PATTERN = /\[[^\]\n]+\]/g
 
 function buildCitationLinkNode(
   target: CitationTarget,
@@ -159,9 +158,11 @@ export function transformCitationTextNodes(node: MarkdownNode) {
 
   let currentChildren = node.children
 
-  while (true) {
+  let didChange = true
+
+  while (didChange) {
     const nextChildren: MarkdownNode[] = []
-    let didChange = false
+    didChange = false
 
     for (let index = 0; index < currentChildren.length; index += 1) {
       const inlineCodeCitation = transformBracketWrappedInlineCodeCitation(

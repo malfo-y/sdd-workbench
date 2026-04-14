@@ -94,6 +94,11 @@ async function pasteFinderFiles(
   destDir: string,
 ): Promise<PasteFromClipboardResult> {
   const destAbsolute = destDir ? path.join(rootPath, destDir) : rootPath
+  const resolvedDest = path.resolve(destAbsolute)
+  const resolvedRoot = path.resolve(rootPath)
+  if (resolvedDest !== resolvedRoot && !resolvedDest.startsWith(resolvedRoot + path.sep)) {
+    return { ok: false, error: 'Destination is outside workspace root (path denied).', source: 'finder' }
+  }
   const existingNames = await readdir(destAbsolute).catch(() => [] as string[])
   const pastedPaths: string[] = []
   const usedNames = [...existingNames]
