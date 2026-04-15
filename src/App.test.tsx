@@ -598,7 +598,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('canceled')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     expect(screen.getByTestId('workspace-path')).toHaveTextContent(
@@ -609,7 +609,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
   it('shows error banner when open dialog returns error', async () => {
     openDialogMock.mockResolvedValueOnce({
-      canceled: true,
+      canceled: false,
       selectedPath: null,
       error: 'permission denied',
     })
@@ -9444,7 +9444,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
   it('auto-dismisses non-comment banners after 5 seconds', async () => {
     const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
     openDialogMock.mockResolvedValueOnce({
-      canceled: true,
+      canceled: false,
       selectedPath: null,
       error: 'permission denied',
     })

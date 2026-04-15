@@ -16,6 +16,21 @@ function buildHeadingIdCandidates(headingId: string): string[] {
   )
 }
 
+function findHeadingElementByText(
+  containerElement: HTMLElement,
+  headingText: string,
+): HTMLElement | null {
+  for (const headingElement of containerElement.querySelectorAll<HTMLElement>(
+    'h1, h2, h3, h4, h5, h6',
+  )) {
+    if (headingElement.textContent?.trim() === headingText) {
+      return headingElement
+    }
+  }
+
+  return null
+}
+
 /**
  * Finds a heading element inside a container by its ID, with a text-content
  * fallback when the exact ID selector does not match.
@@ -27,33 +42,20 @@ export function findHeadingElement(
   headingId: string,
   headingText: string | null,
 ): HTMLElement | null {
-  const targetHeading =
-    buildHeadingIdCandidates(headingId)
-      .map((candidateHeadingId) => {
-        const escapedId =
-          typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-            ? CSS.escape(candidateHeadingId)
-            : candidateHeadingId
-        return (
-          containerElement.querySelector<HTMLElement>(`#${escapedId}`) ??
-          document.getElementById(candidateHeadingId)
-        )
-      })
-      .find((headingElement): headingElement is HTMLElement => headingElement !== null) ??
-    null
-  const fallbackHeading =
-    targetHeading ??
-    (headingText
-      ? Array.from(
-          containerElement.querySelectorAll<HTMLElement>(
-            'h1, h2, h3, h4, h5, h6',
-          ),
-        ).find(
-          (headingElement) =>
-            headingElement.textContent?.trim() === headingText,
-        ) ?? null
-      : null)
-  return fallbackHeading
+  for (const candidateHeadingId of buildHeadingIdCandidates(headingId)) {
+    const escapedId =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(candidateHeadingId)
+        : candidateHeadingId
+    const targetHeading =
+      containerElement.querySelector<HTMLElement>(`#${escapedId}`) ??
+      document.getElementById(candidateHeadingId)
+    if (targetHeading) {
+      return targetHeading
+    }
+  }
+
+  return headingText ? findHeadingElementByText(containerElement, headingText) : null
 }
 
 function getHeadingOffsetTop(
@@ -72,20 +74,13 @@ function getHeadingOffsetTop(
 export function resolveActiveHeadingId(
   containerElement: HTMLElement,
 ): string | null {
-  const headingElements = Array.from(
-    containerElement.querySelectorAll<HTMLElement>(
-      'h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]',
-    ),
-  )
-  if (headingElements.length === 0) {
-    return null
-  }
-
   const threshold = containerElement.scrollTop + 24
-  let activeHeadingId = headingElements[0]?.id ?? null
+  let activeHeadingId: string | null = null
   let bestOffsetTop = Number.NEGATIVE_INFINITY
 
-  for (const headingElement of headingElements) {
+  for (const headingElement of containerElement.querySelectorAll<HTMLElement>(
+    'h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]',
+  )) {
     if (!headingElement.id) {
       continue
     }

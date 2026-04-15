@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import { readFilePaths as nativeReadFilePaths } from 'electron-clipboard-ex'
-import { cp, readdir } from 'node:fs/promises'
+import { cp, lstat, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import type { WorkspaceBackendRouter } from './workspace-backend/backend-router'
 import { incrementFileName } from './increment-file-name'
@@ -108,6 +108,15 @@ async function pasteFinderFiles(
   const usedNames = [...existingNames]
 
   for (const srcAbsolute of finderPaths) {
+    const sourceStat = await lstat(srcAbsolute)
+    if (sourceStat.isSymbolicLink()) {
+      return {
+        ok: false,
+        source: 'finder',
+        error: 'Finder symlink paste is not supported for safety reasons.',
+      }
+    }
+
     const baseName = path.basename(srcAbsolute)
     const resolvedName = incrementFileName(baseName, usedNames)
     const destPath = path.join(destAbsolute, resolvedName)

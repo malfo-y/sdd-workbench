@@ -252,45 +252,30 @@ function normalizePersistedSpecScrollPositions(
 }
 
 function readStorageValue(storage: Storage, key: string): string | null {
-  const maybeStorageWithMethods = storage as unknown as {
-    getItem?: (itemKey: string) => string | null
+  if (typeof storage.getItem === 'function') {
+    return storage.getItem(key)
   }
 
-  if (typeof maybeStorageWithMethods.getItem === 'function') {
-    return maybeStorageWithMethods.getItem(key)
-  }
-
-  const storageRecord = storage as unknown as Record<string, unknown>
-  const rawValue = storageRecord[key]
+  const rawValue = Reflect.get(storage, key)
   return typeof rawValue === 'string' ? rawValue : null
 }
 
 function writeStorageValue(storage: Storage, key: string, value: string) {
-  const maybeStorageWithMethods = storage as unknown as {
-    setItem?: (itemKey: string, itemValue: string) => void
-  }
-
-  if (typeof maybeStorageWithMethods.setItem === 'function') {
-    maybeStorageWithMethods.setItem(key, value)
+  if (typeof storage.setItem === 'function') {
+    storage.setItem(key, value)
     return
   }
 
-  const storageRecord = storage as unknown as Record<string, unknown>
-  storageRecord[key] = value
+  Reflect.set(storage, key, value)
 }
 
 function deleteStorageValue(storage: Storage, key: string) {
-  const maybeStorageWithMethods = storage as unknown as {
-    removeItem?: (itemKey: string) => void
-  }
-
-  if (typeof maybeStorageWithMethods.removeItem === 'function') {
-    maybeStorageWithMethods.removeItem(key)
+  if (typeof storage.removeItem === 'function') {
+    storage.removeItem(key)
     return
   }
 
-  const storageRecord = storage as unknown as Record<string, unknown>
-  delete storageRecord[key]
+  Reflect.deleteProperty(storage, key)
 }
 
 export function createWorkspaceSessionSnapshot(

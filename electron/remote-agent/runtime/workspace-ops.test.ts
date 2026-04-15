@@ -3,10 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  workspaceCreateDirectory,
+  workspaceCreateFile,
   workspaceIndex,
   workspaceIndexDirectory,
   workspaceReadComments,
   workspaceReadFile,
+  workspaceReadGlobalComments,
+  workspaceRename,
   workspaceSearchFiles,
   workspaceWriteComments,
   workspaceWriteFile,
@@ -64,6 +68,66 @@ describe('remote-agent/runtime/workspace-ops', () => {
         ),
       ).rejects.toMatchObject({
         code: 'PATH_DENIED',
+      })
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects existing create and rename targets with clear errors', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-create-'))
+
+    try {
+      await mkdir(path.join(rootPath, 'docs'), { recursive: true })
+      await writeFile(path.join(rootPath, 'docs/existing.md'), 'existing\n', 'utf8')
+      await writeFile(path.join(rootPath, 'docs/source.md'), 'source\n', 'utf8')
+
+      await expect(
+        workspaceCreateFile(
+          { rootPath },
+          { relativePath: 'docs/existing.md' },
+        ),
+      ).rejects.toMatchObject({
+        code: 'UNKNOWN',
+        message: 'File already exists.',
+      })
+
+      await expect(
+        workspaceCreateDirectory({ rootPath }, { relativePath: 'docs' }),
+      ).rejects.toMatchObject({
+        code: 'UNKNOWN',
+        message: 'Directory already exists.',
+      })
+
+      await expect(
+        workspaceRename(
+          { rootPath },
+          {
+            oldRelativePath: 'docs/source.md',
+            newRelativePath: 'docs/existing.md',
+          },
+        ),
+      ).rejects.toMatchObject({
+        code: 'UNKNOWN',
+        message: 'A file or directory already exists at the target path.',
+      })
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('treats missing comments files as empty results', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-comments-missing-'))
+
+    try {
+      await expect(workspaceReadComments({ rootPath })).resolves.toEqual({
+        ok: true,
+        comments: [],
+      })
+
+      await expect(workspaceReadGlobalComments({ rootPath })).resolves.toEqual({
+        ok: true,
+        body: '',
       })
     } finally {
       await rm(rootPath, { recursive: true, force: true })

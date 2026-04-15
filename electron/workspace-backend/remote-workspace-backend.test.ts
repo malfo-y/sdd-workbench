@@ -33,7 +33,6 @@ describe('workspace-backend/remote-workspace-backend', () => {
       1,
       'workspace-a',
       'workspace.index',
-      undefined,
     )
     expect(requestRemote).toHaveBeenNthCalledWith(
       2,
@@ -114,6 +113,10 @@ describe('workspace-backend/remote-workspace-backend', () => {
     } catch (error) {
       expect(error).toMatchObject({
         code: 'TIMEOUT',
+      })
+      expect(error).toMatchObject({
+        requestMethod: 'workspace.index',
+        workspaceId: 'workspace-a',
       })
       const message = error instanceof Error ? error.message : String(error)
       expect(message).toContain('password=[REDACTED]')

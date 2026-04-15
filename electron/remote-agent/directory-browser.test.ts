@@ -87,6 +87,27 @@ describe('remote-agent/directory-browser', () => {
     })
   })
 
+  it('falls back to UNKNOWN for unrecognized browse error codes', async () => {
+    await expect(
+      browseRemoteDirectories(
+        {
+          host: 'example.com',
+        },
+        {
+          runSshCommand: async () => ({
+            exitCode: 3,
+            stdout:
+              '__SDD_BROWSE_ERROR__\tSOMETHING_NEW\tUnhandled marker.\n',
+            stderr: '',
+          }),
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'UNKNOWN',
+      message: 'Unhandled marker.',
+    })
+  })
+
   it('returns TIMEOUT when browse ssh command times out', async () => {
     await expect(
       browseRemoteDirectories(

@@ -213,6 +213,43 @@ describe('getOrCreateHighlighter', () => {
     vi.doUnmock('shiki/core')
   })
 
+  it('disposes idle cached highlighters after the inactivity window', async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+
+    const dispose = vi.fn()
+    let createCalls = 0
+
+    vi.doMock('shiki/core', async () => {
+      const actual = await vi.importActual<typeof import('shiki/core')>('shiki/core')
+      return {
+        ...actual,
+        createHighlighterCore: vi.fn(async () => {
+          createCalls += 1
+          return {
+            codeToTokens: () => ({ tokens: [] }),
+            getLoadedLanguages: () => [],
+            loadLanguage: async () => undefined,
+            dispose,
+          } as unknown as Awaited<ReturnType<typeof actual.createHighlighterCore>>
+        }),
+      }
+    })
+
+    const { getOrCreateHighlighter: getFreshHighlighter } = await import('./syntax-highlight')
+
+    const first = await getFreshHighlighter('light')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(dispose).toHaveBeenCalledTimes(1)
+
+    const second = await getFreshHighlighter('light')
+    expect(second).not.toBe(first)
+    expect(createCalls).toBe(2)
+
+    vi.useRealTimers()
+    vi.doUnmock('shiki/core')
+  })
+
   it('retries highlighter creation after a transient failure', async () => {
     vi.resetModules()
     let createCalls = 0

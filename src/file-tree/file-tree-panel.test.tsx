@@ -74,6 +74,61 @@ describe('FileTreePanel context copy', () => {
     expect(onRequestCopyFullPath).toHaveBeenCalledWith('src/auth.ts')
   })
 
+  it('pastes into the parent directory for file context-menu and root for panel context-menu', () => {
+    const onRequestPasteFromClipboard = vi.fn()
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={['src']}
+        fileTree={[
+          {
+            name: 'src',
+            relativePath: 'src',
+            kind: 'directory',
+            children: [
+              {
+                name: 'auth.ts',
+                relativePath: 'src/auth.ts',
+                kind: 'file',
+              },
+            ],
+          },
+        ]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onRequestPasteFromClipboard={onRequestPasteFromClipboard}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'auth.ts' }), {
+      clientX: 120,
+      clientY: 160,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Paste' }))
+
+    expect(onRequestPasteFromClipboard).toHaveBeenLastCalledWith('src')
+
+    fireEvent.contextMenu(screen.getByTestId('file-tree-panel'), {
+      clientX: 40,
+      clientY: 50,
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'Copy Relative Path' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Paste' }))
+
+    expect(onRequestPasteFromClipboard).toHaveBeenLastCalledWith('')
+  })
+
   it('shows copy popover on directory context-menu and preserves toggle behavior', () => {
     const onRequestCopyRelativePath = vi.fn()
     const onExpandedDirectoriesChange = vi.fn()

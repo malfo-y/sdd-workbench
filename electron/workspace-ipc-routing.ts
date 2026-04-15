@@ -78,8 +78,6 @@ export type RoutingDependencies = {
 // Module state
 // ---------------------------------------------------------------------------
 
-const DUMMY_IPC_EVENT = {} as IpcMainInvokeEvent
-
 let _deps: RoutingDependencies | null = null
 
 let localWorkspaceBackend: ReturnType<typeof createLocalWorkspaceBackend>
@@ -94,6 +92,35 @@ type RoutedWorkspaceBackendMethod = Exclude<
   'copyEntries' | 'watchStop'
 >
 
+type LocalWorkspaceBackendHandlers = Parameters<typeof createLocalWorkspaceBackend>[0]
+
+type EventBackedLocalWorkspaceMethod = Exclude<
+  WorkspaceBackendMethodName,
+  'copyEntries'
+>
+
+type LocalWorkspaceIpcHandler<Method extends EventBackedLocalWorkspaceMethod> = (
+  event: IpcMainInvokeEvent,
+  request: WorkspaceBackendRequest<Method>,
+) => Promise<WorkspaceBackendResult<Method>>
+
+const LOCAL_WORKSPACE_HANDLER_EVENT = new Proxy(Object.freeze({}), {
+  get(_target, property) {
+    throw new Error(
+      `Local workspace handler attempted to access IPC event property "${String(property)}".`,
+    )
+  },
+})
+
+function createLocalWorkspaceHandlerAdapter<
+  Method extends EventBackedLocalWorkspaceMethod,
+>(
+  handler: LocalWorkspaceIpcHandler<Method>,
+): LocalWorkspaceBackendHandlers[Method] {
+  return async (request) =>
+    handler.apply(undefined, [LOCAL_WORKSPACE_HANDLER_EVENT, request])
+}
+
 // ---------------------------------------------------------------------------
 // Initialization
 // ---------------------------------------------------------------------------
@@ -102,45 +129,45 @@ export function initRouting(deps: RoutingDependencies): WorkspaceBackendRouter {
   _deps = deps
 
   localWorkspaceBackend = createLocalWorkspaceBackend({
-    index: async (request) => handleWorkspaceIndex(DUMMY_IPC_EVENT, request),
-    indexDirectory: async (request) =>
-      handleWorkspaceIndexDirectory(DUMMY_IPC_EVENT, request),
-    searchFiles: async (request) =>
-      handleWorkspaceSearchFiles(DUMMY_IPC_EVENT, request),
-    readFile: async (request) => handleWorkspaceReadFile(DUMMY_IPC_EVENT, request),
-    writeFile: async (request) =>
-      handleWorkspaceWriteFile(DUMMY_IPC_EVENT, request),
-    createFile: async (request) =>
-      handleWorkspaceCreateFile(DUMMY_IPC_EVENT, request),
-    createDirectory: async (request) =>
-      handleWorkspaceCreateDirectory(DUMMY_IPC_EVENT, request),
-    deleteFile: async (request) =>
-      handleWorkspaceDeleteFile(DUMMY_IPC_EVENT, request),
-    deleteDirectory: async (request) =>
-      handleWorkspaceDeleteDirectory(DUMMY_IPC_EVENT, request),
-    rename: async (request) => handleWorkspaceRename(DUMMY_IPC_EVENT, request),
-    getGitLineMarkers: async (request) =>
-      handleWorkspaceGetGitLineMarkers(DUMMY_IPC_EVENT, request),
-    getGitFileStatuses: async (request) =>
-      handleWorkspaceGetGitFileStatuses(DUMMY_IPC_EVENT, request),
-    readComments: async (request) =>
-      handleWorkspaceReadComments(DUMMY_IPC_EVENT, request),
-    writeComments: async (request) =>
-      handleWorkspaceWriteComments(DUMMY_IPC_EVENT, request),
-    readGlobalComments: async (request) =>
-      handleWorkspaceReadGlobalComments(DUMMY_IPC_EVENT, request),
-    writeGlobalComments: async (request) =>
-      handleWorkspaceWriteGlobalComments(DUMMY_IPC_EVENT, request),
-    exportCommentsBundle: async (request) =>
-      handleWorkspaceExportCommentsBundle(DUMMY_IPC_EVENT, request),
+    index: createLocalWorkspaceHandlerAdapter(handleWorkspaceIndex),
+    indexDirectory: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceIndexDirectory,
+    ),
+    searchFiles: createLocalWorkspaceHandlerAdapter(handleWorkspaceSearchFiles),
+    readFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceReadFile),
+    writeFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceWriteFile),
+    createFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceCreateFile),
+    createDirectory: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceCreateDirectory,
+    ),
+    deleteFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceDeleteFile),
+    deleteDirectory: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceDeleteDirectory,
+    ),
+    rename: createLocalWorkspaceHandlerAdapter(handleWorkspaceRename),
+    getGitLineMarkers: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceGetGitLineMarkers,
+    ),
+    getGitFileStatuses: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceGetGitFileStatuses,
+    ),
+    readComments: createLocalWorkspaceHandlerAdapter(handleWorkspaceReadComments),
+    writeComments: createLocalWorkspaceHandlerAdapter(handleWorkspaceWriteComments),
+    readGlobalComments: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceReadGlobalComments,
+    ),
+    writeGlobalComments: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceWriteGlobalComments,
+    ),
+    exportCommentsBundle: createLocalWorkspaceHandlerAdapter(
+      handleWorkspaceExportCommentsBundle,
+    ),
     copyEntries: async (request) => {
       await localCopyEntries(request)
       return { ok: true }
     },
-    watchStart: async (request) =>
-      handleWorkspaceWatchStart(DUMMY_IPC_EVENT, request),
-    watchStop: async (request) =>
-      handleWorkspaceWatchStop(DUMMY_IPC_EVENT, request),
+    watchStart: createLocalWorkspaceHandlerAdapter(handleWorkspaceWatchStart),
+    watchStop: createLocalWorkspaceHandlerAdapter(handleWorkspaceWatchStop),
   })
 
   workspaceBackendRouter = new WorkspaceBackendRouter(localWorkspaceBackend)

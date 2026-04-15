@@ -12,6 +12,7 @@ import {
 
 const MAX_ANCHOR_SNIPPET_CHARS = 600
 const MAX_CONTEXT_CHARS = 220
+const EMPTY_ANCHOR_SNIPPET_SENTINEL = '__SDD_EMPTY_COMMENT_ANCHOR__'
 
 export type BuildCodeCommentInput = {
   relativePath: string
@@ -47,15 +48,21 @@ function normalizeForHash(text: string): string {
     .trim()
 }
 
-function hashFnv1a(text: string): string {
-  let hash = 0x811c9dc5
+function materializeAnchorSnippet(snippet: string): string {
+  return snippet.length > 0 ? snippet : EMPTY_ANCHOR_SNIPPET_SENTINEL
+}
+
+function hashFnv1a64(text: string): string {
+  let hash = 0xcbf29ce484222325n
+  const fnvPrime = 0x100000001b3n
+  const mask = 0xffffffffffffffffn
 
   for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
+    hash ^= BigInt(text.charCodeAt(index))
+    hash = (hash * fnvPrime) & mask
   }
 
-  return (hash >>> 0).toString(16).padStart(8, '0')
+  return hash.toString(16).padStart(16, '0')
 }
 
 function countNormalizedLines(text: string): number {
@@ -127,7 +134,10 @@ export function relocateCommentSelection(
     endLine: comment.endLine,
   })
   const anchorSnippet = comment.anchor.snippet
-  if (!anchorSnippet) {
+  if (
+    !anchorSnippet ||
+    anchorSnippet === EMPTY_ANCHOR_SNIPPET_SENTINEL
+  ) {
     return originalSelection
   }
 
@@ -223,6 +233,7 @@ export function createCommentAnchor(
         normalizedSourceOffsetRange.endOffset,
       )
       .slice(0, MAX_ANCHOR_SNIPPET_CHARS)
+    const materializedSnippet = materializeAnchorSnippet(snippet)
     const before = trimTrailingContext(
       fileContent.slice(0, normalizedSourceOffsetRange.startOffset),
       MAX_CONTEXT_CHARS,
@@ -237,13 +248,13 @@ export function createCommentAnchor(
       normalizedSourceOffsetRange.startOffset,
       normalizedSourceOffsetRange.endOffset,
       before,
-      snippet,
+      materializedSnippet,
       after,
     ].join('|')
-    const hash = hashFnv1a(normalizeForHash(hashInput))
+    const hash = hashFnv1a64(normalizeForHash(hashInput))
 
     return {
-      snippet,
+      snippet: materializedSnippet,
       hash,
       startOffset: normalizedSourceOffsetRange.startOffset,
       endOffset: normalizedSourceOffsetRange.endOffset,
@@ -252,7 +263,11 @@ export function createCommentAnchor(
     }
   }
 
-  const snippet = lines.slice(startLine - 1, endLine).join('\n').slice(0, MAX_ANCHOR_SNIPPET_CHARS)
+  const snippet = lines
+    .slice(startLine - 1, endLine)
+    .join('\n')
+    .slice(0, MAX_ANCHOR_SNIPPET_CHARS)
+  const materializedSnippet = materializeAnchorSnippet(snippet)
   const before =
     startLine > 1 ? trimContext(lines[startLine - 2] ?? '', MAX_CONTEXT_CHARS) : ''
   const after =
@@ -260,11 +275,17 @@ export function createCommentAnchor(
       ? trimContext(lines[endLine] ?? '', MAX_CONTEXT_CHARS)
       : ''
 
-  const hashInput = [startLine, endLine, before, snippet, after].join('|')
-  const hash = hashFnv1a(normalizeForHash(hashInput))
+  const hashInput = [
+    startLine,
+    endLine,
+    before,
+    materializedSnippet,
+    after,
+  ].join('|')
+  const hash = hashFnv1a64(normalizeForHash(hashInput))
 
   return {
-    snippet,
+    snippet: materializedSnippet,
     hash,
     ...(before ? { before } : {}),
     ...(after ? { after } : {}),

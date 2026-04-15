@@ -9,10 +9,8 @@ import {
 } from 'react'
 import type { AppearanceTheme } from '../appearance-theme'
 import {
-  escapeHtml,
   highlightLineTokens,
   type HighlightLineToken,
-  renderLineTokensToHtml,
 } from '../code-viewer/syntax-highlight'
 import type { HighlightLanguage } from '../code-viewer/language-map'
 import {
@@ -31,11 +29,7 @@ function renderHighlightedCodeLineWithCitationMatches({
   lineNumber: number
   matches: readonly CodeBlockCitationMatch[]
   onCitationClick: (event: MouseEvent<HTMLAnchorElement>, href: string) => void
-}) {
-  if (matches.length === 0) {
-    return null
-  }
-
+}): ReactNode[] {
   const segments: ReactNode[] = []
   let cursor = 0
   let tokenKey = 0
@@ -149,6 +143,23 @@ function renderHighlightedCodeLineWithCitationMatches({
   return segments
 }
 
+function renderPlainTextLineTokens(
+  tokens: readonly HighlightLineToken[],
+  lineNumber: number,
+): ReactNode[] {
+  return tokens.map((token, tokenIndex) =>
+    token.color ? (
+      <span key={`code-line-${lineNumber}-token-${tokenIndex}`} style={{ color: token.color }}>
+        {token.content}
+      </span>
+    ) : (
+      <Fragment key={`code-line-${lineNumber}-token-${tokenIndex}`}>
+        {token.content}
+      </Fragment>
+    ),
+  )
+}
+
 export function HighlightedCodeBlock({
   code,
   language,
@@ -185,44 +196,46 @@ export function HighlightedCodeBlock({
   useEffect(() => {
     const requestToken = highlightRequestTokenRef.current + 1
     highlightRequestTokenRef.current = requestToken
-    let cancelled = false
+    const abortController = new AbortController()
     setHighlightedLineTokens(null)
 
     void highlightLineTokens(code, language, appearanceTheme).then((tokenLines) => {
-      if (cancelled || highlightRequestTokenRef.current !== requestToken) {
+      if (
+        abortController.signal.aborted ||
+        highlightRequestTokenRef.current !== requestToken
+      ) {
         return
       }
       setHighlightedLineTokens(tokenLines)
     })
 
     return () => {
-      cancelled = true
+      abortController.abort()
+      highlightRequestTokenRef.current += 1
     }
   }, [appearanceTheme, code, language])
 
-  const renderedLines =
-    highlightedLineTokens?.map((lineTokens) => renderLineTokensToHtml(lineTokens)) ??
-    codeLines.map((line) => (line.length > 0 ? escapeHtml(line) : ' '))
+  const lineTokensByLine = highlightedLineTokens ?? codeLines.map((line) => [
+    {
+      content: line.length > 0 ? line : ' ',
+      color: null,
+    },
+  ])
 
   return (
     <code>
-      {renderedLines.map((renderedLine, index) => {
+      {lineTokensByLine.map((lineTokens, index) => {
         const lineNumber = index + 1
         const matches = citationMatchesByLineNumber.get(lineNumber) ?? []
-        const renderedCitationSegments = renderHighlightedCodeLineWithCitationMatches({
-          tokens:
-            highlightedLineTokens?.[index] ??
-            [
-              {
-                content:
-                  (codeLines[index] ?? '').length > 0 ? codeLines[index] ?? '' : ' ',
-                color: null,
-              },
-            ],
-          lineNumber,
-          matches,
-          onCitationClick,
-        })
+        const renderedCitationSegments =
+          matches.length > 0
+            ? renderHighlightedCodeLineWithCitationMatches({
+                tokens: lineTokens,
+                lineNumber,
+                matches,
+                onCitationClick,
+              })
+            : renderPlainTextLineTokens(lineTokens, lineNumber)
 
         const sourceLineValue =
           sourceLineStart != null ? sourceLineStart + index : undefined
@@ -230,13 +243,9 @@ export function HighlightedCodeBlock({
         return (
           <Fragment key={`code-line-${lineNumber}`}>
             <span data-source-line={sourceLineValue}>
-              {renderedCitationSegments ? (
-                renderedCitationSegments
-              ) : (
-                <span dangerouslySetInnerHTML={{ __html: renderedLine }} />
-              )}
+              {renderedCitationSegments}
             </span>
-            {lineNumber < renderedLines.length ? '\n' : null}
+            {lineNumber < lineTokensByLine.length ? '\n' : null}
           </Fragment>
         )
       })}

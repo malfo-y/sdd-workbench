@@ -252,7 +252,7 @@ export async function handleWorkspaceOpenDialog(): Promise<WorkspaceOpenDialogRe
     }
   } catch (error) {
     return {
-      canceled: true,
+      canceled: false,
       selectedPath: null,
       error: error instanceof Error ? error.message : 'Unknown error',
     }

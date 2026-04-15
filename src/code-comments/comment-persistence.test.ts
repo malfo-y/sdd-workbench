@@ -125,4 +125,18 @@ describe('comment-persistence', () => {
     expect(parsed.comments).toEqual([])
     expect(parsed.error).toContain('skipped')
   })
+
+  it('skips comments whose anchor payload is not an object record', () => {
+    const parsed = parseCodeComments(
+      JSON.stringify([
+        {
+          ...SAMPLE_COMMENT,
+          anchor: ['not', 'an', 'anchor'],
+        },
+      ]),
+    )
+
+    expect(parsed.comments).toEqual([])
+    expect(parsed.error).toContain('skipped')
+  })
 })

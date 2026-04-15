@@ -64,6 +64,19 @@ const COMMENT_D: CodeComment = {
   createdAt: '2026-02-22T00:03:00.000Z',
 }
 
+const COMMENT_E: CodeComment = {
+  id: 'src/a.ts:9000-9000:eeee:2026-02-22T00:04:00.000Z',
+  relativePath: 'src/a.ts',
+  startLine: 9000,
+  endLine: 9000,
+  body: 'comment E',
+  anchor: {
+    snippet: 'line9000',
+    hash: 'eeee',
+  },
+  createdAt: '2026-02-22T00:04:00.000Z',
+}
+
 describe('comment-line-index', () => {
   it('builds file/line counts from comment start lines only', () => {
     const index = buildCommentLineIndex([COMMENT_A, COMMENT_B, COMMENT_C])
@@ -128,6 +141,20 @@ describe('comment-line-index', () => {
         endLine: 9,
       }),
     ).toBeNull()
+  })
+
+  it('finds the newest comment in a sparse wide selection range', () => {
+    const lineEntries = new Map<number, readonly CodeComment[]>([
+      [2, [COMMENT_A]],
+      [9000, [COMMENT_E]],
+    ])
+
+    expect(
+      findMostRecentCommentInSelectionRange(lineEntries, {
+        startLine: 1,
+        endLine: 10000,
+      })?.id,
+    ).toBe(COMMENT_E.id)
   })
 
   it('maps comment counts to rendered source lines with nearest fallback', () => {

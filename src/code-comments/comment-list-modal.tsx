@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 import { useModalDragPosition } from '../modal-drag-position'
 import {
@@ -6,6 +6,11 @@ import {
   sortCodeComments,
   type CodeComment,
 } from './comment-types'
+import {
+  CommentListGlobalSection,
+  CommentListItems,
+} from './comment-list-modal-sections'
+import { useEscapeDismiss } from './use-escape-dismiss'
 
 type CommentListModalProps = {
   isOpen: boolean
@@ -23,27 +28,6 @@ type CommentListModalProps = {
   onSaveGlobalComments?: (body: string) => boolean | Promise<boolean>
   onRequestExport: (selectedCommentIds: string[], includeGlobalComments: boolean) => void
   onJumpToComment: (relativePath: string, startLine: number, endLine: number) => void
-}
-
-const COLLAPSED_BODY_MAX_CHARS = 180
-
-function formatLineRange(startLine: number, endLine: number) {
-  if (startLine === endLine) {
-    return `L${startLine}`
-  }
-  return `L${startLine}-L${endLine}`
-}
-
-function summarizeCommentBody(body: string) {
-  const normalized = body.replace(/\s+/g, ' ').trim()
-  if (normalized.length <= COLLAPSED_BODY_MAX_CHARS) {
-    return normalized
-  }
-  return `${normalized.slice(0, COLLAPSED_BODY_MAX_CHARS - 1)}…`
-}
-
-function isLongCommentBody(body: string) {
-  return body.includes('\n') || body.trim().length > COLLAPSED_BODY_MAX_CHARS
 }
 
 export function CommentListModal({
@@ -137,62 +121,6 @@ export function CommentListModal({
   )
   const canDismissModal = !isSaving && !isSavingGlobalComments
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || !canDismissModal) {
-        return
-      }
-
-      event.preventDefault()
-
-      if (editingCommentId) {
-        setEditingCommentId(null)
-        setEditingBody('')
-        return
-      }
-
-      if (pendingDeleteCommentId) {
-        setPendingDeleteCommentId(null)
-        return
-      }
-
-      if (isDeleteExportedConfirmOpen) {
-        setIsDeleteExportedConfirmOpen(false)
-        return
-      }
-
-      if (isEditingGlobalComments) {
-        setIsEditingGlobalComments(false)
-        setEditingGlobalCommentsBody(savedGlobalComments)
-        return
-      }
-
-      onClose()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [
-    canDismissModal,
-    editingCommentId,
-    isDeleteExportedConfirmOpen,
-    isEditingGlobalComments,
-    isOpen,
-    onClose,
-    pendingDeleteCommentId,
-    savedGlobalComments,
-  ])
-
-  if (!isOpen) {
-    return null
-  }
-
   const handleToggleExpanded = (commentId: string) => {
     setExpandedCommentIds((previous) => {
       const next = new Set(previous)
@@ -225,6 +153,88 @@ export function CommentListModal({
     setSelectedCommentIds(new Set())
   }
 
+  const handleCancelEditingComment = useCallback(() => {
+    setEditingCommentId(null)
+    setEditingBody('')
+  }, [])
+
+  const handleStartEditingComment = useCallback((comment: CodeComment) => {
+    setEditingCommentId(comment.id)
+    setEditingBody(comment.body)
+    setPendingDeleteCommentId(null)
+  }, [])
+
+  const handleRequestDeleteComment = useCallback((commentId: string) => {
+    setPendingDeleteCommentId(commentId)
+    setIsDeleteExportedConfirmOpen(false)
+  }, [])
+
+  const handleCancelDeleteComment = useCallback(() => {
+    setPendingDeleteCommentId(null)
+  }, [])
+
+  const handleRequestDeleteExportedComments = useCallback(() => {
+    setIsDeleteExportedConfirmOpen(true)
+  }, [])
+
+  const handleCancelDeleteExportedComments = useCallback(() => {
+    setIsDeleteExportedConfirmOpen(false)
+  }, [])
+
+  const handleStartEditingGlobalComments = useCallback(() => {
+    setIsEditingGlobalComments(true)
+    setEditingGlobalCommentsBody(savedGlobalComments)
+  }, [savedGlobalComments])
+
+  const handleCancelEditingGlobalComments = useCallback(() => {
+    setIsEditingGlobalComments(false)
+    setEditingGlobalCommentsBody(savedGlobalComments)
+  }, [savedGlobalComments])
+
+  const handleDismissViaEscape = useCallback(() => {
+    if (editingCommentId) {
+      handleCancelEditingComment()
+      return
+    }
+
+    if (pendingDeleteCommentId) {
+      handleCancelDeleteComment()
+      return
+    }
+
+    if (isDeleteExportedConfirmOpen) {
+      handleCancelDeleteExportedComments()
+      return
+    }
+
+    if (isEditingGlobalComments) {
+      handleCancelEditingGlobalComments()
+      return
+    }
+
+    onClose()
+  }, [
+    editingCommentId,
+    handleCancelDeleteComment,
+    handleCancelDeleteExportedComments,
+    handleCancelEditingComment,
+    handleCancelEditingGlobalComments,
+    isDeleteExportedConfirmOpen,
+    isEditingGlobalComments,
+    onClose,
+    pendingDeleteCommentId,
+  ])
+
+  useEscapeDismiss({
+    isEnabled: isOpen,
+    canDismiss: canDismissModal,
+    onDismiss: handleDismissViaEscape,
+  })
+
+  if (!isOpen) {
+    return null
+  }
+
   const editingTargetComment = editingCommentId
     ? sortedComments.find((comment) => comment.id === editingCommentId) ?? null
     : null
@@ -246,8 +256,7 @@ export function CommentListModal({
       return
     }
 
-    setEditingCommentId(null)
-    setEditingBody('')
+    handleCancelEditingComment()
   }
 
   const handleConfirmDeleteComment = async (commentId: string) => {
@@ -257,8 +266,7 @@ export function CommentListModal({
     }
 
     setPendingDeleteCommentId(null)
-    setEditingCommentId(null)
-    setEditingBody('')
+    handleCancelEditingComment()
     setSelectedCommentIds((previous) => {
       const next = new Set(previous)
       next.delete(commentId)
@@ -318,115 +326,26 @@ export function CommentListModal({
           <span className="comment-modal-drag-label">Drag to move</span>
         </div>
 
-        <section
-          className="comment-list-global-section"
-          data-testid="comment-list-global-section"
-        >
-          <h3>Global Comments</h3>
-          {isEditingGlobalComments ? (
-            <>
-              <label className="comment-modal-label" htmlFor="comment-list-global-editor">
-                Global comments (Markdown)
-              </label>
-              <textarea
-                className="comment-modal-textarea comment-list-global-editor"
-                data-testid="comment-list-global-editor"
-                id="comment-list-global-editor"
-                onChange={(event) => {
-                  setEditingGlobalCommentsBody(event.target.value)
-                }}
-                rows={7}
-                value={editingGlobalCommentsBody}
-              />
-              <div className="comment-modal-actions comment-list-global-actions">
-                <button
-                  disabled={isSavingGlobalComments}
-                  onClick={() => {
-                    setEditingGlobalCommentsBody('')
-                  }}
-                  type="button"
-                >
-                  Clear
-                </button>
-                <button
-                  disabled={isSavingGlobalComments}
-                  onClick={() => {
-                    setIsEditingGlobalComments(false)
-                    setEditingGlobalCommentsBody(savedGlobalComments)
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  data-testid="save-global-comments-button"
-                  disabled={!canSaveGlobalComments}
-                  onClick={() => {
-                    void handleSaveGlobalComments()
-                  }}
-                  type="button"
-                >
-                  {isSavingGlobalComments ? 'Saving...' : 'Save Global Comments'}
-                </button>
-              </div>
-            </>
-          ) : hasGlobalComments ? (
-            <>
-              <pre
-                className="comment-list-global-body"
-                data-testid="comment-list-global-body"
-              >
-                {savedGlobalComments}
-              </pre>
-              <div className="comment-modal-actions comment-list-global-actions">
-                <button
-                  disabled={!canEditGlobalComments || isSavingGlobalComments}
-                  onClick={() => {
-                    setIsEditingGlobalComments(true)
-                    setEditingGlobalCommentsBody(savedGlobalComments)
-                  }}
-                  type="button"
-                >
-                  Edit Global Comments
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p
-                className="comment-list-global-empty"
-                data-testid="comment-list-global-empty"
-              >
-                No global comments.
-              </p>
-              <div className="comment-modal-actions comment-list-global-actions">
-                <button
-                  disabled={!canEditGlobalComments || isSavingGlobalComments}
-                  onClick={() => {
-                    setIsEditingGlobalComments(true)
-                    setEditingGlobalCommentsBody(savedGlobalComments)
-                  }}
-                  type="button"
-                >
-                  Add Global Comments
-                </button>
-              </div>
-            </>
-          )}
-          {hasGlobalComments && (
-            <label className="comment-list-global-checkbox">
-              <input
-                checked={includeGlobalComments}
-                data-testid="include-global-comments-checkbox"
-                onChange={(event) => {
-                  setIncludeGlobalComments(event.target.checked)
-                }}
-                type="checkbox"
-              />
-              Include in export
-            </label>
-          )}
-        </section>
+        <CommentListGlobalSection
+          canEditGlobalComments={canEditGlobalComments}
+          canSaveGlobalComments={canSaveGlobalComments}
+          editingGlobalCommentsBody={editingGlobalCommentsBody}
+          hasGlobalComments={hasGlobalComments}
+          includeGlobalComments={includeGlobalComments}
+          isEditingGlobalComments={isEditingGlobalComments}
+          isSavingGlobalComments={isSavingGlobalComments}
+          onCancelEditingGlobalComments={handleCancelEditingGlobalComments}
+          onChangeEditingGlobalCommentsBody={setEditingGlobalCommentsBody}
+          onChangeIncludeGlobalComments={setIncludeGlobalComments}
+          onClearEditingGlobalComments={() => {
+            setEditingGlobalCommentsBody('')
+          }}
+          onSaveGlobalComments={() => {
+            void handleSaveGlobalComments()
+          }}
+          onStartEditingGlobalComments={handleStartEditingGlobalComments}
+          savedGlobalComments={savedGlobalComments}
+        />
 
         <div className="comment-list-selection-bar" data-testid="comment-list-selection-bar">
           <button onClick={handleSelectAll} type="button">
@@ -440,181 +359,37 @@ export function CommentListModal({
           </span>
         </div>
 
-        <ul className="comment-list-items" data-testid="comment-list-items">
-          {sortedComments.length === 0 && (
-            <li className="comment-list-empty">No comments yet.</li>
-          )}
-          {sortedComments.map((comment) => {
-            const isExpanded = expandedCommentIds.has(comment.id)
-            const isEditing = editingCommentId === comment.id
-            const isPendingDelete = pendingDeleteCommentId === comment.id
-            const isSelected = selectedCommentIds.has(comment.id)
-            const bodyIsLong = isLongCommentBody(comment.body)
-            const displayBody = isExpanded
-              ? comment.body
-              : summarizeCommentBody(comment.body)
-
-            return (
-              <li
-                className="comment-list-item"
-                data-testid={`comment-list-item-${comment.id}`}
-                key={comment.id}
-              >
-                <label className="comment-list-item-checkbox-wrap">
-                  <input
-                    aria-label={`Select comment from ${comment.relativePath}:${formatLineRange(comment.startLine, comment.endLine)}`}
-                    checked={isSelected}
-                    onChange={() => {
-                      handleToggleSelected(comment.id)
-                    }}
-                    type="checkbox"
-                  />
-                </label>
-                <div className="comment-list-item-content">
-                  <div className="comment-list-item-meta">
-                    <button
-                      className="comment-modal-target comment-modal-target-jump"
-                      onClick={() => {
-                        onJumpToComment(comment.relativePath, comment.startLine, comment.endLine)
-                      }}
-                      title={`Jump to ${comment.relativePath}:${formatLineRange(comment.startLine, comment.endLine)}`}
-                      type="button"
-                    >
-                      {comment.relativePath}:{formatLineRange(
-                        comment.startLine,
-                        comment.endLine,
-                      )}
-                    </button>
-                    <p className="comment-modal-meta">{comment.createdAt}</p>
-                    {comment.exportedAt && (
-                      <p className="comment-modal-meta">exported: {comment.exportedAt}</p>
-                    )}
-                  </div>
-
-                  {!isEditing && (
-                    <div className="comment-list-item-body-wrap">
-                      <pre className="comment-list-item-body">{displayBody}</pre>
-                      {bodyIsLong && (
-                        <button
-                          className="comment-list-expand-button"
-                          onClick={() => {
-                            handleToggleExpanded(comment.id)
-                          }}
-                          type="button"
-                        >
-                          {isExpanded ? 'Collapse' : 'Expand'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {isEditing && (
-                    <div className="comment-list-edit-form">
-                      <label className="comment-modal-label" htmlFor={`comment-edit-${comment.id}`}>
-                        Edit comment body
-                      </label>
-                      <textarea
-                        className="comment-modal-textarea"
-                        id={`comment-edit-${comment.id}`}
-                        onChange={(event) => {
-                          setEditingBody(event.target.value)
-                        }}
-                        rows={5}
-                        value={editingBody}
-                      />
-                      <div className="comment-modal-actions">
-                        <button
-                          disabled={isSaving}
-                          onClick={() => {
-                            setEditingCommentId(null)
-                            setEditingBody('')
-                          }}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          disabled={!canSaveEdit}
-                          onClick={() => {
-                            void handleSaveEditedComment()
-                          }}
-                          type="button"
-                        >
-                          {isSaving ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {!isEditing && (
-                    <div className="comment-list-item-actions">
-                      {!isPendingDelete && (
-                        <>
-                          <button
-                            disabled={isSaving}
-                            onClick={() => {
-                              setEditingCommentId(comment.id)
-                              setEditingBody(comment.body)
-                              setPendingDeleteCommentId(null)
-                            }}
-                            type="button"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            disabled={isSaving}
-                            onClick={() => {
-                              setPendingDeleteCommentId(comment.id)
-                              setIsDeleteExportedConfirmOpen(false)
-                            }}
-                            type="button"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-
-                      {isPendingDelete && (
-                        <div className="comment-list-confirm-actions">
-                          <p className="comment-modal-warning" role="status">
-                            Delete this comment?
-                          </p>
-                          <button
-                            disabled={isSaving}
-                            onClick={() => {
-                              void handleConfirmDeleteComment(comment.id)
-                            }}
-                            type="button"
-                          >
-                            Confirm Delete
-                          </button>
-                          <button
-                            disabled={isSaving}
-                            onClick={() => {
-                              setPendingDeleteCommentId(null)
-                            }}
-                            type="button"
-                          >
-                            Cancel Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <CommentListItems
+          canSaveEdit={canSaveEdit}
+          comments={sortedComments}
+          editingBody={editingBody}
+          editingCommentId={editingCommentId}
+          expandedCommentIds={expandedCommentIds}
+          isSaving={isSaving}
+          onCancelDeleteComment={handleCancelDeleteComment}
+          onCancelEditingComment={handleCancelEditingComment}
+          onChangeEditingBody={setEditingBody}
+          onConfirmDeleteComment={(commentId) => {
+            void handleConfirmDeleteComment(commentId)
+          }}
+          onJumpToComment={onJumpToComment}
+          onRequestDeleteComment={handleRequestDeleteComment}
+          onSaveEditedComment={() => {
+            void handleSaveEditedComment()
+          }}
+          onStartEditingComment={handleStartEditingComment}
+          onToggleExpanded={handleToggleExpanded}
+          onToggleSelected={handleToggleSelected}
+          pendingDeleteCommentId={pendingDeleteCommentId}
+          selectedCommentIds={selectedCommentIds}
+        />
 
         <div className="comment-modal-actions">
           <div className="comment-list-modal-delete-exported">
             {!isDeleteExportedConfirmOpen && (
               <button
                 disabled={isSaving || exportedCommentCount === 0}
-                onClick={() => {
-                  setIsDeleteExportedConfirmOpen(true)
-                }}
+                onClick={handleRequestDeleteExportedComments}
                 type="button"
               >
                 Delete Exported
@@ -636,9 +411,7 @@ export function CommentListModal({
                 </button>
                 <button
                   disabled={isSaving}
-                  onClick={() => {
-                    setIsDeleteExportedConfirmOpen(false)
-                  }}
+                  onClick={handleCancelDeleteExportedComments}
                   type="button"
                 >
                   Cancel Delete Exported

@@ -1,41 +1,19 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
-import { EditorView, lineNumbers, drawSelection, keymap } from '@codemirror/view'
-import { EditorState, Compartment } from '@codemirror/state'
-import { openSearchPanel, search, searchKeymap } from '@codemirror/search'
-import { history, historyKeymap, defaultKeymap } from '@codemirror/commands'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppearanceTheme } from '../appearance-theme'
 import type { LineSelectionRange } from '../workspace/workspace-model'
 import type { WorkspaceGitLineMarkerKind } from '../workspace/workspace-model'
 import { findMostRecentCommentInSelectionRange } from '../code-comments/comment-line-index'
 import type { CodeComment } from '../code-comments/comment-types'
-import {
-  normalizeSourceOffsetRange,
-  type SourceOffsetRange,
-} from '../source-selection'
-import { darkGrayTheme } from './cm6-dark-theme'
-import { lightTheme } from './cm6-light-theme'
-import { getCM6Language } from './cm6-language-map'
-import { selectionToLineRange } from './cm6-selection-bridge'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
-import { getDisplayLanguage } from '../code-viewer/language-map'
-import { createGitMarkersExtension, setGitMarkers } from './cm6-git-gutter'
-import type { GitMarkerKind } from './cm6-git-gutter'
-import { createCommentGutterExtension, setCommentMarkers } from './cm6-comment-gutter'
-import type { CommentGutterEntry } from './cm6-comment-gutter'
+import { getCodeLanguageInfo } from '../code-viewer/language-map'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
 import { CommentMarkerDetailPanel } from '../code-comments/comment-marker-detail-panel'
 import {
-  createNavigationHighlightExtension,
-  setNavigationLineHighlight,
-} from './cm6-navigation-highlight'
-
-export type CodeViewerJumpRequest = {
-  targetRelativePath: string
-  lineNumber: number
-  sourceOffsetRange?: SourceOffsetRange
-  shouldHighlight?: boolean
-  token: number
-}
+  CodeEditorJumpRequest,
+  type CodeViewerJumpRequest,
+  useCodeEditorView,
+} from './use-code-editor-view'
+import { selectionToLineRange } from './cm6-selection-bridge'
 
 type CodeEditorPanelProps = {
   activeFile: string | null
@@ -47,7 +25,7 @@ type CodeEditorPanelProps = {
   readFileError: string | null
   previewUnavailableReason: WorkspacePreviewUnavailableReason | null
   selectionRange: LineSelectionRange | null
-  jumpRequest: CodeViewerJumpRequest | null
+  jumpRequest: CodeEditorJumpRequest | null
   onSelectRange: (range: LineSelectionRange | null) => void
   onRequestCopyRelativePath: (relativePath: string, selectionRange?: LineSelectionRange) => void
   onRequestCopySelectedContent: (input: {
@@ -92,8 +70,9 @@ type CommentHoverState = {
   comments: readonly CodeComment[]
 }
 
+export type { CodeEditorJumpRequest, CodeViewerJumpRequest }
+
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
-const NAVIGATION_HIGHLIGHT_DURATION_MS = 1600
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -127,13 +106,6 @@ function isMarkdownFile(filePath: string | null): boolean {
   return typeof filePath === 'string' && filePath.toLowerCase().endsWith('.md')
 }
 
-function clampSelectionPosition(position: number, docLength: number): number {
-  if (!Number.isFinite(position)) {
-    return 0
-  }
-  return Math.max(0, Math.min(position, docLength))
-}
-
 function isEditableElement(target: EventTarget | null): target is HTMLElement {
   if (!(target instanceof HTMLElement)) {
     return false
@@ -146,43 +118,6 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
     tagName === 'SELECT' ||
     target.isContentEditable
   )
-}
-
-function applyJumpRequestToView(
-  view: EditorView,
-  jumpRequest: CodeViewerJumpRequest | null,
-): boolean {
-  if (!jumpRequest) {
-    return false
-  }
-
-  const lineCount = view.state.doc.lines
-  if (lineCount === 0) {
-    return false
-  }
-
-  const lineNumber = Math.min(Math.max(1, jumpRequest.lineNumber), lineCount)
-  const line = view.state.doc.line(lineNumber)
-  const exactRange = normalizeSourceOffsetRange(
-    jumpRequest.sourceOffsetRange,
-    view.state.doc.length,
-  )
-
-  if (exactRange) {
-    view.dispatch({
-      selection: {
-        anchor: exactRange.startOffset,
-        head: exactRange.endOffset,
-      },
-      effects: EditorView.scrollIntoView(exactRange.startOffset, { y: 'center' }),
-    })
-    return true
-  }
-
-  view.dispatch({
-    effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
-  })
-  return true
 }
 
 function CopyPathIcon() {
@@ -233,83 +168,6 @@ function EditInVsCodeIcon() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Extension builder (shared between initial create and setState rebuilds)
-// ---------------------------------------------------------------------------
-
-type ExtensionBuilderParams = {
-  themeCompartment: Compartment
-  wrapCompartment: Compartment
-  appearanceTheme: AppearanceTheme
-  isLineWrapEnabled: boolean
-  onSelectRangeRef: MutableRefObject<(range: LineSelectionRange | null) => void>
-  onCommentHoverRef: MutableRefObject<((lineNumber: number, rect: DOMRect) => void) | undefined>
-  onCommentLeaveRef: MutableRefObject<(() => void) | undefined>
-}
-
-function buildExtensions(
-  params: ExtensionBuilderParams,
-  langSupport?: Awaited<ReturnType<typeof getCM6Language>>,
-) {
-  const {
-    themeCompartment,
-    wrapCompartment,
-    appearanceTheme,
-    isLineWrapEnabled,
-    onSelectRangeRef,
-    onCommentHoverRef,
-    onCommentLeaveRef,
-  } = params
-  const exts = [
-    themeCompartment.of(
-      appearanceTheme === 'light' ? lightTheme : darkGrayTheme,
-    ),
-    ...createGitMarkersExtension(),
-    ...createCommentGutterExtension(
-      (lineNum, rect) => onCommentHoverRef.current?.(lineNum, rect),
-      () => onCommentLeaveRef.current?.(),
-    ),
-    ...createNavigationHighlightExtension(),
-    // CM6 remains our interaction-capable viewer engine even in viewer-first mode.
-    history(),
-    EditorState.readOnly.of(true),
-    EditorView.editable.of(false),
-    wrapCompartment.of(isLineWrapEnabled ? EditorView.lineWrapping : []),
-    lineNumbers(),
-    drawSelection(),
-    search(),
-    keymap.of([
-      ...historyKeymap,
-      ...searchKeymap,
-      ...defaultKeymap,
-    ]),
-    EditorView.updateListener.of((update) => {
-      if (update.selectionSet) {
-        const range = selectionToLineRange(update.state)
-        onSelectRangeRef.current?.(range)
-      }
-    }),
-  ]
-  if (langSupport) {
-    exts.push(langSupport)
-  }
-  return exts
-}
-
-// ---------------------------------------------------------------------------
-// Comment markers map builder
-// ---------------------------------------------------------------------------
-
-function buildCommentMarkersMap(
-  counts: ReadonlyMap<number, number> | undefined,
-  entries: ReadonlyMap<number, readonly CodeComment[]> | undefined,
-): Map<number, CommentGutterEntry> {
-  const result = new Map<number, CommentGutterEntry>()
-  counts?.forEach((count, line) => {
-    result.set(line, { count, entries: entries?.get(line) ?? [] })
-  })
-  return result
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -343,79 +201,15 @@ export function CodeEditorPanel({
   onScrollChange,
   restoredScrollTop = null,
 }: CodeEditorPanelProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const viewRef = useRef<EditorView | null>(null)
-  const lastHandledJumpTokenRef = useRef<number | null>(null)
-  const jumpRequestRef = useRef(jumpRequest)
-  const onSelectRangeRef = useRef(onSelectRange)
-  const onScrollChangeRef = useRef(onScrollChange)
-  const restoredScrollTopRef = useRef<number | null>(restoredScrollTop ?? null)
-  const lastRenderedFileRef = useRef<string | null>(null)
-  const themeCompartment = useRef(new Compartment())
-  const wrapCompartment = useRef(new Compartment())
-  const [isLineWrapEnabled, setIsLineWrapEnabled] = useState(true)
-  const isLineWrapEnabledRef = useRef(isLineWrapEnabled)
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(
     null,
   )
-
-  // Gutter data refs (for dispatching after async setState)
-  const gitLineMarkersRef = useRef(gitLineMarkers)
-  const commentLineEntriesRef = useRef(commentLineEntries)
-  const commentLineCountsRef = useRef(commentLineCounts)
-
-  // Comment hover refs
-  const onCommentHoverRef = useRef<((lineNumber: number, rect: DOMRect) => void) | undefined>(
-    undefined,
-  )
-  const onCommentLeaveRef = useRef<(() => void) | undefined>(undefined)
   const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const navigationHighlightApplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  )
-  const navigationHighlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  )
-
-  // Comment hover state
+  const didInitializeSurfaceRef = useRef(false)
   const [commentHoverState, setCommentHoverState] = useState<CommentHoverState | null>(null)
   const [commentDetailState, setCommentDetailState] = useState<CommentHoverState | null>(
     null,
   )
-
-  // Keep callback refs up to date
-  useEffect(() => {
-    onSelectRangeRef.current = onSelectRange
-  }, [onSelectRange])
-
-  useEffect(() => {
-    onScrollChangeRef.current = onScrollChange
-  }, [onScrollChange])
-
-  useEffect(() => {
-    jumpRequestRef.current = jumpRequest
-  }, [jumpRequest])
-
-  useEffect(() => {
-    restoredScrollTopRef.current = restoredScrollTop ?? null
-  }, [restoredScrollTop])
-
-  useEffect(() => {
-    isLineWrapEnabledRef.current = isLineWrapEnabled
-  }, [isLineWrapEnabled])
-
-  // Keep gutter data refs up to date
-  useEffect(() => {
-    gitLineMarkersRef.current = gitLineMarkers
-  }, [gitLineMarkers])
-
-  useEffect(() => {
-    commentLineEntriesRef.current = commentLineEntries
-  }, [commentLineEntries])
-
-  useEffect(() => {
-    commentLineCountsRef.current = commentLineCounts
-  }, [commentLineCounts])
 
   // ---- Hover timer utilities -------------------------------------------
   const clearHoverCloseTimer = useCallback(() => {
@@ -441,73 +235,17 @@ export function CodeEditorPanel({
     }, HOVER_POPOVER_CLOSE_DELAY_MS)
   }, [clearHoverCloseTimer])
 
-  const clearNavigationHighlightTimers = useCallback(() => {
-    if (navigationHighlightApplyTimerRef.current) {
-      clearTimeout(navigationHighlightApplyTimerRef.current)
-      navigationHighlightApplyTimerRef.current = null
-    }
-    if (navigationHighlightClearTimerRef.current) {
-      clearTimeout(navigationHighlightClearTimerRef.current)
-      navigationHighlightClearTimerRef.current = null
-    }
-  }, [])
-
-  const clearNavigationHighlight = useCallback(() => {
-    clearNavigationHighlightTimers()
-    viewRef.current?.dispatch({
-      effects: setNavigationLineHighlight.of(null),
-    })
-  }, [clearNavigationHighlightTimers])
-
-  const scheduleNavigationLineHighlight = useCallback(
-    (view: EditorView, lineNumber: number) => {
-      const normalizedLineNumber = Math.min(
-        Math.max(1, lineNumber),
-        view.state.doc.lines,
-      )
-
-      clearNavigationHighlight()
-      navigationHighlightApplyTimerRef.current = setTimeout(() => {
-        if (viewRef.current !== view) {
-          return
-        }
-        view.dispatch({
-          effects: setNavigationLineHighlight.of(normalizedLineNumber),
-        })
-        navigationHighlightApplyTimerRef.current = null
-        navigationHighlightClearTimerRef.current = setTimeout(() => {
-          if (viewRef.current === view) {
-            view.dispatch({
-              effects: setNavigationLineHighlight.of(null),
-            })
-          }
-          navigationHighlightClearTimerRef.current = null
-        }, NAVIGATION_HIGHLIGHT_DURATION_MS)
-      }, 0)
-    },
-    [clearNavigationHighlight],
-  )
-
-  useEffect(
-    () => () => {
-      clearNavigationHighlightTimers()
-    },
-    [clearNavigationHighlightTimers],
-  )
-
   useEffect(() => {
     setCommentHoverState(null)
     setCommentDetailState(null)
   }, [activeFile])
 
-  // Bind comment hover refs each render so they always capture latest closures
-  onCommentHoverRef.current = (lineNumber: number, rect: DOMRect) => {
-    const entries = commentLineEntriesRef.current?.get(lineNumber) ?? []
+  const handleCommentHover = useCallback((lineNumber: number, rect: DOMRect) => {
+    const entries = commentLineEntries?.get(lineNumber) ?? []
     if (entries.length === 0) return
     clearHoverCloseTimer()
     setCommentHoverState({ x: rect.right, y: rect.top, lineNumber, comments: entries })
-  }
-  onCommentLeaveRef.current = scheduleCommentHoverClose
+  }, [clearHoverCloseTimer, commentLineEntries])
 
   const imagePreview = isRenderableImagePreview(activeFileImagePreview)
     ? activeFileImagePreview
@@ -516,7 +254,7 @@ export function CodeEditorPanel({
   const isMarkdownSourceFile = isMarkdownFile(activeFile)
   const displayLanguage = isImagePreviewMode
     ? 'image'
-    : getDisplayLanguage(activeFile)
+    : getCodeLanguageInfo(activeFile).displayLanguage
   const editableComment =
     contextMenuState && commentLineEntries
       ? findMostRecentCommentInSelectionRange(
@@ -532,222 +270,27 @@ export function CodeEditorPanel({
     !previewUnavailableReason &&
     activeFileContent !== null
 
-  // ---- Create / destroy EditorView when container becomes available ------
-  useEffect(() => {
-    if (!containerRef.current || !shouldMountEditor) {
-      return
-    }
-
-    const view = new EditorView({
-      state: EditorState.create({
-        doc: '',
-        extensions: buildExtensions({
-          themeCompartment: themeCompartment.current,
-          wrapCompartment: wrapCompartment.current,
-          appearanceTheme,
-          isLineWrapEnabled,
-          onSelectRangeRef,
-          onCommentHoverRef,
-          onCommentLeaveRef,
-        }),
-      }),
-      parent: containerRef.current,
-    })
-    viewRef.current = view
-
-    const handleScroll = () => {
-      onScrollChangeRef.current?.(view.scrollDOM.scrollTop)
-    }
-    view.scrollDOM.addEventListener('scroll', handleScroll)
-
-    return () => {
-      view.scrollDOM.removeEventListener('scroll', handleScroll)
-      view.destroy()
-      viewRef.current = null
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldMountEditor])
-
-  useEffect(() => {
-    if (showEditor) {
-      viewRef.current?.requestMeasure()
-    }
-  }, [showEditor])
-
-  // ---- Reconfigure line wrap compartment when wrap toggle changes ---------
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) {
-      return
-    }
-    view.dispatch({
-      effects: wrapCompartment.current.reconfigure(
-        isLineWrapEnabled ? EditorView.lineWrapping : [],
-      ),
-    })
-  }, [isLineWrapEnabled])
-
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) {
-      return
-    }
-    view.dispatch({
-      effects: themeCompartment.current.reconfigure(
-        appearanceTheme === 'light' ? lightTheme : darkGrayTheme,
-      ),
-    })
-  }, [appearanceTheme])
-
-  // ---- Update document when file content or file changes -----------------
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) {
-      return
-    }
-
-    const newContent = activeFileContent ?? ''
-    if (
-      activeFile !== null &&
-      lastRenderedFileRef.current === activeFile &&
-      view.state.doc.toString() === newContent
-    ) {
-      return
-    }
-    const previousSelection = view.state.selection.main
-    const previousScrollTop = view.scrollDOM.scrollTop
-    const shouldPreserveViewportState =
-      activeFile !== null &&
-      lastRenderedFileRef.current !== null &&
-      lastRenderedFileRef.current === activeFile
-    const shouldRestoreFocus = shouldPreserveViewportState && view.hasFocus
-
-    // Build extensions including async language support
-    let cancelled = false
-    let rafHandle1: number | undefined
-    let rafHandle2: number | undefined
-    const updateState = async () => {
-      let langSupport: Awaited<ReturnType<typeof getCM6Language>> | null = null
-      try {
-        langSupport = await getCM6Language(activeFile)
-      } catch {
-        // Language loading failed — proceed without syntax highlighting
-      }
-      if (cancelled) {
-        return
-      }
-
-      const extensions = buildExtensions(
-        {
-          themeCompartment: themeCompartment.current,
-          wrapCompartment: wrapCompartment.current,
-          appearanceTheme,
-          isLineWrapEnabled: isLineWrapEnabledRef.current,
-          onSelectRangeRef,
-          onCommentHoverRef,
-          onCommentLeaveRef,
-        },
-        langSupport ?? undefined,
-      )
-
-      const newState = EditorState.create({
-        doc: newContent,
-        extensions,
-      })
-      view.setState(newState)
-
-      const pendingJumpRequest = jumpRequestRef.current
-      const shouldApplyPendingJump =
-        pendingJumpRequest !== null &&
-        activeFile !== null &&
-        pendingJumpRequest.targetRelativePath === activeFile &&
-        lastHandledJumpTokenRef.current !== pendingJumpRequest.token
-      const appliedPendingJump = shouldApplyPendingJump
-        ? applyJumpRequestToView(view, pendingJumpRequest)
-        : false
-      if (appliedPendingJump && pendingJumpRequest) {
-        lastHandledJumpTokenRef.current = pendingJumpRequest.token
-        if (pendingJumpRequest.shouldHighlight) {
-          scheduleNavigationLineHighlight(view, pendingJumpRequest.lineNumber)
-        }
-      }
-
-      if (appliedPendingJump) {
-        // Jump requests intentionally override previous viewport restoration.
-      } else if (shouldPreserveViewportState) {
-        const docLength = view.state.doc.length
-        const nextAnchor = clampSelectionPosition(previousSelection.anchor, docLength)
-        const nextHead = clampSelectionPosition(previousSelection.head, docLength)
-        view.dispatch({
-          selection: {
-            anchor: nextAnchor,
-            head: nextHead,
-          },
-        })
-        rafHandle1 = requestAnimationFrame(() => {
-          if (!cancelled) {
-            view.scrollDOM.scrollTop = Math.max(0, Math.trunc(previousScrollTop))
-            if (shouldRestoreFocus) {
-              view.focus()
-            }
-          }
-        })
-      } else {
-        // Restore scroll position after content is set
-        const targetScrollTop = restoredScrollTopRef.current
-        if (
-          typeof targetScrollTop === 'number' &&
-          Number.isFinite(targetScrollTop) &&
-          targetScrollTop > 0
-        ) {
-          const scrollTop = Math.trunc(targetScrollTop)
-          rafHandle2 = requestAnimationFrame(() => {
-            if (!cancelled) {
-              view.scrollDOM.scrollTop = scrollTop
-            }
-          })
-        }
-      }
-      lastRenderedFileRef.current = activeFile
-    }
-
-    updateState()
-
-    return () => {
-      cancelled = true
-      if (rafHandle1 !== undefined) cancelAnimationFrame(rafHandle1)
-      if (rafHandle2 !== undefined) cancelAnimationFrame(rafHandle2)
-    }
-  }, [
-    activeFileContent,
+  const {
+    containerRef,
+    isLineWrapEnabled,
+    requestSearchPanelOpen,
+    setIsLineWrapEnabled,
+    viewRef,
+  } = useCodeEditorView({
     activeFile,
+    activeFileContent,
     appearanceTheme,
-    scheduleNavigationLineHighlight,
-  ])
-
-  // ---- Jump to line ------------------------------------------------------
-  useEffect(() => {
-    if (!jumpRequest || !viewRef.current || !activeFile) {
-      return
-    }
-    if (lastHandledJumpTokenRef.current === jumpRequest.token) {
-      return
-    }
-    if (activeFile !== jumpRequest.targetRelativePath) {
-      return
-    }
-
-    const view = viewRef.current
-    if (!applyJumpRequestToView(view, jumpRequest)) {
-      return
-    }
-
-    if (jumpRequest.shouldHighlight) {
-      scheduleNavigationLineHighlight(view, jumpRequest.lineNumber)
-    }
-
-    lastHandledJumpTokenRef.current = jumpRequest.token
-  }, [activeFile, jumpRequest, scheduleNavigationLineHighlight])
+    commentLineCounts,
+    commentLineEntries,
+    gitLineMarkers,
+    jumpRequest,
+    onCommentHover: handleCommentHover,
+    onCommentLeave: scheduleCommentHoverClose,
+    onScrollChange,
+    onSelectRange,
+    restoredScrollTop,
+    shouldMountEditor,
+  })
 
   // ---- Context menu handler on container (bubbles from EditorView) --------
   useEffect(() => {
@@ -773,25 +316,7 @@ export function CodeEditorPanel({
     return () => {
       container.removeEventListener('contextmenu', handleContextMenu)
     }
-  }, [activeFile, shouldMountEditor])
-
-  // ---- Sync git gutter markers when prop changes -------------------------
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    const gitMap: Map<number, GitMarkerKind> = new Map()
-    gitLineMarkers?.forEach((kind, line) => gitMap.set(line, kind))
-    view.dispatch({ effects: setGitMarkers.of(gitMap) })
-  }, [gitLineMarkers])
-
-  // ---- Sync comment gutter markers when props change ---------------------
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-    view.dispatch({
-      effects: setCommentMarkers.of(buildCommentMarkersMap(commentLineCounts, commentLineEntries)),
-    })
-  }, [commentLineCounts, commentLineEntries])
+  }, [activeFile, containerRef, shouldMountEditor, viewRef])
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
@@ -818,26 +343,42 @@ export function CodeEditorPanel({
       }
 
       event.preventDefault()
-      openSearchPanel(view)
-      view.focus()
+      requestSearchPanelOpen()
     }
 
     window.addEventListener('keydown', handleWindowKeyDown)
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown)
     }
-  }, [isActive, showEditor])
+  }, [containerRef, isActive, requestSearchPanelOpen, showEditor, viewRef])
+
+  useEffect(() => {
+    if (!showEditor) {
+      return
+    }
+    const view = viewRef.current
+    if (!view) {
+      return
+    }
+    const frame = requestAnimationFrame(() => {
+      view.requestMeasure()
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [showEditor, viewRef])
 
   // ---- Reset context menu on file change ---------------------------------
   useEffect(() => {
-    clearNavigationHighlight()
+    if (!didInitializeSurfaceRef.current) {
+      didInitializeSurfaceRef.current = true
+      return
+    }
     setContextMenuState(null)
     setCommentHoverState(null)
-    lastHandledJumpTokenRef.current = null
   }, [
     activeFile,
     activeFileImagePreview,
-    clearNavigationHighlight,
     previewUnavailableReason,
   ])
 
@@ -847,17 +388,17 @@ export function CodeEditorPanel({
 
   return (
     <section
-      className="code-viewer-panel"
+      className="code-editor-panel code-viewer-panel"
       data-appearance-theme={appearanceTheme}
       data-testid="code-viewer-panel"
     >
-      <header className="code-viewer-header">
-        <div className="code-viewer-title-row">
+      <header className="code-editor-header code-viewer-header">
+        <div className="code-editor-title-row code-viewer-title-row">
           <p className="label">Code Viewer</p>
-          <div className="code-viewer-header-actions">
+          <div className="code-editor-header-actions code-viewer-header-actions">
             <button
               aria-label="Edit in VSCode"
-              className="code-viewer-edit-button"
+              className="code-editor-edit-button code-viewer-edit-button"
               data-testid="code-viewer-edit-in-vscode-button"
               disabled={!activeFile || !onRequestEditInVsCode}
               onClick={() => {
@@ -875,7 +416,7 @@ export function CodeEditorPanel({
             <button
               aria-label="Toggle code wrap"
               aria-pressed={isLineWrapEnabled}
-              className="code-viewer-wrap-toggle-button"
+              className="code-editor-wrap-toggle-button code-viewer-wrap-toggle-button"
               data-testid="code-viewer-wrap-toggle"
               onClick={() => {
                 setIsLineWrapEnabled((previous) => !previous)
@@ -887,7 +428,7 @@ export function CodeEditorPanel({
             </button>
             <button
               aria-label="Copy active file path"
-              className="code-viewer-copy-path-button"
+              className="code-editor-copy-path-button code-viewer-copy-path-button"
               data-testid="code-viewer-copy-path-button"
               disabled={!activeFile}
               onClick={() => {

@@ -1,16 +1,15 @@
 import {
   Fragment,
   createElement,
-  type ReactNode,
   type MouseEvent,
 } from 'react'
+import type { ExtraProps } from 'react-markdown'
 import { mapCommentCountsToRenderedSourceLines } from '../code-comments/comment-line-index'
 import { type CodeComment } from '../code-comments/comment-types'
 import type { HighlightLanguage } from '../code-viewer/language-map'
 import {
   buildSourceLineAttributes,
   getMarkdownNodeSourceLine,
-  type MarkdownNodeWithPosition,
 } from './source-line-metadata'
 import {
   buildCommentMarkerAnchorKey,
@@ -19,9 +18,12 @@ import {
   shouldSuppressMarkerForNestedSameLineChild,
 } from './spec-viewer-comment-markers'
 
+export type MarkdownComponentProps<Tag extends keyof JSX.IntrinsicElements> =
+  JSX.IntrinsicElements[Tag] & ExtraProps
+
 export function renderBlockWithSourceLine(
-  tagName: string,
-  props: Record<string, unknown>,
+  tagName: keyof JSX.IntrinsicElements,
+  props: MarkdownComponentProps<keyof JSX.IntrinsicElements>,
   markerCountsByKey: ReadonlyMap<string, number>,
   markerEntriesByKey: ReadonlyMap<string, readonly CodeComment[]>,
   onMarkerMouseEnter: (
@@ -36,11 +38,7 @@ export function renderBlockWithSourceLine(
     markerPlacement?: 'inside' | 'before'
   },
 ) {
-  const { node, children, ...restProps } = props as {
-    node?: MarkdownNodeWithPosition
-    children?: ReactNode
-    className?: string
-  }
+  const { node, children, className, ...restProps } = props
   const sourceLine = getMarkdownNodeSourceLine(node)
   const markerAnchorKey = buildCommentMarkerAnchorKey(node)
   const markerCount =
@@ -51,8 +49,7 @@ export function renderBlockWithSourceLine(
     markerCount > 0 &&
     markerComments.length > 0 &&
     !shouldSuppressMarkerForNestedSameLineChild(tagName, node, sourceLine)
-  const existingClassName =
-    typeof restProps.className === 'string' ? restProps.className : ''
+  const existingClassName = typeof className === 'string' ? className : ''
   const mergedClassName = [
     existingClassName,
     hasCommentMarker ? 'spec-comment-marked' : '',
@@ -111,23 +108,20 @@ export function renderBlockWithSourceLine(
 }
 
 export function renderElementWithSourceLine(
-  tagName: string,
-  props: Record<string, unknown>,
+  tagName: keyof JSX.IntrinsicElements,
+  props: MarkdownComponentProps<keyof JSX.IntrinsicElements>,
   options?: {
     includeAnchorLine?: boolean
   },
 ) {
-  const { node, children, ...restProps } = props as {
-    node?: MarkdownNodeWithPosition
-    children?: ReactNode
-  }
+  const { node, children, ...restProps } = props
 
   return createElement(
     tagName,
     {
       ...restProps,
       ...buildSourceLineAttributes(node, options),
-    } as Record<string, unknown>,
+    },
     children ?? null,
   )
 }

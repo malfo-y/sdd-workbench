@@ -85,23 +85,40 @@ describe('source-line-resolver', () => {
     expect(resolveSourceLineFromSelection(selection)).toBe(4)
   })
 
-  it('estimates source line from a multiline rendered span', () => {
+  it('resolves source line from exact source offsets when selection lands on a later multiline leaf', () => {
     const block = document.createElement('p')
     block.setAttribute('data-source-line', '3')
     block.setAttribute('data-source-line-start', '3')
     block.setAttribute('data-source-line-end', '5')
-    const textNode = document.createTextNode('alpha beta gamma')
-    block.append(textNode)
+    const firstLeaf = document.createElement('span')
+    firstLeaf.setAttribute('data-source-text-leaf', 'true')
+    firstLeaf.setAttribute('data-source-line-start', '3')
+    firstLeaf.setAttribute('data-source-line-end', '3')
+    firstLeaf.setAttribute('data-source-offset-start', '9')
+    firstLeaf.setAttribute('data-source-offset-end', '14')
+    const firstText = document.createTextNode('alpha')
+    firstLeaf.append(firstText)
+    const secondLeaf = document.createElement('span')
+    secondLeaf.setAttribute('data-source-text-leaf', 'true')
+    secondLeaf.setAttribute('data-source-line-start', '5')
+    secondLeaf.setAttribute('data-source-line-end', '5')
+    secondLeaf.setAttribute('data-source-offset-start', '20')
+    secondLeaf.setAttribute('data-source-offset-end', '25')
+    const secondText = document.createTextNode('gamma')
+    secondLeaf.append(secondText)
+    block.append(firstLeaf, secondLeaf)
 
     const selection = {
-      anchorNode: textNode,
-      anchorOffset: textNode.data.indexOf('gamma'),
-      focusNode: textNode,
-      focusOffset: textNode.data.length,
+      anchorNode: secondText,
+      anchorOffset: 1,
+      focusNode: secondText,
+      focusOffset: secondText.data.length,
     } as unknown as Selection
 
-    expect(resolveSourceLineFromSelection(selection)).toBe(5)
-    expect(resolveSourceLineRangeFromSelection(selection)).toEqual({
+    const sourceText = '# Title\n\nalpha\nbeta\ngamma\n'
+
+    expect(resolveSourceLineFromSelection(selection, sourceText)).toBe(5)
+    expect(resolveSourceLineRangeFromSelection(selection, sourceText)).toEqual({
       startLine: 5,
       endLine: 5,
     })
@@ -179,6 +196,49 @@ describe('source-line-resolver', () => {
       sourceOffsetRange: {
         startOffset: 25,
         endOffset: 28,
+      },
+    })
+  })
+
+  it('derives exact line range from source offsets across multiline leaf boundaries', () => {
+    const paragraph = document.createElement('p')
+    paragraph.setAttribute('data-source-line', '3')
+    paragraph.setAttribute('data-source-line-start', '3')
+    paragraph.setAttribute('data-source-line-end', '4')
+    const firstLeaf = document.createElement('span')
+    firstLeaf.setAttribute('data-source-text-leaf', 'true')
+    firstLeaf.setAttribute('data-source-line-start', '3')
+    firstLeaf.setAttribute('data-source-line-end', '3')
+    firstLeaf.setAttribute('data-source-offset-start', '3')
+    firstLeaf.setAttribute('data-source-offset-end', '8')
+    const firstText = document.createTextNode('alpha')
+    firstLeaf.append(firstText)
+    const secondLeaf = document.createElement('span')
+    secondLeaf.setAttribute('data-source-text-leaf', 'true')
+    secondLeaf.setAttribute('data-source-line-start', '4')
+    secondLeaf.setAttribute('data-source-line-end', '4')
+    secondLeaf.setAttribute('data-source-offset-start', '9')
+    secondLeaf.setAttribute('data-source-offset-end', '13')
+    const secondText = document.createTextNode('beta')
+    secondLeaf.append(secondText)
+    paragraph.append(firstLeaf, secondLeaf)
+
+    const selection = {
+      anchorNode: firstText,
+      anchorOffset: 2,
+      focusNode: secondText,
+      focusOffset: 3,
+      isCollapsed: false,
+    } as unknown as Selection
+
+    expect(
+      resolveSourceSelectionRangeFromSelection(selection, '#\n\nalpha\nbeta'),
+    ).toEqual({
+      startLine: 3,
+      endLine: 4,
+      sourceOffsetRange: {
+        startOffset: 5,
+        endOffset: 12,
       },
     })
   })
@@ -333,6 +393,7 @@ describe('source-line-resolver', () => {
       resolveSourceLine({
         target: targetNode,
         selection,
+        sourceText: 'content',
       }),
     ).toBe(3)
   })
@@ -349,6 +410,7 @@ describe('source-line-resolver', () => {
       resolveSourceLine({
         target: null,
         selection,
+        sourceText: 'plain',
       }),
     ).toBeNull()
   })

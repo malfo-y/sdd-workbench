@@ -9,11 +9,13 @@ import {
   createWorkspaceDocumentSession,
   createWorkspaceId,
   createWorkspaceSession,
+  deriveWorkspaceHasUnsavedChanges,
   deriveWorkspaceIsDirtyCompatibility,
   getWorkspaceFileLastLine,
   getWorkspaceDocumentSession,
   MAX_WORKSPACE_FILE_HISTORY,
   markWorkspaceDocumentDirtyCompatibility,
+  markWorkspaceDocumentDirtyWithoutDraftSync,
   markWorkspaceDocumentConflict,
   mergeDirectoryChildren,
   pushWorkspaceFileHistory,
@@ -478,7 +480,7 @@ describe('workspace-model', () => {
     expect(b?.draftContent).toBe('b0')
   })
 
-  it('sets saveState to dirty when draft differs from saved and derives isDirty from active document session', () => {
+  it('sets saveState to dirty when draft differs from saved and derives unsaved state from active document session', () => {
     let session = createWorkspaceSession(ROOT_A)
     session = {
       ...session,
@@ -489,7 +491,7 @@ describe('workspace-model', () => {
 
     const doc = getWorkspaceDocumentSession(session, 'docs/a.md')
     expect(doc?.saveState).toBe('dirty')
-    expect(deriveWorkspaceIsDirtyCompatibility(session)).toBe(true)
+    expect(deriveWorkspaceHasUnsavedChanges(session)).toBe(true)
   })
 
   it('preserves active pointers when updating document draft', () => {
@@ -523,7 +525,7 @@ describe('workspace-model', () => {
     expect(doc?.saveState).toBe('clean')
     expect(doc?.savedContent).toBe('v1')
     expect(doc?.draftContent).toBe('v1')
-    expect(deriveWorkspaceIsDirtyCompatibility(session)).toBe(false)
+    expect(deriveWorkspaceHasUnsavedChanges(session)).toBe(false)
   })
 
   it('transitions dirty -> conflict and stores conflict disk content', () => {
@@ -537,12 +539,28 @@ describe('workspace-model', () => {
     expect(doc?.conflictDiskContent).toBe('disk-v2')
   })
 
-  it('marks document dirty as a legacy compatibility bridge', () => {
+  it('marks document dirty when a draft exists outside workspace session sync', () => {
     let session = createWorkspaceSession(ROOT_A)
+    session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'v0')
+    session = markWorkspaceDocumentDirtyWithoutDraftSync(
+      session,
+      'docs/a.md',
+      'v0',
+    )
+
+    expect(getWorkspaceDocumentSession(session, 'docs/a.md')?.saveState).toBe('dirty')
+  })
+
+  it('keeps compatibility aliases wired to the canonical dirty-state helpers', () => {
+    let session = createWorkspaceSession(ROOT_A)
+    session = {
+      ...session,
+      activeFile: 'docs/a.md',
+    }
     session = upsertWorkspaceDocumentSessionFromDisk(session, 'docs/a.md', 'v0')
     session = markWorkspaceDocumentDirtyCompatibility(session, 'docs/a.md', 'v0')
 
-    expect(getWorkspaceDocumentSession(session, 'docs/a.md')?.saveState).toBe('dirty')
+    expect(deriveWorkspaceIsDirtyCompatibility(session)).toBe(true)
   })
 
   it('removes document sessions by path', () => {

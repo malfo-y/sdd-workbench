@@ -21,6 +21,10 @@ function normalizeLineNumber(lineNumber: number): number {
   return Math.max(1, Math.trunc(lineNumber))
 }
 
+function usesWindowsPathSeparator(rootPath: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(rootPath) || /^\\\\/.test(rootPath)
+}
+
 function normalizeRootPathForJoin(rootPath: string, separator: '/' | '\\'): string {
   if (separator === '\\') {
     const normalized = rootPath.replace(/\//g, '\\')
@@ -41,7 +45,7 @@ export function buildCopyFullPathPayload(
   rootPath: string,
   relativePath: string,
 ): string {
-  const separator: '/' | '\\' = rootPath.includes('\\') ? '\\' : '/'
+  const separator: '/' | '\\' = usesWindowsPathSeparator(rootPath) ? '\\' : '/'
   const normalizedRootPath = normalizeRootPathForJoin(rootPath, separator)
   const normalizedRelativePath = relativePath
     .replace(/^[\\/]+/, '')

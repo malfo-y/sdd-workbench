@@ -68,6 +68,23 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-04-15 - pre-split audit remediation 완료 + source-line exactness 보정
+
+- Context:
+  - `_sdd/review/PRE_SPLIT_REVIEW_STATUS_AUDIT_2026-04-15.md` 기준 still-open backlog를 phase별 remediation과 final integration review로 정리했고, current workspace repo gate까지 다시 통과시켰음.
+  - rendered spec selection은 exact source offset metadata가 있는 구조에서도 일부 경로에서 rendered text 길이 비율 추정에 의존해 later-line drift가 남을 수 있었음.
+- Decision:
+  - pre-split audit remediation 완료 상태를 current implementation baseline으로 삼는다.
+  - rendered spec selection에서 exact source offset metadata를 복구할 수 있으면 raw markdown offset을 line range 계산의 source of truth로 사용한다.
+  - exact offset을 복구할 수 없는 구조는 기존 line fallback / nearest fallback 정책을 유지한다.
+  - local/remote backend hardening 결과는 renderer public contract를 바꾸지 않고 내부 helper/diagnostics 정리로만 승격한다.
+- Rationale:
+  - exact offset이 이미 있는 구조에서는 raw markdown 기준 line 계산이 rendered-length ratio보다 drift 위험이 낮다.
+  - 이번 remediation의 목적은 새 기능 추가가 아니라 audit backlog closure였으므로, global spec에는 검증된 behavior truth와 backlog 상태 변화만 올리는 편이 맞다.
+- Impact / follow-up:
+  - `spec-viewer/overview.md`, `spec-viewer/contracts.md`, `appendix/backlog-and-risks.md`를 동기화한다.
+  - `system-open.ts` 추가 SSH option hardening 같은 low-risk follow-up은 appendix backlog에 남긴다.
+
 ## 2026-04-15 - post-split backlog UX 완료 반영 + comment/navigation contract 정리
 
 - Context:

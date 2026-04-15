@@ -292,6 +292,9 @@ describe('CodeEditorPanel', () => {
     await waitFor(() => {
       expect(getCM6View(container)).not.toBeNull()
     })
+    const initialView = getCM6View(container)
+    expect(initialView).not.toBeNull()
+    expect(initialView?.state.doc.toString()).toBe('const alpha = 1\nconst beta = 2')
 
     const wrapToggle = screen.getByTestId('code-viewer-wrap-toggle')
     expect(wrapToggle).toHaveTextContent('Wrap On')
@@ -300,10 +303,18 @@ describe('CodeEditorPanel', () => {
     fireEvent.click(wrapToggle)
     expect(wrapToggle).toHaveTextContent('Wrap Off')
     expect(wrapToggle).toHaveAttribute('aria-pressed', 'false')
+    expect(getCM6View(container)).toBe(initialView)
+    expect(getCM6View(container)?.state.doc.toString()).toBe(
+      'const alpha = 1\nconst beta = 2',
+    )
 
     fireEvent.click(wrapToggle)
     expect(wrapToggle).toHaveTextContent('Wrap On')
     expect(wrapToggle).toHaveAttribute('aria-pressed', 'true')
+    expect(getCM6View(container)).toBe(initialView)
+    expect(getCM6View(container)?.state.doc.toString()).toBe(
+      'const alpha = 1\nconst beta = 2',
+    )
     expect(container.querySelector('.cm-lineWrapping')).not.toBeNull()
   })
 
@@ -589,7 +600,9 @@ describe('CodeEditorPanel', () => {
     })
 
     const getView = () => getCM6View(container)
-    expect(getView()?.state.facet(EditorView.darkTheme)).toBe(true)
+    const initialView = getView()
+    expect(initialView?.state.facet(EditorView.darkTheme)).toBe(true)
+    expect(initialView?.state.doc.toString()).toContain('alpha **beta** gamma')
 
     rerender(
       <CodeEditorPanel
@@ -602,6 +615,40 @@ describe('CodeEditorPanel', () => {
 
     await waitFor(() => {
       expect(getView()?.state.facet(EditorView.darkTheme)).toBe(false)
+      expect(getView()?.state.doc.toString()).toContain('alpha **beta** gamma')
+      expect(getView()).toBe(initialView)
+    })
+  })
+
+  it('requests a fresh CodeMirror measurement when a hidden editor becomes visible', async () => {
+    const props = makeDefaultProps()
+    const requestMeasureSpy = vi.spyOn(EditorView.prototype, 'requestMeasure')
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={null}
+        isReadingFile={true}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+    })
+
+    requestMeasureSpy.mockClear()
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="docs/spec.md"
+        activeFileContent={'# Title\n\nalpha **beta** gamma'}
+        isReadingFile={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(requestMeasureSpy).toHaveBeenCalled()
     })
   })
 

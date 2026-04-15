@@ -10,6 +10,11 @@ export type CommentDisplayMaps = {
   entries: ReadonlyMap<number, readonly CodeComment[]>
 }
 
+type RenderedSourceLineLookup = {
+  sortedRenderedLines: readonly number[]
+  renderedLineSet: ReadonlySet<number>
+}
+
 function incrementLineCount(lineCounts: CommentLineCountMap, line: number, count: number) {
   lineCounts.set(line, (lineCounts.get(line) ?? 0) + count)
 }
@@ -26,6 +31,64 @@ function appendLineComment(
   }
 
   lineEntries.set(line, [comment])
+}
+
+function buildRenderedSourceLineLookup(
+  renderedSourceLines: readonly number[],
+): RenderedSourceLineLookup {
+  const sortedRenderedLines = Array.from(new Set(renderedSourceLines)).sort(
+    (left, right) => left - right,
+  )
+
+  return {
+    sortedRenderedLines,
+    renderedLineSet: new Set(sortedRenderedLines),
+  }
+}
+
+function resolveRenderedSourceLine(
+  commentLine: number,
+  lookup: RenderedSourceLineLookup,
+): number | null {
+  if (lookup.renderedLineSet.has(commentLine)) {
+    return commentLine
+  }
+
+  return findNearestRenderedSourceLine(lookup.sortedRenderedLines, commentLine)
+}
+
+function mapCommentLineValuesToRenderedSourceLines<TInput, TMapped>(
+  commentLineValues: ReadonlyMap<number, TInput>,
+  renderedSourceLines: readonly number[],
+  shouldSkipValue: (value: TInput) => boolean,
+  mergeValue: (
+    mappedValues: Map<number, TMapped>,
+    mappedLine: number,
+    value: TInput,
+  ) => void,
+): Map<number, TMapped> {
+  const renderedSourceLineLookup = buildRenderedSourceLineLookup(
+    renderedSourceLines,
+  )
+  const mappedValues = new Map<number, TMapped>()
+
+  for (const [commentLine, value] of commentLineValues.entries()) {
+    if (shouldSkipValue(value)) {
+      continue
+    }
+
+    const mappedLine = resolveRenderedSourceLine(
+      commentLine,
+      renderedSourceLineLookup,
+    )
+    if (mappedLine === null) {
+      continue
+    }
+
+    mergeValue(mappedValues, mappedLine, value)
+  }
+
+  return mappedValues
 }
 
 export function buildCommentLineIndex(comments: CodeComment[]): CommentLineIndex {
@@ -152,22 +215,24 @@ export function findMostRecentCommentInSelectionRange(
     1,
     Math.max(selectionRange.startLine, selectionRange.endLine),
   )
-  const matchingComments: CodeComment[] = []
+  let mostRecentComment: CodeComment | null = null
 
-  for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
-    const lineComments = commentLineEntries.get(lineNumber)
-    if (!lineComments || lineComments.length === 0) {
+  for (const [lineNumber, lineComments] of commentLineEntries.entries()) {
+    if (lineNumber < startLine || lineNumber > endLine) {
       continue
     }
 
-    matchingComments.push(...lineComments)
+    for (const comment of lineComments) {
+      if (
+        mostRecentComment === null ||
+        compareCodeComments(mostRecentComment, comment) < 0
+      ) {
+        mostRecentComment = comment
+      }
+    }
   }
 
-  if (matchingComments.length === 0) {
-    return null
-  }
-
-  return [...matchingComments].sort(compareCodeComments).at(-1) ?? null
+  return mostRecentComment
 }
 
 function findNearestRenderedSourceLine(
@@ -218,58 +283,30 @@ export function mapCommentCountsToRenderedSourceLines(
   commentLineCounts: ReadonlyMap<number, number>,
   renderedSourceLines: readonly number[],
 ): Map<number, number> {
-  const uniqueRenderedLines = Array.from(new Set(renderedSourceLines)).sort(
-    (left, right) => left - right,
+  return mapCommentLineValuesToRenderedSourceLines(
+    commentLineCounts,
+    renderedSourceLines,
+    () => false,
+    (mappedCounts, mappedLine, count) => {
+      incrementLineCount(mappedCounts, mappedLine, count)
+    },
   )
-  const renderedLineSet = new Set(uniqueRenderedLines)
-  const mappedCounts = new Map<number, number>()
-
-  for (const [commentLine, count] of commentLineCounts.entries()) {
-    if (renderedLineSet.has(commentLine)) {
-      incrementLineCount(mappedCounts, commentLine, count)
-      continue
-    }
-
-    const nearestLine = findNearestRenderedSourceLine(
-      uniqueRenderedLines,
-      commentLine,
-    )
-    if (nearestLine === null) {
-      continue
-    }
-
-    incrementLineCount(mappedCounts, nearestLine, count)
-  }
-
-  return mappedCounts
 }
 
 export function mapCommentEntriesToRenderedSourceLines(
   commentLineEntries: ReadonlyMap<number, readonly CodeComment[]>,
   renderedSourceLines: readonly number[],
 ): Map<number, readonly CodeComment[]> {
-  const uniqueRenderedLines = Array.from(new Set(renderedSourceLines)).sort(
-    (left, right) => left - right,
+  const mappedEntries = mapCommentLineValuesToRenderedSourceLines(
+    commentLineEntries,
+    renderedSourceLines,
+    (entries) => entries.length === 0,
+    (mappedEntries, mappedLine, entries) => {
+      const nextEntries = mappedEntries.get(mappedLine) ?? []
+      nextEntries.push(...entries)
+      mappedEntries.set(mappedLine, nextEntries)
+    },
   )
-  const renderedLineSet = new Set(uniqueRenderedLines)
-  const mappedEntries = new Map<number, CodeComment[]>()
-
-  for (const [commentLine, entries] of commentLineEntries.entries()) {
-    if (entries.length === 0) {
-      continue
-    }
-
-    const mappedLine = renderedLineSet.has(commentLine)
-      ? commentLine
-      : findNearestRenderedSourceLine(uniqueRenderedLines, commentLine)
-    if (mappedLine === null) {
-      continue
-    }
-
-    const nextEntries = mappedEntries.get(mappedLine) ?? []
-    nextEntries.push(...entries)
-    mappedEntries.set(mappedLine, nextEntries)
-  }
 
   for (const [mappedLine, entries] of mappedEntries.entries()) {
     mappedEntries.set(

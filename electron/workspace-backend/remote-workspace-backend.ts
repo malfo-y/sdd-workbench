@@ -42,6 +42,11 @@ type RequestRemote = (
   params?: unknown,
 ) => Promise<unknown>
 
+type RemoteWorkspaceRequestError = RemoteAgentError & {
+  readonly requestMethod: string
+  readonly workspaceId: string
+}
+
 type SubscribeAgentEvents = (
   workspaceId: string,
   listener: (event: RemoteAgentEvent) => void,
@@ -315,36 +320,14 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
     request: WorkspaceWatchStopRequest,
   ): Promise<WorkspaceBackendResult<'watchStop'>> {
     void request
-    try {
-      await this.watchBridge.stop()
-    } catch (error) {
-      const normalized = toRemoteAgentError(error)
-      if (normalized.code !== 'CONNECTION_CLOSED') {
-        throw new RemoteAgentError(
-          normalized.code,
-          redactRemoteErrorMessage(normalized.message),
-          normalized.cause,
-        )
-      }
-    }
+    await this.stopWatchBridgeSafely()
     return {
       ok: true,
     }
   }
 
   async dispose(): Promise<void> {
-    try {
-      await this.watchBridge.stop()
-    } catch (error) {
-      const normalized = toRemoteAgentError(error)
-      if (normalized.code !== 'CONNECTION_CLOSED') {
-        throw new RemoteAgentError(
-          normalized.code,
-          redactRemoteErrorMessage(normalized.message),
-          normalized.cause,
-        )
-      }
-    }
+    await this.stopWatchBridgeSafely()
   }
 
   private assertRootPath(rootPath: string): void {
@@ -412,15 +395,45 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
     assertRemoteWorkspaceMethodAllowed(method)
 
     try {
+      if (params === undefined) {
+        return await this.requestRemote(this.workspaceId, method) as TResult
+      }
       return await this.requestRemote(this.workspaceId, method, params) as TResult
     } catch (error) {
+      throw this.wrapRemoteRequestError(method, error)
+    }
+  }
+
+  private async stopWatchBridgeSafely(): Promise<void> {
+    try {
+      await this.watchBridge.stop()
+    } catch (error) {
       const normalized = toRemoteAgentError(error)
-      throw new RemoteAgentError(
+      if (normalized.code !== 'CONNECTION_CLOSED') {
+        throw this.wrapRemoteRequestError(
+          REMOTE_WORKSPACE_METHODS.watchStop,
+          error,
+        )
+      }
+    }
+  }
+
+  private wrapRemoteRequestError(
+    method: string,
+    error: unknown,
+  ): RemoteWorkspaceRequestError {
+    const normalized = toRemoteAgentError(error)
+    return Object.assign(
+      new RemoteAgentError(
         normalized.code,
         redactRemoteErrorMessage(normalized.message),
-        normalized.cause,
-      )
-    }
+        normalized.cause ?? error,
+      ),
+      {
+        requestMethod: method,
+        workspaceId: this.workspaceId,
+      },
+    )
   }
 }
 

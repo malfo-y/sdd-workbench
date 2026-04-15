@@ -112,11 +112,14 @@ export function hasIgnoredWorkspaceSegment(
     .some((segment) => ignoreNames.has(segment))
 }
 
-export function ensurePathWithinWorkspace(rootPath: string, targetPath: string): boolean {
+export function isPathWithinWorkspace(rootPath: string, targetPath: string): boolean {
   const resolvedRootPath = path.resolve(rootPath)
   const resolvedTargetPath = path.resolve(targetPath)
   return isPathInsideWorkspace(resolvedRootPath, resolvedTargetPath)
 }
+
+// Compatibility alias retained for existing callers that still use the older name.
+export const ensurePathWithinWorkspace = isPathWithinWorkspace
 
 export function shouldIgnoreWatchPath(rootPath: string, candidatePath: string) {
   const resolvedCandidatePath = path.resolve(candidatePath)

@@ -20,13 +20,16 @@ export type SourceSelectionRange = SourceLineRange & {
   sourceOffsetRange?: SourceOffsetRange
 }
 
-function normalizeSourceLine(value: unknown): number | null {
+function normalizeIntegerValue(
+  value: unknown,
+  minimumValue: number,
+): number | null {
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       return null
     }
     const normalized = Math.trunc(value)
-    return normalized >= 1 ? normalized : null
+    return normalized >= minimumValue ? normalized : null
   }
 
   if (typeof value === 'string') {
@@ -39,35 +42,18 @@ function normalizeSourceLine(value: unknown): number | null {
       return null
     }
     const normalized = Math.trunc(parsed)
-    return normalized >= 1 ? normalized : null
+    return normalized >= minimumValue ? normalized : null
   }
 
   return null
 }
 
+function normalizeSourceLine(value: unknown): number | null {
+  return normalizeIntegerValue(value, 1)
+}
+
 function normalizeSourceOffset(value: unknown): number | null {
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      return null
-    }
-    const normalized = Math.trunc(value)
-    return normalized >= 0 ? normalized : null
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return null
-    }
-    const parsed = Number(trimmed)
-    if (!Number.isFinite(parsed)) {
-      return null
-    }
-    const normalized = Math.trunc(parsed)
-    return normalized >= 0 ? normalized : null
-  }
-
-  return null
+  return normalizeIntegerValue(value, 0)
 }
 
 function toElement(node: Node | null): Element | null {
@@ -126,6 +112,27 @@ function countLineBreaks(text: string): number {
     }
   }
   return count
+}
+
+function walkAncestorElements<T>(
+  node: Node | null,
+  visitor: (element: Element) => T | null,
+): T | null {
+  const element = toElement(node)
+  if (!element) {
+    return null
+  }
+
+  let current: Element | null = element
+  while (current) {
+    const resolvedValue = visitor(current)
+    if (resolvedValue !== null) {
+      return resolvedValue
+    }
+    current = current.parentElement
+  }
+
+  return null
 }
 
 function resolveSourceLineSpanFromElement(
@@ -235,6 +242,42 @@ function estimateLineFromSpanOffset(
   return span.startLine + lineIndex
 }
 
+function resolveSourceLineNumberFromOffset(
+  sourceText: string,
+  sourceOffset: number,
+): number {
+  const boundedOffset = Math.max(0, Math.min(sourceOffset, sourceText.length))
+  let lineNumber = 1
+  for (let index = 0; index < boundedOffset; index += 1) {
+    if (sourceText[index] === '\n') {
+      lineNumber += 1
+    }
+  }
+  return lineNumber
+}
+
+function resolveSourceLineRangeFromOffsets(
+  sourceOffsetRange: SourceOffsetRange,
+  sourceText: string,
+): SourceLineRange {
+  const startLine = resolveSourceLineNumberFromOffset(
+    sourceText,
+    sourceOffsetRange.startOffset,
+  )
+  const endLine = resolveSourceLineNumberFromOffset(
+    sourceText,
+    Math.max(
+      sourceOffsetRange.startOffset,
+      sourceOffsetRange.endOffset - 1,
+    ),
+  )
+
+  return {
+    startLine: Math.min(startLine, endLine),
+    endLine: Math.max(startLine, endLine),
+  }
+}
+
 function resolveCodeBlockLineOffset(
   codeElement: HTMLElement,
   targetNode: Node,
@@ -258,14 +301,7 @@ function resolveSourceLineFromNode(
   node: Node | null,
   nodeOffset?: number,
 ): number | null {
-  const element = toElement(node)
-  if (!element) {
-    return null
-  }
-
-  const targetNode = node ?? element
-  let current: Element | null = element
-  while (current) {
+  return walkAncestorElements(node, (current) => {
     const sourceLineSpan = resolveSourceLineSpanFromElement(current)
     if (sourceLineSpan) {
       if (
@@ -276,7 +312,7 @@ function resolveSourceLineFromNode(
         if (codeElement) {
           const codeBlockLineOffset = resolveCodeBlockLineOffset(
             codeElement,
-            targetNode,
+            node ?? current,
             nodeOffset,
           )
           if (codeBlockLineOffset !== null) {
@@ -287,7 +323,7 @@ function resolveSourceLineFromNode(
       if (current instanceof HTMLElement) {
         const textOffset = resolveNodeTextOffsetWithinElement(
           current,
-          targetNode,
+          node ?? current,
           nodeOffset,
         )
         return estimateLineFromSpanOffset(
@@ -299,9 +335,8 @@ function resolveSourceLineFromNode(
 
       return sourceLineSpan.startLine
     }
-    current = current.parentElement
-  }
-  return null
+    return null
+  })
 }
 
 function getSourceSpanDistance(span: SourceLineRange, lineNumber: number): number {
@@ -376,18 +411,11 @@ function resolveSourceOffsetFromNode(
   nodeOffset: number | undefined,
   sourceText: string,
 ): number | null {
-  const element = toElement(node)
-  if (!element) {
-    return null
-  }
-
-  const targetNode = node ?? element
-  let current: Element | null = element
-  while (current) {
+  return walkAncestorElements(node, (current) => {
     if (current instanceof HTMLElement) {
       const resolvedOffset = resolveExactSourceOffsetFromElement(
         current,
-        targetNode,
+        node ?? current,
         nodeOffset,
         sourceText,
       )
@@ -395,10 +423,8 @@ function resolveSourceOffsetFromNode(
         return resolvedOffset
       }
     }
-    current = current.parentElement
-  }
-
-  return null
+    return null
+  })
 }
 
 export function resolveSourceLineFromTarget(target: EventTarget | null): number | null {
@@ -410,9 +436,20 @@ export function resolveSourceLineFromTarget(target: EventTarget | null): number 
 
 export function resolveSourceLineFromSelection(
   selection: Selection | null,
+  sourceText?: string | null,
 ): number | null {
   if (!selection) {
     return null
+  }
+
+  if (sourceText) {
+    const resolvedSelectionRange = resolveSourceSelectionRangeFromSelection(
+      selection,
+      sourceText,
+    )
+    if (resolvedSelectionRange) {
+      return resolvedSelectionRange.startLine
+    }
   }
 
   return (
@@ -423,9 +460,29 @@ export function resolveSourceLineFromSelection(
 
 export function resolveSourceLineRangeFromSelection(
   selection: Selection | null,
+  sourceText?: string | null,
 ): SourceLineRange | null {
   if (!selection) {
     return null
+  }
+
+  const lineRange = resolveSelectionLineRange(selection, sourceText)
+  if (!lineRange) {
+    return null
+  }
+
+  return lineRange
+}
+
+function resolveSelectionLineRange(
+  selection: Selection,
+  sourceText?: string | null,
+): SourceLineRange | null {
+  if (sourceText) {
+    const sourceOffsetRange = resolveSelectionSourceOffsetRange(selection, sourceText)
+    if (sourceOffsetRange) {
+      return resolveSourceLineRangeFromOffsets(sourceOffsetRange, sourceText)
+    }
   }
 
   const anchorLine = resolveSourceLineFromNode(
@@ -471,6 +528,37 @@ export function resolveSourceSelectionRangeFromSelection(
     return lineRange
   }
 
+  const sourceOffsetRange = resolveSelectionSourceOffsetRange(selection, sourceText)
+  if (!sourceOffsetRange) {
+    return lineRange
+  }
+
+  const exactLineRange = resolveSourceLineRangeFromOffsets(
+    sourceOffsetRange,
+    sourceText,
+  )
+
+  return {
+    ...exactLineRange,
+    sourceOffsetRange,
+  }
+}
+
+export function resolveSourceLine(input: {
+  target: EventTarget | null
+  selection: Selection | null
+  sourceText?: string | null
+}): number | null {
+  return (
+    resolveSourceLineFromTarget(input.target) ??
+    resolveSourceLineFromSelection(input.selection, input.sourceText)
+  )
+}
+
+function resolveSelectionSourceOffsetRange(
+  selection: Selection,
+  sourceText: string,
+): SourceOffsetRange | null {
   const anchorOffset = resolveSourceOffsetFromNode(
     selection.anchorNode,
     selection.anchorOffset,
@@ -482,32 +570,13 @@ export function resolveSourceSelectionRangeFromSelection(
     sourceText,
   )
   if (anchorOffset === null || focusOffset === null) {
-    return lineRange
+    return null
   }
 
-  const sourceOffsetRange = normalizeSourceOffsetRange({
+  return normalizeSourceOffsetRange({
     startOffset: Math.min(anchorOffset, focusOffset),
     endOffset: Math.max(anchorOffset, focusOffset),
   })
-
-  if (!sourceOffsetRange) {
-    return lineRange
-  }
-
-  return {
-    ...lineRange,
-    sourceOffsetRange,
-  }
-}
-
-export function resolveSourceLine(input: {
-  target: EventTarget | null
-  selection: Selection | null
-}): number | null {
-  return (
-    resolveSourceLineFromTarget(input.target) ??
-    resolveSourceLineFromSelection(input.selection)
-  )
 }
 
 export function resolveNearestSourceLineFromPoint(
@@ -518,14 +587,12 @@ export function resolveNearestSourceLineFromPoint(
     return null
   }
 
-  const sourceLineElements = Array.from(
-    containerElement.querySelectorAll<HTMLElement>(`[${SOURCE_LINE_ATTRIBUTE}]`),
-  )
-
   let nearestLine: number | null = null
   let nearestDistance = Number.POSITIVE_INFINITY
 
-  for (const element of sourceLineElements) {
+  for (const element of containerElement.querySelectorAll<HTMLElement>(
+    `[${SOURCE_LINE_ATTRIBUTE}]`,
+  )) {
     const normalizedLine = normalizeSourceLine(
       element.getAttribute(SOURCE_LINE_ATTRIBUTE),
     )
@@ -560,9 +627,6 @@ export function resolveBestRenderedSourceBlockForLine(
   }
 
   const normalizedLine = Math.max(1, Math.trunc(lineNumber))
-  const candidateElements = Array.from(
-    containerElement.querySelectorAll<HTMLElement>(`[${SOURCE_LINE_ATTRIBUTE}]`),
-  )
 
   let bestElement: HTMLElement | null = null
   let bestDistance = Number.POSITIVE_INFINITY
@@ -570,7 +634,9 @@ export function resolveBestRenderedSourceBlockForLine(
   let bestAnchorDistance = Number.POSITIVE_INFINITY
   let bestDepth = -1
 
-  for (const element of candidateElements) {
+  for (const element of containerElement.querySelectorAll<HTMLElement>(
+    `[${SOURCE_LINE_ATTRIBUTE}]`,
+  )) {
     const span = resolveSourceLineSpanFromElement(element)
     if (!span) {
       continue

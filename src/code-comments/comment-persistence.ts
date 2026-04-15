@@ -12,6 +12,10 @@ type ParsedCommentsResult = {
   error: string | null
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function parseOptionalFiniteNumber(rawValue: unknown): number | undefined | null {
   if (rawValue === undefined || rawValue === null || rawValue === '') {
     return undefined
@@ -37,21 +41,20 @@ function parseRequiredFiniteLineNumber(rawValue: unknown): number | null {
 }
 
 function parseAnchor(rawAnchor: unknown): CodeCommentAnchor | null {
-  if (!rawAnchor || typeof rawAnchor !== 'object') {
+  if (!isRecord(rawAnchor)) {
     return null
   }
-  const anchorRecord = rawAnchor as Record<string, unknown>
 
   const snippet =
-    typeof anchorRecord.snippet === 'string' ? anchorRecord.snippet : null
-  const hash = typeof anchorRecord.hash === 'string' ? anchorRecord.hash : null
+    typeof rawAnchor.snippet === 'string' ? rawAnchor.snippet : null
+  const hash = typeof rawAnchor.hash === 'string' ? rawAnchor.hash : null
 
   if (!snippet || !hash) {
     return null
   }
 
-  const parsedStartOffset = parseOptionalFiniteNumber(anchorRecord.startOffset)
-  const parsedEndOffset = parseOptionalFiniteNumber(anchorRecord.endOffset)
+  const parsedStartOffset = parseOptionalFiniteNumber(rawAnchor.startOffset)
+  const parsedEndOffset = parseOptionalFiniteNumber(rawAnchor.endOffset)
   if (parsedStartOffset === null || parsedEndOffset === null) {
     return null
   }
@@ -67,11 +70,11 @@ function parseAnchor(rawAnchor: unknown): CodeCommentAnchor | null {
   return {
     snippet,
     hash,
-    ...(typeof anchorRecord.before === 'string'
-      ? { before: anchorRecord.before }
+    ...(typeof rawAnchor.before === 'string'
+      ? { before: rawAnchor.before }
       : {}),
-    ...(typeof anchorRecord.after === 'string'
-      ? { after: anchorRecord.after }
+    ...(typeof rawAnchor.after === 'string'
+      ? { after: rawAnchor.after }
       : {}),
     ...(sourceOffsetRange
       ? {
@@ -96,30 +99,29 @@ function parseExportedAt(rawValue: unknown): string | undefined {
 }
 
 function parseComment(rawComment: unknown): CodeComment | null {
-  if (!rawComment || typeof rawComment !== 'object') {
+  if (!isRecord(rawComment)) {
     return null
   }
-  const commentRecord = rawComment as Record<string, unknown>
 
   const relativePath =
-    typeof commentRecord.relativePath === 'string'
-      ? commentRecord.relativePath
+    typeof rawComment.relativePath === 'string'
+      ? rawComment.relativePath
       : null
   const body =
-    typeof commentRecord.body === 'string'
-      ? sanitizeCommentBody(commentRecord.body)
+    typeof rawComment.body === 'string'
+      ? sanitizeCommentBody(rawComment.body)
       : null
   const createdAt =
-    typeof commentRecord.createdAt === 'string' ? commentRecord.createdAt : null
-  const anchor = parseAnchor(commentRecord.anchor)
-  const exportedAt = parseExportedAt(commentRecord.exportedAt)
+    typeof rawComment.createdAt === 'string' ? rawComment.createdAt : null
+  const anchor = parseAnchor(rawComment.anchor)
+  const exportedAt = parseExportedAt(rawComment.exportedAt)
 
   if (!relativePath || !body || !createdAt || !anchor) {
     return null
   }
 
-  const parsedStartLine = parseRequiredFiniteLineNumber(commentRecord.startLine)
-  const parsedEndLine = parseRequiredFiniteLineNumber(commentRecord.endLine)
+  const parsedStartLine = parseRequiredFiniteLineNumber(rawComment.startLine)
+  const parsedEndLine = parseRequiredFiniteLineNumber(rawComment.endLine)
   if (parsedStartLine === null || parsedEndLine === null) {
     return null
   }
@@ -130,8 +132,8 @@ function parseComment(rawComment: unknown): CodeComment | null {
   })
 
   const id =
-    typeof commentRecord.id === 'string' && commentRecord.id.length > 0
-      ? commentRecord.id
+    typeof rawComment.id === 'string' && rawComment.id.length > 0
+      ? rawComment.id
       : `${relativePath}:${normalizedSelection.startLine}-${normalizedSelection.endLine}:${anchor.hash}:${createdAt}`
 
   return {

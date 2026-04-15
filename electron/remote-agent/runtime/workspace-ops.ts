@@ -79,6 +79,35 @@ export type WorkspaceOpsContext = {
   rootPath: string
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined
+  }
+
+  const candidateCode = Reflect.get(error, 'code')
+  return typeof candidateCode === 'string' ? candidateCode : undefined
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return getErrorCode(error) === 'ENOENT'
+}
+
+async function ensurePathDoesNotExist(
+  targetPath: string,
+  existsMessage: string,
+): Promise<void> {
+  try {
+    await stat(targetPath)
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return
+    }
+    throw error
+  }
+
+  throw new RemoteAgentError('UNKNOWN', existsMessage)
+}
+
 function sortWorkspaceTree(nodes: RuntimeWorkspaceFileNode[]): RuntimeWorkspaceFileNode[] {
   const collator = new Intl.Collator(undefined, {
     numeric: true,
@@ -704,14 +733,7 @@ export async function workspaceCreateFile(
     : ''
   const resolvedFilePath = resolveWorkspaceRelativePath(context.rootPath, relativePath)
 
-  try {
-    await stat(resolvedFilePath)
-    throw new RemoteAgentError('UNKNOWN', 'File already exists.')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error
-    }
-  }
+  await ensurePathDoesNotExist(resolvedFilePath, 'File already exists.')
 
   await mkdir(path.dirname(resolvedFilePath), { recursive: true })
   await writeFile(resolvedFilePath, '')
@@ -730,14 +752,10 @@ export async function workspaceCreateDirectory(
     relativePath,
   )
 
-  try {
-    await stat(resolvedDirectoryPath)
-    throw new RemoteAgentError('UNKNOWN', 'Directory already exists.')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error
-    }
-  }
+  await ensurePathDoesNotExist(
+    resolvedDirectoryPath,
+    'Directory already exists.',
+  )
 
   await mkdir(resolvedDirectoryPath, { recursive: true })
   return { ok: true }
@@ -797,17 +815,10 @@ export async function workspaceRename(
   const newPath = resolveWorkspaceRelativePath(context.rootPath, newRelativePath)
 
   await stat(oldPath)
-  try {
-    await stat(newPath)
-    throw new RemoteAgentError(
-      'UNKNOWN',
-      'A file or directory already exists at the target path.',
-    )
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error
-    }
-  }
+  await ensurePathDoesNotExist(
+    newPath,
+    'A file or directory already exists at the target path.',
+  )
 
   await mkdir(path.dirname(newPath), { recursive: true })
   await rename(oldPath, newPath)
@@ -829,7 +840,7 @@ export async function workspaceGetGitLineMarkers(
       return { ok: true, markers: [] }
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isMissingPathError(error)) {
       return { ok: true, markers: [] }
     }
     throw error
@@ -891,7 +902,7 @@ export async function workspaceReadComments(
         : {}),
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isMissingPathError(error)) {
       return {
         ok: true,
         comments: [],
@@ -938,7 +949,7 @@ export async function workspaceReadGlobalComments(
       body,
     }
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isMissingPathError(error)) {
       return {
         ok: true,
         body: '',

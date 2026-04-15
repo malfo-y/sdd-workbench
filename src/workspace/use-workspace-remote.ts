@@ -231,11 +231,11 @@ export function useWorkspaceRemote(input: {
       const result = await window.workspace.openDialog()
 
       if (result.canceled) {
-        setBannerMessage(
-          result.error
-            ? `Failed to open workspace: ${result.error}`
-            : 'Workspace selection was canceled.',
-        )
+        return
+      }
+
+      if (result.error) {
+        setBannerMessage(`Failed to open workspace: ${result.error}`)
         return
       }
 

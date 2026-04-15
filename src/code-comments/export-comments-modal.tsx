@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useModalDragPosition } from '../modal-drag-position'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
+import { useEscapeDismiss } from './use-escape-dismiss'
 
 export type ExportCommentsModalInput = {
   instruction: string
@@ -87,24 +88,11 @@ export function ExportCommentsModal({
     setCopyToClipboard(false)
   }, [clipboardDisabled])
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || isExporting) {
-        return
-      }
-      event.preventDefault()
-      onCancel()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, isExporting, onCancel])
+  useEscapeDismiss({
+    isEnabled: isOpen,
+    canDismiss: !isExporting,
+    onDismiss: onCancel,
+  })
 
   if (!isOpen) {
     return null

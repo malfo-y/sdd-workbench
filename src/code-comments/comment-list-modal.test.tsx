@@ -756,4 +756,71 @@ describe('CommentListModal', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('Escape cancels global comments editing before closing modal', () => {
+    const onClose = vi.fn()
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments="## Global\n- shared context"
+        isOpen
+        isSaving={false}
+        onClose={onClose}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onSaveGlobalComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Global Comments' }))
+    expect(screen.getByTestId('comment-list-global-editor')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(
+      screen.queryByTestId('comment-list-global-editor'),
+    ).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Escape cancels exported delete confirmation before closing modal', () => {
+    const onClose = vi.fn()
+
+    render(
+      <CommentListModal
+        comments={COMMENTS}
+        globalComments=""
+        isOpen
+        isSaving={false}
+        onClose={onClose}
+        onDeleteComment={() => true}
+        onDeleteExportedComments={() => true}
+        onUpdateComment={() => true}
+        onRequestExport={vi.fn()}
+        onJumpToComment={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Exported' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm Delete Exported' }),
+    ).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(
+      screen.queryByRole('button', { name: 'Confirm Delete Exported' }),
+    ).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

@@ -41,10 +41,11 @@ citation 세부 규칙:
 1. 기본 selection 모델은 line range다.
 2. fenced code block에서는 newline offset 기반 line 정밀도를 유지한다.
 3. 일반 markdown paragraph/list/blockquote/table cell은 `data-source-line-start/end` descendant metadata를 우선 사용한다.
-4. exact offset mapping은 지원 구조에서만 additive payload로 계산한다.
-5. table exact offset은 same-cell selection에서만 허용한다.
-6. repeated rendered text 때문에 exact source span이 ambiguous하면 exact offset을 버리고 line fallback으로 degrade 한다.
-7. collapsed selection, cross-cell table selection, unsupported structure는 nearest line fallback으로 degrade 한다.
+4. exact source offset metadata를 복구할 수 있으면 raw markdown offset을 line range 계산의 source of truth로 사용한다.
+5. exact offset mapping은 지원 구조에서만 additive payload로 계산한다.
+6. table exact offset은 same-cell selection에서만 허용한다.
+7. repeated rendered text 때문에 exact source span이 ambiguous하면 exact offset을 버리고 line fallback으로 degrade 한다.
+8. collapsed selection, cross-cell table selection, unsupported structure는 nearest line fallback으로 degrade 한다.
 
 ## 4. spec -> code / code -> spec 규칙
 

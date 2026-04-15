@@ -1,8 +1,10 @@
 import {
+  deriveWorkspaceHasUnsavedChanges,
   getWorkspaceDocumentSession,
-  type DocumentSaveState,
   type WorkspaceSession,
 } from './workspace-model'
+
+import type { DocumentSaveState } from './workspace-model'
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
@@ -28,14 +30,19 @@ export function getWorkspaceActiveDocumentSaveState(
   return getWorkspaceDocumentSaveState(session, session.activeFile)
 }
 
+export function getWorkspaceHasUnsavedChanges(
+  session: WorkspaceSession,
+): boolean {
+  return deriveWorkspaceHasUnsavedChanges(session)
+}
+
+/**
+ * Deprecated compatibility alias. Prefer `getWorkspaceHasUnsavedChanges`.
+ */
 export function getWorkspaceIsDirtyCompatibility(
   session: WorkspaceSession,
 ): boolean {
-  const saveState = getWorkspaceActiveDocumentSaveState(session)
-  if (saveState === null) {
-    return false
-  }
-  return saveState !== 'clean'
+  return getWorkspaceHasUnsavedChanges(session)
 }
 
 export function getWorkspaceDocumentDraftContent(

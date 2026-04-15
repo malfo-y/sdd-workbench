@@ -29,6 +29,12 @@ describe('copy-payload', () => {
     ).toBe('C:\\Users\\tester\\project\\src\\auth.ts')
   })
 
+  it('keeps posix separator when a unix root contains a literal backslash', () => {
+    expect(
+      buildCopyFullPathPayload('/Users/tester/project\\name', 'src/auth.ts'),
+    ).toBe('/Users/tester/project\\name/src/auth.ts')
+  })
+
   it('includes single line number when selectionRange is a single line', () => {
     expect(
       buildCopyActiveFilePathPayload('src/auth.ts', { startLine: 42, endLine: 42 }),

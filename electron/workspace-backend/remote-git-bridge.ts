@@ -27,22 +27,25 @@ export class RemoteGitBridge {
   getGitLineMarkers(
     request: WorkspaceGetGitLineMarkersRequest,
   ): Promise<WorkspaceBackendResult<'getGitLineMarkers'>> {
-    return this.requestRemote(
-      this.workspaceId,
-      'workspace.getGitLineMarkers',
-      {
-        relativePath: request.relativePath,
-      },
-    ) as Promise<WorkspaceBackendResult<'getGitLineMarkers'>>
+    return this.requestWorkspaceMethod('workspace.getGitLineMarkers', {
+      relativePath: request.relativePath,
+    })
   }
 
   getGitFileStatuses(
     request: WorkspaceGetGitFileStatusesRequest,
   ): Promise<WorkspaceBackendResult<'getGitFileStatuses'>> {
     void request
-    return this.requestRemote(
-      this.workspaceId,
-      'workspace.getGitFileStatuses',
-    ) as Promise<WorkspaceBackendResult<'getGitFileStatuses'>>
+    return this.requestWorkspaceMethod('workspace.getGitFileStatuses')
+  }
+
+  private requestWorkspaceMethod<TResult>(
+    method: string,
+    params?: unknown,
+  ): Promise<TResult> {
+    if (params === undefined) {
+      return this.requestRemote(this.workspaceId, method) as Promise<TResult>
+    }
+    return this.requestRemote(this.workspaceId, method, params) as Promise<TResult>
   }
 }

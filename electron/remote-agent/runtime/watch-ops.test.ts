@@ -1,4 +1,4 @@
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -16,6 +16,8 @@ describe('remote-agent/runtime/watch-ops', () => {
     const emitted: Array<{ eventName: string; payload: unknown }> = []
 
     try {
+      await writeFile(path.join(rootPath, 'watched.txt'), 'hello\n', 'utf8')
+
       const service = new RuntimeWatchService(rootPath, (eventName, payload) => {
         emitted.push({ eventName, payload })
       })
@@ -27,12 +29,15 @@ describe('remote-agent/runtime/watch-ops', () => {
         fallbackApplied: true,
       })
 
-      await writeFile(path.join(rootPath, 'watched.txt'), 'hello\n', 'utf8')
+      await writeFile(path.join(rootPath, 'watched.txt'), 'hello again\n', 'utf8')
       await wait(1_800)
 
-      expect(emitted.some((event) => event.eventName === 'workspace.watchEvent')).toBe(
-        true,
-      )
+      const watchEvent = emitted.find((event) => event.eventName === 'workspace.watchEvent')
+      expect(watchEvent).toBeDefined()
+      expect(watchEvent?.payload).toMatchObject({
+        changedRelativePaths: ['watched.txt'],
+        hasStructureChanges: false,
+      })
 
       const stopResult = await service.stop()
       expect(stopResult).toEqual({ ok: true })
@@ -73,6 +78,33 @@ describe('remote-agent/runtime/watch-ops', () => {
     } finally {
       await rm(rootPath, { recursive: true, force: true })
       await rm(externalPath, { recursive: true, force: true })
+    }
+  })
+
+  it('marks directory additions as structure changes', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-watch-structure-'))
+    const emitted: Array<{ eventName: string; payload: unknown }> = []
+
+    try {
+      const service = new RuntimeWatchService(rootPath, (eventName, payload) => {
+        emitted.push({ eventName, payload })
+      })
+
+      await service.start('native')
+
+      await mkdir(path.join(rootPath, 'docs'), { recursive: true })
+      await wait(1_800)
+
+      const watchEvent = emitted.find((event) => event.eventName === 'workspace.watchEvent')
+      expect(watchEvent).toBeDefined()
+      expect(watchEvent?.payload).toMatchObject({
+        changedRelativePaths: ['docs'],
+        hasStructureChanges: true,
+      })
+
+      await service.stop()
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
     }
   })
 })

@@ -4,11 +4,10 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
   type MouseEvent,
   type UIEvent,
 } from 'react'
-import ReactMarkdown, { type Components } from 'react-markdown'
+import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
@@ -24,15 +23,9 @@ import { buildCopyActiveFilePathPayload } from '../context-copy/copy-payload'
 import { extractMarkdownHeadings } from './markdown-utils'
 import {
   MARKDOWN_SANITIZE_SCHEMA,
-  resolveMarkdownImageSource,
   sanitizeMarkdownUri,
 } from './markdown-security'
 import { SpecLinkPopover } from './spec-link-popover'
-import {
-  buildSourceLineAttributes,
-  SOURCE_TEXT_LEAF_ATTRIBUTE,
-  type MarkdownNodeWithPosition,
-} from './source-line-metadata'
 import {
   resolveBestRenderedSourceBlockForLine,
   resolveNearestSourceLineFromPoint,
@@ -46,8 +39,6 @@ import type { SourceOffsetRange } from '../source-selection'
 import {
   type CitationNavigationResult,
   type CitationTarget,
-  buildCitationHref,
-  parseBracketCitationText,
 } from './citation-target'
 import { remarkCitationLinks } from './remark-citation-links'
 import {
@@ -59,13 +50,10 @@ import {
   mapCommentCountsToMarkerAnchors,
   mapCommentEntriesToMarkerAnchors,
 } from './spec-viewer-comment-markers'
-import { HighlightedCodeBlock } from './highlighted-code-block'
+import { createSpecViewerMarkdownComponents } from './spec-viewer-markdown-components'
 import {
   hasVisibleSelectionInElement,
   mapSearchMatchLinesToRenderedSourceLines,
-  renderBlockWithSourceLine,
-  renderElementWithSourceLine,
-  resolveMarkdownLanguage,
 } from './spec-viewer-helpers'
 import {
   findHeadingElement,
@@ -153,7 +141,6 @@ type CommentHoverState = {
   y: number
 }
 
-const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'blocked placeholder text'
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
 const NAVIGATION_HIGHLIGHT_DURATION_MS = 1600
 
@@ -700,15 +687,18 @@ export function SpecViewerPanel({
               y: event.clientY,
             })
             return
-          } catch {
-            // Fall through to the existing safe fallback UX.
+          } catch (error) {
+            setLinkPopoverState({
+              href: resolvedLink.href,
+              message:
+                error instanceof Error && error.message.trim().length > 0
+                  ? error.message
+                  : 'Unable to open citation target.',
+              x: event.clientX,
+              y: event.clientY,
+            })
+            return
           }
-
-          setLinkPopoverState({
-            href: resolvedLink.href,
-            x: event.clientX,
-            y: event.clientY,
-          })
         })()
         return
       }
@@ -775,6 +765,7 @@ export function SpecViewerPanel({
         resolveSourceLine({
           target: event.target,
           selection: hasVisibleSelection ? selection : null,
+          sourceText: markdownContent,
         }) ?? resolveNearestSourceLineFromPoint(contentElement, event.clientY)
       const resolvedSelectionRange =
         selectionLineRange ??
@@ -907,261 +898,18 @@ export function SpecViewerPanel({
     [activeSpecPath, onScrollPositionChange, syncActiveHeading],
   )
 
-  const markdownComponents = useMemo<Components>(
-    () => ({
-      a: (props) => {
-        const { node, href, children, ...anchorProps } = props
-        return (
-          <a
-            {...anchorProps}
-            {...buildSourceLineAttributes(node, {
-              includeAnchorLine: false,
-            })}
-            href={href}
-            onClick={(event) => handleMarkdownLinkClick(event, href)}
-          >
-            {children}
-          </a>
-        )
-      },
-      span: (props) => {
-        const { node, children, ...spanProps } = props as {
-          node?: MarkdownNodeWithPosition
-          children?: ReactNode
-        }
-        const isSourceTextLeaf =
-          node?.properties?.[SOURCE_TEXT_LEAF_ATTRIBUTE] === 'true'
-        if (!isSourceTextLeaf) {
-          return <span {...spanProps}>{children}</span>
-        }
-
-        return (
-          <span
-            {...spanProps}
-            {...buildSourceLineAttributes(node, {
-              includeAnchorLine: false,
-            })}
-          >
-            {children}
-          </span>
-        )
-      },
-      img: (props) => {
-        const { node, src, alt, ...imageProps } = props
-        void node
-        const resolvedImageSource = resolveMarkdownImageSource(
-          src,
-          activeSpecPath,
-          workspaceRootPath,
-        )
-        if (!resolvedImageSource) {
-          return (
-            <span
-              className="spec-viewer-blocked-resource"
-              data-testid="spec-viewer-blocked-resource"
-            >
-              {BLOCKED_RESOURCE_PLACEHOLDER_TEXT}
-            </span>
-          )
-        }
-
-        return (
-          <img
-            {...imageProps}
-            alt={alt ?? 'Markdown image'}
-            loading="lazy"
-            src={resolvedImageSource}
-          />
-        )
-      },
-      code: (props) => {
-        const { node, className, children, ...codeProps } = props
-        const languageMatch =
-          typeof className === 'string' ? className.match(/language-(\w+)/) : null
-        const codeText = String(children).replace(/\n$/, '')
-        // Fenced code blocks span multiple source lines (even single-line
-        // content has opening/closing fences). Inline code stays on one line.
-        const nodeSpansMultipleLines =
-          node?.position?.start?.line != null &&
-          node?.position?.end?.line != null &&
-          node.position.end.line > node.position.start.line
-        const isFencedBlock =
-          !!languageMatch || codeText.includes('\n') || nodeSpansMultipleLines
-        if (!isFencedBlock) {
-          const inlineCitationTarget = parseBracketCitationText(codeText)
-          if (inlineCitationTarget) {
-            const href = buildCitationHref(inlineCitationTarget)
-            return (
-              <a
-                {...buildSourceLineAttributes(node, {
-                  includeAnchorLine: false,
-                })}
-                className="spec-inline-citation-link"
-                href={href}
-                onClick={(event) => handleMarkdownLinkClick(event, href)}
-              >
-                <code className={className} {...codeProps}>
-                  {children}
-                </code>
-              </a>
-            )
-          }
-
-          return (
-            <code
-              {...buildSourceLineAttributes(node, {
-                includeAnchorLine: false,
-              })}
-              className={className}
-              {...codeProps}
-            >
-              {children}
-            </code>
-          )
-        }
-
-        const language = languageMatch
-          ? resolveMarkdownLanguage(languageMatch[1])
-          : 'plaintext'
-        return (
-          <HighlightedCodeBlock
-            appearanceTheme={appearanceTheme}
-            code={codeText}
-            language={language}
-            onCitationClick={handleMarkdownLinkClick}
-            sourceLineStart={node?.position?.start?.line}
-          />
-        )
-      },
-      p: (props) =>
-        renderBlockWithSourceLine(
-          'p',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      li: (props) =>
-        renderBlockWithSourceLine(
-          'li',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      blockquote: (props) =>
-        renderBlockWithSourceLine(
-          'blockquote',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      pre: (props) =>
-        renderBlockWithSourceLine(
-          'pre',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      table: (props) =>
-        renderBlockWithSourceLine(
-          'table',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-          {
-            markerPlacement: 'before',
-          },
-        ),
-      tr: (props) =>
-        renderElementWithSourceLine('tr', props as Record<string, unknown>),
-      th: (props) =>
-        renderBlockWithSourceLine(
-          'th',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-          {
-            includeAnchorLine: false,
-          },
-        ),
-      td: (props) =>
-        renderBlockWithSourceLine(
-          'td',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-          {
-            includeAnchorLine: false,
-          },
-        ),
-      h1: (props) =>
-        renderBlockWithSourceLine(
-          'h1',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      h2: (props) =>
-        renderBlockWithSourceLine(
-          'h2',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      h3: (props) =>
-        renderBlockWithSourceLine(
-          'h3',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      h4: (props) =>
-        renderBlockWithSourceLine(
-          'h4',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      h5: (props) =>
-        renderBlockWithSourceLine(
-          'h5',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-      h6: (props) =>
-        renderBlockWithSourceLine(
-          'h6',
-          props as Record<string, unknown>,
-          resolvedCommentMarkerCounts,
-          resolvedCommentMarkerEntries,
-          handleCommentMarkerMouseEnter,
-          scheduleCommentHoverClose,
-        ),
-    }),
+  const markdownComponents = useMemo(
+    () =>
+      createSpecViewerMarkdownComponents({
+        activeSpecPath,
+        appearanceTheme,
+        resolvedCommentMarkerCounts,
+        resolvedCommentMarkerEntries,
+        onCommentMarkerMouseEnter: handleCommentMarkerMouseEnter,
+        onCommentMarkerMouseLeave: scheduleCommentHoverClose,
+        onMarkdownLinkClick: handleMarkdownLinkClick,
+        workspaceRootPath,
+      }),
     [
       activeSpecPath,
       appearanceTheme,

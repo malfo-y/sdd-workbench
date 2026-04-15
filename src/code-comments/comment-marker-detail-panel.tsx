@@ -3,6 +3,7 @@ import {
   compareCodeComments,
   type CodeComment,
 } from './comment-types'
+import { useEscapeDismiss } from './use-escape-dismiss'
 
 type CommentMarkerDetailPanelProps = {
   lineNumber: number
@@ -73,19 +74,16 @@ export function CommentMarkerDetailPanel({
       }
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
     window.addEventListener('mousedown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
     return () => {
       window.removeEventListener('mousedown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose])
+
+  useEscapeDismiss({
+    isEnabled: true,
+    onDismiss: onClose,
+  })
 
   return (
     <div

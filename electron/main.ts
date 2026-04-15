@@ -97,6 +97,7 @@ const MIN_WINDOW_WIDTH = 1100
 const MIN_WINDOW_HEIGHT = 720
 
 let remoteAgentLogWriteQueue: Promise<void> = Promise.resolve()
+let hasWarnedRemoteAgentLogWriteFailure = false
 const remoteReliabilityPolicy = loadRemoteReliabilityPolicy()
 const remoteConnectionService = new RemoteConnectionService({
   emitEvent: sendWorkspaceRemoteConnectionEvent,
@@ -147,8 +148,17 @@ function queueRemoteAgentLog(payload: Record<string, unknown>): void {
       const logFilePath = path.join(logDirectoryPath, REMOTE_AGENT_LOG_FILE_NAME)
       await mkdir(logDirectoryPath, { recursive: true })
       await appendFile(logFilePath, `${JSON.stringify(payload)}\n`, 'utf8')
+      hasWarnedRemoteAgentLogWriteFailure = false
     })
-    .catch(() => undefined)
+    .catch((error) => {
+      if (!hasWarnedRemoteAgentLogWriteFailure) {
+        hasWarnedRemoteAgentLogWriteFailure = true
+        console.warn(
+          'Failed to write remote agent log. Further failures will be suppressed until the next successful write.',
+          error,
+        )
+      }
+    })
 }
 
 

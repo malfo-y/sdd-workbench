@@ -19,6 +19,7 @@ describe('comment-anchor', () => {
 
     expect(first.hash).toBe(second.hash)
     expect(first.snippet).toBe('two\nthree')
+    expect(first.hash).toMatch(/^[0-9a-f]{16}$/)
   })
 
   it('normalizes reversed or invalid ranges', () => {
@@ -28,7 +29,7 @@ describe('comment-anchor', () => {
     })
 
     expect(anchor.snippet).toBe('alpha\nbeta\ngamma')
-    expect(anchor.hash).toHaveLength(8)
+    expect(anchor.hash).toMatch(/^[0-9a-f]{16}$/)
   })
 
   it('builds comment object with normalized body and stable id', () => {
@@ -72,7 +73,35 @@ describe('comment-anchor', () => {
       startOffset,
       endOffset,
     })
-    expect(anchor.hash).toHaveLength(8)
+    expect(anchor.hash).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('uses a non-empty sentinel snippet for empty-file anchors', () => {
+    const anchor = createCommentAnchor('', {
+      startLine: 1,
+      endLine: 1,
+    })
+
+    expect(anchor.snippet).toBe('__SDD_EMPTY_COMMENT_ANCHOR__')
+    expect(anchor.hash).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('falls back to the original line range for empty-file anchors after content appears', () => {
+    const comment = buildCodeComment({
+      relativePath: 'src/empty.ts',
+      selectionRange: {
+        startLine: 1,
+        endLine: 1,
+      },
+      body: 'first comment',
+      fileContent: '',
+      createdAt: '2026-02-22T09:00:00.000Z',
+    })
+
+    expect(relocateCommentSelection('alpha\nbeta', comment)).toEqual({
+      startLine: 1,
+      endLine: 1,
+    })
   })
 
   it('relocates duplicate snippets using surrounding context', () => {

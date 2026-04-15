@@ -4,7 +4,7 @@ import { resolveSpecLink } from './spec-link-utils'
 const SAFE_URI_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
 const BLOCKED_URI_SCHEME_PATTERN = /^(?:javascript|vbscript|file):/i
 const DATA_IMAGE_URI_PATTERN =
-  /^data:image\/[a-z0-9.+-]+(?:;[a-z0-9=.+-]+)*;base64,[a-z0-9+/=\s]+$/i
+  /^data:image\/[a-z0-9.+-]+(?:;[a-z0-9=.+-]+)*;base64,[a-z0-9+/=]+$/i
 
 const BASE_SANITIZE_ATTRIBUTES = defaultSchema.attributes ?? {}
 type SchemaProperty =

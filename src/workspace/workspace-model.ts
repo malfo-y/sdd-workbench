@@ -306,14 +306,13 @@ export function setWorkspaceDocumentDraftContent(
 }
 
 /**
- * Legacy compatibility helper: mark a document as dirty even if the editor draft
- * has not yet been bridged into workspace state (pre-T3).
+ * Mark a document as dirty when the editor has signaled unsaved work but the
+ * current draft text has not yet been synchronized into the workspace session.
  *
- * This function intentionally does not attempt to infer the actual draft text.
- * The save-state remains the canonical indicator for guards/external-change logic
- * until editor draft bridging is implemented.
+ * This intentionally updates only `saveState`; callers that know the draft text
+ * should continue using `setWorkspaceDocumentDraftContent`.
  */
-export function markWorkspaceDocumentDirtyCompatibility(
+export function markWorkspaceDocumentDirtyWithoutDraftSync(
   session: WorkspaceSession,
   relativePath: string,
   baselineContent: string,
@@ -346,6 +345,21 @@ export function markWorkspaceDocumentDirtyCompatibility(
       [relativePath]: next,
     },
   }
+}
+
+/**
+ * Deprecated compatibility alias. Prefer `markWorkspaceDocumentDirtyWithoutDraftSync`.
+ */
+export function markWorkspaceDocumentDirtyCompatibility(
+  session: WorkspaceSession,
+  relativePath: string,
+  baselineContent: string,
+): WorkspaceSession {
+  return markWorkspaceDocumentDirtyWithoutDraftSync(
+    session,
+    relativePath,
+    baselineContent,
+  )
 }
 
 export function beginWorkspaceDocumentSave(
@@ -733,7 +747,7 @@ export function getActiveWorkspaceDocumentSaveState(
   return session.documentSessionsByPath[activeFile]?.saveState ?? null
 }
 
-export function deriveWorkspaceIsDirtyCompatibility(
+export function deriveWorkspaceHasUnsavedChanges(
   session: WorkspaceSession,
 ): boolean {
   const saveState = getActiveWorkspaceDocumentSaveState(session)
@@ -741,6 +755,15 @@ export function deriveWorkspaceIsDirtyCompatibility(
     return false
   }
   return saveState !== 'clean'
+}
+
+/**
+ * Deprecated compatibility alias. Prefer `deriveWorkspaceHasUnsavedChanges`.
+ */
+export function deriveWorkspaceIsDirtyCompatibility(
+  session: WorkspaceSession,
+): boolean {
+  return deriveWorkspaceHasUnsavedChanges(session)
 }
 
 export function setDirty(

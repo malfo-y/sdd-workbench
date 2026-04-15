@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CodeComment } from './comment-types'
+import { useEscapeDismiss } from './use-escape-dismiss'
 
 type CommentHoverPopoverProps = {
   lineNumber: number
@@ -83,19 +84,16 @@ export function CommentHoverPopover({
       }
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
     window.addEventListener('mousedown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
     return () => {
       window.removeEventListener('mousedown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose])
+
+  useEscapeDismiss({
+    isEnabled: true,
+    onDismiss: onClose,
+  })
 
   return (
     <div

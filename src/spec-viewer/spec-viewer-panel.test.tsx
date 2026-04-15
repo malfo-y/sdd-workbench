@@ -643,6 +643,32 @@ describe('SpecViewerPanel', () => {
     })
   })
 
+  it('shows a fallback message when citation navigation rejects', async () => {
+    const onOpenCitationTarget = vi
+      .fn<
+        (target: {
+          targetRelativePath: string
+          symbolName: string | null
+        }) => Promise<CitationNavigationResult>
+      >()
+      .mockRejectedValue(new Error('Backend unavailable'))
+    renderPanel({
+      markdownContent: 'See [src/app.py:Worker.run] for details.',
+      onOpenCitationTarget,
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '[src/app.py:Worker.run]' }), {
+      clientX: 180,
+      clientY: 220,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Link actions' })).toHaveTextContent(
+        'Backend unavailable',
+      )
+    })
+  })
+
   it('renders inline code citations as clickable semantic navigation links', async () => {
     const onOpenCitationTarget = vi
       .fn<
@@ -999,7 +1025,7 @@ describe('SpecViewerPanel', () => {
     })
 
     expect(screen.getByTestId('spec-viewer-blocked-resource')).toHaveTextContent(
-      'blocked placeholder text',
+      'Image blocked by viewer policy',
     )
     expect(screen.queryByRole('img', { name: 'External' })).not.toBeInTheDocument()
   })
@@ -1256,10 +1282,8 @@ describe('SpecViewerPanel', () => {
 
     const contentElement = screen.getByTestId('spec-viewer-content')
     const codeElement = contentElement.querySelector('pre code')
-    const preElement = codeElement?.closest('pre')
-    const baseSourceLine = Number(preElement?.getAttribute('data-source-line'))
-    if (!codeElement || !preElement || !Number.isFinite(baseSourceLine)) {
-      throw new Error('Expected rendered fenced code block with data-source-line')
+    if (!codeElement) {
+      throw new Error('Expected rendered fenced code block')
     }
 
     await waitFor(() => {
@@ -1274,11 +1298,8 @@ describe('SpecViewerPanel', () => {
       throw new Error('Expected text node to include target fragment')
     }
 
-    const prefixRange = document.createRange()
-    prefixRange.setStart(codeElement, 0)
-    prefixRange.setEnd(selectionTextNode, anchorOffset)
-    const lineOffset = (prefixRange.toString().match(/\n/g) ?? []).length
-    const expectedLine = baseSourceLine + lineOffset
+    const expectedLine =
+      markdownContent.slice(0, expectedStartOffset).split('\n').length
 
     const selectionSpy = vi.spyOn(window, 'getSelection')
     selectionSpy.mockReturnValue({

@@ -1,6 +1,11 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { RemoteAgentError, toRemoteAgentError, type RemoteAgentErrorCode } from './protocol'
+import {
+  REMOTE_AGENT_ERROR_CODES,
+  RemoteAgentError,
+  toRemoteAgentError,
+  type RemoteAgentErrorCode,
+} from './protocol'
 import {
   buildSshArgs,
   extractNumericExitCode,
@@ -292,31 +297,10 @@ function parseBrowseOutput(stdout: string): ParsedBrowseOutput {
 }
 
 function parseErrorCode(rawCode: string | undefined): RemoteAgentErrorCode {
-  if (rawCode === 'AUTH_FAILED') {
-    return 'AUTH_FAILED'
-  }
-  if (rawCode === 'TIMEOUT') {
-    return 'TIMEOUT'
-  }
-  if (rawCode === 'AGENT_PROTOCOL_MISMATCH') {
-    return 'AGENT_PROTOCOL_MISMATCH'
-  }
-  if (rawCode === 'METHOD_NOT_ALLOWED') {
-    return 'METHOD_NOT_ALLOWED'
-  }
-  if (rawCode === 'PATH_DENIED') {
-    return 'PATH_DENIED'
-  }
-  if (rawCode === 'CONNECTION_CLOSED') {
-    return 'CONNECTION_CLOSED'
-  }
-  if (rawCode === 'INVALID_RESPONSE') {
-    return 'INVALID_RESPONSE'
-  }
-  if (rawCode === 'BOOTSTRAP_FAILED') {
-    return 'BOOTSTRAP_FAILED'
-  }
-  return 'UNKNOWN'
+  const normalizedCode = rawCode?.trim()
+  return (
+    REMOTE_AGENT_ERROR_CODES.find((code) => code === normalizedCode) ?? 'UNKNOWN'
+  )
 }
 
 export function buildBrowseSshArgs(

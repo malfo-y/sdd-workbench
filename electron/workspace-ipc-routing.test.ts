@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtemp, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {
   handleWorkspaceGetGitLineMarkersRouted,
   handleWorkspaceReadFileRouted,
@@ -84,6 +87,19 @@ describe('workspace-ipc-routing', () => {
       relativePath: 'README.md',
     })
     expect(result).toEqual({ ok: true, content: 'from-remote-backend' })
+  })
+
+  it('uses the local backend adapter without requiring a real IPC invoke event', async () => {
+    initializeRouting()
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'workspace-routing-'))
+    await writeFile(path.join(rootPath, 'README.md'), 'local file', 'utf8')
+
+    const result = await handleWorkspaceReadFileRouted({} as never, {
+      rootPath,
+      relativePath: 'README.md',
+    })
+
+    expect(result).toEqual({ ok: true, content: 'local file' })
   })
 
   it('preserves handler-specific fallback shape when backend resolution fails', async () => {

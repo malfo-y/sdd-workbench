@@ -46,6 +46,7 @@
 
 - 기본 selection 모델은 line range를 유지한다.
 - supported inline structure에서는 same-file raw markdown exact offset을 additive payload로 계산한다.
+- exact source offset metadata를 복구할 수 있으면 raw markdown offset에서 line range를 다시 계산해 multiline leaf later-line drift를 줄인다.
 - GFM table은 same-cell selection에서만 cell-local exact offset을 시도한다.
 - repeated text로 exact match가 ambiguous하면 optimistic exact offset을 버리고 line fallback을 선택한다.
 - cross-cell selection은 새 exact heuristic을 도입하지 않고 normalized line range fallback을 유지한다.

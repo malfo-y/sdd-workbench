@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createLocalWorkspaceBackend } from './local-workspace-backend'
+import {
+  createLocalWorkspaceBackend,
+  type LocalWorkspaceBackendHandlers,
+} from './local-workspace-backend'
 
 describe('workspace-backend/local-workspace-backend', () => {
   it('delegates calls to provided handlers', async () => {
@@ -50,7 +53,7 @@ describe('workspace-backend/local-workspace-backend', () => {
       copyEntries: vi.fn(async () => ({ ok: true, copiedPaths: [], source: 'copyEntries' })),
       watchStart: vi.fn(async () => ({ ok: true, source: 'watchStart' })),
       watchStop: vi.fn(async () => ({ ok: true, source: 'watchStop' })),
-    }
+    } satisfies LocalWorkspaceBackendHandlers
 
     const backend = createLocalWorkspaceBackend(handlers)
 

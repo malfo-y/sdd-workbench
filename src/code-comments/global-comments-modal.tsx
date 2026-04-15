@@ -6,6 +6,7 @@ import {
   loadGlobalCommentsHistory,
   type GlobalCommentsHistoryEntry,
 } from './global-comments-history'
+import { useEscapeDismiss } from './use-escape-dismiss'
 
 type GlobalCommentsModalProps = {
   isOpen: boolean
@@ -82,24 +83,11 @@ export function GlobalCommentsModal({
     setHistoryEntries(loadGlobalCommentsHistory(workspaceId))
   }, [initialValue, isOpen, workspaceId])
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || isSaving) {
-        return
-      }
-      event.preventDefault()
-      onCancel()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, isSaving, onCancel])
+  useEscapeDismiss({
+    isEnabled: isOpen,
+    canDismiss: !isSaving,
+    onDismiss: onCancel,
+  })
 
   if (!isOpen) {
     return null

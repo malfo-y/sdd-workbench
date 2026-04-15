@@ -64,4 +64,34 @@ describe('HighlightedCodeBlock', () => {
 
     expect(screen.queryByText('STALE')).not.toBeInTheDocument()
   })
+
+  it('renders highlighted citations and escapes raw text content', async () => {
+    highlightLineTokensMock.mockResolvedValueOnce([
+      [
+        {
+          content: 'alpha <danger> [src/app.py:run] omega',
+          color: '#f00',
+        },
+      ],
+    ])
+
+    render(
+      <HighlightedCodeBlock
+        appearanceTheme="dark-gray"
+        code="alpha <danger> [src/app.py:run] omega"
+        language="typescript"
+        onCitationClick={() => undefined}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-code-citation-1-1')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText(/<danger>/)).toBeInTheDocument()
+    expect(screen.getByTestId('spec-code-citation-1-1')).toHaveAttribute(
+      'href',
+      '#sdd-citation:src%2Fapp.py:run',
+    )
+  })
 })

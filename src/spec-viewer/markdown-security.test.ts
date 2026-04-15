@@ -36,6 +36,9 @@ describe('markdown-security', () => {
       expect(
         isAllowedDataImageUri('data:image/jpeg;charset=utf-8;base64,/9j/4AAQSk'),
       ).toBe(true)
+      expect(
+        isAllowedDataImageUri('data:image/png;base64,iVBORw0KGgo AAAANSUhEUgAAAAUA'),
+      ).toBe(false)
       expect(isAllowedDataImageUri('data:text/plain;base64,SGVsbG8=')).toBe(false)
     })
   })

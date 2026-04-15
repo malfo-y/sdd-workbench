@@ -21,7 +21,7 @@ import {
 } from './workspace-model'
 import {
   getWorkspaceIndexTruncationMessage,
-  getWorkspaceIsDirtyCompatibility,
+  getWorkspaceHasUnsavedChanges,
   syncWorkspaceDisplayedDocumentContent,
 } from './workspace-context-helpers'
 import {
@@ -148,22 +148,26 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           return 'failed'
         }
 
-        const previousWorkspaceSession =
-          workspaceStateRef.current.workspacesById[workspaceId]
+        // Read the latest session snapshot after the async index call resolves so
+        // refresh logic does not depend on the render that scheduled the request.
+        const refreshBaselineSession =
+          mode === 'refresh'
+            ? workspaceStateRef.current.workspacesById[workspaceId]
+            : null
         const nextFileTree =
-          mode === 'refresh' && previousWorkspaceSession
+          refreshBaselineSession
             ? preserveExpandedDirectoryChildren(
                 indexResult.fileTree,
-                previousWorkspaceSession.fileTree,
-                previousWorkspaceSession.expandedDirectories,
+                refreshBaselineSession.fileTree,
+                refreshBaselineSession.expandedDirectories,
               )
             : indexResult.fileTree
         const expandedDirectoryHydrationTargets =
-          mode === 'refresh' && previousWorkspaceSession
+          refreshBaselineSession
             ? collectExpandedDirectoryHydrationTargets(
-                previousWorkspaceSession.fileTree,
+                refreshBaselineSession.fileTree,
                 indexResult.fileTree,
-                previousWorkspaceSession.expandedDirectories,
+                refreshBaselineSession.expandedDirectories,
               )
             : []
         setWorkspaceState((previous) =>
@@ -216,7 +220,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return 'failed'
       }
     },
-    [],
+    [setBannerMessage, setWorkspaceState, workspaceStateRef],
   )
 
   const lastGitDecorationRefreshAtRef = useRef(0)
@@ -276,7 +280,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     const session = activeWorkspaceId
       ? workspaceStateRef.current.workspacesById[activeWorkspaceId]
       : null
-    return session ? getWorkspaceIsDirtyCompatibility(session) : false
+    return session ? getWorkspaceHasUnsavedChanges(session) : false
   }, [])
 
   const setActiveWorkspace = useCallback((workspaceId: WorkspaceId) => {
@@ -601,7 +605,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     loadWorkspaceGitFileStatuses,
     hydrateExpandedDirectories,
     refreshActiveWorkspaceGitDecorations,
-    getWorkspaceIsDirtyCompatibility,
+    getWorkspaceIsDirtyCompatibility: getWorkspaceHasUnsavedChanges,
     syncWorkspaceDisplayedDocumentContent,
   })
 

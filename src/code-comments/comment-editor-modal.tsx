@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useModalDragPosition } from '../modal-drag-position'
 import { useModalBackgroundWheelPassthrough } from '../modal-wheel-passthrough'
 import type { LineSelectionRange } from '../workspace/workspace-model'
+import { useEscapeDismiss } from './use-escape-dismiss'
 
 type CommentEditorModalProps = {
   isOpen: boolean
@@ -39,24 +40,11 @@ export function CommentEditorModal({
     setBody(initialBody)
   }, [initialBody, isOpen, relativePath, selectionRange])
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || isSaving) {
-        return
-      }
-      event.preventDefault()
-      onCancel()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, isSaving, onCancel])
+  useEscapeDismiss({
+    isEnabled: isOpen,
+    canDismiss: !isSaving,
+    onDismiss: onCancel,
+  })
 
   if (!isOpen || !relativePath || !selectionRange) {
     return null

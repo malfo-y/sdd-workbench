@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
-import { mkdtemp, writeFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readdir, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createFileClipboardHandlers, readFinderClipboardFiles, resetClipboardState } from './file-clipboard'
@@ -383,6 +383,35 @@ describe('createFileClipboardHandlers', () => {
 
         expect(result.ok).toBe(true)
         expect(result.pastedPaths).toEqual(['file.txt'])
+      })
+
+      it('rejects Finder symlink sources', async () => {
+        const realFile = path.join(tmpDir, 'src', 'real.txt')
+        const linkedFile = path.join(tmpDir, 'src', 'linked.txt')
+        const { mkdir } = await import('node:fs/promises')
+        await mkdir(path.join(tmpDir, 'src'), { recursive: true })
+        await writeFile(realFile, 'content')
+        await symlink(realFile, linkedFile)
+
+        const destDir = path.join(tmpDir, 'dest')
+        await mkdir(destDir, { recursive: true })
+
+        mockReadFilePaths.mockReturnValue([linkedFile])
+
+        const router = makeMockRouter()
+        const { handlePasteFromClipboard } = createFileClipboardHandlers(router)
+
+        const result = await handlePasteFromClipboard(mockEvent, {
+          rootPath: tmpDir,
+          destDir: 'dest',
+        })
+
+        expect(result).toEqual({
+          ok: false,
+          source: 'finder',
+          error: 'Finder symlink paste is not supported for safety reasons.',
+        })
+        expect(await readdir(destDir)).toEqual([])
       })
     })
 

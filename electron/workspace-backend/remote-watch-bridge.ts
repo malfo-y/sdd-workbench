@@ -55,20 +55,11 @@ export class RemoteWatchBridge {
   async start(
     watchModePreference?: WorkspaceWatchModePreference,
   ): Promise<RemoteWatchStartResult> {
-    if (!this.unsubscribe) {
-      this.unsubscribe = this.subscribeAgentEvents(
-        this.workspaceId,
-        this.handleAgentEvent,
-      )
-    }
+    this.ensureAgentSubscription()
 
-    const result = await this.requestRemote(
-      this.workspaceId,
-      'workspace.watchStart',
-      {
-        watchModePreference,
-      },
-    ) as WorkspaceBackendResult<'watchStart'>
+    const result = await this.requestWorkspaceMethod('workspace.watchStart', {
+      watchModePreference,
+    }) as WorkspaceBackendResult<'watchStart'>
 
     if (isRemoteWatchStartResult(result)) {
       return {
@@ -89,12 +80,8 @@ export class RemoteWatchBridge {
   }
 
   async stop(): Promise<void> {
-    if (this.unsubscribe) {
-      this.unsubscribe()
-      this.unsubscribe = null
-    }
-
-    await this.requestRemote(this.workspaceId, 'workspace.watchStop')
+    this.clearAgentSubscription()
+    await this.requestWorkspaceMethod('workspace.watchStop')
   }
 
   private readonly handleAgentEvent = (event: RemoteAgentEvent) => {
@@ -126,6 +113,33 @@ export class RemoteWatchBridge {
         watchMode: payload.watchMode,
       })
     }
+  }
+
+  private ensureAgentSubscription(): void {
+    if (this.unsubscribe) {
+      return
+    }
+
+    this.unsubscribe = this.subscribeAgentEvents(
+      this.workspaceId,
+      this.handleAgentEvent,
+    )
+  }
+
+  private clearAgentSubscription(): void {
+    const unsubscribe = this.unsubscribe
+    this.unsubscribe = null
+    unsubscribe?.()
+  }
+
+  private requestWorkspaceMethod<TResult>(
+    method: string,
+    params?: unknown,
+  ): Promise<TResult> {
+    if (params === undefined) {
+      return this.requestRemote(this.workspaceId, method) as Promise<TResult>
+    }
+    return this.requestRemote(this.workspaceId, method, params) as Promise<TResult>
   }
 }
 

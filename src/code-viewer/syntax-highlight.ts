@@ -72,9 +72,41 @@ const THEME_NAMES: Record<ResolvedAppearanceTheme, string> = {
 type HighlighterCacheEntry = {
   promise: Promise<HighlighterCore>
   instance: HighlighterCore | null
+  disposeTimer: ReturnType<typeof setTimeout> | null
 }
 
 const highlighterCache = new Map<ResolvedAppearanceTheme, HighlighterCacheEntry>()
+const HIGHLIGHTER_IDLE_DISPOSE_MS = 60_000
+
+function clearDisposeTimer(entry: HighlighterCacheEntry) {
+  if (!entry.disposeTimer) {
+    return
+  }
+  clearTimeout(entry.disposeTimer)
+  entry.disposeTimer = null
+}
+
+function disposeHighlighterEntry(entry: HighlighterCacheEntry) {
+  clearDisposeTimer(entry)
+  const disposableHighlighter = entry.instance as (HighlighterCore & {
+    dispose?: () => void
+  }) | null
+  disposableHighlighter?.dispose?.()
+}
+
+function scheduleHighlighterDisposal(
+  resolvedTheme: ResolvedAppearanceTheme,
+  entry: HighlighterCacheEntry,
+) {
+  clearDisposeTimer(entry)
+  entry.disposeTimer = setTimeout(() => {
+    if (highlighterCache.get(resolvedTheme) !== entry) {
+      return
+    }
+    highlighterCache.delete(resolvedTheme)
+    disposeHighlighterEntry(entry)
+  }, HIGHLIGHTER_IDLE_DISPOSE_MS)
+}
 
 export function getOrCreateHighlighter(
   appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
@@ -82,12 +114,14 @@ export function getOrCreateHighlighter(
   const resolved = resolveAppearanceTheme(appearanceTheme)
   const existing = highlighterCache.get(resolved)
   if (existing) {
+    scheduleHighlighterDisposal(resolved, existing)
     return existing.promise
   }
 
   const entry: HighlighterCacheEntry = {
     promise: Promise.resolve(null as unknown as HighlighterCore),
     instance: null,
+    disposeTimer: null,
   }
 
   entry.promise = createHighlighterCore({
@@ -97,6 +131,7 @@ export function getOrCreateHighlighter(
   })
     .then((highlighter) => {
       entry.instance = highlighter
+      scheduleHighlighterDisposal(resolved, entry)
       return highlighter
     })
     .catch((error) => {
@@ -115,6 +150,7 @@ export async function disposeHighlighterCache(): Promise<void> {
   await Promise.all(
     entries.map(async (entry) => {
       try {
+        clearDisposeTimer(entry)
         const highlighter =
           entry.instance ?? (await entry.promise.catch(() => null))
         if (!highlighter) {
@@ -179,7 +215,7 @@ export async function highlightLineTokens(
   language: HighlightLanguage,
   appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
 ): Promise<HighlightLineToken[][]> {
-  if (language === 'plaintext' || !code) {
+  if (language === 'plaintext' || code.length === 0) {
     return splitToPlaintextLineTokens(code)
   }
 
