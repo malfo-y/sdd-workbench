@@ -120,7 +120,7 @@ describe('electron/system-open', () => {
   })
 
   it('opens local workspaces via open -a application', async () => {
-    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+    const launchFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
       () => Promise.resolve(),
     )
     const statPath = vi.fn(async () => ({
@@ -135,12 +135,12 @@ describe('electron/system-open', () => {
     await expect(
       openWorkspaceInExternalTool(request, 'vscode', {
         platform: 'darwin',
-        execFile,
+        launchFile,
         statPath,
       }),
     ).resolves.toEqual({ ok: true })
 
-    expect(execFile).toHaveBeenCalledWith('open', [
+    expect(launchFile).toHaveBeenCalledWith('open', [
       '-a',
       'Visual Studio Code',
       '/Users/tester/project-a',
@@ -148,7 +148,7 @@ describe('electron/system-open', () => {
   })
 
   it('opens local active files in VSCode when relativePath is provided', async () => {
-    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+    const launchFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
       () => Promise.resolve(),
     )
     const statPath = vi.fn(async (targetPath: string) => ({
@@ -165,13 +165,13 @@ describe('electron/system-open', () => {
         'vscode',
         {
           platform: 'darwin',
-          execFile,
+          launchFile,
           statPath,
         },
       ),
     ).resolves.toEqual({ ok: true })
 
-    expect(execFile).toHaveBeenCalledWith('open', [
+    expect(launchFile).toHaveBeenCalledWith('open', [
       '-a',
       'Visual Studio Code',
       '/Users/tester/project-a/src/main.ts',
@@ -330,6 +330,9 @@ describe('electron/system-open', () => {
   })
 
   it('falls back to open -a when the VSCode bundled CLI cannot be resolved', async () => {
+    const launchFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.resolve(),
+    )
     const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
       () => Promise.resolve(),
     )
@@ -352,13 +355,14 @@ describe('electron/system-open', () => {
         'vscode',
         {
           platform: 'darwin',
+          launchFile,
           execFile,
           execFileStdout,
         },
       ),
     ).resolves.toEqual({ ok: true })
 
-    expect(execFile).toHaveBeenCalledWith('open', [
+    expect(launchFile).toHaveBeenCalledWith('open', [
       '-a',
       'Visual Studio Code',
       '--args',
@@ -368,12 +372,15 @@ describe('electron/system-open', () => {
   })
 
   it('falls back to remote workspace root when remote file open fails', async () => {
-    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+    const launchFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
       async (_file, args) => {
         if (args.includes('--file-uri')) {
           throw new Error('remote file URI unsupported')
         }
       },
+    )
+    const execFile = vi.fn<(file: string, args: string[]) => Promise<void>>(
+      () => Promise.reject(new Error('not found')),
     )
     const execFileStdout = vi.fn<(file: string, args: string[]) => Promise<string>>(
       () => Promise.reject(new Error('not found')),
@@ -395,20 +402,21 @@ describe('electron/system-open', () => {
         'vscode',
         {
           platform: 'darwin',
+          launchFile,
           execFile,
           execFileStdout,
         },
       ),
     ).resolves.toEqual({ ok: true })
 
-    expect(execFile).toHaveBeenNthCalledWith(1, 'open', [
+    expect(launchFile).toHaveBeenNthCalledWith(1, 'open', [
       '-a',
       'Visual Studio Code',
       '--args',
       '--file-uri',
       'vscode-remote://ssh-remote+summer-test/srv/project-a/src/main.ts',
     ])
-    expect(execFile).toHaveBeenNthCalledWith(2, 'open', [
+    expect(launchFile).toHaveBeenNthCalledWith(2, 'open', [
       '-a',
       'Visual Studio Code',
       '--args',

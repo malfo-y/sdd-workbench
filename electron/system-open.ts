@@ -1,4 +1,4 @@
-import { execFile as execFileWithCallback } from 'node:child_process'
+import { execFile as execFileWithCallback, spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -35,9 +35,27 @@ type StatLike = {
 
 type SystemOpenDependencies = {
   platform?: NodeJS.Platform
+  launchFile?: (file: string, args: string[]) => Promise<void>
   execFile?: (file: string, args: string[]) => Promise<void>
   execFileStdout?: (file: string, args: string[]) => Promise<string>
   statPath?: (targetPath: string) => Promise<StatLike>
+}
+
+function runLaunchFile(file: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, {
+      detached: true,
+      stdio: 'ignore',
+    })
+
+    child.once('error', (error) => {
+      reject(error)
+    })
+    child.once('spawn', () => {
+      child.unref()
+      resolve()
+    })
+  })
 }
 
 function runExecFile(file: string, args: string[]): Promise<void> {
@@ -296,7 +314,7 @@ async function openLocalWorkspaceInExternalTool(
     }
 
     if (target === 'finder') {
-      await dependencies.execFile('open', [resolvedRootPath])
+      await dependencies.launchFile('open', [resolvedRootPath])
       return { ok: true }
     }
 
@@ -305,7 +323,7 @@ async function openLocalWorkspaceInExternalTool(
         ? resolveLocalVsCodeTargetPath(resolvedRootPath, relativePath)
         : resolvedRootPath
     await dependencies.statPath(openPath)
-    await dependencies.execFile('open', [
+    await dependencies.launchFile('open', [
       '-a',
       getApplicationName(target),
       openPath,
@@ -374,7 +392,7 @@ async function openRemoteWorkspaceInExternalTool(
     }
 
     try {
-      await dependencies.execFile(
+      await dependencies.launchFile(
         'open',
         buildVsCodeOpenAppArgs(profile, request.relativePath),
       )
@@ -384,7 +402,7 @@ async function openRemoteWorkspaceInExternalTool(
         throw error
       }
 
-      await dependencies.execFile('open', buildVsCodeOpenAppArgs(profile))
+      await dependencies.launchFile('open', buildVsCodeOpenAppArgs(profile))
     }
     return { ok: true }
   } catch (error) {
@@ -433,6 +451,7 @@ export async function openWorkspaceInExternalTool(
 
   const resolvedDependencies: Required<SystemOpenDependencies> = {
     platform,
+    launchFile: dependencies.launchFile ?? runLaunchFile,
     execFile: dependencies.execFile ?? runExecFile,
     execFileStdout: dependencies.execFileStdout ?? runExecFileStdout,
     statPath: dependencies.statPath ?? stat,
