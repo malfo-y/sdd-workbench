@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { buildCodeComment } from '../code-comments/comment-anchor'
 import { MAX_CLIPBOARD_CHARS } from '../code-comments/comment-config'
 import { renderCommentsMarkdown, renderLlmBundle } from '../code-comments/comment-export'
+import { appendGlobalCommentsHistory } from '../code-comments/global-comments-history'
 import { sanitizeCommentBody, type CodeComment } from '../code-comments/comment-types'
 import type { ExportCommentsModalInput } from '../code-comments/export-comments-modal'
 import {
@@ -309,10 +310,17 @@ export function useCommentActions(params: UseCommentActionsParams) {
   )
 
   const estimateBundleLength = useCallback(
-    (instruction: string) => {
+    (
+      instruction: string,
+      options?: {
+        includePreviouslyExportedComments?: boolean
+      },
+    ) => {
       const commentsForEstimate = exportSelectedCommentIds
         ? comments.filter((c) => exportSelectedCommentIds.includes(c.id))
-        : pendingComments
+        : options?.includePreviouslyExportedComments
+          ? comments
+          : pendingComments
       return renderLlmBundle({
         instruction,
         comments: commentsForEstimate,
@@ -337,6 +345,7 @@ export function useCommentActions(params: UseCommentActionsParams) {
           return
         }
 
+        appendGlobalCommentsHistory(targetWorkspaceId, body)
         showCommentBanner('Global comments saved.')
         setGlobalCommentsModalState(null)
       } finally {
@@ -358,6 +367,7 @@ export function useCommentActions(params: UseCommentActionsParams) {
         return false
       }
 
+      appendGlobalCommentsHistory(activeWorkspaceId, body)
       showCommentBanner(
         body.trim().length === 0
           ? 'Global comments cleared.'
@@ -412,7 +422,9 @@ export function useCommentActions(params: UseCommentActionsParams) {
 
       const exportSnapshot = exportSelectedCommentIds
         ? comments.filter((c) => exportSelectedCommentIds.includes(c.id))
-        : pendingComments
+        : input.includePreviouslyExportedComments
+          ? comments
+          : pendingComments
 
       if (exportSnapshot.length === 0 && !effectiveExportHasGlobalComments) {
         showCommentBanner('No pending comments to export.')
@@ -536,6 +548,7 @@ export function useCommentActions(params: UseCommentActionsParams) {
             showCommentBanner('Comments exported, but failed to clear global comments.')
             return
           }
+          appendGlobalCommentsHistory(activeWorkspaceId, '')
         }
 
         if (failedTargets.length > 0) {
@@ -675,6 +688,37 @@ export function useCommentActions(params: UseCommentActionsParams) {
     return true
   }, [activeWorkspaceId, comments, saveComments, showCommentBanner])
 
+  const handleResetExportedComments = useCallback(async () => {
+    if (!activeWorkspaceId) {
+      showCommentBanner('Cannot reset exported comments: no active workspace selected.')
+      return false
+    }
+
+    const exportedCommentCount = comments.filter(
+      (comment) => Boolean(comment.exportedAt),
+    ).length
+    if (exportedCommentCount === 0) {
+      showCommentBanner('No exported comments to reset.')
+      return false
+    }
+
+    const nextComments = comments.map((comment) =>
+      comment.exportedAt
+        ? {
+            ...comment,
+            exportedAt: undefined,
+          }
+        : comment,
+    )
+    const saved = await saveComments(nextComments)
+    if (!saved) {
+      return false
+    }
+
+    showCommentBanner(`Reset ${exportedCommentCount} exported comment(s) to pending.`)
+    return true
+  }, [activeWorkspaceId, comments, saveComments, showCommentBanner])
+
   const openRequestExport = useCallback((selectedIds: string[], includeGlobal: boolean) => {
     setExportSelectedCommentIds(selectedIds)
     setExportIncludeGlobalComments(includeGlobal)
@@ -742,6 +786,7 @@ export function useCommentActions(params: UseCommentActionsParams) {
     handleDeleteComment,
     handleRequestDeleteComment,
     handleDeleteExportedComments,
+    handleResetExportedComments,
     openRequestExport,
     closeExportModal,
     dismissCommentDraft,

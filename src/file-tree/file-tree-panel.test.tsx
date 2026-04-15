@@ -622,8 +622,8 @@ describe('FileTreePanel CRUD context menu', () => {
   const defaultCrudProps = {
     onRequestCreateFile: vi.fn(),
     onRequestCreateDirectory: vi.fn(),
-    onRequestDeleteFile: vi.fn(),
-    onRequestDeleteDirectory: vi.fn(),
+    onRequestConfirmedDeleteFile: vi.fn(),
+    onRequestConfirmedDeleteDirectory: vi.fn(),
     onRequestRename: vi.fn(),
     gitFileStatuses: {} as Record<string, 'added' | 'modified' | 'untracked'>,
   }
@@ -783,8 +783,8 @@ describe('FileTreePanel CRUD context menu', () => {
         gitFileStatuses={{}}
         onRequestCreateFile={onRequestCreateFile}
         onRequestCreateDirectory={vi.fn()}
-        onRequestDeleteFile={vi.fn()}
-        onRequestDeleteDirectory={vi.fn()}
+        onRequestConfirmedDeleteFile={vi.fn()}
+        onRequestConfirmedDeleteDirectory={vi.fn()}
       />,
     )
 
@@ -890,8 +890,8 @@ describe('FileTreePanel CRUD context menu', () => {
     expect(screen.getByTestId('tree-inline-input')).toBeInTheDocument()
   })
 
-  it('calls onRequestDeleteFile when Delete is clicked on a file node', () => {
-    const onRequestDeleteFile = vi.fn()
+  it('calls onRequestConfirmedDeleteFile when Delete is clicked on a file node', () => {
+    const onRequestConfirmedDeleteFile = vi.fn()
 
     render(
       <FileTreePanel
@@ -922,8 +922,8 @@ describe('FileTreePanel CRUD context menu', () => {
         gitFileStatuses={{}}
         onRequestCreateFile={vi.fn()}
         onRequestCreateDirectory={vi.fn()}
-        onRequestDeleteFile={onRequestDeleteFile}
-        onRequestDeleteDirectory={vi.fn()}
+        onRequestConfirmedDeleteFile={onRequestConfirmedDeleteFile}
+        onRequestConfirmedDeleteDirectory={vi.fn()}
       />,
     )
 
@@ -933,11 +933,11 @@ describe('FileTreePanel CRUD context menu', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
-    expect(onRequestDeleteFile).toHaveBeenCalledWith('src/index.ts')
+    expect(onRequestConfirmedDeleteFile).toHaveBeenCalledWith('src/index.ts')
   })
 
-  it('calls onRequestDeleteDirectory when Delete is clicked on a directory node', () => {
-    const onRequestDeleteDirectory = vi.fn()
+  it('calls onRequestConfirmedDeleteDirectory when Delete is clicked on a directory node', () => {
+    const onRequestConfirmedDeleteDirectory = vi.fn()
 
     render(
       <FileTreePanel
@@ -962,8 +962,8 @@ describe('FileTreePanel CRUD context menu', () => {
         gitFileStatuses={{}}
         onRequestCreateFile={vi.fn()}
         onRequestCreateDirectory={vi.fn()}
-        onRequestDeleteFile={vi.fn()}
-        onRequestDeleteDirectory={onRequestDeleteDirectory}
+        onRequestConfirmedDeleteFile={vi.fn()}
+        onRequestConfirmedDeleteDirectory={onRequestConfirmedDeleteDirectory}
       />,
     )
 
@@ -973,7 +973,7 @@ describe('FileTreePanel CRUD context menu', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
-    expect(onRequestDeleteDirectory).toHaveBeenCalledWith('src')
+    expect(onRequestConfirmedDeleteDirectory).toHaveBeenCalledWith('src')
   })
 
   it('shows inline input with pre-filled name when Rename is clicked', () => {
@@ -1050,8 +1050,8 @@ describe('FileTreePanel CRUD context menu', () => {
         gitFileStatuses={{}}
         onRequestCreateFile={vi.fn()}
         onRequestCreateDirectory={vi.fn()}
-        onRequestDeleteFile={vi.fn()}
-        onRequestDeleteDirectory={vi.fn()}
+        onRequestConfirmedDeleteFile={vi.fn()}
+        onRequestConfirmedDeleteDirectory={vi.fn()}
         onRequestRename={onRequestRename}
       />,
     )
@@ -1102,8 +1102,8 @@ describe('FileTreePanel CRUD context menu', () => {
         gitFileStatuses={{}}
         onRequestCreateFile={vi.fn()}
         onRequestCreateDirectory={vi.fn()}
-        onRequestDeleteFile={vi.fn()}
-        onRequestDeleteDirectory={vi.fn()}
+        onRequestConfirmedDeleteFile={vi.fn()}
+        onRequestConfirmedDeleteDirectory={vi.fn()}
         onRequestRename={onRequestRename}
       />,
     )
@@ -1260,6 +1260,116 @@ describe('FileTreePanel CRUD context menu', () => {
     expect(screen.getByTestId('file-tree-search-hint')).toHaveTextContent(
       'Search results may be incomplete',
     )
+    vi.useRealTimers()
+  })
+
+  it('shows search failure separately from empty results', async () => {
+    vi.useFakeTimers()
+    const onSearchFiles = vi.fn(async () => ({
+      ok: false,
+      error: 'Search backend unavailable.',
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    }))
+
+    render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSearchFiles={onSearchFiles}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('file-tree-search-input'), {
+      target: { value: 'guide' },
+    })
+
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(screen.getByTestId('file-tree-search-error')).toHaveTextContent(
+      'Search backend unavailable.',
+    )
+    expect(screen.queryByTestId('file-tree-search-empty')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('ignores stale search responses after workspace root changes', async () => {
+    vi.useFakeTimers()
+    const resolveSearchRef: {
+      current: ((value: WorkspaceSearchFilesResult) => void) | null
+    } = { current: null }
+    const pendingSearch = new Promise<WorkspaceSearchFilesResult>((resolve) => {
+      resolveSearchRef.current = resolve
+    })
+    const onSearchFiles = vi.fn(() => pendingSearch)
+    const view = render(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSearchFiles={onSearchFiles}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project-a"
+        {...defaultLazyProps}
+      />,
+    )
+
+    fireEvent.change(screen.getByTestId('file-tree-search-input'), {
+      target: { value: 'guide' },
+    })
+    await vi.advanceTimersByTimeAsync(200)
+
+    view.rerender(
+      <FileTreePanel
+        activeFile={null}
+        changedFiles={[]}
+        expandedDirectories={[]}
+        fileTree={[]}
+        isIndexing={false}
+        onExpandedDirectoriesChange={() => undefined}
+        onRequestCopyRelativePath={() => undefined}
+        onSearchFiles={onSearchFiles}
+        onSelectFile={() => undefined}
+        rootPath="/Users/tester/project-b"
+        {...defaultLazyProps}
+      />,
+    )
+
+    if (resolveSearchRef.current) {
+      resolveSearchRef.current({
+        ok: true,
+        results: [
+          {
+            relativePath: 'docs/guide.md',
+            fileName: 'guide.md',
+            parentRelativePath: 'docs',
+          },
+        ],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+      })
+    }
+    await Promise.resolve()
+
+    expect(screen.queryByTestId('file-tree-search-results')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-tree-search-empty')).not.toBeInTheDocument()
     vi.useRealTimers()
   })
 

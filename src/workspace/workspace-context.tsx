@@ -25,6 +25,9 @@ import {
   syncWorkspaceDisplayedDocumentContent,
 } from './workspace-context-helpers'
 import {
+  type WorkspaceContextActions,
+  type WorkspaceContextRemote,
+  type WorkspaceContextState,
   type WorkspaceContextValue,
   type WorkspaceProviderProps,
 } from './workspace-context-types'
@@ -38,6 +41,7 @@ import {
   collectExpandedDirectoryHydrationTargets,
   preserveExpandedDirectoryChildren,
   reconcileWorkspaceSessionTreeState,
+  type ExpandedDirectoryHydrationTarget,
 } from './workspace-tree-state'
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(
   undefined,
@@ -53,9 +57,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [workspaceState, setWorkspaceState] = useState(createEmptyWorkspaceState)
   const workspaceStateRef = useRef(workspaceState)
   workspaceStateRef.current = workspaceState
-  const hydrateExpandedDirectoriesRef = useRef(
-    async () => {},
-  )
+  const hydrateExpandedDirectoriesRef = useRef<
+    (
+      workspaceId: WorkspaceId,
+      targets: ExpandedDirectoryHydrationTarget[],
+    ) => Promise<void>
+  >(async () => {})
 
   const [bannerMessage, setBannerMessage] = useState<string | null>(null)
   const [externalChangeDetected, setExternalChangeDetected] = useState(false)
@@ -296,16 +303,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     )
   }, [getActiveIsDirty])
 
-  const closeWorkspace = useCallback((workspaceId: WorkspaceId) => {
-    if (
-      getActiveIsDirty() &&
-      !window.confirm('Unsaved changes will be lost. Continue?')
-    ) {
-      return
-    }
-    void disconnectRemoteWorkspace(workspaceId)
+  const clearWorkspaceRequestState = useCallback((workspaceId: WorkspaceId) => {
     delete indexRequestIdByWorkspaceRef.current[workspaceId]
     delete readFileRequestIdByWorkspaceRef.current[workspaceId]
+    delete readGitFileStatusesRequestIdByWorkspaceRef.current[workspaceId]
     delete readGitLineMarkersRequestIdByWorkspaceRef.current[workspaceId]
     delete readSpecRequestIdByWorkspaceRef.current[workspaceId]
     delete readCommentsRequestIdByWorkspaceRef.current[workspaceId]
@@ -317,9 +318,43 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         savedFileRefreshSuppressionRef.current.delete(entryKey)
       }
     })
-    void stopWorkspaceWatch(workspaceId)
+  }, [
+    indexRequestIdByWorkspaceRef,
+    readCommentsRequestIdByWorkspaceRef,
+    readFileRequestIdByWorkspaceRef,
+    readGitFileStatusesRequestIdByWorkspaceRef,
+    readGitLineMarkersRequestIdByWorkspaceRef,
+    readGlobalCommentsRequestIdByWorkspaceRef,
+    readSpecRequestIdByWorkspaceRef,
+    savedFileRefreshSuppressionRef,
+    writeCommentsRequestIdByWorkspaceRef,
+    writeGlobalCommentsRequestIdByWorkspaceRef,
+  ])
+
+  const closeWorkspace = useCallback(async (workspaceId: WorkspaceId) => {
+    if (
+      getActiveIsDirty() &&
+      !window.confirm('Unsaved changes will be lost. Continue?')
+    ) {
+      return
+    }
+
+    const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
+    if (workspaceSession?.workspaceKind === 'remote') {
+      await disconnectRemoteWorkspace(workspaceId)
+    } else {
+      await stopWorkspaceWatch(workspaceId)
+    }
+    clearWorkspaceRequestState(workspaceId)
     setWorkspaceState((previous) => closeWorkspaceInState(previous, workspaceId))
-  }, [disconnectRemoteWorkspace, getActiveIsDirty, stopWorkspaceWatch])
+  }, [
+    clearWorkspaceRequestState,
+    disconnectRemoteWorkspace,
+    getActiveIsDirty,
+    setWorkspaceState,
+    stopWorkspaceWatch,
+    workspaceStateRef,
+  ])
 
   const {
     loadWorkspaceSpec,
@@ -607,81 +642,102 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     : false
 
   const value = useMemo(
-    () => ({
-      workspaceOrder: workspaceState.workspaceOrder,
-      workspaces: listWorkspaces(workspaceState),
-      activeWorkspaceId: workspaceState.activeWorkspaceId,
-      rootPath: activeWorkspace?.rootPath ?? null,
-      workspaceKind: activeWorkspace?.workspaceKind ?? null,
-      remoteProfile: activeWorkspace?.remoteProfile ?? null,
-      remoteConnectionState: activeWorkspace?.remoteConnectionState ?? null,
-      remoteErrorCode: activeWorkspace?.remoteErrorCode ?? null,
-      fileTree: activeWorkspace?.fileTree ?? [],
-      changedFiles: activeWorkspace?.changedFiles ?? [],
-      gitFileStatuses: activeWorkspace?.gitFileStatuses ?? {},
-      activeFile: activeWorkspace?.activeFile ?? null,
-      activeSpec: activeWorkspace?.activeSpec ?? null,
-      activeFileContent: activeWorkspace?.activeFileContent ?? null,
-      activeFileImagePreview: activeWorkspace?.activeFileImagePreview ?? null,
-      activeFileGitLineMarkers: activeWorkspace?.activeFileGitLineMarkers ?? [],
-      activeSpecContent: activeWorkspace?.activeSpecContent ?? null,
-      isIndexing: activeWorkspace?.isIndexing ?? false,
-      isReadingFile: activeWorkspace?.isReadingFile ?? false,
-      isReadingSpec: activeWorkspace?.isReadingSpec ?? false,
-      readFileError: activeWorkspace?.readFileError ?? null,
-      activeSpecReadError: activeWorkspace?.activeSpecReadError ?? null,
-      previewUnavailableReason: activeWorkspace?.previewUnavailableReason ?? null,
-      selectionRange: activeWorkspace?.selectionRange ?? null,
-      expandedDirectories: activeWorkspace?.expandedDirectories ?? [],
-      comments: activeWorkspace?.comments ?? [],
-      isReadingComments: activeWorkspace?.isReadingComments ?? false,
-      isWritingComments: activeWorkspace?.isWritingComments ?? false,
-      commentsError: activeWorkspace?.commentsError ?? null,
-      globalComments: activeWorkspace?.globalComments ?? '',
-      isReadingGlobalComments: activeWorkspace?.isReadingGlobalComments ?? false,
-      isWritingGlobalComments: activeWorkspace?.isWritingGlobalComments ?? false,
-      globalCommentsError: activeWorkspace?.globalCommentsError ?? null,
-      loadingDirectories: activeWorkspace?.loadingDirectories ?? [],
-      watchModePreference: activeWorkspace?.watchModePreference ?? 'auto',
-      watchMode: activeWorkspace?.watchMode ?? null,
-      isRemoteMounted: activeWorkspace?.isRemoteMounted ?? false,
-      isDirty: activeWorkspace?.isDirty ?? false,
-      externalChangeDetected,
-      bannerMessage,
-      openWorkspace,
-      connectRemoteWorkspace,
-      disconnectRemoteWorkspace,
-      retryRemoteWorkspaceConnection,
-      setActiveWorkspace,
-      switchWorkspace,
-      closeWorkspace,
-      selectFile,
-      canGoBack,
-      canGoForward,
-      goBackInHistory,
-      goForwardInHistory,
-      reloadComments,
-      saveComments,
-      reloadGlobalComments,
-      saveGlobalComments,
-      showBanner,
-      saveFile,
-      setSelectionRange,
-      setExpandedDirectories,
-      loadDirectoryChildren,
-      refreshFileTree,
-      searchFiles,
-      setWatchModePreference,
-      clearBanner,
-      reloadExternalChange,
-      dismissExternalChange,
-      markFileDirty,
-      createFile,
-      createDirectory,
-      deleteFile,
-      deleteDirectory,
-      renameFileOrDirectory,
-    }),
+    () => {
+      const state: WorkspaceContextState = {
+        workspaceOrder: workspaceState.workspaceOrder,
+        workspaces: listWorkspaces(workspaceState),
+        activeWorkspaceId: workspaceState.activeWorkspaceId,
+        rootPath: activeWorkspace?.rootPath ?? null,
+        workspaceKind: activeWorkspace?.workspaceKind ?? null,
+        remoteProfile: activeWorkspace?.remoteProfile ?? null,
+        remoteConnectionState: activeWorkspace?.remoteConnectionState ?? null,
+        remoteErrorCode: activeWorkspace?.remoteErrorCode ?? null,
+        fileTree: activeWorkspace?.fileTree ?? [],
+        changedFiles: activeWorkspace?.changedFiles ?? [],
+        gitFileStatuses: activeWorkspace?.gitFileStatuses ?? {},
+        activeFile: activeWorkspace?.activeFile ?? null,
+        activeSpec: activeWorkspace?.activeSpec ?? null,
+        activeFileContent: activeWorkspace?.activeFileContent ?? null,
+        activeFileImagePreview: activeWorkspace?.activeFileImagePreview ?? null,
+        activeFileGitLineMarkers: activeWorkspace?.activeFileGitLineMarkers ?? [],
+        activeSpecContent: activeWorkspace?.activeSpecContent ?? null,
+        isIndexing: activeWorkspace?.isIndexing ?? false,
+        isReadingFile: activeWorkspace?.isReadingFile ?? false,
+        isReadingSpec: activeWorkspace?.isReadingSpec ?? false,
+        readFileError: activeWorkspace?.readFileError ?? null,
+        activeSpecReadError: activeWorkspace?.activeSpecReadError ?? null,
+        previewUnavailableReason: activeWorkspace?.previewUnavailableReason ?? null,
+        selectionRange: activeWorkspace?.selectionRange ?? null,
+        expandedDirectories: activeWorkspace?.expandedDirectories ?? [],
+        comments: activeWorkspace?.comments ?? [],
+        isReadingComments: activeWorkspace?.isReadingComments ?? false,
+        isWritingComments: activeWorkspace?.isWritingComments ?? false,
+        commentsError: activeWorkspace?.commentsError ?? null,
+        globalComments: activeWorkspace?.globalComments ?? '',
+        isReadingGlobalComments: activeWorkspace?.isReadingGlobalComments ?? false,
+        isWritingGlobalComments: activeWorkspace?.isWritingGlobalComments ?? false,
+        globalCommentsError: activeWorkspace?.globalCommentsError ?? null,
+        loadingDirectories: activeWorkspace?.loadingDirectories ?? [],
+        watchModePreference: activeWorkspace?.watchModePreference ?? 'auto',
+        watchMode: activeWorkspace?.watchMode ?? null,
+        isRemoteMounted: activeWorkspace?.isRemoteMounted ?? false,
+        isDirty: activeWorkspace?.isDirty ?? false,
+        externalChangeDetected,
+        bannerMessage,
+      }
+      const remote: WorkspaceContextRemote = {
+        remoteProfile: activeWorkspace?.remoteProfile ?? null,
+        remoteConnectionState: activeWorkspace?.remoteConnectionState ?? null,
+        remoteErrorCode: activeWorkspace?.remoteErrorCode ?? null,
+        watchModePreference: activeWorkspace?.watchModePreference ?? 'auto',
+        watchMode: activeWorkspace?.watchMode ?? null,
+        isRemoteMounted: activeWorkspace?.isRemoteMounted ?? false,
+        connectRemoteWorkspace,
+        disconnectRemoteWorkspace,
+        retryRemoteWorkspaceConnection,
+        setWatchModePreference,
+      }
+      const actions: WorkspaceContextActions = {
+        openWorkspace,
+        setActiveWorkspace,
+        switchWorkspace,
+        closeWorkspace,
+        selectFile,
+        canGoBack,
+        canGoForward,
+        goBackInHistory,
+        goForwardInHistory,
+        reloadComments,
+        saveComments,
+        reloadGlobalComments,
+        saveGlobalComments,
+        showBanner,
+        saveFile,
+        setSelectionRange,
+        setExpandedDirectories,
+        loadDirectoryChildren,
+        refreshFileTree,
+        searchFiles,
+        clearBanner,
+        reloadExternalChange,
+        dismissExternalChange,
+        markFileDirty,
+        createFile,
+        createDirectory,
+        deleteFile,
+        deleteDirectory,
+        renameFileOrDirectory,
+      }
+
+      return {
+        ...state,
+        ...remote,
+        ...actions,
+        state,
+        remote,
+        actions,
+      }
+    },
     [
       workspaceState,
       activeWorkspace,

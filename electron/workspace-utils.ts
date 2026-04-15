@@ -4,7 +4,6 @@
  */
 
 import { execFile } from 'node:child_process'
-import { rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { isPathInsideWorkspace } from './workspace-path'
 import type { WorkspaceFileNode, WorkspaceImagePreview } from './ipc-types'
@@ -202,12 +201,6 @@ export function runBackgroundTask(task: Promise<unknown>, label: string): void {
   void task.catch((error) => {
     console.warn(`${label} failed.`, error)
   })
-}
-
-export async function writeFileAtomic(targetPath: string, content: string) {
-  const temporaryPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`
-  await writeFile(temporaryPath, content, 'utf8')
-  await rename(temporaryPath, targetPath)
 }
 
 export function runGitCommand(rootPath: string, args: string[]): Promise<string> {

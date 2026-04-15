@@ -12,7 +12,7 @@ import type {
   WorkspaceWatchModePreference,
 } from './workspace-model'
 
-export type WorkspaceContextValue = {
+export type WorkspaceContextState = {
   workspaceOrder: WorkspaceId[]
   workspaces: Array<{ id: WorkspaceId; rootPath: string }>
   activeWorkspaceId: WorkspaceId | null
@@ -53,14 +53,27 @@ export type WorkspaceContextValue = {
   isDirty: boolean
   externalChangeDetected: boolean
   bannerMessage: string | null
-  markFileDirty: (draftContent?: string) => void
-  openWorkspace: () => Promise<void>
+}
+
+export type WorkspaceContextRemote = {
+  remoteProfile: WorkspaceRemoteProfile | null
+  remoteConnectionState: WorkspaceRemoteConnectionState | null
+  remoteErrorCode: string | null
+  watchModePreference: WorkspaceWatchModePreference
+  watchMode: WorkspaceWatchMode | null
+  isRemoteMounted: boolean
   connectRemoteWorkspace: (profile: WorkspaceRemoteProfile) => Promise<boolean>
   disconnectRemoteWorkspace: (workspaceId?: WorkspaceId) => Promise<boolean>
   retryRemoteWorkspaceConnection: (workspaceId?: WorkspaceId) => Promise<boolean>
+  setWatchModePreference: (preference: WorkspaceWatchModePreference) => Promise<void>
+}
+
+export type WorkspaceContextActions = {
+  markFileDirty: (draftContent?: string) => void
+  openWorkspace: () => Promise<void>
   setActiveWorkspace: (workspaceId: WorkspaceId) => void
   switchWorkspace: (workspaceId: WorkspaceId) => void
-  closeWorkspace: (workspaceId: WorkspaceId) => void
+  closeWorkspace: (workspaceId: WorkspaceId) => Promise<void>
   selectFile: (relativePath: string) => void
   canGoBack: boolean
   canGoForward: boolean
@@ -80,7 +93,6 @@ export type WorkspaceContextValue = {
   ) => Promise<void>
   refreshFileTree: () => Promise<void>
   searchFiles: (query: string) => Promise<WorkspaceSearchFilesResult>
-  setWatchModePreference: (preference: WorkspaceWatchModePreference) => Promise<void>
   clearBanner: () => void
   reloadExternalChange: () => void
   dismissExternalChange: () => void
@@ -93,6 +105,16 @@ export type WorkspaceContextValue = {
     newRelativePath: string,
   ) => Promise<boolean>
 }
+
+export type WorkspaceContextValue =
+  & WorkspaceContextState
+  & WorkspaceContextRemote
+  & WorkspaceContextActions
+  & {
+    state: WorkspaceContextState
+    remote: WorkspaceContextRemote
+    actions: WorkspaceContextActions
+  }
 
 export type WorkspaceProviderProps = {
   children: ReactNode

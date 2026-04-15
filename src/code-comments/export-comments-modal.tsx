@@ -8,6 +8,7 @@ export type ExportCommentsModalInput = {
   writeCommentsFile: boolean
   writeBundleFile: boolean
   deleteExportedComments: boolean
+  includePreviouslyExportedComments: boolean
 }
 
 type ExportCommentsModalProps = {
@@ -15,12 +16,19 @@ type ExportCommentsModalProps = {
   isExporting: boolean
   commentCount: number
   pendingCommentCount: number
+  exportedCommentCount: number
   hasGlobalComments: boolean
   allowExportWithoutPendingComments: boolean
   maxClipboardChars: number
-  estimateBundleLength: (instruction: string) => number
+  estimateBundleLength: (
+    instruction: string,
+    options?: {
+      includePreviouslyExportedComments?: boolean
+    },
+  ) => number
   onCancel: () => void
   onConfirm: (input: ExportCommentsModalInput) => void | Promise<void>
+  onResetExportedComments?: () => void | Promise<void>
 }
 
 export function ExportCommentsModal({
@@ -28,18 +36,22 @@ export function ExportCommentsModal({
   isExporting,
   commentCount,
   pendingCommentCount,
+  exportedCommentCount,
   hasGlobalComments,
   allowExportWithoutPendingComments,
   maxClipboardChars,
   estimateBundleLength,
   onCancel,
   onConfirm,
+  onResetExportedComments,
 }: ExportCommentsModalProps) {
   const [instruction, setInstruction] = useState('')
   const [copyToClipboard, setCopyToClipboard] = useState(true)
   const [writeCommentsFile, setWriteCommentsFile] = useState(true)
   const [writeBundleFile, setWriteBundleFile] = useState(true)
   const [deleteExportedComments, setDeleteExportedComments] = useState(true)
+  const [includePreviouslyExportedComments, setIncludePreviouslyExportedComments] =
+    useState(false)
   const { backdropRef, dialogRef, handleWheelCapture } =
     useModalBackgroundWheelPassthrough<HTMLFormElement>()
   const { dialogStyle, isDragging, dragHandleProps } = useModalDragPosition({
@@ -56,11 +68,15 @@ export function ExportCommentsModal({
     setWriteCommentsFile(true)
     setWriteBundleFile(true)
     setDeleteExportedComments(true)
+    setIncludePreviouslyExportedComments(false)
   }, [isOpen])
 
   const estimatedBundleLength = useMemo(
-    () => estimateBundleLength(instruction),
-    [estimateBundleLength, instruction],
+    () =>
+      estimateBundleLength(instruction, {
+        includePreviouslyExportedComments,
+      }),
+    [estimateBundleLength, includePreviouslyExportedComments, instruction],
   )
   const clipboardDisabled = estimatedBundleLength > maxClipboardChars
 
@@ -95,7 +111,9 @@ export function ExportCommentsModal({
   }
 
   const hasExportableComments =
-    pendingCommentCount > 0 || allowExportWithoutPendingComments
+    pendingCommentCount > 0 ||
+    (includePreviouslyExportedComments && exportedCommentCount > 0) ||
+    allowExportWithoutPendingComments
   const hasAnyTarget =
     (copyToClipboard && !clipboardDisabled) || writeCommentsFile || writeBundleFile
   const canSubmit = hasAnyTarget && hasExportableComments
@@ -121,6 +139,7 @@ export function ExportCommentsModal({
             writeCommentsFile,
             writeBundleFile,
             deleteExportedComments,
+            includePreviouslyExportedComments,
           })
         }}
         ref={dialogRef}
@@ -138,6 +157,7 @@ export function ExportCommentsModal({
               {commentCount} comment(s){hasGlobalComments ? ' + global comments' : ''} included
             </p>
             <p className="comment-modal-meta">{pendingCommentCount} pending comment(s)</p>
+            <p className="comment-modal-meta">{exportedCommentCount} exported comment(s)</p>
             <p className="comment-modal-meta">
               Global comments: {hasGlobalComments ? 'included' : 'not included'}
             </p>
@@ -161,6 +181,19 @@ export function ExportCommentsModal({
 
         <fieldset className="export-comments-options">
           <legend>Export targets</legend>
+          {exportedCommentCount > 0 && (
+            <label>
+              <input
+                checked={includePreviouslyExportedComments}
+                disabled={isExporting}
+                onChange={(event) => {
+                  setIncludePreviouslyExportedComments(event.target.checked)
+                }}
+                type="checkbox"
+              />
+              Include already-exported comments
+            </label>
+          )}
           <label>
             <input
               checked={copyToClipboard && !clipboardDisabled}
@@ -224,6 +257,19 @@ export function ExportCommentsModal({
           <p className="comment-modal-warning" role="status">
             No pending comments to export.
           </p>
+        )}
+        {exportedCommentCount > 0 && onResetExportedComments && (
+          <div className="export-comments-secondary-actions">
+            <button
+              disabled={isExporting}
+              onClick={() => {
+                void onResetExportedComments()
+              }}
+              type="button"
+            >
+              Reset exported comments to pending
+            </button>
+          </div>
         )}
 
         <div className="comment-modal-actions">

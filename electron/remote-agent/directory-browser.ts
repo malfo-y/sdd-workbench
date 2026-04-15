@@ -301,6 +301,9 @@ function parseErrorCode(rawCode: string | undefined): RemoteAgentErrorCode {
   if (rawCode === 'AGENT_PROTOCOL_MISMATCH') {
     return 'AGENT_PROTOCOL_MISMATCH'
   }
+  if (rawCode === 'METHOD_NOT_ALLOWED') {
+    return 'METHOD_NOT_ALLOWED'
+  }
   if (rawCode === 'PATH_DENIED') {
     return 'PATH_DENIED'
   }
@@ -322,9 +325,7 @@ export function buildBrowseSshArgs(
 ): string[] {
   return buildSshArgs(
     {
-      workspaceId: '__remote-browse__',
       host: request.host.trim(),
-      remoteRoot: '/',
       ...(request.user?.trim() ? { user: request.user.trim() } : {}),
       ...(request.port ? { port: request.port } : {}),
       ...(request.identityFile?.trim()

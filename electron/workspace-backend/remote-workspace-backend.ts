@@ -12,6 +12,7 @@ import { RemoteWatchBridge } from './remote-watch-bridge'
 import type { RemoteAgentEvent } from '../remote-agent/protocol'
 import type {
   WorkspaceBackend,
+  WorkspaceBackendResult,
   WorkspaceCreateDirectoryRequest,
   WorkspaceCreateFileRequest,
   WorkspaceDeleteDirectoryRequest,
@@ -61,6 +62,25 @@ export function createRemoteWorkspaceBackend(
   return new RemoteWorkspaceBackend(options)
 }
 
+const REMOTE_WORKSPACE_METHODS = {
+  index: 'workspace.index',
+  indexDirectory: 'workspace.indexDirectory',
+  searchFiles: 'workspace.searchFiles',
+  readFile: 'workspace.readFile',
+  writeFile: 'workspace.writeFile',
+  createFile: 'workspace.createFile',
+  createDirectory: 'workspace.createDirectory',
+  deleteFile: 'workspace.deleteFile',
+  deleteDirectory: 'workspace.deleteDirectory',
+  rename: 'workspace.rename',
+  readComments: 'workspace.readComments',
+  writeComments: 'workspace.writeComments',
+  readGlobalComments: 'workspace.readGlobalComments',
+  writeGlobalComments: 'workspace.writeGlobalComments',
+  exportCommentsBundle: 'workspace.exportCommentsBundle',
+  copyEntries: 'workspace.copyEntries',
+} as const
+
 class RemoteWorkspaceBackend implements WorkspaceBackend {
   readonly kind = 'remote' as const
 
@@ -92,140 +112,178 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
     })
   }
 
-  index(request: WorkspaceIndexRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.index')
+  index(request: WorkspaceIndexRequest): Promise<WorkspaceBackendResult<'index'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.index,
+    )
   }
 
-  indexDirectory(request: WorkspaceIndexDirectoryRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    if (request.relativePath.trim().length > 0) {
-      this.assertRelativePathInWorkspace(request.relativePath)
-    }
-    return this.requestWorkspaceMethod('workspace.indexDirectory', {
+  indexDirectory(
+    request: WorkspaceIndexDirectoryRequest,
+  ): Promise<WorkspaceBackendResult<'indexDirectory'>> {
+    return this.forwardDirectoryWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.indexDirectory,
+      {
       relativePath: request.relativePath,
       offset: request.offset,
       limit: request.limit,
-    })
+    },
+    )
   }
 
-  searchFiles(request: WorkspaceSearchFilesRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.searchFiles', {
+  searchFiles(
+    request: WorkspaceSearchFilesRequest,
+  ): Promise<WorkspaceBackendResult<'searchFiles'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.searchFiles,
+      {
       query: request.query,
       maxDepth: request.maxDepth,
       maxResults: request.maxResults,
       maxDirectoryChildren: request.maxDirectoryChildren,
       timeBudgetMs: request.timeBudgetMs,
-    })
+    },
+    )
   }
 
-  readFile(request: WorkspaceReadFileRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
-    return this.requestWorkspaceMethod('workspace.readFile', {
-      relativePath: request.relativePath,
-    })
+  readFile(
+    request: WorkspaceReadFileRequest,
+  ): Promise<WorkspaceBackendResult<'readFile'>> {
+    return this.forwardRelativePathWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.readFile,
+    )
   }
 
-  writeFile(request: WorkspaceWriteFileRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
-    return this.requestWorkspaceMethod('workspace.writeFile', {
+  writeFile(
+    request: WorkspaceWriteFileRequest,
+  ): Promise<WorkspaceBackendResult<'writeFile'>> {
+    return this.forwardRelativePathWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.writeFile,
+      {
       relativePath: request.relativePath,
       content: request.content,
-    })
+    },
+    )
   }
 
-  createFile(request: WorkspaceCreateFileRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
-    return this.requestWorkspaceMethod('workspace.createFile', {
-      relativePath: request.relativePath,
-    })
+  createFile(
+    request: WorkspaceCreateFileRequest,
+  ): Promise<WorkspaceBackendResult<'createFile'>> {
+    return this.forwardRelativePathWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.createFile,
+    )
   }
 
-  createDirectory(request: WorkspaceCreateDirectoryRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
-    return this.requestWorkspaceMethod('workspace.createDirectory', {
-      relativePath: request.relativePath,
-    })
+  createDirectory(
+    request: WorkspaceCreateDirectoryRequest,
+  ): Promise<WorkspaceBackendResult<'createDirectory'>> {
+    return this.forwardRelativePathWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.createDirectory,
+    )
   }
 
-  deleteFile(request: WorkspaceDeleteFileRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
-    return this.requestWorkspaceMethod('workspace.deleteFile', {
-      relativePath: request.relativePath,
-    })
+  deleteFile(
+    request: WorkspaceDeleteFileRequest,
+  ): Promise<WorkspaceBackendResult<'deleteFile'>> {
+    return this.forwardRelativePathWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.deleteFile,
+    )
   }
 
-  deleteDirectory(request: WorkspaceDeleteDirectoryRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    this.assertRelativePathInWorkspace(request.relativePath)
-    return this.requestWorkspaceMethod('workspace.deleteDirectory', {
-      relativePath: request.relativePath,
-    })
+  deleteDirectory(
+    request: WorkspaceDeleteDirectoryRequest,
+  ): Promise<WorkspaceBackendResult<'deleteDirectory'>> {
+    return this.forwardRelativePathWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.deleteDirectory,
+    )
   }
 
-  rename(request: WorkspaceRenameRequest): Promise<unknown> {
+  rename(request: WorkspaceRenameRequest): Promise<WorkspaceBackendResult<'rename'>> {
     this.assertRootPath(request.rootPath)
     this.assertRelativePathInWorkspace(request.oldRelativePath)
     this.assertRelativePathInWorkspace(request.newRelativePath)
-    return this.requestWorkspaceMethod('workspace.rename', {
+    return this.requestWorkspaceMethod(REMOTE_WORKSPACE_METHODS.rename, {
       oldRelativePath: request.oldRelativePath,
       newRelativePath: request.newRelativePath,
     })
   }
 
-  getGitLineMarkers(request: WorkspaceGetGitLineMarkersRequest): Promise<unknown> {
+  getGitLineMarkers(
+    request: WorkspaceGetGitLineMarkersRequest,
+  ): Promise<WorkspaceBackendResult<'getGitLineMarkers'>> {
     this.assertRootPath(request.rootPath)
     this.assertRelativePathInWorkspace(request.relativePath)
     return this.gitBridge.getGitLineMarkers(request)
   }
 
-  getGitFileStatuses(request: WorkspaceGetGitFileStatusesRequest): Promise<unknown> {
+  getGitFileStatuses(
+    request: WorkspaceGetGitFileStatusesRequest,
+  ): Promise<WorkspaceBackendResult<'getGitFileStatuses'>> {
     this.assertRootPath(request.rootPath)
     return this.gitBridge.getGitFileStatuses(request)
   }
 
-  readComments(request: WorkspaceReadCommentsRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.readComments')
+  readComments(
+    request: WorkspaceReadCommentsRequest,
+  ): Promise<WorkspaceBackendResult<'readComments'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.readComments,
+    )
   }
 
-  writeComments(request: WorkspaceWriteCommentsRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.writeComments', {
+  writeComments(
+    request: WorkspaceWriteCommentsRequest,
+  ): Promise<WorkspaceBackendResult<'writeComments'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.writeComments,
+      {
       comments: request.comments,
-    })
+    },
+    )
   }
 
-  readGlobalComments(request: WorkspaceReadGlobalCommentsRequest): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.readGlobalComments')
+  readGlobalComments(
+    request: WorkspaceReadGlobalCommentsRequest,
+  ): Promise<WorkspaceBackendResult<'readGlobalComments'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.readGlobalComments,
+    )
   }
 
   writeGlobalComments(
     request: WorkspaceWriteGlobalCommentsRequest,
-  ): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.writeGlobalComments', {
+  ): Promise<WorkspaceBackendResult<'writeGlobalComments'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.writeGlobalComments,
+      {
       body: request.body,
-    })
+    },
+    )
   }
 
   async copyEntries(request: {
     rootPath: string
     entries: { relativePath: string; kind: 'file' | 'directory' }[]
     destDir: string
-  }): Promise<unknown> {
+  }): Promise<WorkspaceBackendResult<'copyEntries'>> {
     this.assertRootPath(request.rootPath)
     for (const entry of request.entries) {
       this.assertRelativePathInWorkspace(entry.relativePath)
     }
-    return this.requestWorkspaceMethod('workspace.copyEntries', {
+    return this.requestWorkspaceMethod(REMOTE_WORKSPACE_METHODS.copyEntries, {
       entries: request.entries,
       destDir: request.destDir,
     })
@@ -233,22 +291,29 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
 
   exportCommentsBundle(
     request: WorkspaceExportCommentsBundleRequest,
-  ): Promise<unknown> {
-    this.assertRootPath(request.rootPath)
-    return this.requestWorkspaceMethod('workspace.exportCommentsBundle', {
+  ): Promise<WorkspaceBackendResult<'exportCommentsBundle'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.exportCommentsBundle,
+      {
       commentsMarkdown: request.commentsMarkdown,
       bundleMarkdown: request.bundleMarkdown,
       writeCommentsFile: request.writeCommentsFile,
       writeBundleFile: request.writeBundleFile,
-    })
+    },
+    )
   }
 
-  watchStart(request: WorkspaceWatchStartRequest): Promise<unknown> {
+  watchStart(
+    request: WorkspaceWatchStartRequest,
+  ): Promise<WorkspaceBackendResult<'watchStart'>> {
     this.assertRootPath(request.rootPath)
     return this.watchBridge.start(request.watchModePreference)
   }
 
-  async watchStop(request: WorkspaceWatchStopRequest): Promise<unknown> {
+  async watchStop(
+    request: WorkspaceWatchStopRequest,
+  ): Promise<WorkspaceBackendResult<'watchStop'>> {
     void request
     try {
       await this.watchBridge.stop()
@@ -307,14 +372,47 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
     }
   }
 
-  private async requestWorkspaceMethod(
+  private forwardRootWorkspaceMethod<TResult>(
+    request: { rootPath: string },
     method: string,
     params?: unknown,
-  ): Promise<unknown> {
+  ): Promise<TResult> {
+    this.assertRootPath(request.rootPath)
+    return this.requestWorkspaceMethod(method, params)
+  }
+
+  private forwardDirectoryWorkspaceMethod<TResult>(
+    request: WorkspaceIndexDirectoryRequest,
+    method: string,
+    params?: unknown,
+  ): Promise<TResult> {
+    this.assertRootPath(request.rootPath)
+    if (request.relativePath.trim().length > 0) {
+      this.assertRelativePathInWorkspace(request.relativePath)
+    }
+    return this.requestWorkspaceMethod(method, params)
+  }
+
+  private forwardRelativePathWorkspaceMethod<TResult>(
+    request: { rootPath: string; relativePath: string },
+    method: string,
+    params?: unknown,
+  ): Promise<TResult> {
+    this.assertRootPath(request.rootPath)
+    this.assertRelativePathInWorkspace(request.relativePath)
+    return this.requestWorkspaceMethod(method, params ?? {
+      relativePath: request.relativePath,
+    })
+  }
+
+  private async requestWorkspaceMethod<TResult>(
+    method: string,
+    params?: unknown,
+  ): Promise<TResult> {
     assertRemoteWorkspaceMethodAllowed(method)
 
     try {
-      return await this.requestRemote(this.workspaceId, method, params)
+      return await this.requestRemote(this.workspaceId, method, params) as TResult
     } catch (error) {
       const normalized = toRemoteAgentError(error)
       throw new RemoteAgentError(

@@ -2,6 +2,7 @@ import {
   Fragment,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
@@ -164,6 +165,7 @@ export function HighlightedCodeBlock({
   const [highlightedLineTokens, setHighlightedLineTokens] = useState<
     HighlightLineToken[][] | null
   >(null)
+  const highlightRequestTokenRef = useRef(0)
   const codeLines = useMemo(() => code.split('\n'), [code])
   const citationMatches = useMemo(
     () => extractCodeBlockCitationMatches(code),
@@ -181,12 +183,18 @@ export function HighlightedCodeBlock({
   }, [citationMatches, codeLines])
 
   useEffect(() => {
+    const requestToken = highlightRequestTokenRef.current + 1
+    highlightRequestTokenRef.current = requestToken
     let cancelled = false
-    highlightLineTokens(code, language, appearanceTheme).then((tokenLines) => {
-      if (!cancelled) {
-        setHighlightedLineTokens(tokenLines)
+    setHighlightedLineTokens(null)
+
+    void highlightLineTokens(code, language, appearanceTheme).then((tokenLines) => {
+      if (cancelled || highlightRequestTokenRef.current !== requestToken) {
+        return
       }
+      setHighlightedLineTokens(tokenLines)
     })
+
     return () => {
       cancelled = true
     }

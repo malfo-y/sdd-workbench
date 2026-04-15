@@ -7,12 +7,14 @@ const DEFAULT_PROPS = {
   isExporting: false,
   commentCount: 3,
   pendingCommentCount: 2,
+  exportedCommentCount: 1,
   hasGlobalComments: false,
   allowExportWithoutPendingComments: false,
   maxClipboardChars: 100000,
   estimateBundleLength: () => 500,
   onCancel: vi.fn(),
   onConfirm: vi.fn(),
+  onResetExportedComments: vi.fn(),
 }
 
 describe('ExportCommentsModal', () => {
@@ -125,8 +127,79 @@ describe('ExportCommentsModal', () => {
     expect(onConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
         deleteExportedComments: false,
+        includePreviouslyExportedComments: false,
       }),
     )
+  })
+
+  it('supports explicit re-export of already-exported comments', () => {
+    const onConfirm = vi.fn()
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    fireEvent.click(screen.getByLabelText('Include already-exported comments'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        includePreviouslyExportedComments: true,
+      }),
+    )
+  })
+
+  it('recomputes bundle length when already-exported comments are included', () => {
+    const estimateBundleLength = vi.fn(
+      (
+        _instruction: string,
+        options?: {
+          includePreviouslyExportedComments?: boolean
+        },
+      ) => (options?.includePreviouslyExportedComments ? 2_500 : 500),
+    )
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        estimateBundleLength={estimateBundleLength}
+        maxClipboardChars={1_000}
+      />,
+    )
+
+    expect(screen.getByLabelText('Copy bundle to clipboard')).toBeEnabled()
+
+    fireEvent.click(screen.getByLabelText('Include already-exported comments'))
+
+    expect(estimateBundleLength).toHaveBeenLastCalledWith('', {
+      includePreviouslyExportedComments: true,
+    })
+    expect(screen.getByLabelText('Copy bundle to clipboard')).toBeDisabled()
+    expect(
+      screen.getByText(
+        'Clipboard copy is disabled when bundle exceeds 1,000 chars.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('offers an explicit reset action for exported comments', () => {
+    const onResetExportedComments = vi.fn()
+
+    render(
+      <ExportCommentsModal
+        {...DEFAULT_PROPS}
+        onResetExportedComments={onResetExportedComments}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Reset exported comments to pending',
+    }))
+
+    expect(onResetExportedComments).toHaveBeenCalledTimes(1)
   })
 
   it('renders a draggable header and still exports with form data', () => {

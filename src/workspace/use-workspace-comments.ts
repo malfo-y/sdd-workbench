@@ -70,17 +70,25 @@ export function useWorkspaceComments(input: {
         }
 
         const normalizedCommentsResult = normalizeCodeComments(readResult.comments)
+        const warningMessages = [
+          typeof readResult.error === 'string' && readResult.error.trim().length > 0
+            ? readResult.error
+            : null,
+          normalizedCommentsResult.error,
+        ].filter((warning): warning is string => Boolean(warning))
+        const combinedWarning =
+          warningMessages.length > 0 ? warningMessages.join(' ') : null
         setWorkspaceState((previous) =>
           updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
             ...currentSession,
             comments: normalizedCommentsResult.comments,
             isReadingComments: false,
-            commentsError: normalizedCommentsResult.error,
+            commentsError: combinedWarning,
           })),
         )
-        if (normalizedCommentsResult.error) {
+        if (combinedWarning) {
           setBannerMessage(
-            `Comments loaded with warnings: ${normalizedCommentsResult.error}`,
+            `Comments loaded with warnings: ${combinedWarning}`,
           )
         }
         return true

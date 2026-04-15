@@ -1,4 +1,5 @@
 import type {
+  WorkspaceBackendResult,
   WorkspaceGetGitFileStatusesRequest,
   WorkspaceGetGitLineMarkersRequest,
 } from './types'
@@ -25,16 +26,23 @@ export class RemoteGitBridge {
 
   getGitLineMarkers(
     request: WorkspaceGetGitLineMarkersRequest,
-  ): Promise<unknown> {
-    return this.requestRemote(this.workspaceId, 'workspace.getGitLineMarkers', {
-      relativePath: request.relativePath,
-    })
+  ): Promise<WorkspaceBackendResult<'getGitLineMarkers'>> {
+    return this.requestRemote(
+      this.workspaceId,
+      'workspace.getGitLineMarkers',
+      {
+        relativePath: request.relativePath,
+      },
+    ) as Promise<WorkspaceBackendResult<'getGitLineMarkers'>>
   }
 
   getGitFileStatuses(
     request: WorkspaceGetGitFileStatusesRequest,
-  ): Promise<unknown> {
+  ): Promise<WorkspaceBackendResult<'getGitFileStatuses'>> {
     void request
-    return this.requestRemote(this.workspaceId, 'workspace.getGitFileStatuses')
+    return this.requestRemote(
+      this.workspaceId,
+      'workspace.getGitFileStatuses',
+    ) as Promise<WorkspaceBackendResult<'getGitFileStatuses'>>
   }
 }

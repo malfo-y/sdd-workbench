@@ -10,6 +10,7 @@
 - 동일 경로의 markdown 파일이 Code 탭에서 편집 중(draft)이라면, Spec 탭은 저장본이 아니라 **현재 draft**를 렌더한다.
 - Code/Spec 탭 전환만으로 draft가 저장되거나 초기화되지 않으며, 두 탭은 같은 문서 세션(draft text)을 공유한다.
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
+- TOC를 열면 현재 scroll 위치에 맞는 active heading이 표시되고, same-document heading jump는 normalized id + heading text fallback으로 처리된다.
 - rendered selection에서 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`, `Go to Source`, `Add Comment`를 호출할 수 있다.
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
 - prose, inline code span, 또는 fenced code block 안의 `[path.py:Symbol]` / `[path.py:Class.method]` bracket citation을 클릭해 Python 선언 위치로 점프할 수 있다.
@@ -24,6 +25,7 @@
   - `src/spec-viewer/source-line-metadata.ts`
   - `src/spec-viewer/source-line-resolver.ts`
   - `src/spec-viewer/rehype-source-text-leaves.ts`
+  - `src/spec-viewer/spec-viewer-scroll.ts`
 - 검색:
   - `src/spec-viewer/spec-search.ts`
 - 링크/보안:
@@ -58,6 +60,8 @@
 - spec 검색은 raw markdown line scan 후 rendered block으로 매핑한다.
 - `Cmd/Ctrl+F`는 Spec 탭 활성 상태에서만 열린다.
 - code -> spec explicit navigation은 `data-source-line` 후보 중 best-effort block을 고른다.
+- same-document heading navigation은 normalized heading id를 우선 찾고, 필요하면 heading text match로 fallback 한다.
+- TOC active state는 현재 scroll container에서 가장 최근에 지난 heading을 기준으로 계산한다.
 - navigation highlight는 search/comment state와 별도 class로 관리한다.
 
 ### 4.3 citation navigation
@@ -75,7 +79,7 @@
 ### 4.4 scroll과 문맥 유지
 
 - same-spec source jump는 가능한 경우 현재 rendered 문맥을 재사용한다.
-- spec scroll position은 런타임에서 workspace + activeSpecPath 기준으로 복원한다.
+- spec scroll position은 `workspaceId + activeSpecPath` 기준으로 persistence되며 앱 재시작 후에도 복원된다.
 - same-path markdown에서 content만 변하는 경우(저장 전 draft 반영)는 path navigation이 아니므로, 스크롤/문맥 보존은 best-effort로 유지하되 stale search/highlight 상태가 남지 않도록 reset 또는 재계산 규칙을 둔다.
 
 ## 5. 주요 코드
@@ -85,6 +89,7 @@
 - `src/spec-viewer/source-line-resolver.ts`
 - `src/spec-viewer/spec-search.ts`
 - `src/spec-viewer/spec-link-utils.ts`
+- `src/spec-viewer/spec-viewer-scroll.ts`
 - `src/spec-viewer/rehype-source-text-leaves.ts`
 - `src/spec-viewer/markdown-security.ts`
 - `src/spec-viewer/citation-target.ts`

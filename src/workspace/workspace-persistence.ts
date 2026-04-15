@@ -9,6 +9,8 @@ import type {
 export const WORKSPACE_SESSION_STORAGE_KEY = 'sdd-workbench:workspace-session:v1'
 export const WORKSPACE_SESSION_SCHEMA_VERSION = 2
 export const MAX_PERSISTED_FILE_LAST_LINE_ENTRIES = 200
+export const WORKSPACE_SPEC_SCROLL_STORAGE_KEY = 'sdd-workbench:spec-scroll:v1'
+export const MAX_PERSISTED_SPEC_SCROLL_ENTRIES = 200
 
 export type PersistedWorkspaceSession = {
   rootPath: string
@@ -29,6 +31,11 @@ export type WorkspaceSessionSnapshot = {
   activeWorkspaceId: string | null
   workspaceOrder: string[]
   workspacesById: Record<string, PersistedWorkspaceSession>
+}
+
+export type WorkspaceSessionSnapshotLoadResult = {
+  snapshot: WorkspaceSessionSnapshot | null
+  error: string | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -213,6 +220,37 @@ function normalizeWorkspaceSession(
   }
 }
 
+function normalizePersistedSpecScrollPositions(
+  value: unknown,
+): Record<string, number> {
+  if (!isRecord(value)) {
+    return {}
+  }
+
+  const normalizedEntries: Array<[string, number]> = []
+  for (const [storageKey, rawScrollTop] of Object.entries(value)) {
+    if (
+      !isNonEmptyString(storageKey) ||
+      typeof rawScrollTop !== 'number' ||
+      !Number.isFinite(rawScrollTop) ||
+      rawScrollTop < 0
+    ) {
+      continue
+    }
+
+    normalizedEntries.push([storageKey, Math.trunc(rawScrollTop)])
+  }
+
+  const limitedEntries =
+    normalizedEntries.length > MAX_PERSISTED_SPEC_SCROLL_ENTRIES
+      ? normalizedEntries.slice(
+          normalizedEntries.length - MAX_PERSISTED_SPEC_SCROLL_ENTRIES,
+        )
+      : normalizedEntries
+
+  return Object.fromEntries(limitedEntries)
+}
+
 function readStorageValue(storage: Storage, key: string): string | null {
   const maybeStorageWithMethods = storage as unknown as {
     getItem?: (itemKey: string) => string | null
@@ -304,32 +342,44 @@ export function createWorkspaceSessionSnapshot(
   }
 }
 
-export function loadWorkspaceSessionSnapshot(
+export function loadWorkspaceSessionSnapshotWithDiagnostics(
   storage: Storage = window.localStorage,
-): WorkspaceSessionSnapshot | null {
+): WorkspaceSessionSnapshotLoadResult {
   try {
     const rawValue = readStorageValue(storage, WORKSPACE_SESSION_STORAGE_KEY)
     if (!rawValue) {
-      return null
+      return {
+        snapshot: null,
+        error: null,
+      }
     }
 
     const parsed = JSON.parse(rawValue) as unknown
     if (!isRecord(parsed)) {
-      return null
+      return {
+        snapshot: null,
+        error: 'Invalid workspace snapshot format.',
+      }
     }
 
     if (
       parsed.schemaVersion !== 1 &&
       parsed.schemaVersion !== WORKSPACE_SESSION_SCHEMA_VERSION
     ) {
-      return null
+      return {
+        snapshot: null,
+        error: `Unsupported workspace snapshot schema version: ${String(parsed.schemaVersion)}.`,
+      }
     }
 
     const rawWorkspacesById = isRecord(parsed.workspacesById)
       ? parsed.workspacesById
       : null
     if (!rawWorkspacesById) {
-      return null
+      return {
+        snapshot: null,
+        error: 'Workspace snapshot is missing workspacesById.',
+      }
     }
 
     const normalizedWorkspacesById: Record<string, PersistedWorkspaceSession> = {}
@@ -353,7 +403,10 @@ export function loadWorkspaceSessionSnapshot(
     ).filter((workspaceId) => normalizedWorkspacesById[workspaceId] !== undefined)
 
     if (normalizedWorkspaceOrder.length === 0) {
-      return null
+      return {
+        snapshot: null,
+        error: 'Workspace snapshot does not contain any restorable workspace.',
+      }
     }
 
     const rawActiveWorkspaceId = parsed.activeWorkspaceId
@@ -364,17 +417,29 @@ export function loadWorkspaceSessionSnapshot(
         : null
 
     return {
-      schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
-      activeWorkspaceId:
-        activeWorkspaceId ??
-        normalizedWorkspaceOrder[normalizedWorkspaceOrder.length - 1] ??
-        null,
-      workspaceOrder: normalizedWorkspaceOrder,
-      workspacesById: normalizedWorkspacesById,
+      snapshot: {
+        schemaVersion: WORKSPACE_SESSION_SCHEMA_VERSION,
+        activeWorkspaceId:
+          activeWorkspaceId ??
+          normalizedWorkspaceOrder[normalizedWorkspaceOrder.length - 1] ??
+          null,
+        workspaceOrder: normalizedWorkspaceOrder,
+        workspacesById: normalizedWorkspacesById,
+      },
+      error: null,
     }
   } catch {
-    return null
+    return {
+      snapshot: null,
+      error: 'Invalid workspace snapshot JSON.',
+    }
   }
+}
+
+export function loadWorkspaceSessionSnapshot(
+  storage: Storage = window.localStorage,
+): WorkspaceSessionSnapshot | null {
+  return loadWorkspaceSessionSnapshotWithDiagnostics(storage).snapshot
 }
 
 export function saveWorkspaceSessionSnapshot(
@@ -387,8 +452,8 @@ export function saveWorkspaceSessionSnapshot(
       WORKSPACE_SESSION_STORAGE_KEY,
       JSON.stringify(snapshot),
     )
-  } catch {
-    // Persist failures are non-fatal and should not break the workspace UI flow.
+  } catch (error) {
+    console.warn('Failed to persist workspace session snapshot.', error)
   }
 }
 
@@ -397,7 +462,37 @@ export function clearWorkspaceSessionSnapshot(
 ) {
   try {
     deleteStorageValue(storage, WORKSPACE_SESSION_STORAGE_KEY)
+  } catch (error) {
+    console.warn('Failed to clear workspace session snapshot.', error)
+  }
+}
+
+export function loadPersistedSpecScrollPositions(
+  storage: Storage = window.localStorage,
+): Record<string, number> {
+  try {
+    const rawValue = readStorageValue(storage, WORKSPACE_SPEC_SCROLL_STORAGE_KEY)
+    if (!rawValue) {
+      return {}
+    }
+
+    return normalizePersistedSpecScrollPositions(JSON.parse(rawValue) as unknown)
   } catch {
-    // Clearing failures are non-fatal and should not block workspace interactions.
+    return {}
+  }
+}
+
+export function savePersistedSpecScrollPositions(
+  positions: Record<string, number>,
+  storage: Storage = window.localStorage,
+) {
+  try {
+    writeStorageValue(
+      storage,
+      WORKSPACE_SPEC_SCROLL_STORAGE_KEY,
+      JSON.stringify(normalizePersistedSpecScrollPositions(positions)),
+    )
+  } catch (error) {
+    console.warn('Failed to persist spec scroll positions.', error)
   }
 }

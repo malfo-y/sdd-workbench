@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getHighlightLanguage } from './language-map'
+import {
+  getDisplayLanguage,
+  getHighlightLanguage,
+} from './language-map'
 
 describe('language-map', () => {
   it('maps supported extensions to highlight languages', () => {
@@ -17,5 +20,11 @@ describe('language-map', () => {
     expect(getHighlightLanguage('archive.log')).toBe('plaintext')
     expect(getHighlightLanguage('LICENSE')).toBe('plaintext')
     expect(getHighlightLanguage(null)).toBe('plaintext')
+  })
+
+  it('uses the same canonical map for display labels', () => {
+    expect(getDisplayLanguage('src/app.ts')).toBe('typescript')
+    expect(getDisplayLanguage('Dockerfile')).toBe('dockerfile')
+    expect(getDisplayLanguage('archive.log')).toBe('plaintext')
   })
 })

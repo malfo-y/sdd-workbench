@@ -10,8 +10,12 @@ import {
   clearWorkspaceSessionSnapshot,
   createWorkspaceSessionSnapshot,
   loadWorkspaceSessionSnapshot,
+  loadPersistedSpecScrollPositions,
   MAX_PERSISTED_FILE_LAST_LINE_ENTRIES,
+  MAX_PERSISTED_SPEC_SCROLL_ENTRIES,
+  savePersistedSpecScrollPositions,
   saveWorkspaceSessionSnapshot,
+  WORKSPACE_SPEC_SCROLL_STORAGE_KEY,
   WORKSPACE_SESSION_SCHEMA_VERSION,
   WORKSPACE_SESSION_STORAGE_KEY,
 } from './workspace-persistence'
@@ -59,6 +63,10 @@ function readWorkspaceSessionStorage() {
 
 function clearWorkspaceSessionStorage() {
   window.localStorage.removeItem(WORKSPACE_SESSION_STORAGE_KEY)
+}
+
+function readPersistedSpecScrollStorage() {
+  return window.localStorage.getItem(WORKSPACE_SPEC_SCROLL_STORAGE_KEY)
 }
 
 describe('workspace-persistence', () => {
@@ -286,5 +294,56 @@ describe('workspace-persistence', () => {
     })
     clearWorkspaceSessionSnapshot()
     expect(readWorkspaceSessionStorage()).toBeNull()
+  })
+
+  it('persists and loads spec scroll positions', () => {
+    savePersistedSpecScrollPositions({
+      'workspace-a::docs/spec.md': 84,
+      'workspace-b::docs/other.md': 12,
+    })
+
+    expect(loadPersistedSpecScrollPositions()).toEqual({
+      'workspace-a::docs/spec.md': 84,
+      'workspace-b::docs/other.md': 12,
+    })
+  })
+
+  it('ignores invalid persisted spec scroll positions', () => {
+    window.localStorage.setItem(
+      WORKSPACE_SPEC_SCROLL_STORAGE_KEY,
+      JSON.stringify({
+        'workspace-a::docs/spec.md': 84,
+        invalid: -4,
+        'workspace-b::docs/other.md': 'bad',
+      }),
+    )
+
+    expect(loadPersistedSpecScrollPositions()).toEqual({
+      'workspace-a::docs/spec.md': 84,
+    })
+  })
+
+  it('limits persisted spec scroll positions to the max entry count', () => {
+    const scrollPositions = Object.fromEntries(
+      Array.from(
+        { length: MAX_PERSISTED_SPEC_SCROLL_ENTRIES + 2 },
+        (_value, index) => [`workspace-a::docs/spec-${index + 1}.md`, index + 1],
+      ),
+    )
+
+    savePersistedSpecScrollPositions(scrollPositions)
+
+    const persistedPositions = JSON.parse(
+      readPersistedSpecScrollStorage() ?? '{}',
+    ) as Record<string, number>
+    expect(Object.keys(persistedPositions)).toHaveLength(
+      MAX_PERSISTED_SPEC_SCROLL_ENTRIES,
+    )
+    expect(persistedPositions['workspace-a::docs/spec-1.md']).toBeUndefined()
+    expect(
+      persistedPositions[
+        `workspace-a::docs/spec-${MAX_PERSISTED_SPEC_SCROLL_ENTRIES + 2}.md`
+      ],
+    ).toBe(MAX_PERSISTED_SPEC_SCROLL_ENTRIES + 2)
   })
 })

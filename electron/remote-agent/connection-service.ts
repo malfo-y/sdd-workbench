@@ -34,6 +34,7 @@ const TRANSIENT_RETRY_ERROR_CODES = new Set<RemoteAgentErrorCode>([
 const FATAL_ERROR_CODES = new Set<RemoteAgentErrorCode>([
   'AUTH_FAILED',
   'AGENT_PROTOCOL_MISMATCH',
+  'METHOD_NOT_ALLOWED',
   'PATH_DENIED',
   'BOOTSTRAP_FAILED',
 ])
@@ -103,17 +104,22 @@ export class RemoteConnectionService {
     const rootPath = createRemoteWorkspaceRootPath(workspaceId)
     const connectRunToken = this.startConnectRun(workspaceId)
 
-    await this.cleanupWorkspaceTransport(workspaceId)
+    await this.cleanupWorkspaceTransport(workspaceId, {
+      preserveExternalListeners: true,
+    })
     await this.registry.closeSession(workspaceId)
 
     let session: RemoteSessionRecord | null = null
 
     try {
-      session = this.registry.createSession({
+        session = this.registry.createSession({
         workspaceId,
         profile: effectiveProfile,
         handle: {
-          stop: () => this.cleanupWorkspaceTransport(workspaceId),
+          stop: () =>
+            this.cleanupWorkspaceTransport(workspaceId, {
+              preserveExternalListeners: true,
+            }),
         },
         state: 'connecting',
       })
@@ -161,7 +167,9 @@ export class RemoteConnectionService {
           }
         } catch (error) {
           const normalized = toRemoteAgentError(error)
-          await this.cleanupWorkspaceTransport(workspaceId)
+          await this.cleanupWorkspaceTransport(workspaceId, {
+            preserveExternalListeners: true,
+          })
 
           const isLastAttempt = attempt >= maxReconnectAttempts
           const shouldRetry = this.shouldRetry(normalized.code, isLastAttempt)
@@ -225,7 +233,9 @@ export class RemoteConnectionService {
         error instanceof RemoteAgentError
           ? error
           : toRemoteAgentError(error, 'CONNECTION_CLOSED')
-      await this.cleanupWorkspaceTransport(workspaceId)
+      await this.cleanupWorkspaceTransport(workspaceId, {
+        preserveExternalListeners: true,
+      })
       if (session) {
         await this.registry.closeSession(workspaceId)
       }
@@ -261,8 +271,11 @@ export class RemoteConnectionService {
 
     try {
       this.cancelConnectRun(normalizedWorkspaceId)
-      await this.cleanupWorkspaceTransport(normalizedWorkspaceId)
+      await this.cleanupWorkspaceTransport(normalizedWorkspaceId, {
+        preserveExternalListeners: true,
+      })
       await this.registry.closeSession(normalizedWorkspaceId)
+      this.externalAgentListenersByWorkspaceId.delete(normalizedWorkspaceId)
       this.emitConnectionEvent({
         workspaceId: normalizedWorkspaceId,
         state: 'disconnected',
@@ -340,10 +353,13 @@ export class RemoteConnectionService {
 
     await Promise.all(
       Array.from(this.transportByWorkspaceId.keys()).map(async (workspaceId) =>
-        this.cleanupWorkspaceTransport(workspaceId),
+        this.cleanupWorkspaceTransport(workspaceId, {
+          preserveExternalListeners: true,
+        }),
       ),
     )
     await this.registry.closeAllSessions()
+    this.externalAgentListenersByWorkspaceId.clear()
   }
 
   private handleTransportEvent(
@@ -369,7 +385,9 @@ export class RemoteConnectionService {
         errorCode: 'CONNECTION_CLOSED',
         message: 'Remote session disconnected.',
       })
-      void this.cleanupWorkspaceTransport(workspaceId)
+      void this.cleanupWorkspaceTransport(workspaceId, {
+        preserveExternalListeners: true,
+      })
     }
 
     const externalListeners = this.externalAgentListenersByWorkspaceId.get(workspaceId)
@@ -402,12 +420,23 @@ export class RemoteConnectionService {
   ): void {
     try {
       this.registry.updateState(workspaceId, state, lastErrorCode)
-    } catch {
-      // Ignore stale updates from already-closed sessions.
+    } catch (error) {
+      if (isStaleRemoteSessionUpdateError(error)) {
+        return
+      }
+      console.warn(
+        `Failed to update remote session state for workspace "${workspaceId}".`,
+        error,
+      )
     }
   }
 
-  private async cleanupWorkspaceTransport(workspaceId: string): Promise<void> {
+  private async cleanupWorkspaceTransport(
+    workspaceId: string,
+    options: {
+      preserveExternalListeners?: boolean
+    } = {},
+  ): Promise<void> {
     const removeListener = this.removeTransportListenerByWorkspaceId.get(workspaceId)
     if (removeListener) {
       removeListener()
@@ -420,7 +449,9 @@ export class RemoteConnectionService {
       await transport.stop()
     }
 
-    this.externalAgentListenersByWorkspaceId.delete(workspaceId)
+    if (!options.preserveExternalListeners) {
+      this.externalAgentListenersByWorkspaceId.delete(workspaceId)
+    }
   }
 
   private shouldRetry(errorCode: RemoteAgentErrorCode, isLastAttempt: boolean): boolean {
@@ -471,4 +502,11 @@ function defaultWaitFor(durationMs: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, durationMs)
   })
+}
+
+function isStaleRemoteSessionUpdateError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.startsWith('Session not found for workspace "')
+  )
 }

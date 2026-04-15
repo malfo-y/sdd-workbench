@@ -5,6 +5,8 @@ export type WorkspaceRequestIdMapRef = MutableRefObject<
   Record<WorkspaceId, number>
 >
 
+export type TrackedAsyncActionStatus = 'success' | 'failed' | 'stale'
+
 export async function executeTrackedIpcCall<T>(input: {
   requestIdByWorkspaceRef: WorkspaceRequestIdMapRef
   workspaceId: WorkspaceId

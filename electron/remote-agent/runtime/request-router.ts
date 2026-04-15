@@ -42,7 +42,7 @@ type RuntimeRequestRouterOptions = {
   emitEvent: EmitEvent
 }
 
-const METHOD_NOT_FOUND_CODE: RemoteAgentErrorCode = 'PATH_DENIED'
+const METHOD_NOT_FOUND_CODE: RemoteAgentErrorCode = 'METHOD_NOT_ALLOWED'
 
 export class RuntimeRequestRouter {
   private readonly rootPath: string

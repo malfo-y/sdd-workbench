@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest'
 import {
   workspaceIndex,
   workspaceIndexDirectory,
+  workspaceReadComments,
   workspaceReadFile,
   workspaceSearchFiles,
+  workspaceWriteComments,
   workspaceWriteFile,
 } from './workspace-ops'
 
@@ -234,6 +236,94 @@ describe('remote-agent/runtime/workspace-ops', () => {
       expect(emptyWildcardResult.results).toEqual([])
       expect(emptyWildcardResult.truncated).toBe(false)
       expect(emptyWildcardResult.timedOut).toBe(false)
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('filters invalid stored comments and reports a warning', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-comments-read-'))
+
+    try {
+      const metadataDirectoryPath = path.join(rootPath, '.sdd-workbench')
+      await mkdir(metadataDirectoryPath, { recursive: true })
+      await writeFile(
+        path.join(metadataDirectoryPath, 'comments.json'),
+        `${JSON.stringify([
+          {
+            id: 'comment-1',
+            relativePath: 'src/main.ts',
+            startLine: 2,
+            endLine: 3,
+            body: 'Check this block',
+            anchor: {
+              snippet: 'console.log("hi")',
+              hash: 'abc123',
+              startOffset: 10,
+              endOffset: 27,
+            },
+            createdAt: '2026-04-14T10:00:00.000Z',
+          },
+          {
+            id: 'comment-2',
+            relativePath: 'src/main.ts',
+            startLine: 'bad',
+          },
+        ])}\n`,
+        'utf8',
+      )
+
+      const result = await workspaceReadComments({ rootPath })
+
+      expect(result).toEqual({
+        ok: true,
+        comments: [
+          {
+            id: 'comment-1',
+            relativePath: 'src/main.ts',
+            startLine: 2,
+            endLine: 3,
+            body: 'Check this block',
+            anchor: {
+              snippet: 'console.log("hi")',
+              hash: 'abc123',
+              startOffset: 10,
+              endOffset: 27,
+            },
+            createdAt: '2026-04-14T10:00:00.000Z',
+          },
+        ],
+        error: 'Some comments were skipped due to invalid schema.',
+      })
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid comment schema on write', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-comments-write-'))
+
+    try {
+      await expect(
+        workspaceWriteComments(
+          { rootPath },
+          {
+            comments: [
+              {
+                id: 'bad-comment',
+                relativePath: 'src/main.ts',
+                startLine: 1,
+                endLine: 1,
+                body: 'Missing anchor',
+                createdAt: '2026-04-14T10:00:00.000Z',
+              },
+            ],
+          },
+        ),
+      ).rejects.toMatchObject({
+        code: 'UNKNOWN',
+        message: 'Some comments were skipped due to invalid schema.',
+      })
     } finally {
       await rm(rootPath, { recursive: true, force: true })
     }

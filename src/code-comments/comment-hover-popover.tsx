@@ -7,6 +7,7 @@ type CommentHoverPopoverProps = {
   x: number
   y: number
   onClose: () => void
+  onOpenDetails?: () => void
   onMouseEnter?: () => void
   onMouseLeave?: () => void
   maxVisibleComments?: number
@@ -42,6 +43,7 @@ export function CommentHoverPopover({
   x,
   y,
   onClose,
+  onOpenDetails,
   onMouseEnter,
   onMouseLeave,
   maxVisibleComments = 3,
@@ -121,10 +123,16 @@ export function CommentHoverPopover({
           </li>
         ))}
       </ol>
+      {onOpenDetails && (
+        <div className="comment-hover-popover-actions">
+          <button onClick={onOpenDetails} type="button">
+            Open details
+          </button>
+        </div>
+      )}
       {hiddenCommentCount > 0 && (
         <p className="comment-hover-popover-more">+{hiddenCommentCount} more</p>
       )}
     </div>
   )
 }
-

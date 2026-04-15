@@ -50,6 +50,7 @@ describe('resolveSpecLink', () => {
       href: './apify/01-overview.md',
       targetRelativePath: '_sdd/spec/apify/01-overview.md',
       lineRange: null,
+      headingTarget: null,
     })
   })
 
@@ -59,6 +60,7 @@ describe('resolveSpecLink', () => {
       href: '../README.md',
       targetRelativePath: '_sdd/README.md',
       lineRange: null,
+      headingTarget: null,
     })
   })
 
@@ -68,6 +70,9 @@ describe('resolveSpecLink', () => {
       href: './guide.md?view=full#section',
       targetRelativePath: 'docs/guide.md',
       lineRange: null,
+      headingTarget: {
+        headingId: 'section',
+      },
     })
   })
 
@@ -80,6 +85,7 @@ describe('resolveSpecLink', () => {
         startLine: 10,
         endLine: 10,
       },
+      headingTarget: null,
     })
   })
 
@@ -92,6 +98,7 @@ describe('resolveSpecLink', () => {
         startLine: 10,
         endLine: 20,
       },
+      headingTarget: null,
     })
 
     expect(resolveSpecLink('./guide.md#L20-L10', 'docs/main.md')).toEqual({
@@ -102,15 +109,31 @@ describe('resolveSpecLink', () => {
         startLine: 10,
         endLine: 20,
       },
+      headingTarget: null,
     })
   })
 
-  it('ignores non-line hash fragments for workspace file links', () => {
+  it('treats non-line hash fragments as heading targets for workspace file links', () => {
     expect(resolveSpecLink('./guide.md#overview', 'docs/main.md')).toEqual({
       kind: 'workspace-file',
       href: './guide.md#overview',
       targetRelativePath: 'docs/guide.md',
       lineRange: null,
+      headingTarget: {
+        headingId: 'overview',
+      },
+    })
+  })
+
+  it('decodes heading targets for workspace file links', () => {
+    expect(resolveSpecLink('./guide.md#Deep%20Dive', 'docs/main.md')).toEqual({
+      kind: 'workspace-file',
+      href: './guide.md#Deep%20Dive',
+      targetRelativePath: 'docs/guide.md',
+      lineRange: null,
+      headingTarget: {
+        headingId: 'Deep Dive',
+      },
     })
   })
 

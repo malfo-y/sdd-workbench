@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveWorkspaceWatchMode } from './workspace-watch-mode'
+import { WORKSPACE_WATCH_POLL_INTERVAL_MS } from './workspace-utils'
 
 describe('workspace-watch-mode', () => {
   it('resolves to native in auto mode without remote hint', () => {
@@ -12,6 +13,7 @@ describe('workspace-watch-mode', () => {
       watchMode: 'native',
       isRemoteMounted: false,
       resolvedBy: 'heuristic',
+      pollIntervalMs: WORKSPACE_WATCH_POLL_INTERVAL_MS,
     })
   })
 
@@ -25,6 +27,7 @@ describe('workspace-watch-mode', () => {
       watchMode: 'native',
       isRemoteMounted: false,
       resolvedBy: 'heuristic',
+      pollIntervalMs: WORKSPACE_WATCH_POLL_INTERVAL_MS,
     })
   })
 
@@ -39,6 +42,7 @@ describe('workspace-watch-mode', () => {
       watchMode: 'polling',
       isRemoteMounted: true,
       resolvedBy: 'heuristic',
+      pollIntervalMs: WORKSPACE_WATCH_POLL_INTERVAL_MS * 2,
     })
   })
 
@@ -53,6 +57,7 @@ describe('workspace-watch-mode', () => {
       watchMode: 'native',
       isRemoteMounted: true,
       resolvedBy: 'override',
+      pollIntervalMs: WORKSPACE_WATCH_POLL_INTERVAL_MS * 2,
     })
   })
 
@@ -66,6 +71,7 @@ describe('workspace-watch-mode', () => {
       watchMode: 'polling',
       isRemoteMounted: false,
       resolvedBy: 'override',
+      pollIntervalMs: WORKSPACE_WATCH_POLL_INTERVAL_MS,
     })
   })
 })

@@ -320,7 +320,7 @@ describe('CodeEditorPanel', () => {
     expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
   })
 
-  it('does not render CM6 editor container when no content', () => {
+  it('keeps the CM6 editor container mounted but hidden when no content', () => {
     render(
       <CodeEditorPanel
         {...makeDefaultProps()}
@@ -329,7 +329,7 @@ describe('CodeEditorPanel', () => {
         isReadingFile={true}
       />,
     )
-    expect(screen.queryByTestId('code-viewer-content')).not.toBeInTheDocument()
+    expect(screen.getByTestId('code-viewer-content')).toHaveAttribute('hidden')
   })
 
   it('does not render CM6 editor container in image preview mode', () => {
@@ -704,6 +704,48 @@ describe('CodeEditorPanel', () => {
     )
 
     expect(screen.getByTestId('code-viewer-content')).toBeInTheDocument()
+  })
+
+  it('keeps the same EditorView instance across loading visibility toggles', async () => {
+    const props = makeDefaultProps()
+    const { rerender } = render(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3'}
+      />,
+    )
+
+    const container = screen.getByTestId('code-viewer-content')
+    let initialView: EditorView | null = null
+    await waitFor(() => {
+      initialView = getCM6View(container)
+      expect(initialView).not.toBeNull()
+    })
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={null}
+        isReadingFile
+      />,
+    )
+
+    const loadingContainer = screen.getByTestId('code-viewer-content')
+    expect(loadingContainer).toHaveAttribute('hidden')
+
+    rerender(
+      <CodeEditorPanel
+        {...props}
+        activeFile="src/example.ts"
+        activeFileContent={'line1\nline2\nline3\nline4'}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(getCM6View(screen.getByTestId('code-viewer-content'))).toBe(initialView)
+    })
   })
 
   // ---- C. Context menu → CopyActionPopover --------------------------------

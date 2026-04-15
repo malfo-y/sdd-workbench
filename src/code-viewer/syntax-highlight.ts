@@ -69,27 +69,66 @@ const THEME_NAMES: Record<ResolvedAppearanceTheme, string> = {
   light: 'quiet-light',
 }
 
-const highlighterPromises = new Map<ResolvedAppearanceTheme, Promise<HighlighterCore>>()
+type HighlighterCacheEntry = {
+  promise: Promise<HighlighterCore>
+  instance: HighlighterCore | null
+}
+
+const highlighterCache = new Map<ResolvedAppearanceTheme, HighlighterCacheEntry>()
 
 export function getOrCreateHighlighter(
   appearanceTheme: AppearanceTheme = DEFAULT_APPEARANCE_THEME,
 ): Promise<HighlighterCore> {
   const resolved = resolveAppearanceTheme(appearanceTheme)
-  const existing = highlighterPromises.get(resolved)
+  const existing = highlighterCache.get(resolved)
   if (existing) {
-    return existing
+    return existing.promise
   }
 
-  const promise = createHighlighterCore({
+  const entry: HighlighterCacheEntry = {
+    promise: Promise.resolve(null as unknown as HighlighterCore),
+    instance: null,
+  }
+
+  entry.promise = createHighlighterCore({
     engine: createJavaScriptRegexEngine(),
     themes: [THEME_IMPORTS[resolved]],
     langs: [],
-  }).catch((error) => {
-    highlighterPromises.delete(resolved)
-    throw error
   })
-  highlighterPromises.set(resolved, promise)
-  return promise
+    .then((highlighter) => {
+      entry.instance = highlighter
+      return highlighter
+    })
+    .catch((error) => {
+      highlighterCache.delete(resolved)
+      throw error
+    })
+
+  highlighterCache.set(resolved, entry)
+  return entry.promise
+}
+
+export async function disposeHighlighterCache(): Promise<void> {
+  const entries = Array.from(highlighterCache.values())
+  highlighterCache.clear()
+
+  await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const highlighter =
+          entry.instance ?? (await entry.promise.catch(() => null))
+        if (!highlighter) {
+          return
+        }
+        const disposableHighlighter = highlighter as HighlighterCore & {
+          dispose?: () => void
+        }
+        disposableHighlighter.dispose?.()
+      } catch {
+        // Ignore cache disposal failures to keep teardown best-effort.
+      }
+    }),
+  )
 }
 
 export function escapeHtml(value: string): string {

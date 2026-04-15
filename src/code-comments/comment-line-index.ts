@@ -1,9 +1,14 @@
 import { compareCodeComments, type CodeComment } from './comment-types'
+import { relocateCommentSelection } from './comment-anchor'
 
 export type CommentLineCountMap = Map<number, number>
 export type CommentLineIndex = Map<string, CommentLineCountMap>
 export type CommentLineEntryMap = Map<number, readonly CodeComment[]>
 export type CommentLineEntryIndex = Map<string, Map<number, CodeComment[]>>
+export type CommentDisplayMaps = {
+  counts: ReadonlyMap<number, number>
+  entries: ReadonlyMap<number, readonly CodeComment[]>
+}
 
 function incrementLineCount(lineCounts: CommentLineCountMap, line: number, count: number) {
   lineCounts.set(line, (lineCounts.get(line) ?? 0) + count)
@@ -49,6 +54,57 @@ export function buildCommentLineEntryIndex(
   }
 
   return index
+}
+
+function relocateCommentForDisplay(
+  comment: CodeComment,
+  fileContent: string | null,
+): CodeComment {
+  if (typeof fileContent !== 'string') {
+    return comment
+  }
+
+  const relocatedSelection = relocateCommentSelection(fileContent, comment)
+  if (
+    relocatedSelection.startLine === comment.startLine &&
+    relocatedSelection.endLine === comment.endLine
+  ) {
+    return comment
+  }
+
+  return {
+    ...comment,
+    startLine: relocatedSelection.startLine,
+    endLine: relocatedSelection.endLine,
+  }
+}
+
+export function buildCommentDisplayMaps(
+  comments: readonly CodeComment[],
+  relativePath: string | null,
+  fileContent: string | null,
+): CommentDisplayMaps {
+  if (!relativePath) {
+    return {
+      counts: EMPTY_LINE_COUNT_MAP,
+      entries: EMPTY_LINE_ENTRY_MAP,
+    }
+  }
+
+  const filteredComments = comments
+    .filter((comment) => comment.relativePath === relativePath)
+    .map((comment) => relocateCommentForDisplay(comment, fileContent))
+
+  return {
+    counts: getCommentLineCounts(
+      buildCommentLineIndex(filteredComments),
+      relativePath,
+    ),
+    entries: getCommentLineEntries(
+      buildCommentLineEntryIndex(filteredComments),
+      relativePath,
+    ),
+  }
 }
 
 export function getCommentLineCounts(

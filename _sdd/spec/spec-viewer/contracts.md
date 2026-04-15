@@ -23,9 +23,10 @@ spec 링크, source action, code/spec 왕복 이동, exact offset, temporary hig
 핵심 규칙:
 
 1. same-document anchor는 브라우저 기본 이동 대신 현재 spec 패널 내부 heading scroll을 사용한다.
-2. same-workspace 상대 링크만 내부 라우팅한다.
-3. `#sdd-citation:` 링크는 대상 파일 읽기 → Python symbol 해석 → Code 탭 점프 순서로 처리한다. 파일 트리 lazy index 포함 여부는 선행 조건이 아니며, 실제 `readFile` 성공 여부를 기준으로 판단한다.
-4. external 또는 unresolved 링크는 자동 이동 대신 안전한 fallback(copy/open)을 사용한다.
+2. same-document heading scroll은 normalized id(`user-content-` prefix normalize 포함)를 우선 찾고, exact id가 없으면 heading text match로 fallback 한다.
+3. same-workspace 상대 링크만 내부 라우팅한다.
+4. `#sdd-citation:` 링크는 대상 파일 읽기 → Python symbol 해석 → Code 탭 점프 순서로 처리한다. 파일 트리 lazy index 포함 여부는 선행 조건이 아니며, 실제 `readFile` 성공 여부를 기준으로 판단한다.
+5. external 또는 unresolved 링크는 자동 이동 대신 안전한 fallback(copy/open)을 사용한다.
 
 citation 세부 규칙:
 
@@ -60,6 +61,7 @@ citation 세부 규칙:
 - `Go to Spec`는 active `.md` 파일에서만 노출한다.
 - anchor는 `selectionRange.startLine`이다.
 - semantic linking이 아니라 same-file raw source line -> rendered `data-source-line` block best-effort 매핑만 다룬다.
+- rendered spec scroll position은 `workspaceId + activeSpecPath` 기준으로 persistence되며 앱 재시작 후에도 복원된다.
 
 ## 5. navigation highlight 규칙
 
@@ -67,6 +69,7 @@ citation 세부 규칙:
 2. search/comment/selection과 별도의 additive 시각 상태다.
 3. duration은 `1600ms`다.
 4. `token`이 바뀌면 같은 line/block에도 다시 적용될 수 있다.
+5. rendered spec TOC active heading은 scroll container에서 가장 최근에 지난 heading을 기준으로 계산한다.
 
 ## 6. 관련 구현 파일
 
@@ -74,6 +77,7 @@ citation 세부 규칙:
 - `src/spec-viewer/source-line-resolver.ts`
 - `src/spec-viewer/source-line-metadata.ts`
 - `src/spec-viewer/rehype-source-text-leaves.ts`
+- `src/spec-viewer/spec-viewer-scroll.ts`
 - `src/App.tsx`
 - `src/code-editor/code-editor-panel.tsx`
 - `src/code-editor/cm6-navigation-highlight.ts`

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
+import { GitStatusBadge } from './git-status-badge'
 import type { GitFileStatusKind } from '../workspace/workspace-model'
 
 const INITIAL_RENDER_NODE_LIMIT = 10_000
@@ -68,8 +69,8 @@ type FileTreePanelProps = {
   ) => void
   onRequestCreateFile?: (relativePath: string) => void
   onRequestCreateDirectory?: (relativePath: string) => void
-  onRequestDeleteFile?: (relativePath: string) => void
-  onRequestDeleteDirectory?: (relativePath: string) => void
+  onRequestConfirmedDeleteFile?: (relativePath: string) => void
+  onRequestConfirmedDeleteDirectory?: (relativePath: string) => void
   onRequestRename?: (oldRelativePath: string, newRelativePath: string) => void
   onRequestCopyToClipboard?: (entries: { relativePath: string; kind: 'file' | 'directory' }[]) => void
   onRequestPasteFromClipboard?: (destDir: string) => void
@@ -295,14 +296,10 @@ function renderFileTreeNodes(
             </span>
             <span className="tree-node-label">{node.name}</span>
             {shouldShowGitBadge && (
-              <span
-                aria-hidden
-                className={`tree-git-status-badge tree-git-status-badge--${dirGitStatus}`}
-                data-testid={`tree-git-badge-${node.relativePath}`}
-                title={dirGitStatus === 'modified' ? 'Modified' : dirGitStatus === 'untracked' ? 'Untracked' : 'Added'}
-              >
-                {dirGitStatus === 'modified' ? 'M' : 'U'}
-              </span>
+              <GitStatusBadge
+                status={dirGitStatus}
+                testId={`tree-git-badge-${node.relativePath}`}
+              />
             )}
             {shouldShowChangedIndicator && (
               <span
@@ -400,14 +397,10 @@ function renderFileTreeNodes(
           <span aria-hidden className="tree-file-icon">{getFileIcon(node.name)}</span>
           <span className="tree-file-name">{node.name}</span>
           {fileGitStatus && (
-            <span
-              aria-hidden
-              className={`tree-git-status-badge tree-git-status-badge--${fileGitStatus}`}
-              data-testid={`tree-git-badge-${node.relativePath}`}
-              title={fileGitStatus === 'modified' ? 'Modified' : fileGitStatus === 'untracked' ? 'Untracked' : 'Added'}
-            >
-              {fileGitStatus === 'modified' ? 'M' : 'U'}
-            </span>
+            <GitStatusBadge
+              status={fileGitStatus}
+              testId={`tree-git-badge-${node.relativePath}`}
+            />
           )}
           {isChanged && (
             <span
@@ -547,8 +540,8 @@ export function FileTreePanel({
   onRequestLoadDirectory,
   onRequestCreateFile,
   onRequestCreateDirectory,
-  onRequestDeleteFile,
-  onRequestDeleteDirectory,
+  onRequestConfirmedDeleteFile,
+  onRequestConfirmedDeleteDirectory,
   onRequestRename,
   onRequestCopyToClipboard,
   onRequestPasteFromClipboard,
@@ -567,6 +560,7 @@ export function FileTreePanel({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchState, setSearchState] = useState<{
     loading: boolean
+    error: string | null
     results: WorkspaceSearchFileMatch[]
     truncated: boolean
     skippedLargeDirectoryCount: number
@@ -574,6 +568,7 @@ export function FileTreePanel({
     timedOut: boolean
   }>({
     loading: false,
+    error: null,
     results: [],
     truncated: false,
     skippedLargeDirectoryCount: 0,
@@ -604,12 +599,14 @@ export function FileTreePanel({
   )
 
   useEffect(() => {
+    searchRequestTokenRef.current += 1
     setContextMenuState(null)
     setSearchQuery('')
     lastFocusedTargetRef.current = null
     lastScrollTopRef.current = 0
     setSearchState({
       loading: false,
+      error: null,
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
@@ -678,8 +675,10 @@ export function FileTreePanel({
   useEffect(() => {
     const trimmedQuery = searchQuery.trim()
     if (!rootPath || !onSearchFiles || trimmedQuery.length === 0) {
+      searchRequestTokenRef.current += 1
       setSearchState((previous) =>
         previous.loading ||
+        previous.error !== null ||
         previous.results.length > 0 ||
         previous.truncated ||
         previous.skippedLargeDirectoryCount > 0 ||
@@ -687,6 +686,7 @@ export function FileTreePanel({
         previous.timedOut
           ? {
               loading: false,
+              error: null,
               results: [],
               truncated: false,
               skippedLargeDirectoryCount: 0,
@@ -703,6 +703,7 @@ export function FileTreePanel({
     setSearchState((previous) => ({
       ...previous,
       loading: true,
+      error: null,
     }))
 
     const timeoutId = window.setTimeout(() => {
@@ -714,6 +715,9 @@ export function FileTreePanel({
 
           setSearchState({
             loading: false,
+            error: result.ok
+              ? null
+              : result.error ?? 'Search failed. Please try again.',
             results: result.ok ? result.results : [],
             truncated: result.ok ? result.truncated : false,
             skippedLargeDirectoryCount: result.ok
@@ -729,6 +733,7 @@ export function FileTreePanel({
           }
           setSearchState({
             loading: false,
+            error: 'Search failed. Please try again.',
             results: [],
             truncated: false,
             skippedLargeDirectoryCount: 0,
@@ -1048,9 +1053,9 @@ export function FileTreePanel({
             onSelect: () => {
               closeContextMenu()
               if (contextMenuState.nodeKind === 'file') {
-                onRequestDeleteFile?.(contextMenuState.relativePath)
+                onRequestConfirmedDeleteFile?.(contextMenuState.relativePath)
               } else {
-                onRequestDeleteDirectory?.(contextMenuState.relativePath)
+                onRequestConfirmedDeleteDirectory?.(contextMenuState.relativePath)
               }
             },
           })
@@ -1110,6 +1115,13 @@ export function FileTreePanel({
         <>
           {searchState.loading ? (
             <p className="tree-empty">Searching files...</p>
+          ) : searchState.error ? (
+            <p
+              className="tree-empty"
+              data-testid="file-tree-search-error"
+            >
+              {searchState.error}
+            </p>
           ) : searchState.results.length > 0 ? (
             <div
               className="tree-search-results"

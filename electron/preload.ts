@@ -43,10 +43,12 @@ import type {
   WorkspaceSyncVsCodeSshConfigResult,
   WorkspaceWatchControlResult,
   WorkspaceWatchFallbackEvent,
+  WorkspaceWatchEventPayload,
   WorkspaceWatchModePreference,
   WorkspaceWriteCommentsResult,
   WorkspaceWriteFileResult,
   WorkspaceWriteGlobalCommentsResult,
+  WorkspaceHistoryNavigationEventPayload,
 } from './ipc-types'
 
 const workspaceApi = {

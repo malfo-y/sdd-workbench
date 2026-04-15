@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { renderCommentsMarkdown, renderLlmBundle } from './comment-export'
+import {
+  parseGlobalCommentsOrganization,
+  renderCommentsMarkdown,
+  renderLlmBundle,
+} from './comment-export'
 import type { CodeComment } from './comment-types'
 
 const COMMENT_A: CodeComment = {
@@ -125,6 +129,58 @@ describe('comment-export', () => {
 
     expect(markdown).toContain('Total comments: 1')
     expect(markdown).not.toContain('(+ global comments)')
+  })
+
+  it('parses global comments into document and section groups', () => {
+    expect(
+      parseGlobalCommentsOrganization([
+        'Keep release notes concise.',
+        '',
+        '## Document: docs/spec.md',
+        '- Constraints:',
+        '',
+        '### Section: Viewer',
+        '- Preserve anchor stability.',
+      ].join('\n')),
+    ).toEqual({
+      preamble: 'Keep release notes concise.',
+      groups: [
+        {
+          kind: 'document',
+          title: 'Document: docs/spec.md',
+          documentPath: 'docs/spec.md',
+          body: '- Constraints:',
+          sections: [
+            {
+              title: 'Section: Viewer',
+              body: '- Preserve anchor stability.',
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('renders organized global comments with normalized document and section headings', () => {
+    const markdown = renderCommentsMarkdown([COMMENT_B], {
+      globalComments: [
+        'Keep release notes concise.',
+        '',
+        '## Document: docs/spec.md',
+        '- Constraints:',
+        '',
+        '### Section: Viewer',
+        '- Preserve anchor stability.',
+      ].join('\n'),
+    })
+
+    expect(markdown).toContain('## Global Comments')
+    expect(markdown).toContain('### General')
+    expect(markdown).toContain('### Document: docs/spec.md')
+    expect(markdown).toContain('#### Section: Viewer')
+    expect(markdown.indexOf('## Global Comments')).toBeLessThan(
+      markdown.indexOf('## Comments'),
+    )
   })
 
   // AC1: anchor.before, anchor.after not in output

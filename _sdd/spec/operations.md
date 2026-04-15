@@ -41,6 +41,8 @@
 - active file 변경 이벤트는 자동 re-read
 - Git line marker 조회 실패/비저장소 경로/`HEAD` 부재는 UI 크래시 없이 marker 비표시로 degrade한다.
 - same-spec source jump는 rendered spec 패널 콘텐츠/스크롤 문맥을 유지해야 한다.
+- same-document heading jump는 normalized heading id + heading text fallback으로 처리해야 한다.
+- spec scroll position은 `workspaceId + activeSpecPath` 기준으로 persistence되어 앱 재시작 후에도 복원되어야 한다.
 - 세션 복원은 부분 실패 continue 정책
 - 종료 경로는 write settle(max 5s) 후 watcher 종료(timeout 1.5s)
 - (F27) remote 연결 상태는 `connecting -> connected -> degraded/disconnected` 상태 머신으로 관리한다.
@@ -48,20 +50,21 @@
 - (F27) remote 프로토콜 버전 불일치 시 기능 강등 없이 즉시 연결 실패 처리(`AGENT_PROTOCOL_MISMATCH`)
 - (F27) F15(SSHFS 기반) 연결 경로는 폐기되었고 remote-protocol 단일 경로를 사용한다.
 - (F28) remote directory browse 실패(`AUTH_FAILED`/`TIMEOUT`/`PATH_DENIED` 등)는 연결 실패와 분리해 모달 내 고정 오류로 표시한다.
+- swipe history는 supported macOS 계열 플랫폼에서만 활성화하고, 비지원 플랫폼에서는 `app-command` 경로만 유지한다.
 
 ## 4. 테스트 운영
 
 ### 4.1 자동 게이트
 
-- **Current verified run (2026-03-14, Node 25.2.1 / npm 11.7.0)**
-  - `npx tsc --noEmit` -> pass
-  - `npm test -- --reporter=dot` -> `64 files, 694 passed, 1 skipped`
+- **Current verified run (2026-04-15, Node 25.2.1 / npm 11.12.1)**
+  - `npm test` -> `79 files, 899 passed, 1 skipped`
+  - `npm run lint` -> pass
 - **Release baseline (2026-03-02, Node 20.x baseline)**
   - `npm test` -> `49 files, 493 passed, 1 skipped`
   - `npm run lint` -> pass
   - `npm run build` -> pass
 - **Interpretation**
-  - 현재 트리에서 Node 25.x의 test/typecheck 경로는 다시 녹색이다.
+  - 현재 트리에서 Node 25.x의 test/lint 경로는 다시 녹색이다.
   - release gate는 lint/build를 다시 같은 환경에서 검증하기 전까지 Node 20.x baseline을 canonical로 유지한다.
 
 ### 4.2 권장 검증 순서
@@ -77,13 +80,13 @@
 2. Code/Spec 탭 전환(클릭 + `Cmd+Shift+Left/Right`) + 탭 전환 시 스크롤 위치 유지 확인
 3. watcher 변경 마커 및 active file 자동 반영
 4. collapse 상태에서 변경 마커가 상위 디렉토리로 버블링되는지 확인(`not-loaded`/`partial` lazy 디렉토리 포함)
-5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 + same-document anchor(`#heading`) 클릭 시 패널 내 heading 이동 확인
-6. Back/Forward(mouse/swipe/wheel) 동작
+5. rendered spec 중간 위치에서 `Go to Source` 후 scroll 문맥 유지 + same-document anchor(`#heading`) 클릭 시 normalized heading jump / TOC active heading / 앱 재시작 후 scroll restore 확인
+6. Back/Forward(mouse/app-command) 동작 + supported macOS 계열 플랫폼에서만 swipe/wheel history가 동작하는지 확인
 7. CodeViewer/SpecViewer에서 Add Comment + marker 표시
 8. View Comments에서 edit/delete/Delete Exported 동작 + header drag/clamp/reopen reset + 실패 시 모달 유지 확인
-9. Add Global Comments 저장/복원 + draggable header 이후에도 textarea 입력/저장이 유지되는지 확인
-10. Export Comments pending-only/partial success 배너 + draggable header 이후 checkbox/input/export 흐름 + `exportedAt` 기록 확인
-11. CodeViewer/SpecViewer marker hover preview(`+N more`) 동작 확인
+9. Add Global Comments 저장/복원 + document/section heading organization + recent revision restore + draggable header 이후에도 textarea 입력/저장이 유지되는지 확인
+10. Export Comments pending-only/re-export/reset 경로 + draggable header 이후 checkbox/input/export 흐름 + actual export snapshot 기준 clipboard disable + `exportedAt` 기록 확인
+11. CodeViewer/SpecViewer marker hover preview(`+N more`) -> detail panel -> `Edit/Delete` 흐름 확인
 12. 헤더 compact action(`icon + short label`) 및 협소 폭 icon-only 접근성(`title`/`aria-label`) 확인
 13. 로컬 워크스페이스에서 watch mode `Auto` 기본값이 `native`로 선택되는지 확인
 14. watch mode를 `Native/Polling`으로 변경했을 때 override 우선 적용 확인

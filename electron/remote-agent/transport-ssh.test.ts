@@ -309,7 +309,8 @@ describe('remote-agent/transport-ssh', () => {
     const originalWrite = fakeProcess.stdin.write.bind(fakeProcess.stdin)
     vi
       .spyOn(fakeProcess.stdin, 'write')
-      .mockImplementation(((chunk: never, encoding?: never, callback?: never) => {
+      .mockImplementation((...args: Parameters<typeof fakeProcess.stdin.write>) => {
+        const [chunk, encoding, callback] = args
         const writeCallback =
           typeof encoding === 'function'
             ? encoding
@@ -320,7 +321,7 @@ describe('remote-agent/transport-ssh', () => {
           writeCallback?.(new Error('EPIPE: broken pipe'))
         })
         return originalWrite(chunk)
-      }) as typeof fakeProcess.stdin.write)
+      })
 
     await expect(transport.request('slow-op')).rejects.toMatchObject({
       code: 'CONNECTION_CLOSED',

@@ -1,9 +1,11 @@
 import {
   useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
 } from 'react'
+import type { TrackedAsyncActionStatus } from './ipc-call-helper'
 import {
   markWorkspaceDocumentConflict,
   setDirty,
@@ -16,6 +18,7 @@ import { collectStructureRefreshTargets, type ExpandedDirectoryHydrationTarget }
 
 type SetWorkspaceState = Dispatch<SetStateAction<WorkspaceState>>
 type WorkspaceStateRef = MutableRefObject<WorkspaceState>
+type WorkspaceLoadStatus = TrackedAsyncActionStatus
 
 function normalizeWatchRelativePath(relativePath: string): string | null {
   const normalized = relativePath.trim().replace(/\\/g, '/')
@@ -54,14 +57,14 @@ export function useWorkspaceWatcher(input: {
   loadWorkspaceFile: (
     workspaceId: WorkspaceId,
     relativePath: string,
-    mode?: 'select' | 'refresh',
+    mode: 'select' | 'refresh',
     historyMode?: 'push' | 'preserve',
-  ) => void
+  ) => Promise<WorkspaceLoadStatus>
   loadWorkspaceSpec: (
     workspaceId: WorkspaceId,
     relativePath: string,
     mode?: 'select' | 'refresh',
-  ) => void
+  ) => Promise<WorkspaceLoadStatus>
   loadWorkspaceIndex: (
     workspaceId: WorkspaceId,
     rootPath: string,
@@ -98,8 +101,26 @@ export function useWorkspaceWatcher(input: {
     hydrateExpandedDirectories,
     refreshActiveWorkspaceGitDecorations,
     getWorkspaceIsDirtyCompatibility,
-    syncWorkspaceDisplayedDocumentContent,
+  syncWorkspaceDisplayedDocumentContent,
   } = input
+  const loadWorkspaceFileRef = useRef(loadWorkspaceFile)
+  const loadWorkspaceSpecRef = useRef(loadWorkspaceSpec)
+  const loadWorkspaceIndexRef = useRef(loadWorkspaceIndex)
+  const loadWorkspaceGitFileStatusesRef = useRef(loadWorkspaceGitFileStatuses)
+  const hydrateExpandedDirectoriesRef = useRef(hydrateExpandedDirectories)
+  const getWorkspaceIsDirtyCompatibilityRef = useRef(getWorkspaceIsDirtyCompatibility)
+  const syncWorkspaceDisplayedDocumentContentRef = useRef(
+    syncWorkspaceDisplayedDocumentContent,
+  )
+
+  loadWorkspaceFileRef.current = loadWorkspaceFile
+  loadWorkspaceSpecRef.current = loadWorkspaceSpec
+  loadWorkspaceIndexRef.current = loadWorkspaceIndex
+  loadWorkspaceGitFileStatusesRef.current = loadWorkspaceGitFileStatuses
+  hydrateExpandedDirectoriesRef.current = hydrateExpandedDirectories
+  getWorkspaceIsDirtyCompatibilityRef.current = getWorkspaceIsDirtyCompatibility
+  syncWorkspaceDisplayedDocumentContentRef.current =
+    syncWorkspaceDisplayedDocumentContent
 
   useEffect(() => {
     const watchedWorkspaceIds = watchedWorkspaceIdsRef.current
@@ -170,13 +191,14 @@ export function useWorkspaceWatcher(input: {
             }
 
             if (currentSession.isDirty) {
-              const conflictedSession = syncWorkspaceDisplayedDocumentContent(
+              const conflictedSession =
+                syncWorkspaceDisplayedDocumentContentRef.current(
                 markWorkspaceDocumentConflict(currentSession, activeFile, null),
               )
               return updateWorkspaceSession(previous, watchEvent.workspaceId, () =>
                 setDirty(
                   conflictedSession,
-                  getWorkspaceIsDirtyCompatibility(conflictedSession),
+                  getWorkspaceIsDirtyCompatibilityRef.current(conflictedSession),
                 ),
               )
             }
@@ -190,7 +212,11 @@ export function useWorkspaceWatcher(input: {
           if (latestIsDirty) {
             setExternalChangeDetected(true)
           } else {
-            loadWorkspaceFile(watchEvent.workspaceId, activeFile, 'refresh')
+            void loadWorkspaceFileRef.current(
+              watchEvent.workspaceId,
+              activeFile,
+              'refresh',
+            )
           }
         }
       }
@@ -204,17 +230,21 @@ export function useWorkspaceWatcher(input: {
         activeSpec !== null &&
         activeSpec !== activeFile
       ) {
-        loadWorkspaceSpec(watchEvent.workspaceId, activeSpec, 'refresh')
+        void loadWorkspaceSpecRef.current(
+          watchEvent.workspaceId,
+          activeSpec,
+          'refresh',
+        )
       }
 
       if (hasStructureChanges && workspaceSession) {
         if (structureRefreshTargets.length > 0) {
-          void hydrateExpandedDirectories(
+          void hydrateExpandedDirectoriesRef.current(
             watchEvent.workspaceId,
             structureRefreshTargets,
           )
         } else {
-          void loadWorkspaceIndex(
+          void loadWorkspaceIndexRef.current(
             watchEvent.workspaceId,
             workspaceSession.rootPath,
             'refresh',
@@ -223,7 +253,7 @@ export function useWorkspaceWatcher(input: {
       }
 
       if (workspaceSession) {
-        void loadWorkspaceGitFileStatuses(
+        void loadWorkspaceGitFileStatusesRef.current(
           watchEvent.workspaceId,
           workspaceSession.rootPath,
         )
@@ -234,21 +264,26 @@ export function useWorkspaceWatcher(input: {
       unsubscribe()
       const watchedWorkspaceIdList = Array.from(watchedWorkspaceIds)
       watchedWorkspaceIds.clear()
-      for (const workspaceId of watchedWorkspaceIdList) {
-        void window.workspace.watchStop(workspaceId)
-      }
+      void Promise.allSettled(
+        watchedWorkspaceIdList.map((workspaceId) =>
+          window.workspace.watchStop(workspaceId),
+        ),
+      ).then((results) => {
+        const errors = results
+          .filter(
+            (result): result is PromiseRejectedResult =>
+              result.status === 'rejected',
+          )
+          .map((result) => result.reason)
+        if (errors.length > 0) {
+          console.warn('Failed to stop workspace watchers during cleanup.', errors)
+        }
+      })
     }
   }, [
-    getWorkspaceIsDirtyCompatibility,
-    hydrateExpandedDirectories,
-    loadWorkspaceFile,
-    loadWorkspaceGitFileStatuses,
-    loadWorkspaceIndex,
-    loadWorkspaceSpec,
     savedFileRefreshSuppressionRef,
     setExternalChangeDetected,
     setWorkspaceState,
-    syncWorkspaceDisplayedDocumentContent,
     watchedWorkspaceIdsRef,
     workspaceStateRef,
   ])

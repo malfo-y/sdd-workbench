@@ -47,7 +47,7 @@ export function assertRemoteWorkspaceMethodAllowed(method: string): void {
   }
 
   throw new RemoteAgentError(
-    'PATH_DENIED',
+    'METHOD_NOT_ALLOWED',
     `Remote RPC method is not allowed: ${normalizedMethod || '<empty>'}.`,
   )
 }

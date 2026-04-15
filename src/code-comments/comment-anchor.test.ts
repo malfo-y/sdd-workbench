@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildCodeComment, createCommentAnchor } from './comment-anchor'
+import {
+  buildCodeComment,
+  createCommentAnchor,
+  relocateCommentSelection,
+} from './comment-anchor'
 
 describe('comment-anchor', () => {
   it('creates deterministic hash for same selection and content', () => {
@@ -69,5 +73,47 @@ describe('comment-anchor', () => {
       endOffset,
     })
     expect(anchor.hash).toHaveLength(8)
+  })
+
+  it('relocates duplicate snippets using surrounding context', () => {
+    const originalContent = 'alpha\ntarget\ngamma\ntarget\ndelta'
+    const comment = buildCodeComment({
+      relativePath: 'src/app.ts',
+      selectionRange: {
+        startLine: 4,
+        endLine: 4,
+      },
+      body: 'follow moved target',
+      fileContent: originalContent,
+      createdAt: '2026-02-22T09:00:00.000Z',
+    })
+
+    const relocated = relocateCommentSelection(
+      `intro\n${originalContent}`,
+      comment,
+    )
+
+    expect(relocated).toEqual({
+      startLine: 5,
+      endLine: 5,
+    })
+  })
+
+  it('falls back to the original line range when snippet can no longer be found', () => {
+    const comment = buildCodeComment({
+      relativePath: 'src/app.ts',
+      selectionRange: {
+        startLine: 2,
+        endLine: 2,
+      },
+      body: 'missing snippet',
+      fileContent: 'alpha\nbeta\ngamma',
+      createdAt: '2026-02-22T09:00:00.000Z',
+    })
+
+    expect(relocateCommentSelection('alpha\ngamma', comment)).toEqual({
+      startLine: 2,
+      endLine: 2,
+    })
   })
 })

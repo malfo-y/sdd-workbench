@@ -42,7 +42,7 @@ describe('remote-agent/runtime/request-router', () => {
     await router.dispose()
   })
 
-  it('rejects disallowed methods with PATH_DENIED', async () => {
+  it('rejects disallowed methods with METHOD_NOT_ALLOWED', async () => {
     const responses: RuntimeResponseMessage[] = []
 
     const router = new RuntimeRequestRouter({
@@ -66,7 +66,7 @@ describe('remote-agent/runtime/request-router', () => {
       id: 'req-2',
       ok: false,
       error: {
-        code: 'PATH_DENIED',
+        code: 'METHOD_NOT_ALLOWED',
       },
       protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
     })

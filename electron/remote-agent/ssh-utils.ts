@@ -78,8 +78,9 @@ export function extractNumericExitCode(
   if (typeof error.code === 'number') {
     return error.code
   }
-  if (typeof (error as { status?: unknown }).status === 'number') {
-    return (error as { status: number }).status
+  const errorWithStatus = error as unknown as { status?: unknown }
+  if (typeof errorWithStatus.status === 'number') {
+    return errorWithStatus.status
   }
   return undefined
 }

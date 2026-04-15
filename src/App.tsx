@@ -9,10 +9,7 @@ import {
 import './App.css'
 import { MAX_CLIPBOARD_CHARS } from './code-comments/comment-config'
 import {
-  buildCommentLineEntryIndex,
-  buildCommentLineIndex,
-  getCommentLineEntries,
-  getCommentLineCounts,
+  buildCommentDisplayMaps,
 } from './code-comments/comment-line-index'
 import { CommentListModal } from './code-comments/comment-list-modal'
 import { CommentEditorModal } from './code-comments/comment-editor-modal'
@@ -164,21 +161,9 @@ function App() {
   const [isWorkspaceSummaryExpanded, setIsWorkspaceSummaryExpanded] =
     useState(false)
 
-  const commentLineIndex = useMemo(
-    () => buildCommentLineIndex(comments),
-    [comments],
-  )
-  const commentLineEntryIndex = useMemo(
-    () => buildCommentLineEntryIndex(comments),
-    [comments],
-  )
-  const activeFileCommentLineCounts = useMemo(
-    () => getCommentLineCounts(commentLineIndex, activeFile),
-    [activeFile, commentLineIndex],
-  )
-  const activeFileCommentLineEntries = useMemo(
-    () => getCommentLineEntries(commentLineEntryIndex, activeFile),
-    [activeFile, commentLineEntryIndex],
+  const activeFileCommentDisplay = useMemo(
+    () => buildCommentDisplayMaps(comments, activeFile, activeFileContent),
+    [activeFile, activeFileContent, comments],
   )
   const activeFileGitLineMarkerMap = useMemo(
     () =>
@@ -187,13 +172,9 @@ function App() {
       ),
     [activeFileGitLineMarkers],
   )
-  const activeSpecCommentLineCounts = useMemo(
-    () => getCommentLineCounts(commentLineIndex, activeSpec),
-    [activeSpec, commentLineIndex],
-  )
-  const activeSpecCommentLineEntries = useMemo(
-    () => getCommentLineEntries(commentLineEntryIndex, activeSpec),
-    [activeSpec, commentLineEntryIndex],
+  const activeSpecCommentDisplay = useMemo(
+    () => buildCommentDisplayMaps(comments, activeSpec, activeSpecContent),
+    [activeSpec, activeSpecContent, comments],
   )
 
   // --- Pane resize hook ---
@@ -745,8 +726,8 @@ function App() {
               rootPath={rootPath}
               onRequestCreateFile={handleRequestCreateFile}
               onRequestCreateDirectory={handleRequestCreateDirectory}
-              onRequestDeleteFile={handleRequestDeleteFile}
-              onRequestDeleteDirectory={handleRequestDeleteDirectory}
+              onRequestConfirmedDeleteFile={handleRequestDeleteFile}
+              onRequestConfirmedDeleteDirectory={handleRequestDeleteDirectory}
               onRequestRename={handleRequestRename}
               onRequestCopyToClipboard={handleRequestCopyToClipboard}
               onRequestPasteFromClipboard={handleRequestPasteFromClipboard}
@@ -777,8 +758,8 @@ function App() {
               activeFileContent={activeFileContent}
               activeFileImagePreview={activeFileImagePreview}
               appearanceTheme={resolvedTheme}
-              commentLineEntries={activeFileCommentLineEntries}
-              commentLineCounts={activeFileCommentLineCounts}
+              commentLineEntries={activeFileCommentDisplay.entries}
+              commentLineCounts={activeFileCommentDisplay.counts}
               gitLineMarkers={activeFileGitLineMarkerMap}
               isActive={activeTab === 'code'}
               isReadingFile={isReadingFile}
@@ -808,8 +789,8 @@ function App() {
               <SpecViewerPanel
                 activeSpecPath={activeSpec}
                 appearanceTheme={resolvedTheme}
-                commentLineEntries={activeSpecCommentLineEntries}
-                commentLineCounts={activeSpecCommentLineCounts}
+                commentLineEntries={activeSpecCommentDisplay.entries}
+                commentLineCounts={activeSpecCommentDisplay.counts}
                 isActive={activeTab === 'spec'}
                 isLoading={isReadingSpec}
                 markdownContent={activeSpecContent}
@@ -894,6 +875,8 @@ function App() {
         initialValue={commentActions.globalCommentsModalState?.initialValue ?? ''}
         isOpen={commentActions.globalCommentsModalState !== null}
         isSaving={commentActions.isSavingGlobalCommentsModal}
+        suggestedDocumentPath={activeSpec}
+        workspaceId={commentActions.globalCommentsModalState?.workspaceId ?? null}
         onCancel={() => {
           if (!commentActions.isSavingGlobalCommentsModal) {
             commentActions.setGlobalCommentsModalState(null)
@@ -904,6 +887,7 @@ function App() {
       <ExportCommentsModal
         commentCount={commentActions.exportSelectedCommentIds ? commentActions.exportSelectedCommentIds.length : comments.length}
         estimateBundleLength={commentActions.estimateBundleLength}
+        exportedCommentCount={comments.filter((comment) => Boolean(comment.exportedAt)).length}
         hasGlobalComments={commentActions.effectiveExportHasGlobalComments}
         allowExportWithoutPendingComments={Boolean(commentActions.exportSelectedCommentIds) || commentActions.effectiveExportHasGlobalComments}
         isExporting={commentActions.isExportingComments}
@@ -914,6 +898,9 @@ function App() {
           : commentActions.pendingComments.length}
         onCancel={commentActions.closeExportModal}
         onConfirm={commentActions.handleExportComments}
+        onResetExportedComments={async () => {
+          await commentActions.handleResetExportedComments()
+        }}
       />
     </main>
   )

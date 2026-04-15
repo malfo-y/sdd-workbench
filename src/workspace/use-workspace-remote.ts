@@ -219,10 +219,12 @@ export function useWorkspaceRemote(input: {
     watchedWorkspaceIdsRef.current.delete(workspaceId)
     try {
       await window.workspace.watchStop(workspaceId)
+      return true
     } catch {
-      // Watcher cleanup is best-effort because workspace close should always proceed.
+      setBannerMessage('Failed to stop watcher while closing the workspace.')
+      return false
     }
-  }, [watchedWorkspaceIdsRef])
+  }, [setBannerMessage, watchedWorkspaceIdsRef])
 
   const openWorkspace = useCallback(async () => {
     try {

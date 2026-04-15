@@ -10,6 +10,11 @@ import { parseGitDiffLineMarkers } from './git-line-markers'
 import { parseGitStatusPorcelain } from './git-file-statuses'
 import { searchWorkspaceFilesByName } from './workspace-search'
 import { openWorkspaceInExternalTool } from './system-open'
+import { writeFileAtomic } from './atomic-write'
+import {
+  parseStoredCodeCommentsJson,
+  serializeStoredCodeComments,
+} from './comment-storage'
 import {
   isPathInsideWorkspace,
   isPathInsideWorkspaceOrRoot,
@@ -69,7 +74,6 @@ import {
   normalizeToWorkspaceRelativePath,
   runGitCommand,
   toBundleTimestamp,
-  writeFileAtomic,
 } from './workspace-utils'
 import {
   buildDirectoryChildren,
@@ -863,18 +867,21 @@ export async function handleWorkspaceReadComments(
       throw error
     }
 
-    const parsedComments = JSON.parse(rawJson)
-    if (!Array.isArray(parsedComments)) {
+    const parsedCommentsResult = parseStoredCodeCommentsJson(rawJson)
+    if (parsedCommentsResult.isFatal) {
       return {
         ok: false,
         comments: [],
-        error: 'Invalid comments file format: expected an array.',
+        error: parsedCommentsResult.error ?? 'Invalid comments file format.',
       }
     }
 
     return {
       ok: true,
-      comments: parsedComments as CodeCommentRecord[],
+      comments: parsedCommentsResult.comments as CodeCommentRecord[],
+      ...(parsedCommentsResult.error
+        ? { error: parsedCommentsResult.error }
+        : {}),
     }
   } catch (error) {
     return {
@@ -895,13 +902,6 @@ export async function handleWorkspaceWriteComments(
       return {
         ok: false,
         error: 'rootPath is required.',
-      }
-    }
-
-    if (!Array.isArray(request.comments)) {
-      return {
-        ok: false,
-        error: 'comments must be an array.',
       }
     }
 
@@ -929,7 +929,7 @@ export async function handleWorkspaceWriteComments(
     beginWorkspaceWriteOperation()
     try {
       await mkdir(metadataDirectoryPath, { recursive: true })
-      const serializedComments = `${JSON.stringify(request.comments, null, 2)}\n`
+      const serializedComments = serializeStoredCodeComments(request.comments)
       await writeFileAtomic(commentsJsonPath, serializedComments)
       return { ok: true }
     } finally {

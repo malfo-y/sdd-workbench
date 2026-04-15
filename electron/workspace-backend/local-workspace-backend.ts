@@ -1,58 +1,14 @@
 import type {
   WorkspaceBackend,
-  WorkspaceCopyEntriesRequest,
-  WorkspaceCreateDirectoryRequest,
-  WorkspaceCreateFileRequest,
-  WorkspaceDeleteDirectoryRequest,
-  WorkspaceDeleteFileRequest,
-  WorkspaceExportCommentsBundleRequest,
-  WorkspaceGetGitFileStatusesRequest,
-  WorkspaceGetGitLineMarkersRequest,
-  WorkspaceIndexDirectoryRequest,
-  WorkspaceIndexRequest,
-  WorkspaceSearchFilesRequest,
-  WorkspaceReadCommentsRequest,
-  WorkspaceReadFileRequest,
-  WorkspaceReadGlobalCommentsRequest,
-  WorkspaceRenameRequest,
-  WorkspaceWatchStartRequest,
-  WorkspaceWatchStopRequest,
-  WorkspaceWriteCommentsRequest,
-  WorkspaceWriteFileRequest,
-  WorkspaceWriteGlobalCommentsRequest,
+  WorkspaceBackendMethodName,
+  WorkspaceBackendRequest,
+  WorkspaceBackendResult,
 } from './types'
 
 type LocalWorkspaceBackendHandlers = {
-  index: (request: WorkspaceIndexRequest) => Promise<unknown>
-  indexDirectory: (request: WorkspaceIndexDirectoryRequest) => Promise<unknown>
-  searchFiles: (request: WorkspaceSearchFilesRequest) => Promise<unknown>
-  readFile: (request: WorkspaceReadFileRequest) => Promise<unknown>
-  writeFile: (request: WorkspaceWriteFileRequest) => Promise<unknown>
-  createFile: (request: WorkspaceCreateFileRequest) => Promise<unknown>
-  createDirectory: (request: WorkspaceCreateDirectoryRequest) => Promise<unknown>
-  deleteFile: (request: WorkspaceDeleteFileRequest) => Promise<unknown>
-  deleteDirectory: (request: WorkspaceDeleteDirectoryRequest) => Promise<unknown>
-  rename: (request: WorkspaceRenameRequest) => Promise<unknown>
-  getGitLineMarkers: (
-    request: WorkspaceGetGitLineMarkersRequest,
-  ) => Promise<unknown>
-  getGitFileStatuses: (
-    request: WorkspaceGetGitFileStatusesRequest,
-  ) => Promise<unknown>
-  readComments: (request: WorkspaceReadCommentsRequest) => Promise<unknown>
-  writeComments: (request: WorkspaceWriteCommentsRequest) => Promise<unknown>
-  readGlobalComments: (
-    request: WorkspaceReadGlobalCommentsRequest,
-  ) => Promise<unknown>
-  writeGlobalComments: (
-    request: WorkspaceWriteGlobalCommentsRequest,
-  ) => Promise<unknown>
-  exportCommentsBundle: (
-    request: WorkspaceExportCommentsBundleRequest,
-  ) => Promise<unknown>
-  copyEntries: (request: WorkspaceCopyEntriesRequest) => Promise<unknown>
-  watchStart: (request: WorkspaceWatchStartRequest) => Promise<unknown>
-  watchStop: (request: WorkspaceWatchStopRequest) => Promise<unknown>
+  [Method in WorkspaceBackendMethodName]: (
+    request: WorkspaceBackendRequest<Method>,
+  ) => Promise<WorkspaceBackendResult<Method>>
 }
 
 export function createLocalWorkspaceBackend(

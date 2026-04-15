@@ -1,3 +1,25 @@
+import type {
+  WorkspaceCopyEntriesResult,
+  WorkspaceCreateDirectoryResult,
+  WorkspaceCreateFileResult,
+  WorkspaceDeleteDirectoryResult,
+  WorkspaceDeleteFileResult,
+  WorkspaceExportCommentsBundleResult,
+  WorkspaceGetGitFileStatusesResult,
+  WorkspaceGetGitLineMarkersResult,
+  WorkspaceIndexDirectoryResult,
+  WorkspaceIndexResult,
+  WorkspaceReadCommentsResult,
+  WorkspaceReadFileResult,
+  WorkspaceReadGlobalCommentsResult,
+  WorkspaceRenameResult,
+  WorkspaceSearchFilesResult,
+  WorkspaceWatchControlResult,
+  WorkspaceWriteCommentsResult,
+  WorkspaceWriteFileResult,
+  WorkspaceWriteGlobalCommentsResult,
+} from '../ipc-types'
+
 export type WorkspaceWatchMode = 'native' | 'polling'
 export type WorkspaceWatchModePreference = 'auto' | 'native' | 'polling'
 
@@ -138,37 +160,160 @@ export type WorkspaceWatchFallbackEventPayload = {
 
 export type WorkspaceBackendKind = 'local' | 'remote'
 
+export type WorkspaceBackendMethodMap = {
+  index: {
+    request: WorkspaceIndexRequest
+    result: WorkspaceIndexResult
+  }
+  indexDirectory: {
+    request: WorkspaceIndexDirectoryRequest
+    result: WorkspaceIndexDirectoryResult
+  }
+  searchFiles: {
+    request: WorkspaceSearchFilesRequest
+    result: WorkspaceSearchFilesResult
+  }
+  readFile: {
+    request: WorkspaceReadFileRequest
+    result: WorkspaceReadFileResult
+  }
+  writeFile: {
+    request: WorkspaceWriteFileRequest
+    result: WorkspaceWriteFileResult
+  }
+  createFile: {
+    request: WorkspaceCreateFileRequest
+    result: WorkspaceCreateFileResult
+  }
+  createDirectory: {
+    request: WorkspaceCreateDirectoryRequest
+    result: WorkspaceCreateDirectoryResult
+  }
+  deleteFile: {
+    request: WorkspaceDeleteFileRequest
+    result: WorkspaceDeleteFileResult
+  }
+  deleteDirectory: {
+    request: WorkspaceDeleteDirectoryRequest
+    result: WorkspaceDeleteDirectoryResult
+  }
+  rename: {
+    request: WorkspaceRenameRequest
+    result: WorkspaceRenameResult
+  }
+  getGitLineMarkers: {
+    request: WorkspaceGetGitLineMarkersRequest
+    result: WorkspaceGetGitLineMarkersResult
+  }
+  getGitFileStatuses: {
+    request: WorkspaceGetGitFileStatusesRequest
+    result: WorkspaceGetGitFileStatusesResult
+  }
+  readComments: {
+    request: WorkspaceReadCommentsRequest
+    result: WorkspaceReadCommentsResult
+  }
+  writeComments: {
+    request: WorkspaceWriteCommentsRequest
+    result: WorkspaceWriteCommentsResult
+  }
+  readGlobalComments: {
+    request: WorkspaceReadGlobalCommentsRequest
+    result: WorkspaceReadGlobalCommentsResult
+  }
+  writeGlobalComments: {
+    request: WorkspaceWriteGlobalCommentsRequest
+    result: WorkspaceWriteGlobalCommentsResult
+  }
+  exportCommentsBundle: {
+    request: WorkspaceExportCommentsBundleRequest
+    result: WorkspaceExportCommentsBundleResult
+  }
+  copyEntries: {
+    request: WorkspaceCopyEntriesRequest
+    result: WorkspaceCopyEntriesResult
+  }
+  watchStart: {
+    request: WorkspaceWatchStartRequest
+    result: WorkspaceWatchControlResult
+  }
+  watchStop: {
+    request: WorkspaceWatchStopRequest
+    result: WorkspaceWatchControlResult
+  }
+}
+
+export type WorkspaceBackendMethodName = keyof WorkspaceBackendMethodMap
+
+export type WorkspaceBackendRequest<
+  Method extends WorkspaceBackendMethodName,
+> = WorkspaceBackendMethodMap[Method]['request']
+
+export type WorkspaceBackendResult<
+  Method extends WorkspaceBackendMethodName,
+> = WorkspaceBackendMethodMap[Method]['result']
+
 export interface WorkspaceBackend {
   readonly kind: WorkspaceBackendKind
-  index: (request: WorkspaceIndexRequest) => Promise<unknown>
-  indexDirectory: (request: WorkspaceIndexDirectoryRequest) => Promise<unknown>
-  searchFiles: (request: WorkspaceSearchFilesRequest) => Promise<unknown>
-  readFile: (request: WorkspaceReadFileRequest) => Promise<unknown>
-  writeFile: (request: WorkspaceWriteFileRequest) => Promise<unknown>
-  createFile: (request: WorkspaceCreateFileRequest) => Promise<unknown>
-  createDirectory: (request: WorkspaceCreateDirectoryRequest) => Promise<unknown>
-  deleteFile: (request: WorkspaceDeleteFileRequest) => Promise<unknown>
-  deleteDirectory: (request: WorkspaceDeleteDirectoryRequest) => Promise<unknown>
-  rename: (request: WorkspaceRenameRequest) => Promise<unknown>
+  index: (
+    request: WorkspaceBackendRequest<'index'>,
+  ) => Promise<WorkspaceBackendResult<'index'>>
+  indexDirectory: (
+    request: WorkspaceBackendRequest<'indexDirectory'>,
+  ) => Promise<WorkspaceBackendResult<'indexDirectory'>>
+  searchFiles: (
+    request: WorkspaceBackendRequest<'searchFiles'>,
+  ) => Promise<WorkspaceBackendResult<'searchFiles'>>
+  readFile: (
+    request: WorkspaceBackendRequest<'readFile'>,
+  ) => Promise<WorkspaceBackendResult<'readFile'>>
+  writeFile: (
+    request: WorkspaceBackendRequest<'writeFile'>,
+  ) => Promise<WorkspaceBackendResult<'writeFile'>>
+  createFile: (
+    request: WorkspaceBackendRequest<'createFile'>,
+  ) => Promise<WorkspaceBackendResult<'createFile'>>
+  createDirectory: (
+    request: WorkspaceBackendRequest<'createDirectory'>,
+  ) => Promise<WorkspaceBackendResult<'createDirectory'>>
+  deleteFile: (
+    request: WorkspaceBackendRequest<'deleteFile'>,
+  ) => Promise<WorkspaceBackendResult<'deleteFile'>>
+  deleteDirectory: (
+    request: WorkspaceBackendRequest<'deleteDirectory'>,
+  ) => Promise<WorkspaceBackendResult<'deleteDirectory'>>
+  rename: (
+    request: WorkspaceBackendRequest<'rename'>,
+  ) => Promise<WorkspaceBackendResult<'rename'>>
   getGitLineMarkers: (
-    request: WorkspaceGetGitLineMarkersRequest,
-  ) => Promise<unknown>
+    request: WorkspaceBackendRequest<'getGitLineMarkers'>,
+  ) => Promise<WorkspaceBackendResult<'getGitLineMarkers'>>
   getGitFileStatuses: (
-    request: WorkspaceGetGitFileStatusesRequest,
-  ) => Promise<unknown>
-  readComments: (request: WorkspaceReadCommentsRequest) => Promise<unknown>
-  writeComments: (request: WorkspaceWriteCommentsRequest) => Promise<unknown>
+    request: WorkspaceBackendRequest<'getGitFileStatuses'>,
+  ) => Promise<WorkspaceBackendResult<'getGitFileStatuses'>>
+  readComments: (
+    request: WorkspaceBackendRequest<'readComments'>,
+  ) => Promise<WorkspaceBackendResult<'readComments'>>
+  writeComments: (
+    request: WorkspaceBackendRequest<'writeComments'>,
+  ) => Promise<WorkspaceBackendResult<'writeComments'>>
   readGlobalComments: (
-    request: WorkspaceReadGlobalCommentsRequest,
-  ) => Promise<unknown>
+    request: WorkspaceBackendRequest<'readGlobalComments'>,
+  ) => Promise<WorkspaceBackendResult<'readGlobalComments'>>
   writeGlobalComments: (
-    request: WorkspaceWriteGlobalCommentsRequest,
-  ) => Promise<unknown>
+    request: WorkspaceBackendRequest<'writeGlobalComments'>,
+  ) => Promise<WorkspaceBackendResult<'writeGlobalComments'>>
   exportCommentsBundle: (
-    request: WorkspaceExportCommentsBundleRequest,
-  ) => Promise<unknown>
-  copyEntries: (request: WorkspaceCopyEntriesRequest) => Promise<unknown>
-  watchStart: (request: WorkspaceWatchStartRequest) => Promise<unknown>
-  watchStop: (request: WorkspaceWatchStopRequest) => Promise<unknown>
+    request: WorkspaceBackendRequest<'exportCommentsBundle'>,
+  ) => Promise<WorkspaceBackendResult<'exportCommentsBundle'>>
+  copyEntries: (
+    request: WorkspaceBackendRequest<'copyEntries'>,
+  ) => Promise<WorkspaceBackendResult<'copyEntries'>>
+  watchStart: (
+    request: WorkspaceBackendRequest<'watchStart'>,
+  ) => Promise<WorkspaceBackendResult<'watchStart'>>
+  watchStop: (
+    request: WorkspaceBackendRequest<'watchStop'>,
+  ) => Promise<WorkspaceBackendResult<'watchStop'>>
   dispose?: () => Promise<void>
 }

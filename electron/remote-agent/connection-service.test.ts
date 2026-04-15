@@ -7,6 +7,14 @@ import type { RemoteAgentTransport } from './transport-ssh'
 class FakeTransport implements RemoteAgentTransport {
   readonly start: () => Promise<void>
   readonly stop = vi.fn(async () => undefined)
+  private readonly listeners = new Set<
+    (event: {
+      type: 'event'
+      event: string
+      payload?: unknown
+      protocolVersion: string
+    }) => void
+  >()
 
   constructor(startImpl?: () => Promise<void>) {
     this.start = startImpl ?? (async () => undefined)
@@ -22,15 +30,28 @@ class FakeTransport implements RemoteAgentTransport {
   }
 
   onEvent(
-    _listener: (event: {
+    listener: (event: {
       type: 'event'
       event: string
       payload?: unknown
       protocolVersion: string
     }) => void,
   ): () => void {
-    void _listener
-    return () => undefined
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  emit(event: {
+    type: 'event'
+    event: string
+    payload?: unknown
+    protocolVersion: string
+  }): void {
+    for (const listener of this.listeners) {
+      listener(event)
+    }
   }
 }
 
@@ -197,5 +218,55 @@ describe('remote-agent/connection-service', () => {
     })
     expect(transport.stop).toHaveBeenCalledTimes(1)
     expect(events.at(-1)?.state).toBe('disconnected')
+  })
+
+  it('preserves external agent listeners across reconnect attempts', async () => {
+    vi.useFakeTimers()
+
+    const transports: FakeTransport[] = []
+    const transportFactory = vi.fn(() => {
+      if (transports.length === 0) {
+        const transport = new FakeTransport(async () => {
+          throw new RemoteAgentError('TIMEOUT', 'connect timeout')
+        })
+        transports.push(transport)
+        return transport
+      }
+
+      const transport = new FakeTransport(async () => undefined)
+      transports.push(transport)
+      return transport
+    })
+
+    const service = new RemoteConnectionService({
+      transportFactory,
+      policy: {
+        connectTimeoutMs: 10_000,
+        requestTimeoutMs: 15_000,
+        reconnectAttempts: 1,
+      },
+      now: () => 100,
+    })
+    const listener = vi.fn()
+
+    service.onAgentEvent(profile.workspaceId, listener)
+
+    const connectPromise = service.connect(profile)
+    await vi.advanceTimersByTimeAsync(500)
+    await connectPromise
+
+    transports[1]?.emit({
+      type: 'event',
+      event: 'watch.event',
+      payload: {
+        changedRelativePaths: ['src/main.ts'],
+        hasStructureChanges: false,
+      },
+      protocolVersion: '1.0.0',
+    })
+
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    vi.useRealTimers()
   })
 })

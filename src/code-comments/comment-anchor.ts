@@ -58,6 +58,150 @@ function hashFnv1a(text: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0')
 }
 
+function countNormalizedLines(text: string): number {
+  if (!text) {
+    return 1
+  }
+
+  return text.replace(/\r\n?/g, '\n').split('\n').length
+}
+
+function buildSelectionRangeFromOffsets(
+  fileContent: string,
+  sourceOffsetRange: SourceOffsetRange,
+): LineSelectionRange {
+  const startOffset = Math.max(0, sourceOffsetRange.startOffset)
+  const endOffset = Math.max(startOffset, sourceOffsetRange.endOffset)
+  const startLine = countNormalizedLines(fileContent.slice(0, startOffset))
+  const selectedText = fileContent.slice(startOffset, endOffset)
+  const endLine =
+    startLine + Math.max(0, countNormalizedLines(selectedText) - 1)
+
+  return {
+    startLine,
+    endLine,
+  }
+}
+
+function scoreAnchorCandidate(
+  fileContent: string,
+  anchor: CodeCommentAnchor,
+  sourceOffsetRange: SourceOffsetRange,
+): number {
+  let score = 0
+  const { startOffset, endOffset } = sourceOffsetRange
+
+  if (anchor.before) {
+    const precedingText = normalizeForHash(
+      fileContent.slice(
+        Math.max(0, startOffset - anchor.before.length - 4),
+        startOffset,
+      ),
+    )
+    if (precedingText.endsWith(normalizeForHash(anchor.before))) {
+      score += 4
+    }
+  }
+
+  if (anchor.after) {
+    const followingText = normalizeForHash(
+      fileContent.slice(
+        endOffset,
+        endOffset + anchor.after.length + 4,
+      ),
+    )
+    if (followingText.startsWith(normalizeForHash(anchor.after))) {
+      score += 4
+    }
+  }
+
+  return score
+}
+
+export function relocateCommentSelection(
+  fileContent: string,
+  comment: Pick<CodeComment, 'startLine' | 'endLine' | 'anchor'>,
+): LineSelectionRange {
+  const originalSelection = normalizeCommentSelection({
+    startLine: comment.startLine,
+    endLine: comment.endLine,
+  })
+  const anchorSnippet = comment.anchor.snippet
+  if (!anchorSnippet) {
+    return originalSelection
+  }
+
+  const exactSourceOffsetRange =
+    typeof comment.anchor.startOffset === 'number' &&
+      typeof comment.anchor.endOffset === 'number'
+      ? normalizeSourceOffsetRange(
+          {
+            startOffset: comment.anchor.startOffset,
+            endOffset: comment.anchor.endOffset,
+          },
+          fileContent.length,
+        )
+      : null
+  if (
+    exactSourceOffsetRange &&
+    fileContent.slice(
+      exactSourceOffsetRange.startOffset,
+      exactSourceOffsetRange.endOffset,
+    ) === anchorSnippet
+  ) {
+    return buildSelectionRangeFromOffsets(fileContent, exactSourceOffsetRange)
+  }
+
+  const candidateRanges: Array<{
+    selectionRange: LineSelectionRange
+    score: number
+    lineDistance: number
+    startOffset: number
+  }> = []
+  let searchOffset = 0
+
+  while (searchOffset <= fileContent.length) {
+    const matchOffset = fileContent.indexOf(anchorSnippet, searchOffset)
+    if (matchOffset < 0) {
+      break
+    }
+
+    const sourceOffsetRange = {
+      startOffset: matchOffset,
+      endOffset: matchOffset + anchorSnippet.length,
+    }
+    const selectionRange = buildSelectionRangeFromOffsets(
+      fileContent,
+      sourceOffsetRange,
+    )
+    candidateRanges.push({
+      selectionRange,
+      score: scoreAnchorCandidate(fileContent, comment.anchor, sourceOffsetRange),
+      lineDistance:
+        Math.abs(selectionRange.startLine - originalSelection.startLine) +
+        Math.abs(selectionRange.endLine - originalSelection.endLine),
+      startOffset: matchOffset,
+    })
+    searchOffset = matchOffset + Math.max(anchorSnippet.length, 1)
+  }
+
+  if (candidateRanges.length === 0) {
+    return originalSelection
+  }
+
+  candidateRanges.sort((left, right) => {
+    if (left.score !== right.score) {
+      return right.score - left.score
+    }
+    if (left.lineDistance !== right.lineDistance) {
+      return left.lineDistance - right.lineDistance
+    }
+    return left.startOffset - right.startOffset
+  })
+
+  return candidateRanges[0]?.selectionRange ?? originalSelection
+}
+
 export function createCommentAnchor(
   fileContent: string,
   selectionRange: LineSelectionRange,

@@ -13,6 +13,10 @@ import type { SpecLinkLineRange } from '../spec-viewer/spec-link-utils'
 import type { SourceOffsetRange } from '../source-selection'
 import type { CodeViewerJumpRequest } from '../code-editor/code-editor-panel'
 import type { LineSelectionRange } from '../workspace/workspace-model'
+import {
+  loadPersistedSpecScrollPositions,
+  savePersistedSpecScrollPositions,
+} from '../workspace/workspace-persistence'
 
 const TRACKPAD_HISTORY_MIN_AXIS_DELTA = 18
 const TRACKPAD_HISTORY_TRIGGER_DELTA = 120
@@ -27,8 +31,9 @@ type ContentTab = 'code' | 'spec'
 
 type SpecViewerNavigationRequest = {
   targetRelativePath: string
-  lineNumber: number
   token: number
+  lineNumber?: number
+  headingId?: string
 }
 
 type WheelHistoryState = {
@@ -125,6 +130,28 @@ function isHistoryNavigationScopeTarget(target: EventTarget | null): boolean {
   return target.closest(HISTORY_NAVIGATION_SCOPE_SELECTOR) !== null
 }
 
+function isTrackpadHistorySupportedPlatform() {
+  if (typeof navigator === 'undefined') {
+    return true
+  }
+
+  const navigatorWithUserAgentData = navigator as Navigator & {
+    userAgentData?: {
+      platform?: string
+    }
+  }
+  const platform = [
+    navigatorWithUserAgentData.userAgentData?.platform,
+    navigator.platform,
+    navigator.userAgent,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase()
+
+  return platform.includes('mac') || platform.includes('darwin')
+}
+
 export type UseHistoryNavigationParams = {
   activeWorkspaceId: string | null
   activeFile: string | null
@@ -176,7 +203,7 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
     useState<SpecViewerNavigationRequest | null>(null)
   const previousActiveFileRef = useRef<string | null>(null)
   const historyNavigationRef = useRef(false)
-  const specScrollPositionsRef = useRef<Record<string, number>>({})
+  const specScrollPositionsRef = useRef(loadPersistedSpecScrollPositions())
   const codeScrollPositionsRef = useRef<Record<string, number>>({})
   const wheelHistoryStateRef = useRef<WheelHistoryState>({
     accumulatedDeltaX: 0,
@@ -208,11 +235,27 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
   )
 
   const queueSpecViewerNavigationRequest = useCallback(
-    (input: { targetRelativePath: string; lineNumber: number }) => {
+    (input: {
+      targetRelativePath: string
+      lineNumber?: number
+      headingId?: string
+    }) => {
+      if (
+        typeof input.lineNumber !== 'number' &&
+        typeof input.headingId !== 'string'
+      ) {
+        return
+      }
+
       specNavigationRequestTokenRef.current += 1
       setSpecViewerNavigationRequest({
         targetRelativePath: input.targetRelativePath,
-        lineNumber: input.lineNumber,
+        ...(typeof input.lineNumber === 'number'
+          ? { lineNumber: input.lineNumber }
+          : {}),
+        ...(typeof input.headingId === 'string' && input.headingId.trim().length > 0
+          ? { headingId: input.headingId.trim() }
+          : {}),
         token: specNavigationRequestTokenRef.current,
       })
     },
@@ -223,12 +266,14 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
     (
       relativePath: string,
       lineRange: SpecLinkLineRange | null,
+      headingId?: string | null,
     ) => {
       if (!workspaceFilePathSet.has(relativePath)) {
         return false
       }
 
-      setActiveTab(relativePath.endsWith('.md') ? 'spec' : 'code')
+      const isSpecTarget = relativePath.endsWith('.md')
+      setActiveTab(isSpecTarget ? 'spec' : 'code')
       setSpecViewerNavigationRequest(null)
       selectFile(relativePath)
       if (lineRange) {
@@ -243,11 +288,18 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
         })
       } else {
         setCodeViewerJumpRequest(null)
+        if (isSpecTarget && headingId) {
+          queueSpecViewerNavigationRequest({
+            targetRelativePath: relativePath,
+            headingId,
+          })
+        }
       }
       return true
     },
     [
       queueCodeViewerJumpRequest,
+      queueSpecViewerNavigationRequest,
       selectFile,
       setActiveTab,
       setSelectionRange,
@@ -421,9 +473,11 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
         return
       }
 
+      const normalizedScrollTop = Math.max(0, Math.trunc(input.scrollTop))
       specScrollPositionsRef.current[
         buildSpecScrollStateKey(activeWorkspaceId, input.relativePath)
-      ] = input.scrollTop
+      ] = normalizedScrollTop
+      savePersistedSpecScrollPositions(specScrollPositionsRef.current)
     },
     [activeWorkspaceId],
   )
@@ -591,6 +645,9 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
   // IPC history navigation
   useEffect(() => {
     const unsubscribe = window.workspace.onHistoryNavigate((event) => {
+      if (event.source === 'swipe' && !isTrackpadHistorySupportedPlatform()) {
+        return
+      }
       const isScopeHovered =
         document.querySelector(`${HISTORY_NAVIGATION_SCOPE_SELECTOR}:hover`) !== null
       if (!isHistoryNavigationScopeActiveRef.current && !isScopeHovered) {
@@ -637,6 +694,10 @@ export function useHistoryNavigation(params: UseHistoryNavigationParams) {
   // Trackpad horizontal swipe navigation
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
+      if (!isTrackpadHistorySupportedPlatform()) {
+        return
+      }
+
       if (!isHistoryNavigationScopeTarget(event.target)) {
         return
       }

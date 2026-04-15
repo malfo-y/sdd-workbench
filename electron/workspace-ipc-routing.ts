@@ -15,7 +15,12 @@ import type {
 import { createLocalWorkspaceBackend } from './workspace-backend/local-workspace-backend'
 import { createRemoteWorkspaceBackend } from './workspace-backend/remote-workspace-backend'
 import { WorkspaceBackendRouter } from './workspace-backend/backend-router'
-import type { WorkspaceBackend } from './workspace-backend/types'
+import type {
+  WorkspaceBackend,
+  WorkspaceBackendMethodName,
+  WorkspaceBackendRequest,
+  WorkspaceBackendResult,
+} from './workspace-backend/types'
 import { copyEntries as localCopyEntries } from './workspace-backend/copy-entries'
 import {
   syncVsCodeSshConfig,
@@ -24,46 +29,11 @@ import type {
   WorkspaceBrowseRemoteDirectoriesRequest,
   WorkspaceBrowseRemoteDirectoriesResult,
   WorkspaceConnectRemoteRequest,
-  WorkspaceCreateDirectoryRequest,
-  WorkspaceCreateDirectoryResult,
-  WorkspaceCreateFileRequest,
-  WorkspaceCreateFileResult,
-  WorkspaceDeleteDirectoryRequest,
-  WorkspaceDeleteDirectoryResult,
-  WorkspaceDeleteFileRequest,
-  WorkspaceDeleteFileResult,
   WorkspaceDisconnectRemoteRequest,
-  WorkspaceExportCommentsBundleRequest,
-  WorkspaceExportCommentsBundleResult,
-  WorkspaceGetGitFileStatusesRequest,
-  WorkspaceGetGitFileStatusesResult,
-  WorkspaceGetGitLineMarkersRequest,
-  WorkspaceGetGitLineMarkersResult,
-  WorkspaceIndexDirectoryRequest,
-  WorkspaceIndexDirectoryResult,
-  WorkspaceIndexRequest,
-  WorkspaceIndexResult,
-  WorkspaceReadCommentsRequest,
-  WorkspaceReadCommentsResult,
-  WorkspaceReadFileRequest,
-  WorkspaceReadFileResult,
-  WorkspaceReadGlobalCommentsRequest,
-  WorkspaceReadGlobalCommentsResult,
-  WorkspaceRenameRequest,
-  WorkspaceRenameResult,
-  WorkspaceSearchFilesRequest,
-  WorkspaceSearchFilesResult,
   WorkspaceSyncVsCodeSshConfigIpcRequest,
   WorkspaceSyncVsCodeSshConfigResult,
   WorkspaceWatchControlResult,
-  WorkspaceWatchStartRequest,
   WorkspaceWatchStopRequest,
-  WorkspaceWriteCommentsRequest,
-  WorkspaceWriteCommentsResult,
-  WorkspaceWriteFileRequest,
-  WorkspaceWriteFileResult,
-  WorkspaceWriteGlobalCommentsRequest,
-  WorkspaceWriteGlobalCommentsResult,
 } from './ipc-types'
 import {
   handleWorkspaceCreateDirectory,
@@ -119,25 +89,10 @@ type RoutedWorkspaceRequest = {
   rootPath: string
 }
 
-type RoutedWorkspaceBackendMethod =
-  | 'index'
-  | 'indexDirectory'
-  | 'searchFiles'
-  | 'readFile'
-  | 'writeFile'
-  | 'createFile'
-  | 'createDirectory'
-  | 'deleteFile'
-  | 'deleteDirectory'
-  | 'rename'
-  | 'getGitLineMarkers'
-  | 'getGitFileStatuses'
-  | 'readComments'
-  | 'writeComments'
-  | 'readGlobalComments'
-  | 'writeGlobalComments'
-  | 'exportCommentsBundle'
-  | 'watchStart'
+type RoutedWorkspaceBackendMethod = Exclude<
+  WorkspaceBackendMethodName,
+  'copyEntries' | 'watchStop'
+>
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -219,21 +174,53 @@ function resolveWorkspaceBackend(request: RoutedWorkspaceRequest): WorkspaceBack
   return workspaceBackendRouter.resolveByRootPath(request?.rootPath ?? '')
 }
 
-function createRoutedWorkspaceHandler<
-  Request extends RoutedWorkspaceRequest,
-  Result,
->(
-  backendMethod: RoutedWorkspaceBackendMethod,
+const workspaceBackendInvokers: {
+  [Method in RoutedWorkspaceBackendMethod]: (
+    backend: WorkspaceBackend,
+    request: WorkspaceBackendRequest<Method>,
+  ) => Promise<WorkspaceBackendResult<Method>>
+} = {
+  index: (backend, request) => backend.index(request),
+  indexDirectory: (backend, request) => backend.indexDirectory(request),
+  searchFiles: (backend, request) => backend.searchFiles(request),
+  readFile: (backend, request) => backend.readFile(request),
+  writeFile: (backend, request) => backend.writeFile(request),
+  createFile: (backend, request) => backend.createFile(request),
+  createDirectory: (backend, request) => backend.createDirectory(request),
+  deleteFile: (backend, request) => backend.deleteFile(request),
+  deleteDirectory: (backend, request) => backend.deleteDirectory(request),
+  rename: (backend, request) => backend.rename(request),
+  getGitLineMarkers: (backend, request) => backend.getGitLineMarkers(request),
+  getGitFileStatuses: (backend, request) => backend.getGitFileStatuses(request),
+  readComments: (backend, request) => backend.readComments(request),
+  writeComments: (backend, request) => backend.writeComments(request),
+  readGlobalComments: (backend, request) => backend.readGlobalComments(request),
+  writeGlobalComments: (backend, request) => backend.writeGlobalComments(request),
+  exportCommentsBundle: (backend, request) =>
+    backend.exportCommentsBundle(request),
+  watchStart: (backend, request) => backend.watchStart(request),
+}
+
+function invokeWorkspaceBackendMethod<Method extends RoutedWorkspaceBackendMethod>(
+  backend: WorkspaceBackend,
+  backendMethod: Method,
+  request: WorkspaceBackendRequest<Method>,
+): Promise<WorkspaceBackendResult<Method>> {
+  return workspaceBackendInvokers[backendMethod](backend, request)
+}
+
+function createRoutedWorkspaceHandler<Method extends RoutedWorkspaceBackendMethod>(
+  backendMethod: Method,
   fallbackMessage: string,
-  buildErrorResult: (errorMessage: string) => Result,
+  buildErrorResult: (errorMessage: string) => WorkspaceBackendResult<Method>,
 ) {
   return async (
     _event: IpcMainInvokeEvent,
-    request: Request,
-  ): Promise<Result> => {
+    request: WorkspaceBackendRequest<Method>,
+  ): Promise<WorkspaceBackendResult<Method>> => {
     try {
       const backend = resolveWorkspaceBackend(request)
-      return (await backend[backendMethod](request)) as Result
+      return await invokeWorkspaceBackendMethod(backend, backendMethod, request)
     } catch (error) {
       return buildErrorResult(
         toBackendErrorMessage(error, fallbackMessage),
@@ -246,19 +233,19 @@ function createRoutedWorkspaceHandler<
 // Routed workspace handlers
 // ---------------------------------------------------------------------------
 
-export const handleWorkspaceIndexRouted = createRoutedWorkspaceHandler<
-  WorkspaceIndexRequest,
-  WorkspaceIndexResult
->('index', 'Failed to index workspace', (error) => ({
+export const handleWorkspaceIndexRouted = createRoutedWorkspaceHandler(
+  'index',
+  'Failed to index workspace',
+  (error) => ({
   ok: false,
   fileTree: [],
   error,
 }))
 
-export const handleWorkspaceIndexDirectoryRouted = createRoutedWorkspaceHandler<
-  WorkspaceIndexDirectoryRequest,
-  WorkspaceIndexDirectoryResult
->('indexDirectory', 'Failed to index directory', (error) => ({
+export const handleWorkspaceIndexDirectoryRouted = createRoutedWorkspaceHandler(
+  'indexDirectory',
+  'Failed to index directory',
+  (error) => ({
   ok: false,
   children: [],
   childrenStatus: 'complete',
@@ -266,10 +253,10 @@ export const handleWorkspaceIndexDirectoryRouted = createRoutedWorkspaceHandler<
   error,
 }))
 
-export const handleWorkspaceSearchFilesRouted = createRoutedWorkspaceHandler<
-  WorkspaceSearchFilesRequest,
-  WorkspaceSearchFilesResult
->('searchFiles', 'Failed to search files', (error) => ({
+export const handleWorkspaceSearchFilesRouted = createRoutedWorkspaceHandler(
+  'searchFiles',
+  'Failed to search files',
+  (error) => ({
   ok: false,
   results: [],
   truncated: false,
@@ -279,127 +266,132 @@ export const handleWorkspaceSearchFilesRouted = createRoutedWorkspaceHandler<
   error,
 }))
 
-export const handleWorkspaceReadFileRouted = createRoutedWorkspaceHandler<
-  WorkspaceReadFileRequest,
-  WorkspaceReadFileResult
->('readFile', 'Failed to read file', (error) => ({
+export const handleWorkspaceReadFileRouted = createRoutedWorkspaceHandler(
+  'readFile',
+  'Failed to read file',
+  (error) => ({
   ok: false,
   content: null,
   error,
 }))
 
-export const handleWorkspaceWriteFileRouted = createRoutedWorkspaceHandler<
-  WorkspaceWriteFileRequest,
-  WorkspaceWriteFileResult
->('writeFile', 'Failed to write file.', (error) => ({
+export const handleWorkspaceWriteFileRouted = createRoutedWorkspaceHandler(
+  'writeFile',
+  'Failed to write file.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceCreateFileRouted = createRoutedWorkspaceHandler<
-  WorkspaceCreateFileRequest,
-  WorkspaceCreateFileResult
->('createFile', 'Failed to create file.', (error) => ({
+export const handleWorkspaceCreateFileRouted = createRoutedWorkspaceHandler(
+  'createFile',
+  'Failed to create file.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceCreateDirectoryRouted = createRoutedWorkspaceHandler<
-  WorkspaceCreateDirectoryRequest,
-  WorkspaceCreateDirectoryResult
->('createDirectory', 'Failed to create directory.', (error) => ({
+export const handleWorkspaceCreateDirectoryRouted = createRoutedWorkspaceHandler(
+  'createDirectory',
+  'Failed to create directory.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceDeleteFileRouted = createRoutedWorkspaceHandler<
-  WorkspaceDeleteFileRequest,
-  WorkspaceDeleteFileResult
->('deleteFile', 'Failed to delete file.', (error) => ({
+export const handleWorkspaceDeleteFileRouted = createRoutedWorkspaceHandler(
+  'deleteFile',
+  'Failed to delete file.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceDeleteDirectoryRouted = createRoutedWorkspaceHandler<
-  WorkspaceDeleteDirectoryRequest,
-  WorkspaceDeleteDirectoryResult
->('deleteDirectory', 'Failed to delete directory.', (error) => ({
+export const handleWorkspaceDeleteDirectoryRouted = createRoutedWorkspaceHandler(
+  'deleteDirectory',
+  'Failed to delete directory.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceRenameRouted = createRoutedWorkspaceHandler<
-  WorkspaceRenameRequest,
-  WorkspaceRenameResult
->('rename', 'Failed to rename.', (error) => ({
+export const handleWorkspaceRenameRouted = createRoutedWorkspaceHandler(
+  'rename',
+  'Failed to rename.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceGetGitLineMarkersRouted = createRoutedWorkspaceHandler<
-  WorkspaceGetGitLineMarkersRequest,
-  WorkspaceGetGitLineMarkersResult
->('getGitLineMarkers', 'Failed to read git line markers.', (error) => ({
+export const handleWorkspaceGetGitLineMarkersRouted =
+  createRoutedWorkspaceHandler(
+    'getGitLineMarkers',
+    'Failed to read git line markers.',
+    (error) => ({
   ok: false,
   markers: [],
   error,
 }))
 
-export const handleWorkspaceGetGitFileStatusesRouted = createRoutedWorkspaceHandler<
-  WorkspaceGetGitFileStatusesRequest,
-  WorkspaceGetGitFileStatusesResult
->('getGitFileStatuses', 'Failed to read git file statuses.', (error) => ({
+export const handleWorkspaceGetGitFileStatusesRouted =
+  createRoutedWorkspaceHandler(
+    'getGitFileStatuses',
+    'Failed to read git file statuses.',
+    (error) => ({
   ok: false,
   statuses: {},
   error,
 }))
 
-export const handleWorkspaceReadCommentsRouted = createRoutedWorkspaceHandler<
-  WorkspaceReadCommentsRequest,
-  WorkspaceReadCommentsResult
->('readComments', 'Failed to read comments.', (error) => ({
+export const handleWorkspaceReadCommentsRouted = createRoutedWorkspaceHandler(
+  'readComments',
+  'Failed to read comments.',
+  (error) => ({
   ok: false,
   comments: [],
   error,
 }))
 
-export const handleWorkspaceWriteCommentsRouted = createRoutedWorkspaceHandler<
-  WorkspaceWriteCommentsRequest,
-  WorkspaceWriteCommentsResult
->('writeComments', 'Failed to write comments.', (error) => ({
+export const handleWorkspaceWriteCommentsRouted = createRoutedWorkspaceHandler(
+  'writeComments',
+  'Failed to write comments.',
+  (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceReadGlobalCommentsRouted = createRoutedWorkspaceHandler<
-  WorkspaceReadGlobalCommentsRequest,
-  WorkspaceReadGlobalCommentsResult
->('readGlobalComments', 'Failed to read global comments.', (error) => ({
+export const handleWorkspaceReadGlobalCommentsRouted =
+  createRoutedWorkspaceHandler(
+    'readGlobalComments',
+    'Failed to read global comments.',
+    (error) => ({
   ok: false,
   body: '',
   error,
 }))
 
-export const handleWorkspaceWriteGlobalCommentsRouted = createRoutedWorkspaceHandler<
-  WorkspaceWriteGlobalCommentsRequest,
-  WorkspaceWriteGlobalCommentsResult
->('writeGlobalComments', 'Failed to write global comments.', (error) => ({
+export const handleWorkspaceWriteGlobalCommentsRouted =
+  createRoutedWorkspaceHandler(
+    'writeGlobalComments',
+    'Failed to write global comments.',
+    (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceExportCommentsBundleRouted = createRoutedWorkspaceHandler<
-  WorkspaceExportCommentsBundleRequest,
-  WorkspaceExportCommentsBundleResult
->('exportCommentsBundle', 'Failed to export comments bundle.', (error) => ({
+export const handleWorkspaceExportCommentsBundleRouted =
+  createRoutedWorkspaceHandler(
+    'exportCommentsBundle',
+    'Failed to export comments bundle.',
+    (error) => ({
   ok: false,
   error,
 }))
 
-export const handleWorkspaceWatchStartRouted = createRoutedWorkspaceHandler<
-  WorkspaceWatchStartRequest,
-  WorkspaceWatchControlResult
->('watchStart', 'Failed to start workspace watcher.', (error) => ({
+export const handleWorkspaceWatchStartRouted = createRoutedWorkspaceHandler(
+  'watchStart',
+  'Failed to start workspace watcher.',
+  (error) => ({
   ok: false,
   error,
 }))
@@ -420,12 +412,10 @@ export async function handleWorkspaceWatchStopRouted(
     const remoteRootPath = workspaceBackendRouter.getRemoteRootPath(workspaceId)
     if (remoteRootPath) {
       const backend = workspaceBackendRouter.resolveByRootPath(remoteRootPath)
-      return (await backend.watchStop(request)) as WorkspaceWatchControlResult
+      return await backend.watchStop(request)
     }
 
-    return (await localWorkspaceBackend.watchStop(
-      request,
-    )) as WorkspaceWatchControlResult
+    return await localWorkspaceBackend.watchStop(request)
   } catch (error) {
     return {
       ok: false,

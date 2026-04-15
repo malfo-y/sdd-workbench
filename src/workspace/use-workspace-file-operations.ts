@@ -22,12 +22,15 @@ import {
 import {
   executeTrackedIpcCall,
   isTrackedIpcCallCurrent,
+  type TrackedAsyncActionStatus,
   type WorkspaceRequestIdMapRef,
 } from './ipc-call-helper'
 
 type SetWorkspaceState = Dispatch<SetStateAction<WorkspaceState>>
 type SetBannerMessage = Dispatch<SetStateAction<string | null>>
 type WorkspaceStateRef = MutableRefObject<WorkspaceState>
+
+type WorkspaceLoadStatus = TrackedAsyncActionStatus
 
 function isMarkdownFile(relativePath: string) {
   return relativePath.toLowerCase().endsWith('.md')
@@ -176,10 +179,14 @@ export function useWorkspaceFileOperations(input: {
   } = input
 
   const loadWorkspaceSpec = useCallback(
-    (workspaceId: WorkspaceId, relativePath: string, mode: 'select' | 'refresh' = 'select') => {
+    async (
+      workspaceId: WorkspaceId,
+      relativePath: string,
+      mode: 'select' | 'refresh' = 'select',
+    ): Promise<WorkspaceLoadStatus> => {
       const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
       if (!workspaceSession) {
-        return
+        return 'failed'
       }
 
       const existingDocumentSession = getWorkspaceDocumentSession(
@@ -205,127 +212,127 @@ export function useWorkspaceFileOperations(input: {
         })),
       )
 
-      void (async () => {
-        try {
-          const { requestId, result: readResult } = await executeTrackedIpcCall({
-            requestIdByWorkspaceRef: readSpecRequestIdByWorkspaceRef,
+      try {
+        const { requestId, result: readResult } = await executeTrackedIpcCall({
+          requestIdByWorkspaceRef: readSpecRequestIdByWorkspaceRef,
+          workspaceId,
+          call: () => window.workspace.readFile(workspaceSession.rootPath, relativePath),
+        })
+        if (
+          !isTrackedIpcCallCurrent(
+            readSpecRequestIdByWorkspaceRef,
             workspaceId,
-            call: () => window.workspace.readFile(workspaceSession.rootPath, relativePath),
-          })
-          if (
-            !isTrackedIpcCallCurrent(
-              readSpecRequestIdByWorkspaceRef,
-              workspaceId,
-              requestId,
-            )
-          ) {
-            return
-          }
-
-          if (!readResult.ok) {
-            const errorMessage = readResult.error
-              ? `Failed to read file: ${readResult.error}`
-              : 'Failed to read file.'
-            setWorkspaceState((previous) =>
-              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-                ...currentSession,
-                activeSpecContent: shouldPreserveCurrentContent
-                  ? currentSession.activeSpecContent
-                  : null,
-                activeSpecReadError: shouldPreserveCurrentContent
-                  ? currentSession.activeSpecReadError
-                  : errorMessage,
-                isReadingSpec: false,
-              })),
-            )
-            if (shouldPreserveCurrentContent) {
-              setBannerMessage(errorMessage)
-            }
-            return
-          }
-
-          if (readResult.previewUnavailableReason) {
-            const previewErrorMessage = getSpecPreviewUnavailableMessage(
-              readResult.previewUnavailableReason ?? 'binary_file',
-            )
-            setWorkspaceState((previous) =>
-              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-                ...currentSession,
-                activeSpecContent: shouldPreserveCurrentContent
-                  ? currentSession.activeSpecContent
-                  : null,
-                activeSpecReadError: shouldPreserveCurrentContent
-                  ? currentSession.activeSpecReadError
-                  : previewErrorMessage,
-                isReadingSpec: false,
-              })),
-            )
-            if (shouldPreserveCurrentContent) {
-              setBannerMessage(previewErrorMessage)
-            }
-            return
-          }
-
-          setWorkspaceState((previous) =>
-            updateWorkspaceSession(previous, workspaceId, (currentSession) => {
-              const shouldPreserveDraft = hasUnsavedChanges(
-                getWorkspaceDocumentSession(currentSession, relativePath)?.saveState ??
-                  null,
-              )
-              const nextSession = shouldPreserveDraft
-                ? currentSession
-                : upsertWorkspaceDocumentSessionFromDisk(
-                    currentSession,
-                    relativePath,
-                    readResult.content ?? '',
-                  )
-
-              return syncWorkspaceDisplayedDocumentContent({
-                ...nextSession,
-                activeSpecContent:
-                  getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
-                  readResult.content ??
-                  '',
-                activeSpecReadError: null,
-                isReadingSpec: false,
-              })
-            }),
+            requestId,
           )
-        } catch (error) {
-          const requestId =
-            readSpecRequestIdByWorkspaceRef.current[workspaceId] ?? 0
-          if (
-            !isTrackedIpcCallCurrent(
-              readSpecRequestIdByWorkspaceRef,
-              workspaceId,
-              requestId,
-            )
-          ) {
-            return
-          }
+        ) {
+          return 'stale'
+        }
 
-          const errorMessage =
-            error instanceof Error
-              ? `Failed to read file: ${error.message}`
-              : 'Failed to read file.'
+        if (!readResult.ok) {
+          const errorMessage = readResult.error
+            ? `Failed to read file: ${readResult.error}`
+            : 'Failed to read file.'
           setWorkspaceState((previous) =>
             updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
               ...currentSession,
               activeSpecContent: shouldPreserveCurrentContent
                 ? currentSession.activeSpecContent
                 : null,
-              activeSpecReadError:
-                shouldPreserveCurrentContent
-                  ? currentSession.activeSpecReadError
-                  : errorMessage,
+              activeSpecReadError: shouldPreserveCurrentContent
+                ? currentSession.activeSpecReadError
+                : errorMessage,
               isReadingSpec: false,
             })),
           )
           if (shouldPreserveCurrentContent) {
             setBannerMessage(errorMessage)
           }
+          return 'failed'
         }
-      })()
+
+        if (readResult.previewUnavailableReason) {
+          const previewErrorMessage = getSpecPreviewUnavailableMessage(
+            readResult.previewUnavailableReason ?? 'binary_file',
+          )
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              activeSpecContent: shouldPreserveCurrentContent
+                ? currentSession.activeSpecContent
+                : null,
+              activeSpecReadError: shouldPreserveCurrentContent
+                ? currentSession.activeSpecReadError
+                : previewErrorMessage,
+              isReadingSpec: false,
+            })),
+          )
+          if (shouldPreserveCurrentContent) {
+            setBannerMessage(previewErrorMessage)
+          }
+          return 'failed'
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+            const shouldPreserveDraft = hasUnsavedChanges(
+              getWorkspaceDocumentSession(currentSession, relativePath)?.saveState ??
+                null,
+            )
+            const nextSession = shouldPreserveDraft
+              ? currentSession
+              : upsertWorkspaceDocumentSessionFromDisk(
+                  currentSession,
+                  relativePath,
+                  readResult.content ?? '',
+                )
+
+            return syncWorkspaceDisplayedDocumentContent({
+              ...nextSession,
+              activeSpecContent:
+                getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
+                readResult.content ??
+                '',
+              activeSpecReadError: null,
+              isReadingSpec: false,
+            })
+          }),
+        )
+        return 'success'
+      } catch (error) {
+        const requestId =
+          readSpecRequestIdByWorkspaceRef.current[workspaceId] ?? 0
+        if (
+          !isTrackedIpcCallCurrent(
+            readSpecRequestIdByWorkspaceRef,
+            workspaceId,
+            requestId,
+          )
+        ) {
+          return 'stale'
+        }
+
+        const errorMessage =
+          error instanceof Error
+            ? `Failed to read file: ${error.message}`
+            : 'Failed to read file.'
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            activeSpecContent: shouldPreserveCurrentContent
+              ? currentSession.activeSpecContent
+              : null,
+            activeSpecReadError:
+              shouldPreserveCurrentContent
+                ? currentSession.activeSpecReadError
+                : errorMessage,
+            isReadingSpec: false,
+          })),
+        )
+        if (shouldPreserveCurrentContent) {
+          setBannerMessage(errorMessage)
+        }
+        return 'failed'
+      }
     },
     [
       readSpecRequestIdByWorkspaceRef,
@@ -336,15 +343,15 @@ export function useWorkspaceFileOperations(input: {
   )
 
   const loadWorkspaceFile = useCallback(
-    (
+    async (
       workspaceId: WorkspaceId,
       relativePath: string,
       mode: 'select' | 'refresh',
       historyMode: 'push' | 'preserve' = 'push',
-    ) => {
+    ): Promise<WorkspaceLoadStatus> => {
       const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
       if (!workspaceSession) {
-        return
+        return 'failed'
       }
 
       const selectingMarkdown = isMarkdownFile(relativePath)
@@ -426,7 +433,7 @@ export function useWorkspaceFileOperations(input: {
           workspaceSession.rootPath,
           relativePath,
         )
-        return
+        return 'success'
       }
 
       setWorkspaceState((previous) =>
@@ -489,173 +496,29 @@ export function useWorkspaceFileOperations(input: {
         }),
       )
 
-      void (async () => {
-        try {
-          const { requestId, result: readResult } = await executeTrackedIpcCall({
-            requestIdByWorkspaceRef: readFileRequestIdByWorkspaceRef,
+      try {
+        const { requestId, result: readResult } = await executeTrackedIpcCall({
+          requestIdByWorkspaceRef: readFileRequestIdByWorkspaceRef,
+          workspaceId,
+          call: () => window.workspace.readFile(workspaceSession.rootPath, relativePath),
+        })
+        if (
+          !isTrackedIpcCallCurrent(
+            readFileRequestIdByWorkspaceRef,
             workspaceId,
-            call: () => window.workspace.readFile(workspaceSession.rootPath, relativePath),
-          })
-          if (
-            !isTrackedIpcCallCurrent(
-              readFileRequestIdByWorkspaceRef,
-              workspaceId,
-              requestId,
-            )
-          ) {
-            return
-          }
-
-          if (!readResult.ok) {
-            setWorkspaceState((previous) =>
-              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-                ...currentSession,
-                readFileError: readResult.error
-                  ? `Failed to read file: ${readResult.error}`
-                  : 'Failed to read file.',
-                activeFileGitLineMarkers: [],
-                isReadingFile: false,
-                activeSpecContent:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? null
-                    : currentSession.activeSpecContent,
-                activeSpecReadError:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? readResult.error
-                      ? `Failed to read file: ${readResult.error}`
-                      : 'Failed to read file.'
-                    : currentSession.activeSpecReadError,
-                isReadingSpec:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? false
-                    : currentSession.isReadingSpec,
-              })),
-            )
-            return
-          }
-
-          if (readResult.previewUnavailableReason) {
-            setWorkspaceState((previous) =>
-              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-                ...currentSession,
-                previewUnavailableReason: readResult.previewUnavailableReason ?? null,
-                activeFileImagePreview: null,
-                activeFileGitLineMarkers: [],
-                isReadingFile: false,
-                activeSpecContent:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? null
-                    : currentSession.activeSpecContent,
-                activeSpecReadError:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? getSpecPreviewUnavailableMessage(
-                        readResult.previewUnavailableReason ?? 'binary_file',
-                      )
-                    : currentSession.activeSpecReadError,
-                isReadingSpec:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? false
-                    : currentSession.isReadingSpec,
-              })),
-            )
-            return
-          }
-
-          setWorkspaceState((previous) =>
-            updateWorkspaceSession(previous, workspaceId, (currentSession) => {
-              if (readResult.imagePreview) {
-                return {
-                  ...currentSession,
-                  activeFileContent: null,
-                  activeFileImagePreview: readResult.imagePreview,
-                  activeFileGitLineMarkers: [],
-                  selectionRange: null,
-                  isReadingFile: false,
-                  activeSpecContent:
-                    shouldUpdateSpec || shouldRefreshSpec
-                      ? null
-                      : currentSession.activeSpecContent,
-                  activeSpecReadError:
-                    shouldUpdateSpec || shouldRefreshSpec
-                      ? null
-                      : currentSession.activeSpecReadError,
-                  isReadingSpec:
-                    shouldUpdateSpec || shouldRefreshSpec
-                      ? false
-                      : currentSession.isReadingSpec,
-                }
-              }
-
-              const shouldPreserveDraft = hasUnsavedChanges(
-                getWorkspaceDocumentSession(currentSession, relativePath)?.saveState ??
-                  null,
-              )
-              const nextSession = shouldPreserveDraft
-                ? currentSession
-                : upsertWorkspaceDocumentSessionFromDisk(
-                    currentSession,
-                    relativePath,
-                    readResult.content ?? '',
-                  )
-              const syncedSession = syncWorkspaceDisplayedDocumentContent({
-                ...nextSession,
-                activeFileContent:
-                  getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
-                  readResult.content ??
-                  '',
-                activeFileImagePreview: null,
-                activeFileGitLineMarkers: currentSession.activeFileGitLineMarkers,
-                selectionRange: currentSession.selectionRange,
-                isReadingFile: false,
-                activeSpecContent:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
-                      readResult.content ??
-                      ''
-                    : currentSession.activeSpecContent,
-                activeSpecReadError:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? null
-                    : currentSession.activeSpecReadError,
-                isReadingSpec:
-                  shouldUpdateSpec || shouldRefreshSpec
-                    ? false
-                    : currentSession.isReadingSpec,
-              })
-
-              return setDirty(
-                syncedSession,
-                getWorkspaceIsDirtyCompatibility(syncedSession),
-              )
-            }),
+            requestId,
           )
-          if (!readResult.imagePreview) {
-            void loadWorkspaceGitLineMarkers(
-              workspaceId,
-              workspaceSession.rootPath,
-              relativePath,
-            )
-          }
-        } catch (error) {
-          const requestId =
-            readFileRequestIdByWorkspaceRef.current[workspaceId] ?? 0
-          if (
-            !isTrackedIpcCallCurrent(
-              readFileRequestIdByWorkspaceRef,
-              workspaceId,
-              requestId,
-            )
-          ) {
-            return
-          }
+        ) {
+          return 'stale'
+        }
 
+        if (!readResult.ok) {
           setWorkspaceState((previous) =>
             updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
               ...currentSession,
-              readFileError:
-                error instanceof Error
-                  ? `Failed to read file: ${error.message}`
-                  : 'Failed to read file.',
+              readFileError: readResult.error
+                ? `Failed to read file: ${readResult.error}`
+                : 'Failed to read file.',
               activeFileGitLineMarkers: [],
               isReadingFile: false,
               activeSpecContent:
@@ -664,8 +527,8 @@ export function useWorkspaceFileOperations(input: {
                   : currentSession.activeSpecContent,
               activeSpecReadError:
                 shouldUpdateSpec || shouldRefreshSpec
-                  ? error instanceof Error
-                    ? `Failed to read file: ${error.message}`
+                  ? readResult.error
+                    ? `Failed to read file: ${readResult.error}`
                     : 'Failed to read file.'
                   : currentSession.activeSpecReadError,
               isReadingSpec:
@@ -674,8 +537,152 @@ export function useWorkspaceFileOperations(input: {
                   : currentSession.isReadingSpec,
             })),
           )
+          return 'failed'
         }
-      })()
+
+        if (readResult.previewUnavailableReason) {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+              ...currentSession,
+              previewUnavailableReason: readResult.previewUnavailableReason ?? null,
+              activeFileImagePreview: null,
+              activeFileGitLineMarkers: [],
+              isReadingFile: false,
+              activeSpecContent:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? null
+                  : currentSession.activeSpecContent,
+              activeSpecReadError:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? getSpecPreviewUnavailableMessage(
+                      readResult.previewUnavailableReason ?? 'binary_file',
+                    )
+                  : currentSession.activeSpecReadError,
+              isReadingSpec:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? false
+                  : currentSession.isReadingSpec,
+            })),
+          )
+          return 'failed'
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => {
+            if (readResult.imagePreview) {
+              return {
+                ...currentSession,
+                activeFileContent: null,
+                activeFileImagePreview: readResult.imagePreview,
+                activeFileGitLineMarkers: [],
+                selectionRange: null,
+                isReadingFile: false,
+                activeSpecContent:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? null
+                    : currentSession.activeSpecContent,
+                activeSpecReadError:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? null
+                    : currentSession.activeSpecReadError,
+                isReadingSpec:
+                  shouldUpdateSpec || shouldRefreshSpec
+                    ? false
+                    : currentSession.isReadingSpec,
+              }
+            }
+
+            const shouldPreserveDraft = hasUnsavedChanges(
+              getWorkspaceDocumentSession(currentSession, relativePath)?.saveState ??
+                null,
+            )
+            const nextSession = shouldPreserveDraft
+              ? currentSession
+              : upsertWorkspaceDocumentSessionFromDisk(
+                  currentSession,
+                  relativePath,
+                  readResult.content ?? '',
+                )
+            const syncedSession = syncWorkspaceDisplayedDocumentContent({
+              ...nextSession,
+              activeFileContent:
+                getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
+                readResult.content ??
+                '',
+              activeFileImagePreview: null,
+              activeFileGitLineMarkers: currentSession.activeFileGitLineMarkers,
+              selectionRange: currentSession.selectionRange,
+              isReadingFile: false,
+              activeSpecContent:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? getWorkspaceDocumentDraftContent(nextSession, relativePath) ??
+                    readResult.content ??
+                    ''
+                  : currentSession.activeSpecContent,
+              activeSpecReadError:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? null
+                  : currentSession.activeSpecReadError,
+              isReadingSpec:
+                shouldUpdateSpec || shouldRefreshSpec
+                  ? false
+                  : currentSession.isReadingSpec,
+            })
+
+            return setDirty(
+              syncedSession,
+              getWorkspaceIsDirtyCompatibility(syncedSession),
+            )
+          }),
+        )
+        if (!readResult.imagePreview) {
+          void loadWorkspaceGitLineMarkers(
+            workspaceId,
+            workspaceSession.rootPath,
+            relativePath,
+          )
+        }
+        return 'success'
+      } catch (error) {
+        const requestId =
+          readFileRequestIdByWorkspaceRef.current[workspaceId] ?? 0
+        if (
+          !isTrackedIpcCallCurrent(
+            readFileRequestIdByWorkspaceRef,
+            workspaceId,
+            requestId,
+          )
+        ) {
+          return 'stale'
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+            ...currentSession,
+            readFileError:
+              error instanceof Error
+                ? `Failed to read file: ${error.message}`
+                : 'Failed to read file.',
+            activeFileGitLineMarkers: [],
+            isReadingFile: false,
+            activeSpecContent:
+              shouldUpdateSpec || shouldRefreshSpec
+                ? null
+                : currentSession.activeSpecContent,
+            activeSpecReadError:
+              shouldUpdateSpec || shouldRefreshSpec
+                ? error instanceof Error
+                  ? `Failed to read file: ${error.message}`
+                  : 'Failed to read file.'
+                : currentSession.activeSpecReadError,
+            isReadingSpec:
+              shouldUpdateSpec || shouldRefreshSpec
+                ? false
+                : currentSession.isReadingSpec,
+          })),
+        )
+        return 'failed'
+      }
     },
     [
       loadWorkspaceGitLineMarkers,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCommentDisplayMaps,
   buildCommentLineEntryIndex,
   buildCommentLineIndex,
   findMostRecentCommentInSelectionRange,
@@ -158,5 +159,35 @@ describe('comment-line-index', () => {
     expect(mapped.get(2)?.map((comment) => comment.id)).toEqual([COMMENT_A.id])
     expect(mapped.get(4)?.map((comment) => comment.id)).toEqual([COMMENT_B.id])
     expect(mapped.get(11)?.map((comment) => comment.id)).toEqual([COMMENT_C.id])
+  })
+
+  it('relocates comment display positions against current file content', () => {
+    const movedComment: CodeComment = {
+      id: 'src/a.ts:4-4:eeee:2026-02-22T00:04:00.000Z',
+      relativePath: 'src/a.ts',
+      startLine: 4,
+      endLine: 4,
+      body: 'relocate me',
+      anchor: {
+        snippet: 'target',
+        hash: 'eeee',
+        before: 'gamma',
+        after: 'delta',
+      },
+      createdAt: '2026-02-22T00:04:00.000Z',
+    }
+
+    const display = buildCommentDisplayMaps(
+      [movedComment],
+      'src/a.ts',
+      'intro\nalpha\ntarget\ngamma\ntarget\ndelta',
+    )
+
+    expect(display.counts.get(5)).toBe(1)
+    expect(display.entries.get(5)?.[0]).toMatchObject({
+      id: movedComment.id,
+      startLine: 5,
+      endLine: 5,
+    })
   })
 })

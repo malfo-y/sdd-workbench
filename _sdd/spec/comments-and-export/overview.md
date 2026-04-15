@@ -9,8 +9,10 @@
 - 코드/스펙에서 코멘트를 추가한다.
 - Add Comment / Add Global Comments / View Comments / Export Comments 모달은 header drag로 위치를 옮길 수 있다.
 - 저장된 코멘트를 모달에서 조회, 수정, 삭제, exported 정리한다.
-- global comments를 별도 텍스트로 편집하고 export 포함 여부를 제어한다.
-- marker hover로 코멘트 내용을 빠르게 미리 본다.
+- global comments를 별도 텍스트로 편집하고, `##`/`###` heading으로 문서/섹션별로 조직할 수 있다.
+- global comments 최근 저장본은 append-only local history에서 다시 불러올 수 있다.
+- export modal에서 이미 export된 comment 재포함과 exported comment reset을 명시적으로 제어한다.
+- marker hover로 코멘트 내용을 빠르게 미리 보고, detail panel에서 전체 본문과 `Edit/Delete`를 연다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -21,7 +23,9 @@
 - 인덱스 / hover / export:
   - `src/code-comments/comment-line-index.ts`
   - `src/code-comments/comment-hover-popover.tsx`
+  - `src/code-comments/comment-marker-detail-panel.tsx`
   - `src/code-comments/comment-export.ts`
+  - `src/code-comments/global-comments-history.ts`
 - UI:
   - `src/modal-drag-position.ts`
   - `src/code-comments/comment-editor-modal.tsx`
@@ -48,7 +52,11 @@
 - 기본 export는 pending comments만 포함한다.
 - 사용자가 명시적으로 선택한 export에서는 exported comment도 다시 포함할 수 있다.
 - global comments는 체크박스가 켜진 경우에만 prepend 된다.
+- global comments source of truth는 자유형 markdown blob을 유지하지만, export와 modal organization은 `##` heading을 group/document, `###` heading을 section note로 해석한다.
+- export modal은 exported comment를 pending으로 reset할 수 있다.
+- clipboard disable과 bundle length 추정은 실제 export snapshot을 기준으로 계산한다.
 - hover preview는 최대 3개 코멘트까지만 표시한다.
+- hover preview는 preview-only surface고, 전체 본문 확인과 `Edit/Delete`는 marker detail panel이 담당한다.
 
 ### 4.4 modal positioning
 
@@ -63,7 +71,9 @@
 - `src/code-comments/comment-persistence.ts`
 - `src/code-comments/comment-line-index.ts`
 - `src/code-comments/comment-hover-popover.tsx`
+- `src/code-comments/comment-marker-detail-panel.tsx`
 - `src/code-comments/comment-export.ts`
+- `src/code-comments/global-comments-history.ts`
 - `src/modal-drag-position.ts`
 - `src/code-comments/comment-list-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
@@ -85,10 +95,13 @@
 - `src/code-comments/comment-editor-modal.test.tsx`
 - `src/code-comments/global-comments-modal.test.tsx`
 - `src/code-comments/export-comments-modal.test.tsx`
+- `src/code-comments/comment-hover-popover.test.tsx`
+- `src/code-comments/comment-marker-detail-panel.test.tsx`
 - `src/App.test.tsx`
 
 ## 8. 변경 시 주의점
 
 - schema 변경은 persistence, export text, modal UI, hover preview를 함께 갱신해야 한다.
 - global comments 포함 규칙은 export 카운트 문구와도 연결되어 있다.
+- global comments organization semantics를 바꿀 때는 modal detection, export markdown, bundle length 추정이 같은 parser를 써야 한다.
 - draggable header contract를 바꿀 때는 form control interaction, reopen reset, viewport clamp 회귀를 함께 확인해야 한다.

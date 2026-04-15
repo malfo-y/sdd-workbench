@@ -9,6 +9,10 @@ export type SpecLinkLineRange = {
   endLine: number
 }
 
+export type SpecLinkHeadingTarget = {
+  headingId: string
+}
+
 export type SpecLinkResolution =
   | {
       kind: 'anchor'
@@ -19,6 +23,7 @@ export type SpecLinkResolution =
       href: string
       targetRelativePath: string
       lineRange: SpecLinkLineRange | null
+      headingTarget: SpecLinkHeadingTarget | null
     }
   | {
       kind: 'workspace-symbol'
@@ -78,6 +83,34 @@ function parseLineRangeFromHash(hashFragment: string): SpecLinkLineRange | null 
   return parsedStartLine <= parsedEndLine
     ? { startLine: parsedStartLine, endLine: parsedEndLine }
     : { startLine: parsedEndLine, endLine: parsedStartLine }
+}
+
+function parseHeadingTargetFromHash(
+  hashFragment: string,
+): SpecLinkHeadingTarget | null {
+  if (!hashFragment) {
+    return null
+  }
+
+  try {
+    const decodedHeadingId = decodeURIComponent(hashFragment).trim()
+    if (decodedHeadingId.length > 0) {
+      return {
+        headingId: decodedHeadingId,
+      }
+    }
+  } catch {
+    // Fall back to the raw hash fragment below.
+  }
+
+  const trimmedHeadingId = hashFragment.trim()
+  if (!trimmedHeadingId) {
+    return null
+  }
+
+  return {
+    headingId: trimmedHeadingId,
+  }
 }
 
 export function resolveSpecLink(
@@ -170,10 +203,14 @@ export function resolveSpecLink(
     }
   }
 
+  const lineRange = parseLineRangeFromHash(hashFragment)
+
   return {
     kind: 'workspace-file',
     href: normalizedHref,
     targetRelativePath: resolvedPath,
-    lineRange: parseLineRangeFromHash(hashFragment),
+    lineRange,
+    headingTarget:
+      lineRange === null ? parseHeadingTargetFromHash(hashFragment) : null,
   }
 }

@@ -17,11 +17,13 @@ import { lightTheme } from './cm6-light-theme'
 import { getCM6Language } from './cm6-language-map'
 import { selectionToLineRange } from './cm6-selection-bridge'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
+import { getDisplayLanguage } from '../code-viewer/language-map'
 import { createGitMarkersExtension, setGitMarkers } from './cm6-git-gutter'
 import type { GitMarkerKind } from './cm6-git-gutter'
 import { createCommentGutterExtension, setCommentMarkers } from './cm6-comment-gutter'
 import type { CommentGutterEntry } from './cm6-comment-gutter'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
+import { CommentMarkerDetailPanel } from '../code-comments/comment-marker-detail-panel'
 import {
   createNavigationHighlightExtension,
   setNavigationLineHighlight,
@@ -119,44 +121,6 @@ function getPreviewUnavailableMessage(
     return 'Preview unavailable: blocked resource by policy.'
   }
   return 'Preview unavailable: binary file detected.'
-}
-
-function getDisplayLanguage(filePath: string | null): string {
-  if (!filePath) {
-    return 'plaintext'
-  }
-  const extension = filePath.split('.').at(-1)?.toLowerCase() ?? ''
-  if (!extension || extension === filePath.toLowerCase()) {
-    return 'plaintext'
-  }
-  const DISPLAY_MAP: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'tsx',
-    js: 'javascript',
-    jsx: 'jsx',
-    json: 'json',
-    css: 'css',
-    md: 'markdown',
-    py: 'python',
-    html: 'html',
-    htm: 'html',
-    xml: 'xml',
-    svg: 'xml',
-    yaml: 'yaml',
-    yml: 'yaml',
-    rs: 'rust',
-    go: 'go',
-    java: 'java',
-    c: 'c',
-    h: 'c',
-    cpp: 'cpp',
-    hpp: 'cpp',
-    sql: 'sql',
-    sh: 'shellscript',
-    bash: 'shellscript',
-    zsh: 'shellscript',
-  }
-  return DISPLAY_MAP[extension] ?? 'plaintext'
 }
 
 function isMarkdownFile(filePath: string | null): boolean {
@@ -415,6 +379,9 @@ export function CodeEditorPanel({
 
   // Comment hover state
   const [commentHoverState, setCommentHoverState] = useState<CommentHoverState | null>(null)
+  const [commentDetailState, setCommentDetailState] = useState<CommentHoverState | null>(
+    null,
+  )
 
   // Keep callback refs up to date
   useEffect(() => {
@@ -461,6 +428,10 @@ export function CodeEditorPanel({
     clearHoverCloseTimer()
     setCommentHoverState(null)
   }, [clearHoverCloseTimer])
+
+  const closeCommentDetail = useCallback(() => {
+    setCommentDetailState(null)
+  }, [])
 
   const scheduleCommentHoverClose = useCallback(() => {
     clearHoverCloseTimer()
@@ -524,6 +495,11 @@ export function CodeEditorPanel({
     [clearNavigationHighlightTimers],
   )
 
+  useEffect(() => {
+    setCommentHoverState(null)
+    setCommentDetailState(null)
+  }, [activeFile])
+
   // Bind comment hover refs each render so they always capture latest closures
   onCommentHoverRef.current = (lineNumber: number, rect: DOMRect) => {
     const entries = commentLineEntriesRef.current?.get(lineNumber) ?? []
@@ -549,16 +525,16 @@ export function CodeEditorPanel({
         )
       : null
 
+  const shouldMountEditor = activeFile !== null && !isImagePreviewMode
   const showEditor =
-    activeFile !== null &&
+    shouldMountEditor &&
     !readFileError &&
     !previewUnavailableReason &&
-    !imagePreview &&
     activeFileContent !== null
 
   // ---- Create / destroy EditorView when container becomes available ------
   useEffect(() => {
-    if (!containerRef.current) {
+    if (!containerRef.current || !shouldMountEditor) {
       return
     }
 
@@ -589,8 +565,13 @@ export function CodeEditorPanel({
       view.destroy()
       viewRef.current = null
     }
-    // Re-run when showEditor changes so we create the view after container mounts
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldMountEditor])
+
+  useEffect(() => {
+    if (showEditor) {
+      viewRef.current?.requestMeasure()
+    }
   }, [showEditor])
 
   // ---- Reconfigure line wrap compartment when wrap toggle changes ---------
@@ -792,7 +773,7 @@ export function CodeEditorPanel({
     return () => {
       container.removeEventListener('contextmenu', handleContextMenu)
     }
-  }, [activeFile, showEditor])
+  }, [activeFile, shouldMountEditor])
 
   // ---- Sync git gutter markers when prop changes -------------------------
   useEffect(() => {
@@ -992,10 +973,11 @@ export function CodeEditorPanel({
           </div>
         )}
 
-      {showEditor && (
+      {shouldMountEditor && (
         <div
           className="code-editor-cm6-container"
           data-testid="code-viewer-content"
+          hidden={!showEditor}
           ref={containerRef}
         />
       )}
@@ -1085,10 +1067,25 @@ export function CodeEditorPanel({
           comments={commentHoverState.comments}
           lineNumber={commentHoverState.lineNumber}
           onClose={closeCommentHover}
+          onOpenDetails={() => {
+            setCommentDetailState(commentHoverState)
+            closeCommentHover()
+          }}
           onMouseEnter={clearHoverCloseTimer}
           onMouseLeave={scheduleCommentHoverClose}
           x={commentHoverState.x}
           y={commentHoverState.y}
+        />
+      )}
+      {commentDetailState && !isImagePreviewMode && (
+        <CommentMarkerDetailPanel
+          comments={commentDetailState.comments}
+          lineNumber={commentDetailState.lineNumber}
+          onClose={closeCommentDetail}
+          onRequestDeleteComment={onRequestDeleteComment}
+          onRequestEditComment={onRequestEditComment}
+          x={commentDetailState.x}
+          y={commentDetailState.y}
         />
       )}
     </section>

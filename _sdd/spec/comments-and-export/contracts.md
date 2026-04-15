@@ -38,9 +38,12 @@
 
 1. 기본 export는 pending comments만 포함한다.
 2. 사용자가 명시적으로 선택한 export에서는 exported comment도 포함할 수 있다.
-3. global comments는 체크박스가 켜져 있고 내용이 비어 있지 않을 때만 prepend 한다.
-4. target 중 하나 이상 성공하면 성공한 snapshot line comment에만 `exportedAt`를 기록한다.
-5. `MAX_CLIPBOARD_CHARS=30000` 초과 시 clipboard target은 비활성화한다.
+3. export modal은 exported comment reset을 통해 `exportedAt`를 pending 상태로 되돌릴 수 있다.
+4. global comments는 체크박스가 켜져 있고 내용이 비어 있지 않을 때만 prepend 한다.
+5. global comments source of truth는 단일 markdown file이지만, `##` heading은 group/document section, `###` heading은 subsection note로 해석해 export section을 구성한다.
+6. target 중 하나 이상 성공하면 성공한 snapshot line comment에만 `exportedAt`를 기록한다.
+7. `MAX_CLIPBOARD_CHARS=30000` 초과 시 clipboard target은 비활성화한다.
+8. clipboard disable과 bundle length 추정은 실제 export snapshot(pending-only vs re-export 포함)을 기준으로 평가해야 한다.
 
 ## 5. marker / hover preview 규칙
 
@@ -50,6 +53,7 @@
 4. exact offset이 없는 legacy/imported table comment는 임의 cell에 false precision으로 붙이지 않고 neutral table anchor로 degrade 한다.
 5. nearest fallback이 필요하면 더 작은 line을 우선한다. 단, table neutral fallback이 가능한 경우 그 anchor를 우선한다.
 6. hover preview는 최대 3개 코멘트만 보여주고 초과분은 `+N more`로 요약한다.
+7. hover preview는 read-only preview surface를 유지하고, 전체 본문 확인과 `Edit/Delete`는 marker detail panel에서 수행한다.
 
 ## 6. modal positioning 규칙
 
@@ -67,7 +71,9 @@
 - `src/code-comments/comment-persistence.ts`
 - `src/code-comments/comment-line-index.ts`
 - `src/code-comments/comment-hover-popover.tsx`
+- `src/code-comments/comment-marker-detail-panel.tsx`
 - `src/code-comments/comment-export.ts`
+- `src/code-comments/global-comments-history.ts`
 - `src/code-comments/comment-list-modal.tsx`
 - `src/code-comments/export-comments-modal.tsx`
 - `src/code-comments/global-comments-modal.tsx`
@@ -83,5 +89,7 @@
 - `src/code-comments/comment-editor-modal.test.tsx`
 - `src/code-comments/global-comments-modal.test.tsx`
 - `src/code-comments/export-comments-modal.test.tsx`
+- `src/code-comments/comment-hover-popover.test.tsx`
+- `src/code-comments/comment-marker-detail-panel.test.tsx`
 - `src/spec-viewer/spec-viewer-panel.test.tsx`
 - `src/App.test.tsx`

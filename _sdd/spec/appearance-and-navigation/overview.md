@@ -10,6 +10,7 @@
 - 동일 markdown 파일에서 Code 탭 편집(draft) 후 Spec 탭으로 전환하면 저장하지 않은 변경이 rendered spec에 즉시 반영된다.
 - Code/Spec 탭 전환 자체는 저장/undo/redo를 트리거하지 않으며, 문서 내용은 같은 document session(draft)을 공유한다.
 - Back/Forward, 워크스페이스 키보드 전환, Code/Spec 키보드 전환을 사용할 수 있다.
+- history navigation은 `app-command` 브리지로 항상 지원하고, native swipe / trackpad horizontal gesture는 supported macOS 계열 플랫폼에서만 활성화한다.
 - spec -> code, code -> spec 이동 후 도착 라인/블록이 잠깐 하이라이트된다.
 - native `View > Theme` 메뉴에서 `Dark Gray`/`Light`/`System`을 고를 수 있다.
 
@@ -42,6 +43,7 @@
 - explicit navigation만 temporary highlight를 발생시킨다.
 - highlight는 search/comment/selection과 별도 additive 상태다.
 - 동일 target 재이동은 `token`으로 재트리거한다.
+- swipe history는 history-navigation scope 안에서만 처리하고, 비지원 플랫폼에서는 무시한다.
 
 ### 4.3 theme
 

@@ -239,6 +239,30 @@ describe('createFileClipboardHandlers', () => {
       expect(result).toEqual({ ok: true, pastedPaths: ['dest/a.ts'], source: 'internal' })
     })
 
+    it('rejects internal clipboard paste across different workspace roots', async () => {
+      const copyEntriesFn = vi.fn()
+      const router = makeMockRouter(copyEntriesFn)
+      const { handleSetFileClipboard, handlePasteFromClipboard } =
+        createFileClipboardHandlers(router)
+
+      await handleSetFileClipboard(mockEvent, {
+        rootPath: '/proj-a',
+        paths: [{ relativePath: 'a.ts', kind: 'file' }],
+      })
+
+      const result = await handlePasteFromClipboard(mockEvent, {
+        rootPath: '/proj-b',
+        destDir: 'dest',
+      })
+
+      expect(result).toEqual({
+        ok: false,
+        source: 'internal',
+        error: 'Paste is only allowed inside the same workspace root.',
+      })
+      expect(copyEntriesFn).not.toHaveBeenCalled()
+    })
+
     it('returns error on backend failure during paste', async () => {
       const copyEntriesFn = vi.fn().mockRejectedValue(new Error('copy failed'))
       const router = makeMockRouter(copyEntriesFn)

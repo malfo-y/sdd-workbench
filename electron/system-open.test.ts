@@ -27,6 +27,16 @@ describe('electron/system-open', () => {
     expect(command).toContain("s-here")
   })
 
+  it('rejects remote iTerm commands when host starts with a dash', () => {
+    expect(() =>
+      buildRemoteItermCommand({
+        workspaceId: 'remote-a',
+        host: '-ProxyCommand=evil',
+        remoteRoot: '/srv/project-a',
+      }),
+    ).toThrow('Invalid remote workspace profile: host cannot start with "-".')
+  })
+
   it('builds VSCode remote args from sshAlias', () => {
     expect(
       buildVsCodeRemoteArgs({
@@ -69,6 +79,19 @@ describe('electron/system-open', () => {
       }),
     ).toThrow(
       'Open in VSCode for remote workspace requires a local SSH config Host alias.',
+    )
+  })
+
+  it('throws when remote VSCode root is not absolute', () => {
+    expect(() =>
+      buildVsCodeRemoteArgs({
+        workspaceId: 'remote-a',
+        host: 'example.com',
+        remoteRoot: 'srv/project-a',
+        sshAlias: 'devbox-a',
+      }),
+    ).toThrow(
+      'Invalid remote workspace profile: remoteRoot must be an absolute POSIX path.',
     )
   })
 

@@ -94,4 +94,35 @@ describe('comment-persistence', () => {
     expect(parsed.error).toBeNull()
     expect(parsed.comments).toEqual([EXACT_OFFSET_COMMENT])
   })
+
+  it('skips comments with invalid numeric line values instead of coercing them', () => {
+    const parsed = parseCodeComments(
+      JSON.stringify([
+        {
+          ...SAMPLE_COMMENT,
+          startLine: 'not-a-number',
+        },
+      ]),
+    )
+
+    expect(parsed.comments).toEqual([])
+    expect(parsed.error).toContain('skipped')
+  })
+
+  it('skips anchors with invalid numeric offset metadata', () => {
+    const parsed = parseCodeComments(
+      JSON.stringify([
+        {
+          ...EXACT_OFFSET_COMMENT,
+          anchor: {
+            ...EXACT_OFFSET_COMMENT.anchor,
+            startOffset: 'bad',
+          },
+        },
+      ]),
+    )
+
+    expect(parsed.comments).toEqual([])
+    expect(parsed.error).toContain('skipped')
+  })
 })

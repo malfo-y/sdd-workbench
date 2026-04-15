@@ -69,6 +69,10 @@ export function resetClipboardState(): void {
   clipboardState = null
 }
 
+function normalizeWorkspaceRootPath(rootPath: string): string {
+  return rootPath.includes('://') ? rootPath.trim() : path.resolve(rootPath)
+}
+
 /**
  * macOS Finder 클립보드에서 파일 경로 배열을 읽는다.
  * electron-clipboard-ex의 readFilePaths()로 native NSPasteboard에 직접 접근한다.
@@ -211,6 +215,16 @@ export function createFileClipboardHandlers(backendRouter: WorkspaceBackendRoute
       // Internal clipboard
       if (clipboardState === null) {
         return { ok: true, source: 'none' }
+      }
+      if (
+        normalizeWorkspaceRootPath(clipboardState.rootPath) !==
+        normalizeWorkspaceRootPath(request.rootPath)
+      ) {
+        return {
+          ok: false,
+          source: 'internal',
+          error: 'Paste is only allowed inside the same workspace root.',
+        }
       }
       const backend = backendRouter.resolveByRootPath(request.rootPath)
       const result = await backend.copyEntries({

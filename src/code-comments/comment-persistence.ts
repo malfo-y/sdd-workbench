@@ -12,6 +12,30 @@ type ParsedCommentsResult = {
   error: string | null
 }
 
+function parseOptionalFiniteNumber(rawValue: unknown): number | undefined | null {
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return undefined
+  }
+
+  const parsed =
+    typeof rawValue === 'number' ? rawValue : Number(rawValue)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+
+  return parsed
+}
+
+function parseRequiredFiniteLineNumber(rawValue: unknown): number | null {
+  const parsed =
+    typeof rawValue === 'number' ? rawValue : Number(rawValue)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+
+  return parsed
+}
+
 function parseAnchor(rawAnchor: unknown): CodeCommentAnchor | null {
   if (!rawAnchor || typeof rawAnchor !== 'object') {
     return null
@@ -26,16 +50,19 @@ function parseAnchor(rawAnchor: unknown): CodeCommentAnchor | null {
     return null
   }
 
-  const sourceOffsetRange = normalizeSourceOffsetRange({
-    startOffset:
-      typeof anchorRecord.startOffset === 'number'
-        ? anchorRecord.startOffset
-        : Number(anchorRecord.startOffset),
-    endOffset:
-      typeof anchorRecord.endOffset === 'number'
-        ? anchorRecord.endOffset
-        : Number(anchorRecord.endOffset),
-  })
+  const parsedStartOffset = parseOptionalFiniteNumber(anchorRecord.startOffset)
+  const parsedEndOffset = parseOptionalFiniteNumber(anchorRecord.endOffset)
+  if (parsedStartOffset === null || parsedEndOffset === null) {
+    return null
+  }
+
+  const sourceOffsetRange =
+    parsedStartOffset !== undefined && parsedEndOffset !== undefined
+      ? normalizeSourceOffsetRange({
+          startOffset: parsedStartOffset,
+          endOffset: parsedEndOffset,
+        })
+      : null
 
   return {
     snippet,
@@ -91,15 +118,15 @@ function parseComment(rawComment: unknown): CodeComment | null {
     return null
   }
 
+  const parsedStartLine = parseRequiredFiniteLineNumber(commentRecord.startLine)
+  const parsedEndLine = parseRequiredFiniteLineNumber(commentRecord.endLine)
+  if (parsedStartLine === null || parsedEndLine === null) {
+    return null
+  }
+
   const normalizedSelection = normalizeCommentSelection({
-    startLine:
-      typeof commentRecord.startLine === 'number'
-        ? commentRecord.startLine
-        : Number(commentRecord.startLine),
-    endLine:
-      typeof commentRecord.endLine === 'number'
-        ? commentRecord.endLine
-        : Number(commentRecord.endLine),
+    startLine: parsedStartLine,
+    endLine: parsedEndLine,
   })
 
   const id =

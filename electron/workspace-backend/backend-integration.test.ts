@@ -6,24 +6,37 @@ import { createRemoteWorkspaceBackend } from './remote-workspace-backend'
 describe('workspace-backend/backend-integration', () => {
   it('routes local and remote index calls to each backend', async () => {
     const localBackend = createLocalWorkspaceBackend({
-      index: async () => ({ ok: true, backend: 'local' }),
-      indexDirectory: async () => ({ ok: true }),
-      readFile: async () => ({ ok: true }),
+      index: async () => ({ ok: true, fileTree: [], backend: 'local' }),
+      indexDirectory: async () => ({
+        ok: true,
+        children: [],
+        childrenStatus: 'complete',
+        totalChildCount: 0,
+      }),
+      readFile: async () => ({ ok: true, content: null }),
       writeFile: async () => ({ ok: true }),
       createFile: async () => ({ ok: true }),
       createDirectory: async () => ({ ok: true }),
       deleteFile: async () => ({ ok: true }),
       deleteDirectory: async () => ({ ok: true }),
       rename: async () => ({ ok: true }),
-      searchFiles: async () => ({ ok: true, backend: 'local', results: [] }),
-      getGitLineMarkers: async () => ({ ok: true }),
-      getGitFileStatuses: async () => ({ ok: true }),
-      readComments: async () => ({ ok: true }),
+      searchFiles: async () => ({
+        ok: true,
+        backend: 'local',
+        results: [],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+      }),
+      getGitLineMarkers: async () => ({ ok: true, markers: [] }),
+      getGitFileStatuses: async () => ({ ok: true, statuses: {} }),
+      readComments: async () => ({ ok: true, comments: [] }),
       writeComments: async () => ({ ok: true }),
-      readGlobalComments: async () => ({ ok: true }),
+      readGlobalComments: async () => ({ ok: true, body: '' }),
       writeGlobalComments: async () => ({ ok: true }),
       exportCommentsBundle: async () => ({ ok: true }),
-      copyEntries: async () => ({ ok: true }),
+      copyEntries: async () => ({ ok: true, copiedPaths: [] }),
       watchStart: async () => ({ ok: true }),
       watchStop: async () => ({ ok: true }),
     })
@@ -35,10 +48,18 @@ describe('workspace-backend/backend-integration', () => {
       rootPath: 'remote://workspace-a',
       requestRemote: async (_workspaceId, method) => {
         if (method === 'workspace.index') {
-          return { ok: true, backend: 'remote' }
+          return { ok: true, fileTree: [], backend: 'remote' }
         }
         if (method === 'workspace.searchFiles') {
-          return { ok: true, backend: 'remote', results: [] }
+          return {
+            ok: true,
+            backend: 'remote',
+            results: [],
+            truncated: false,
+            skippedLargeDirectoryCount: 0,
+            depthLimitHit: false,
+            timedOut: false,
+          }
         }
         return { ok: true }
       },
@@ -66,9 +87,25 @@ describe('workspace-backend/backend-integration', () => {
       .resolveByRootPath('remote://workspace-a')
       .searchFiles({ rootPath: 'remote://workspace-a', query: 'guide*deep' })
 
-    expect(localResult).toEqual({ ok: true, backend: 'local' })
-    expect(remoteResult).toEqual({ ok: true, backend: 'remote' })
-    expect(localSearchResult).toEqual({ ok: true, backend: 'local', results: [] })
-    expect(remoteSearchResult).toEqual({ ok: true, backend: 'remote', results: [] })
+    expect(localResult).toEqual({ ok: true, fileTree: [], backend: 'local' })
+    expect(remoteResult).toEqual({ ok: true, fileTree: [], backend: 'remote' })
+    expect(localSearchResult).toEqual({
+      ok: true,
+      backend: 'local',
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
+    expect(remoteSearchResult).toEqual({
+      ok: true,
+      backend: 'remote',
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
   })
 })

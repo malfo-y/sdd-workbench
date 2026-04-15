@@ -1,5 +1,3 @@
-import type { WorkspaceFileNode } from './workspace/workspace-model'
-
 export function collectWorkspaceFilePaths(
   nodes: WorkspaceFileNode[],
   paths = new Set<string>(),

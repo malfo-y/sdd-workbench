@@ -3,6 +3,7 @@ import type {
   WorkspaceWatchEventPayload,
   WorkspaceWatchFallbackEventPayload,
   WorkspaceWatchModePreference,
+  WorkspaceBackendResult,
 } from './types'
 
 type RequestRemote = (
@@ -67,7 +68,7 @@ export class RemoteWatchBridge {
       {
         watchModePreference,
       },
-    )
+    ) as WorkspaceBackendResult<'watchStart'>
 
     if (isRemoteWatchStartResult(result)) {
       return {

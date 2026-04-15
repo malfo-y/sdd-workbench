@@ -429,6 +429,7 @@ function scheduleWorkspacePollingTick(workspaceId: string) {
 async function createNativeWorkspaceWatcherEntry(
   workspaceId: string,
   resolvedRootPath: string,
+  pollIntervalMs: number,
 ): Promise<WorkspaceWatcherEntry> {
   const watcher = chokidar.watch(resolvedRootPath, {
     ignored: (candidatePath) =>
@@ -461,7 +462,7 @@ async function createNativeWorkspaceWatcherEntry(
   watcher.on('error', (error) => {
     const errorCode = (error as NodeJS.ErrnoException).code
     if (errorCode === 'EPERM' || errorCode === 'ENOSYS' || errorCode === 'ENOTSUP') {
-      void switchToPollingFallback(workspaceId, resolvedRootPath)
+      void switchToPollingFallback(workspaceId, resolvedRootPath, pollIntervalMs)
       return
     }
     console.error(`Workspace watcher error (${workspaceId}).`, error)
@@ -499,6 +500,7 @@ async function createPollingWorkspaceWatcherEntry(
 async function switchToPollingFallback(
   workspaceId: string,
   resolvedRootPath: string,
+  pollIntervalMs: number,
 ) {
   if (workspacesInFallbackTransition.has(workspaceId)) {
     return
@@ -517,7 +519,7 @@ async function switchToPollingFallback(
     const pollEntry = await createPollingWorkspaceWatcherEntry(
       workspaceId,
       resolvedRootPath,
-      WORKSPACE_WATCH_POLL_INTERVAL_MS,
+      pollIntervalMs,
     )
     workspaceWatchers.set(workspaceId, pollEntry)
     scheduleWorkspacePollingTick(workspaceId)
@@ -645,12 +647,16 @@ export async function handleWorkspaceWatchStart(
     try {
       watchEntry =
         resolvedWatchMode === 'native'
-          ? await createNativeWorkspaceWatcherEntry(workspaceId, resolvedRootPath)
+          ? await createNativeWorkspaceWatcherEntry(
+              workspaceId,
+              resolvedRootPath,
+              watchModeResolution.pollIntervalMs,
+            )
           : await createPollingWorkspaceWatcherEntry(
-            workspaceId,
-            resolvedRootPath,
-            WORKSPACE_WATCH_POLL_INTERVAL_MS,
-          )
+              workspaceId,
+              resolvedRootPath,
+              watchModeResolution.pollIntervalMs,
+            )
     } catch (error) {
       if (resolvedWatchMode !== 'native') {
         throw error
@@ -662,7 +668,7 @@ export async function handleWorkspaceWatchStart(
       watchEntry = await createPollingWorkspaceWatcherEntry(
         workspaceId,
         resolvedRootPath,
-        WORKSPACE_WATCH_POLL_INTERVAL_MS,
+        watchModeResolution.pollIntervalMs,
       )
       resolvedWatchMode = 'polling'
       fallbackApplied = true

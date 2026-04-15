@@ -245,6 +245,8 @@ export type CodeCommentRecord = {
     hash: string
     before?: string
     after?: string
+    startOffset?: number
+    endOffset?: number
   }
   createdAt: string
   exportedAt?: string
@@ -392,17 +394,6 @@ export type WorkspaceSearchFilesOptions = {
   maxResults?: number
   maxDirectoryChildren?: number
   timeBudgetMs?: number
-}
-
-export type WorkspaceWatchEventPayload = {
-  workspaceId: string
-  changedRelativePaths: string[]
-  hasStructureChanges?: boolean
-}
-
-export type WorkspaceHistoryNavigationEventPayload = {
-  direction: 'back' | 'forward'
-  source: 'app-command' | 'swipe'
 }
 
 export type WorkspaceRemoteConnectionProfile = {

@@ -12,13 +12,13 @@ describe('remote-agent/security', () => {
     }
   })
 
-  it('rejects non-whitelisted methods with PATH_DENIED', () => {
+  it('rejects non-whitelisted methods with METHOD_NOT_ALLOWED', () => {
     try {
       assertRemoteWorkspaceMethodAllowed('workspace.execShell')
       throw new Error('Expected method whitelist guard to throw.')
     } catch (error) {
       expect(error).toMatchObject({
-        code: 'PATH_DENIED',
+        code: 'METHOD_NOT_ALLOWED',
       })
     }
   })

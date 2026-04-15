@@ -3545,6 +3545,80 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('ignores swipe history events on unsupported platforms while preserving app-command navigation', async () => {
+    const originalUserAgent = window.navigator.userAgent
+    const originalPlatform = window.navigator.platform
+
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (X11; Linux x86_64)',
+    })
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'Linux x86_64',
+    })
+
+    try {
+      const workspaceRoot = '/Users/tester/history-ipc-unsupported-platform'
+
+      openDialogMock.mockResolvedValueOnce({
+        canceled: false,
+        selectedPath: workspaceRoot,
+      })
+      indexWorkspaceMock.mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          { name: 'a.ts', relativePath: 'a.ts', kind: 'file' },
+          { name: 'b.ts', relativePath: 'b.ts', kind: 'file' },
+        ],
+      })
+      readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+        ok: true,
+        content: `content:${relativePath}`,
+      }))
+
+      render(
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'a.ts' })).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'a.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'b.ts' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+      })
+
+      fireEvent.pointerDown(screen.getByTestId('code-viewer-panel'))
+      emitHistoryNavigateEvent({ direction: 'back', source: 'swipe' })
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('b.ts')
+      })
+
+      emitHistoryNavigateEvent({ direction: 'back', source: 'app-command' })
+      await waitFor(() => {
+        expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent('a.ts')
+      })
+    } finally {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: originalUserAgent,
+      })
+      Object.defineProperty(window.navigator, 'platform', {
+        configurable: true,
+        value: originalPlatform,
+      })
+    }
+  })
+
   it('auto-switches tab when navigating history between code and spec files', async () => {
     const workspaceRoot = '/Users/tester/history-tab-switch'
 

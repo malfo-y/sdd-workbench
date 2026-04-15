@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process'
 import { Buffer } from 'node:buffer'
-import { randomUUID } from 'node:crypto'
 import type { Dirent } from 'node:fs'
 import {
   mkdir,
@@ -14,6 +13,11 @@ import {
 } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { writeFileAtomic } from '../../atomic-write'
+import {
+  parseStoredCodeCommentsJson,
+  serializeStoredCodeComments,
+} from '../../comment-storage'
 import { parseGitStatusPorcelain } from '../../git-file-statuses'
 import { parseGitDiffLineMarkers } from '../../git-line-markers'
 import { RemoteAgentError } from '../protocol'
@@ -417,12 +421,6 @@ function buildImagePreview(relativePath: string, contentBuffer: Buffer):
     mimeType,
     dataUrl,
   }
-}
-
-async function writeFileAtomic(targetPath: string, content: string): Promise<void> {
-  const tempPath = `${targetPath}.${randomUUID()}.tmp`
-  await writeFile(tempPath, content, 'utf8')
-  await rename(tempPath, targetPath)
 }
 
 function runGitCommand(rootPath: string, args: string[]): Promise<string> {
@@ -871,20 +869,26 @@ export async function workspaceGetGitFileStatuses(
 
 export async function workspaceReadComments(
   context: WorkspaceOpsContext,
-): Promise<{ ok: true; comments: unknown[] }> {
+): Promise<{ ok: true; comments: unknown[]; error?: string }> {
   const { commentsJsonPath } = getWorkspaceCommentPaths(context.rootPath)
   ensurePathWithinWorkspace(context.rootPath, commentsJsonPath)
 
   try {
     const rawJson = await readFile(commentsJsonPath, 'utf8')
-    const parsedComments = JSON.parse(rawJson)
-    if (!Array.isArray(parsedComments)) {
-      throw new RemoteAgentError('UNKNOWN', 'Invalid comments file format: expected an array.')
+    const parsedCommentsResult = parseStoredCodeCommentsJson(rawJson)
+    if (parsedCommentsResult.isFatal) {
+      throw new RemoteAgentError(
+        'UNKNOWN',
+        parsedCommentsResult.error ?? 'Invalid comments file format.',
+      )
     }
 
     return {
       ok: true,
-      comments: parsedComments,
+      comments: parsedCommentsResult.comments,
+      ...(parsedCommentsResult.error
+        ? { error: parsedCommentsResult.error }
+        : {}),
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -901,10 +905,6 @@ export async function workspaceWriteComments(
   context: WorkspaceOpsContext,
   params: { comments?: unknown },
 ): Promise<{ ok: true }> {
-  if (!Array.isArray(params.comments)) {
-    throw new RemoteAgentError('UNKNOWN', 'comments must be an array.')
-  }
-
   const { metadataDirectoryPath, commentsJsonPath } =
     getWorkspaceCommentPaths(context.rootPath)
 
@@ -912,7 +912,15 @@ export async function workspaceWriteComments(
   ensurePathWithinWorkspace(context.rootPath, commentsJsonPath)
 
   await mkdir(metadataDirectoryPath, { recursive: true })
-  const serializedComments = `${JSON.stringify(params.comments, null, 2)}\n`
+  let serializedComments = ''
+  try {
+    serializedComments = serializeStoredCodeComments(params.comments)
+  } catch (error) {
+    throw new RemoteAgentError(
+      'UNKNOWN',
+      error instanceof Error ? error.message : 'Invalid comments schema.',
+    )
+  }
   await writeFileAtomic(commentsJsonPath, serializedComments)
   return { ok: true }
 }

@@ -19,10 +19,11 @@ import {
 import {
   clearWorkspaceSessionSnapshot,
   createWorkspaceSessionSnapshot,
-  loadWorkspaceSessionSnapshot,
+  loadWorkspaceSessionSnapshotWithDiagnostics,
   saveWorkspaceSessionSnapshot,
   type WorkspaceSessionSnapshot,
 } from './workspace-persistence'
+import type { TrackedAsyncActionStatus } from './ipc-call-helper'
 import {
   getLoadedChildCountForDirectory,
   isIgnorableDirectoryHydrationError,
@@ -35,6 +36,7 @@ type SetWorkspaceState = Dispatch<SetStateAction<WorkspaceState>>
 type SetBannerMessage = Dispatch<SetStateAction<string | null>>
 type WorkspaceStateRef = MutableRefObject<WorkspaceState>
 type WorkspaceIndexStatus = 'success' | 'failed' | 'stale'
+type WorkspaceLoadStatus = TrackedAsyncActionStatus
 
 function createWorkspaceStateFromSnapshot(
   snapshot: WorkspaceSessionSnapshot,
@@ -104,14 +106,14 @@ export function useWorkspaceSnapshot(input: {
   loadWorkspaceFile: (
     workspaceId: WorkspaceId,
     relativePath: string,
-    mode?: 'select' | 'refresh',
+    mode: 'select' | 'refresh',
     historyMode?: 'push' | 'preserve',
-  ) => void
+  ) => Promise<WorkspaceLoadStatus>
   loadWorkspaceSpec: (
     workspaceId: WorkspaceId,
     relativePath: string,
     mode?: 'select' | 'refresh',
-  ) => void
+  ) => Promise<WorkspaceLoadStatus>
   connectRemoteWorkspace: (profile: WorkspaceRemoteProfile) => Promise<boolean>
   handleRestoreFailure: (workspaceId: WorkspaceId) => void
   startWorkspaceWatch: (
@@ -122,7 +124,7 @@ export function useWorkspaceSnapshot(input: {
       watchModePreference?: WorkspaceWatchModePreference
     },
   ) => Promise<boolean>
-  stopWorkspaceWatch: (workspaceId: WorkspaceId) => Promise<void>
+  stopWorkspaceWatch: (workspaceId: WorkspaceId) => Promise<boolean>
 }) {
   const {
     workspaceState,
@@ -346,8 +348,12 @@ export function useWorkspaceSnapshot(input: {
     let isDisposed = false
 
     const hydrateWorkspaceState = async () => {
-      const snapshot = loadWorkspaceSessionSnapshot()
+      const { snapshot, error: snapshotLoadError } =
+        loadWorkspaceSessionSnapshotWithDiagnostics()
       if (!snapshot || isDisposed) {
+        if (!isDisposed && snapshotLoadError) {
+          showBanner(snapshotLoadError)
+        }
         if (!isDisposed) {
           setHasHydratedSnapshot(true)
         }
@@ -358,44 +364,84 @@ export function useWorkspaceSnapshot(input: {
       workspaceStateRef.current = hydratedWorkspaceState
       setWorkspaceState(hydratedWorkspaceState)
 
-      let failedRestoreCount = 0
-      for (const workspaceId of hydratedWorkspaceState.workspaceOrder) {
-        if (isDisposed) {
-          return
-        }
-
-        const workspaceSession = workspaceStateRef.current.workspacesById[workspaceId]
-        const persistedWorkspaceSession = snapshot.workspacesById[workspaceId]
-        if (!workspaceSession || !persistedWorkspaceSession) {
-          continue
-        }
-
-        if (workspaceSession.workspaceKind === 'remote') {
-          const remoteProfile = workspaceSession.remoteProfile
-          if (!remoteProfile) {
-            setWorkspaceState((previous) =>
-              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-                ...currentSession,
-                remoteConnectionState: 'disconnected',
-                remoteErrorCode: null,
-              })),
-            )
-            continue
+      const restoreResults = await Promise.allSettled(
+        hydratedWorkspaceState.workspaceOrder.map(async (workspaceId) => {
+          if (isDisposed) {
+            return false
           }
 
-          const reconnected = await connectRemoteWorkspace(remoteProfile)
-          if (!reconnected) {
-            setWorkspaceState((previous) =>
-              updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
-                ...currentSession,
-                remoteConnectionState: 'disconnected',
-              })),
-            )
-            continue
+          const workspaceSession =
+            workspaceStateRef.current.workspacesById[workspaceId]
+          const persistedWorkspaceSession = snapshot.workspacesById[workspaceId]
+          if (!workspaceSession || !persistedWorkspaceSession) {
+            return false
+          }
+
+          if (workspaceSession.workspaceKind === 'remote') {
+            const remoteProfile = workspaceSession.remoteProfile
+            if (!remoteProfile) {
+              setWorkspaceState((previous) =>
+                updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                  ...currentSession,
+                  remoteConnectionState: 'disconnected',
+                  remoteErrorCode: null,
+                })),
+              )
+              return false
+            }
+
+            const reconnected = await connectRemoteWorkspace(remoteProfile)
+            if (!reconnected) {
+              setWorkspaceState((previous) =>
+                updateWorkspaceSession(previous, workspaceId, (currentSession) => ({
+                  ...currentSession,
+                  remoteConnectionState: 'disconnected',
+                })),
+              )
+              return false
+            }
+
+            if (persistedWorkspaceSession.activeFile) {
+              await loadWorkspaceFile(
+                workspaceId,
+                persistedWorkspaceSession.activeFile,
+                'select',
+                'push',
+              )
+            }
+
+            if (
+              persistedWorkspaceSession.activeSpec &&
+              persistedWorkspaceSession.activeSpec !==
+                persistedWorkspaceSession.activeFile
+            ) {
+              await loadWorkspaceSpec(
+                workspaceId,
+                persistedWorkspaceSession.activeSpec,
+              )
+            }
+            return true
+          }
+
+          const [watchStarted, indexStatus] = await Promise.all([
+            startWorkspaceWatch(workspaceId, workspaceSession.rootPath),
+            loadWorkspaceIndex(workspaceId, workspaceSession.rootPath, 'refresh'),
+          ])
+
+          if (indexStatus === 'failed') {
+            if (watchStarted) {
+              await stopWorkspaceWatch(workspaceId)
+            }
+            handleRestoreFailure(workspaceId)
+            return false
+          }
+
+          if (indexStatus === 'success') {
+            void loadWorkspaceGitFileStatuses(workspaceId, workspaceSession.rootPath)
           }
 
           if (persistedWorkspaceSession.activeFile) {
-            loadWorkspaceFile(
+            await loadWorkspaceFile(
               workspaceId,
               persistedWorkspaceSession.activeFile,
               'select',
@@ -407,48 +453,29 @@ export function useWorkspaceSnapshot(input: {
             persistedWorkspaceSession.activeSpec &&
             persistedWorkspaceSession.activeSpec !== persistedWorkspaceSession.activeFile
           ) {
-            loadWorkspaceSpec(workspaceId, persistedWorkspaceSession.activeSpec)
+            await loadWorkspaceSpec(
+              workspaceId,
+              persistedWorkspaceSession.activeSpec,
+            )
           }
+
+          return true
+        }),
+      )
+
+      let failedRestoreCount = 0
+      for (const [index, restoreResult] of restoreResults.entries()) {
+        if (restoreResult.status === 'fulfilled' && restoreResult.value) {
           continue
         }
 
-        const watchStarted = await startWorkspaceWatch(
-          workspaceId,
-          workspaceSession.rootPath,
-        )
-        const indexStatus = await loadWorkspaceIndex(
-          workspaceId,
-          workspaceSession.rootPath,
-          'refresh',
-        )
-
-        if (indexStatus === 'failed') {
+        const workspaceId = hydratedWorkspaceState.workspaceOrder[index]
+        if (workspaceId) {
           failedRestoreCount += 1
-          if (watchStarted) {
-            await stopWorkspaceWatch(workspaceId)
-          }
-          handleRestoreFailure(workspaceId)
-          continue
         }
 
-        if (indexStatus === 'success') {
-          void loadWorkspaceGitFileStatuses(workspaceId, workspaceSession.rootPath)
-        }
-
-        if (persistedWorkspaceSession.activeFile) {
-          loadWorkspaceFile(
-            workspaceId,
-            persistedWorkspaceSession.activeFile,
-            'select',
-            'push',
-          )
-        }
-
-        if (
-          persistedWorkspaceSession.activeSpec &&
-          persistedWorkspaceSession.activeSpec !== persistedWorkspaceSession.activeFile
-        ) {
-          loadWorkspaceSpec(workspaceId, persistedWorkspaceSession.activeSpec)
+        if (restoreResult.status === 'rejected') {
+          console.warn('Failed to restore workspace from snapshot.', restoreResult.reason)
         }
       }
 

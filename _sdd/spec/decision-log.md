@@ -68,6 +68,26 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-04-15 - post-split backlog UX 완료 반영 + comment/navigation contract 정리
+
+- Context:
+  - post-split remediation 구현으로 active heading, same-document heading jump 정밀도, app-restart spec scroll restore, marker detail panel, global comments organization/history, export reset/re-export, guarded swipe history가 코드와 테스트로 닫혔음.
+  - 특히 global comments는 문서/섹션 기준 organization이 필요했지만, source of truth를 별도 structured storage로 옮길지 markdown heading semantics를 재사용할지 선택이 필요했음.
+- Decision:
+  - global comments source of truth는 계속 `.sdd-workbench/global-comments.md` 단일 markdown file로 유지한다.
+  - 대신 `##` heading은 group/document section, `###` heading은 subsection note로 해석하고, modal organization과 export renderer가 같은 parser를 사용한다.
+  - marker hover surface는 preview-only를 유지하고, 전체 본문 확인과 `Edit/Delete`는 별도 detail panel로 분리한다.
+  - same-document heading jump는 normalized id(`user-content-` prefix normalize 포함)를 우선 사용하고, 필요하면 heading text match로 fallback 한다.
+  - rendered spec scroll position은 `workspaceId + activeSpecPath` 기준으로 persistence하고 앱 재시작 후에도 복원한다.
+  - history navigation의 native swipe / trackpad horizontal gesture는 supported macOS 계열 플랫폼에서만 활성화하고, 비지원 플랫폼에서는 `app-command` 경로만 유지한다.
+- Rationale:
+  - global comments를 heading-driven markdown으로 유지하면 기존 저장 포맷과 export 호환성을 깨지 않으면서도 문서/섹션 조직화를 downstream에서 안정적으로 소비할 수 있다.
+  - hover preview에 mutation action까지 섞으면 surface 책임이 모호해지므로, preview와 full-detail action을 분리하는 편이 더 일관되다.
+  - heading jump와 scroll restore는 rendered spec 읽기 문맥을 지키는 핵심 계약이고, swipe history는 플랫폼 가드 없이는 오탐/회귀 위험이 높다.
+- Impact / follow-up:
+  - `comments-and-export/overview.md`, `comments-and-export/contracts.md`, `spec-viewer/overview.md`, `spec-viewer/contracts.md`, `appearance-and-navigation/overview.md`, `operations.md`, `feature-index.md`, `appendix/backlog-and-risks.md`를 동기화한다.
+  - watcher fallback interval reuse 같은 내부 정합성 보정은 user-facing/global contract 변화가 아니므로 decision surface에는 올리지 않는다.
+
 ## 2026-04-14 - 코드 리팩토링 로드맵 완료 반영 + boundary-oriented split 유지
 
 - Context:

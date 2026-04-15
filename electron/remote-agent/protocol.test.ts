@@ -14,6 +14,7 @@ describe('remote-agent/protocol', () => {
         'AUTH_FAILED',
         'TIMEOUT',
         'AGENT_PROTOCOL_MISMATCH',
+        'METHOD_NOT_ALLOWED',
         'PATH_DENIED',
       ]),
     )

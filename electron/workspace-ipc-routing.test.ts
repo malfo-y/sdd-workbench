@@ -11,9 +11,21 @@ import type { WorkspaceBackend } from './workspace-backend/types'
 function createBackend(kind: 'local' | 'remote'): WorkspaceBackend {
   return {
     kind,
-    index: async () => ({ ok: true }),
-    indexDirectory: async () => ({ ok: true }),
-    searchFiles: async () => ({ ok: true }),
+    index: async () => ({ ok: true, fileTree: [] }),
+    indexDirectory: async () => ({
+      ok: true,
+      children: [],
+      childrenStatus: 'complete',
+      totalChildCount: 0,
+    }),
+    searchFiles: async () => ({
+      ok: true,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    }),
     readFile: async () => ({ ok: true, content: 'ok' }),
     writeFile: async () => ({ ok: true }),
     createFile: async () => ({ ok: true }),
@@ -28,7 +40,7 @@ function createBackend(kind: 'local' | 'remote'): WorkspaceBackend {
     readGlobalComments: async () => ({ ok: true, body: '' }),
     writeGlobalComments: async () => ({ ok: true }),
     exportCommentsBundle: async () => ({ ok: true }),
-    copyEntries: async () => ({ ok: true }),
+    copyEntries: async () => ({ ok: true, copiedPaths: [] }),
     watchStart: async () => ({ ok: true }),
     watchStop: async () => ({ ok: true }),
   }

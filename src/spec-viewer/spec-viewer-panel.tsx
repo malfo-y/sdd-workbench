@@ -17,6 +17,7 @@ import {
   findMostRecentCommentInSelectionRange,
 } from '../code-comments/comment-line-index'
 import { CommentHoverPopover } from '../code-comments/comment-hover-popover'
+import { CommentMarkerDetailPanel } from '../code-comments/comment-marker-detail-panel'
 import { type CodeComment } from '../code-comments/comment-types'
 import { CopyActionPopover } from '../context-menu/copy-action-popover'
 import { buildCopyActiveFilePathPayload } from '../context-copy/copy-payload'
@@ -66,7 +67,11 @@ import {
   renderElementWithSourceLine,
   resolveMarkdownLanguage,
 } from './spec-viewer-helpers'
-import { scrollToHeadingById } from './spec-viewer-scroll'
+import {
+  findHeadingElement,
+  resolveActiveHeadingId,
+  scrollToHeadingById,
+} from './spec-viewer-scroll'
 
 type SpecViewerPanelProps = {
   workspaceRootPath: string | null
@@ -75,8 +80,9 @@ type SpecViewerPanelProps = {
   appearanceTheme?: AppearanceTheme
   navigationRequest?: {
     targetRelativePath: string
-    lineNumber: number
     token: number
+    lineNumber?: number
+    headingId?: string
   } | null
   isActive?: boolean
   isLoading: boolean
@@ -84,6 +90,7 @@ type SpecViewerPanelProps = {
   onOpenRelativePath: (
     relativePath: string,
     lineRange: SpecLinkLineRange | null,
+    headingId?: string | null,
   ) => boolean
   onOpenCitationTarget: (
     target: CitationTarget,
@@ -191,11 +198,14 @@ export function SpecViewerPanel({
     useState<SourcePopoverState | null>(null)
   const [commentHoverState, setCommentHoverState] =
     useState<CommentHoverState | null>(null)
+  const [commentDetailState, setCommentDetailState] =
+    useState<CommentHoverState | null>(null)
   const [isTocExpanded, setIsTocExpanded] = useState(false)
   const [resolvedCommentMarkerCounts, setResolvedCommentMarkerCounts] =
     useState<ReadonlyMap<string, number>>(new Map())
   const [resolvedCommentMarkerEntries, setResolvedCommentMarkerEntries] =
     useState<ReadonlyMap<string, readonly CodeComment[]>>(new Map())
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentSearchMatchIndex, setCurrentSearchMatchIndex] = useState(0)
@@ -257,6 +267,7 @@ export function SpecViewerPanel({
     setCommentHoverState(null)
     setResolvedCommentMarkerCounts(new Map())
     setResolvedCommentMarkerEntries(new Map())
+    setActiveHeadingId(null)
     setIsSearchOpen(false)
     setSearchQuery('')
     setCurrentSearchMatchIndex(0)
@@ -318,6 +329,18 @@ export function SpecViewerPanel({
     })
   }, [focusedSearchLine, isSearchOpen])
 
+  const syncActiveHeading = useCallback((containerElement: HTMLElement | null) => {
+    if (!containerElement) {
+      setActiveHeadingId((previous) => (previous === null ? previous : null))
+      return
+    }
+
+    const nextActiveHeadingId = resolveActiveHeadingId(containerElement)
+    setActiveHeadingId((previous) =>
+      previous === nextActiveHeadingId ? previous : nextActiveHeadingId,
+    )
+  }, [])
+
   useEffect(() => {
     const contentElement = contentRef.current
     if (!contentElement) {
@@ -338,6 +361,16 @@ export function SpecViewerPanel({
 
   useEffect(() => {
     const contentElement = contentRef.current
+    if (!contentElement || !activeSpecPath || !markdownContent) {
+      setActiveHeadingId((previous) => (previous === null ? previous : null))
+      return
+    }
+
+    syncActiveHeading(contentElement)
+  }, [activeSpecPath, markdownContent, syncActiveHeading])
+
+  useEffect(() => {
+    const contentElement = contentRef.current
     if (
       !contentElement ||
       !activeSpecPath ||
@@ -352,10 +385,15 @@ export function SpecViewerPanel({
       return
     }
 
-    const targetBlock = resolveBestRenderedSourceBlockForLine(
-      contentElement,
-      navigationRequest.lineNumber,
-    )
+    const targetBlock =
+      typeof navigationRequest.headingId === 'string'
+        ? findHeadingElement(contentElement, navigationRequest.headingId, null)
+        : typeof navigationRequest.lineNumber === 'number'
+          ? resolveBestRenderedSourceBlockForLine(
+              contentElement,
+              navigationRequest.lineNumber,
+            )
+          : null
     if (!targetBlock) {
       return
     }
@@ -375,8 +413,18 @@ export function SpecViewerPanel({
     navigationHighlightTimerRef.current = setTimeout(() => {
       clearNavigationHighlight()
     }, NAVIGATION_HIGHLIGHT_DURATION_MS)
+    syncActiveHeading(contentElement)
+    if (navigationRequest.headingId) {
+      setActiveHeadingId(navigationRequest.headingId)
+    }
     lastHandledNavigationTokenRef.current = navigationRequest.token
-  }, [activeSpecPath, clearNavigationHighlight, markdownContent, navigationRequest])
+  }, [
+    activeSpecPath,
+    clearNavigationHighlight,
+    markdownContent,
+    navigationRequest,
+    syncActiveHeading,
+  ])
 
   useEffect(() => {
     const contentElement = contentRef.current
@@ -478,7 +526,8 @@ export function SpecViewerPanel({
       contentLength: markdownContent.length,
       scrollTop: normalizedScrollTop,
     }
-  }, [activeSpecPath, markdownContent, restoredScrollTop])
+    syncActiveHeading(contentElement)
+  }, [activeSpecPath, markdownContent, restoredScrollTop, syncActiveHeading])
 
   useEffect(() => {
     const containerElement = contentRef.current
@@ -527,6 +576,10 @@ export function SpecViewerPanel({
     setCommentHoverState(null)
   }, [clearHoverCloseTimer])
 
+  const closeCommentDetail = useCallback(() => {
+    setCommentDetailState(null)
+  }, [])
+
   const scheduleCommentHoverClose = useCallback(() => {
     clearHoverCloseTimer()
     hoverCloseTimerRef.current = setTimeout(() => {
@@ -555,6 +608,11 @@ export function SpecViewerPanel({
     },
     [clearHoverCloseTimer, closeCommentHover],
   )
+
+  useEffect(() => {
+    setCommentHoverState(null)
+    setCommentDetailState(null)
+  }, [activeSpecPath, markdownContent])
 
   const closeLinkPopover = useCallback(() => {
     setLinkPopoverState(null)
@@ -616,6 +674,7 @@ export function SpecViewerPanel({
             documentHeadings.find((heading) => heading.id === headingId)?.text ??
             null
           if (scrollToHeadingById(containerElement, headingId, headingText)) {
+            setActiveHeadingId(headingId)
             return
           }
         }
@@ -658,6 +717,7 @@ export function SpecViewerPanel({
         const opened = onOpenRelativePath(
           resolvedLink.targetRelativePath,
           resolvedLink.lineRange,
+          resolvedLink.headingTarget?.headingId ?? null,
         )
         if (opened) {
           setLinkPopoverState(null)
@@ -826,23 +886,25 @@ export function SpecViewerPanel({
         return
       }
 
-      scrollToHeadingById(containerElement, headingId, headingText)
+      if (scrollToHeadingById(containerElement, headingId, headingText)) {
+        setActiveHeadingId(headingId)
+      }
     },
     [],
   )
 
   const handleContentScroll = useCallback(
     (event: UIEvent<HTMLElement>) => {
-      if (!activeSpecPath || !onScrollPositionChange) {
-        return
+      if (activeSpecPath && onScrollPositionChange) {
+        onScrollPositionChange({
+          relativePath: activeSpecPath,
+          scrollTop: event.currentTarget.scrollTop,
+        })
       }
 
-      onScrollPositionChange({
-        relativePath: activeSpecPath,
-        scrollTop: event.currentTarget.scrollTop,
-      })
+      syncActiveHeading(event.currentTarget)
     },
-    [activeSpecPath, onScrollPositionChange],
+    [activeSpecPath, onScrollPositionChange, syncActiveHeading],
   )
 
   const markdownComponents = useMemo<Components>(
@@ -1238,6 +1300,8 @@ export function SpecViewerPanel({
                       key={`${heading.id}-${heading.depth}`}
                     >
                       <a
+                        aria-current={activeHeadingId === heading.id ? 'location' : undefined}
+                        className={activeHeadingId === heading.id ? 'is-active' : undefined}
                         href={`#${heading.id}`}
                         onClick={(event) => {
                           handleTocLinkClick(event, heading.id, heading.text)
@@ -1349,10 +1413,25 @@ export function SpecViewerPanel({
           comments={commentHoverState.comments}
           lineNumber={commentHoverState.lineNumber}
           onClose={closeCommentHover}
+          onOpenDetails={() => {
+            setCommentDetailState(commentHoverState)
+            closeCommentHover()
+          }}
           onMouseEnter={clearHoverCloseTimer}
           onMouseLeave={scheduleCommentHoverClose}
           x={commentHoverState.x}
           y={commentHoverState.y}
+        />
+      )}
+      {commentDetailState && (
+        <CommentMarkerDetailPanel
+          comments={commentDetailState.comments}
+          lineNumber={commentDetailState.lineNumber}
+          onClose={closeCommentDetail}
+          onRequestDeleteComment={onRequestDeleteComment}
+          onRequestEditComment={onRequestEditComment}
+          x={commentDetailState.x}
+          y={commentDetailState.y}
         />
       )}
     </section>

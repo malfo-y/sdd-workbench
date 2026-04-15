@@ -83,6 +83,7 @@ const VSCODE_CLI_RELATIVE_PATH = path.join(
   'bin',
   'code',
 )
+const REMOTE_PROFILE_VALIDATION_ERROR_PREFIX = 'Invalid remote workspace profile:'
 
 function quoteShellArgument(value: string): string {
   return "'" + value.replace(/'/g, `'"'"'`) + "'"
@@ -94,6 +95,43 @@ function escapeAppleScriptString(value: string): string {
 
 function normalizeWorkspaceRelativePath(relativePath: string): string {
   return relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
+}
+
+function buildRemoteProfileValidationError(detail: string): Error {
+  return new Error(`${REMOTE_PROFILE_VALIDATION_ERROR_PREFIX} ${detail}`)
+}
+
+function normalizeRemoteSshValue(
+  rawValue: string,
+  label: string,
+): string {
+  const normalized = rawValue.trim()
+  if (!normalized) {
+    throw buildRemoteProfileValidationError(`${label} is required.`)
+  }
+  if (normalized.startsWith('-')) {
+    throw buildRemoteProfileValidationError(`${label} cannot start with "-".`)
+  }
+  if (/[\r\n\t]/.test(normalized)) {
+    throw buildRemoteProfileValidationError(`${label} cannot contain control characters.`)
+  }
+  if (/\s/.test(normalized)) {
+    throw buildRemoteProfileValidationError(`${label} cannot contain whitespace.`)
+  }
+  return normalized
+}
+
+function normalizeRemoteRootPath(remoteRoot: string): string {
+  const normalizedRemoteRoot = path.posix.normalize(remoteRoot.trim())
+  if (!normalizedRemoteRoot) {
+    throw buildRemoteProfileValidationError('remoteRoot is required.')
+  }
+  if (!normalizedRemoteRoot.startsWith('/')) {
+    throw buildRemoteProfileValidationError(
+      'remoteRoot must be an absolute POSIX path.',
+    )
+  }
+  return normalizedRemoteRoot
 }
 
 function resolveLocalVsCodeTargetPath(
@@ -120,7 +158,7 @@ function resolveRemoteVsCodeTargetPath(
   remoteRoot: string,
   relativePath?: string,
 ): string {
-  const normalizedRemoteRoot = path.posix.normalize(remoteRoot)
+  const normalizedRemoteRoot = normalizeRemoteRootPath(remoteRoot)
   if (!relativePath) {
     return normalizedRemoteRoot
   }
@@ -142,10 +180,15 @@ function resolveRemoteVsCodeTargetPath(
 export function buildRemoteItermCommand(
   profile: SystemOpenRemoteProfile,
 ): string {
-  const destination = profile.user
-    ? `${profile.user}@${profile.host}`
-    : profile.host
-  const remoteCommand = `cd ${quoteShellArgument(profile.remoteRoot)} && exec $SHELL -l`
+  const host = normalizeRemoteSshValue(profile.host, 'host')
+  const user = profile.user?.trim()
+    ? normalizeRemoteSshValue(profile.user, 'user')
+    : null
+  const remoteRoot = normalizeRemoteRootPath(profile.remoteRoot)
+  const destination = user
+    ? `${user}@${host}`
+    : host
+  const remoteCommand = `cd ${quoteShellArgument(remoteRoot)} && exec $SHELL -l`
   const parts: string[] = ['ssh']
 
   if (typeof profile.port === 'number' && Number.isInteger(profile.port)) {
@@ -169,6 +212,7 @@ export function buildVsCodeRemoteArgs(
       'Open in VSCode for remote workspace requires a local SSH config Host alias.',
     )
   }
+  const normalizedAlias = normalizeRemoteSshValue(sshAlias, 'sshAlias')
 
   const encodedPathUrl = new URL('vscode-remote://placeholder')
   encodedPathUrl.pathname = resolveRemoteVsCodeTargetPath(
@@ -176,7 +220,7 @@ export function buildVsCodeRemoteArgs(
     relativePath,
   )
 
-  const remoteTargetUri = `vscode-remote://ssh-remote+${sshAlias}${encodedPathUrl.pathname}`
+  const remoteTargetUri = `vscode-remote://ssh-remote+${normalizedAlias}${encodedPathUrl.pathname}`
 
   if (relativePath) {
     return ['--file-uri', remoteTargetUri]
@@ -345,7 +389,10 @@ async function openRemoteWorkspaceInExternalTool(
     return { ok: true }
   } catch (error) {
     if (error instanceof Error && error.message.trim().length > 0) {
-      if (error.message.includes('requires a local SSH config Host alias')) {
+      if (
+        error.message.includes('requires a local SSH config Host alias') ||
+        error.message.startsWith(REMOTE_PROFILE_VALIDATION_ERROR_PREFIX)
+      ) {
         return {
           ok: false,
           error: error.message,

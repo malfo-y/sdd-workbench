@@ -141,6 +141,8 @@ interface CodeCommentRecord {
     hash: string
     before?: string
     after?: string
+    startOffset?: number
+    endOffset?: number
   }
   createdAt: string
   exportedAt?: string

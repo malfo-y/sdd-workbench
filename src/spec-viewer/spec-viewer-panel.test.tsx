@@ -29,7 +29,12 @@ describe('SpecViewerPanel', () => {
       (lineNumber: number, sourceOffsetRange?: { startOffset: number; endOffset: number }) => void
     >(),
     navigationRequest = null as
-      | { targetRelativePath: string; lineNumber: number; token: number }
+      | {
+          targetRelativePath: string
+          token: number
+          lineNumber?: number
+          headingId?: string
+        }
       | null,
     onRequestAddComment = vi.fn<
       (input: {
@@ -70,6 +75,7 @@ describe('SpecViewerPanel', () => {
         (
           relativePath: string,
           lineRange: { startLine: number; endLine: number } | null,
+          headingId?: string | null,
         ) => boolean
       >()
       .mockReturnValue(true),
@@ -96,8 +102,9 @@ describe('SpecViewerPanel', () => {
     ) => void
     navigationRequest?: {
       targetRelativePath: string
-      lineNumber: number
       token: number
+      lineNumber?: number
+      headingId?: string
     } | null
     onRequestAddComment?: (input: {
       relativePath: string
@@ -129,6 +136,7 @@ describe('SpecViewerPanel', () => {
     onOpenRelativePath?: (
       relativePath: string,
       lineRange: { startLine: number; endLine: number } | null,
+      headingId?: string | null,
     ) => boolean
     onOpenCitationTarget?: (target: {
       targetRelativePath: string
@@ -252,6 +260,96 @@ describe('SpecViewerPanel', () => {
     expect(headingScrollIntoView).toHaveBeenCalled()
   })
 
+  it('tracks the active heading in the table of contents while scrolling', async () => {
+    renderPanel({
+      markdownContent: '# Title\n\n## Intro\n\nBody\n\n## Details\n\nMore',
+    })
+
+    fireEvent.click(screen.getByTestId('spec-viewer-toc-toggle'))
+
+    const contentElement = screen.getByTestId('spec-viewer-content')
+    const titleHeading = screen.getByRole('heading', { name: 'Title' })
+    const introHeading = screen.getByRole('heading', { name: 'Intro' })
+    const detailsHeading = screen.getByRole('heading', { name: 'Details' })
+
+    Object.defineProperty(titleHeading, 'offsetTop', {
+      configurable: true,
+      value: 0,
+    })
+    Object.defineProperty(introHeading, 'offsetTop', {
+      configurable: true,
+      value: 180,
+    })
+    Object.defineProperty(detailsHeading, 'offsetTop', {
+      configurable: true,
+      value: 360,
+    })
+    Object.defineProperty(contentElement, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 220,
+    })
+    vi.spyOn(contentElement, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      right: 400,
+      bottom: 400,
+      width: 400,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect)
+    vi.spyOn(titleHeading, 'getBoundingClientRect').mockReturnValue({
+      top: -220,
+      left: 0,
+      right: 400,
+      bottom: -180,
+      width: 400,
+      height: 40,
+      x: 0,
+      y: -220,
+      toJSON: () => ({}),
+    } as DOMRect)
+    vi.spyOn(introHeading, 'getBoundingClientRect').mockReturnValue({
+      top: -40,
+      left: 0,
+      right: 400,
+      bottom: 0,
+      width: 400,
+      height: 40,
+      x: 0,
+      y: -40,
+      toJSON: () => ({}),
+    } as DOMRect)
+    vi.spyOn(detailsHeading, 'getBoundingClientRect').mockReturnValue({
+      top: 140,
+      left: 0,
+      right: 400,
+      bottom: 180,
+      width: 400,
+      height: 40,
+      x: 0,
+      y: 140,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    fireEvent.scroll(contentElement)
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Intro' })).toHaveAttribute(
+        'aria-current',
+        'location',
+      )
+    })
+    expect(screen.getByRole('link', { name: 'Title' })).not.toHaveAttribute(
+      'aria-current',
+    )
+    expect(screen.getByRole('link', { name: 'Details' })).not.toHaveAttribute(
+      'aria-current',
+    )
+  })
+
   it('reports scroll position for the active spec', () => {
     const { onScrollPositionChange } = renderPanel()
     const contentElement = screen.getByTestId('spec-viewer-content')
@@ -361,6 +459,7 @@ describe('SpecViewerPanel', () => {
         (
           relativePath: string,
           lineRange: { startLine: number; endLine: number } | null,
+          headingId?: string | null,
         ) => boolean
       >()
       .mockReturnValue(true)
@@ -379,7 +478,7 @@ describe('SpecViewerPanel', () => {
     link.dispatchEvent(clickEvent)
 
     expect(clickEvent.defaultPrevented).toBe(true)
-    expect(onOpenRelativePath).toHaveBeenCalledWith('docs/guide.md', null)
+    expect(onOpenRelativePath).toHaveBeenCalledWith('docs/guide.md', null, null)
   })
 
   it('transforms prose citation text into semantic navigation links', async () => {
@@ -735,6 +834,7 @@ describe('SpecViewerPanel', () => {
         (
           relativePath: string,
           lineRange: { startLine: number; endLine: number } | null,
+          headingId?: string | null,
         ) => boolean
       >()
       .mockReturnValue(true)
@@ -757,11 +857,38 @@ describe('SpecViewerPanel', () => {
     expect(onOpenRelativePath).toHaveBeenNthCalledWith(1, 'docs/guide.md', {
       startLine: 10,
       endLine: 10,
-    })
+    }, null)
     expect(onOpenRelativePath).toHaveBeenNthCalledWith(2, 'docs/guide.md', {
       startLine: 10,
       endLine: 20,
+    }, null)
+  })
+
+  it('passes heading targets for workspace markdown links with non-line hashes', () => {
+    const onOpenRelativePath = vi
+      .fn<
+        (
+          relativePath: string,
+          lineRange: { startLine: number; endLine: number } | null,
+          headingId?: string | null,
+        ) => boolean
+      >()
+      .mockReturnValue(true)
+    renderPanel({
+      markdownContent: '[Jump](./guide.md#deep-dive)',
+      onOpenRelativePath,
     })
+
+    fireEvent.click(screen.getByRole('link', { name: 'Jump' }), {
+      clientX: 96,
+      clientY: 148,
+    })
+
+    expect(onOpenRelativePath).toHaveBeenCalledWith(
+      'docs/guide.md',
+      null,
+      'deep-dive',
+    )
   })
 
   it('scrolls to same-document heading for markdown anchor links', () => {
@@ -770,6 +897,7 @@ describe('SpecViewerPanel', () => {
         (
           relativePath: string,
           lineRange: { startLine: number; endLine: number } | null,
+          headingId?: string | null,
         ) => boolean
       >()
       .mockReturnValue(true)
@@ -1697,8 +1825,8 @@ describe('SpecViewerPanel', () => {
     })
   })
 
-  it('shows hover popover on rendered markdown comment marker', async () => {
-    renderPanel({
+  it('shows hover popover on rendered markdown comment marker and opens detail panel', async () => {
+    const { onRequestEditComment } = renderPanel({
       markdownContent: '# Title\n\nParagraph',
       commentLineCounts: new Map<number, number>([[4, 1]]),
       commentLineEntries: new Map<number, readonly CodeComment[]>([
@@ -1731,9 +1859,22 @@ describe('SpecViewerPanel', () => {
       'Paragraph hover comment',
     )
 
-    fireEvent.mouseDown(document.body)
+    fireEvent.click(screen.getByRole('button', { name: 'Open details' }))
     expect(
-      screen.queryByRole('dialog', { name: 'Comment previews' }),
+      screen.getByRole('dialog', { name: 'Comment details for line 3' }),
+    ).toHaveTextContent('Paragraph hover comment')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(onRequestEditComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'comment-1',
+      }),
+    )
+
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByRole('dialog', { name: 'Comment previews' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('dialog', { name: 'Comment details for line 3' }),
     ).not.toBeInTheDocument()
   })
 
