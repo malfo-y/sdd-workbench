@@ -115,10 +115,15 @@ const LOCAL_WORKSPACE_HANDLER_EVENT = new Proxy(Object.freeze({}), {
 function createLocalWorkspaceHandlerAdapter<
   Method extends EventBackedLocalWorkspaceMethod,
 >(
+  _method: Method,
   handler: LocalWorkspaceIpcHandler<Method>,
 ): LocalWorkspaceBackendHandlers[Method] {
-  return async (request) =>
-    handler.apply(undefined, [LOCAL_WORKSPACE_HANDLER_EVENT, request])
+  const adaptedHandler = async (
+    request: WorkspaceBackendRequest<Method>,
+  ): Promise<WorkspaceBackendResult<Method>> =>
+    handler(LOCAL_WORKSPACE_HANDLER_EVENT as IpcMainInvokeEvent, request)
+
+  return adaptedHandler as LocalWorkspaceBackendHandlers[Method]
 }
 
 // ---------------------------------------------------------------------------
@@ -129,45 +134,77 @@ export function initRouting(deps: RoutingDependencies): WorkspaceBackendRouter {
   _deps = deps
 
   localWorkspaceBackend = createLocalWorkspaceBackend({
-    index: createLocalWorkspaceHandlerAdapter(handleWorkspaceIndex),
+    index: createLocalWorkspaceHandlerAdapter('index', handleWorkspaceIndex),
     indexDirectory: createLocalWorkspaceHandlerAdapter(
+      'indexDirectory',
       handleWorkspaceIndexDirectory,
     ),
-    searchFiles: createLocalWorkspaceHandlerAdapter(handleWorkspaceSearchFiles),
-    readFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceReadFile),
-    writeFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceWriteFile),
-    createFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceCreateFile),
+    searchFiles: createLocalWorkspaceHandlerAdapter(
+      'searchFiles',
+      handleWorkspaceSearchFiles,
+    ),
+    readFile: createLocalWorkspaceHandlerAdapter('readFile', handleWorkspaceReadFile),
+    writeFile: createLocalWorkspaceHandlerAdapter(
+      'writeFile',
+      handleWorkspaceWriteFile,
+    ),
+    createFile: createLocalWorkspaceHandlerAdapter(
+      'createFile',
+      handleWorkspaceCreateFile,
+    ),
     createDirectory: createLocalWorkspaceHandlerAdapter(
+      'createDirectory',
       handleWorkspaceCreateDirectory,
     ),
-    deleteFile: createLocalWorkspaceHandlerAdapter(handleWorkspaceDeleteFile),
+    deleteFile: createLocalWorkspaceHandlerAdapter(
+      'deleteFile',
+      handleWorkspaceDeleteFile,
+    ),
     deleteDirectory: createLocalWorkspaceHandlerAdapter(
+      'deleteDirectory',
       handleWorkspaceDeleteDirectory,
     ),
-    rename: createLocalWorkspaceHandlerAdapter(handleWorkspaceRename),
+    rename: createLocalWorkspaceHandlerAdapter('rename', handleWorkspaceRename),
     getGitLineMarkers: createLocalWorkspaceHandlerAdapter(
+      'getGitLineMarkers',
       handleWorkspaceGetGitLineMarkers,
     ),
     getGitFileStatuses: createLocalWorkspaceHandlerAdapter(
+      'getGitFileStatuses',
       handleWorkspaceGetGitFileStatuses,
     ),
-    readComments: createLocalWorkspaceHandlerAdapter(handleWorkspaceReadComments),
-    writeComments: createLocalWorkspaceHandlerAdapter(handleWorkspaceWriteComments),
+    readComments: createLocalWorkspaceHandlerAdapter(
+      'readComments',
+      handleWorkspaceReadComments,
+    ),
+    writeComments: createLocalWorkspaceHandlerAdapter(
+      'writeComments',
+      handleWorkspaceWriteComments,
+    ),
     readGlobalComments: createLocalWorkspaceHandlerAdapter(
+      'readGlobalComments',
       handleWorkspaceReadGlobalComments,
     ),
     writeGlobalComments: createLocalWorkspaceHandlerAdapter(
+      'writeGlobalComments',
       handleWorkspaceWriteGlobalComments,
     ),
     exportCommentsBundle: createLocalWorkspaceHandlerAdapter(
+      'exportCommentsBundle',
       handleWorkspaceExportCommentsBundle,
     ),
     copyEntries: async (request) => {
       await localCopyEntries(request)
       return { ok: true }
     },
-    watchStart: createLocalWorkspaceHandlerAdapter(handleWorkspaceWatchStart),
-    watchStop: createLocalWorkspaceHandlerAdapter(handleWorkspaceWatchStop),
+    watchStart: createLocalWorkspaceHandlerAdapter(
+      'watchStart',
+      handleWorkspaceWatchStart,
+    ),
+    watchStop: createLocalWorkspaceHandlerAdapter(
+      'watchStop',
+      handleWorkspaceWatchStop,
+    ),
   })
 
   workspaceBackendRouter = new WorkspaceBackendRouter(localWorkspaceBackend)

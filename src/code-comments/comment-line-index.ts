@@ -297,13 +297,15 @@ export function mapCommentEntriesToRenderedSourceLines(
   commentLineEntries: ReadonlyMap<number, readonly CodeComment[]>,
   renderedSourceLines: readonly number[],
 ): Map<number, readonly CodeComment[]> {
-  const mappedEntries = mapCommentLineValuesToRenderedSourceLines(
+  const mappedEntries = mapCommentLineValuesToRenderedSourceLines<
+    readonly CodeComment[],
+    readonly CodeComment[]
+  >(
     commentLineEntries,
     renderedSourceLines,
     (entries) => entries.length === 0,
     (mappedEntries, mappedLine, entries) => {
-      const nextEntries = mappedEntries.get(mappedLine) ?? []
-      nextEntries.push(...entries)
+      const nextEntries = [...(mappedEntries.get(mappedLine) ?? []), ...entries]
       mappedEntries.set(mappedLine, nextEntries)
     },
   )

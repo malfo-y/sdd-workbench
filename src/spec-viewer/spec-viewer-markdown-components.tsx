@@ -62,23 +62,7 @@ type MarkdownBlockOptions = {
   markerPlacement?: 'inside' | 'before'
 }
 
-const COMMENT_AWARE_BLOCK_RENDERER_CONFIG: readonly (
-  readonly [CommentAwareBlockTag, MarkdownBlockOptions | undefined]
-)[] = [
-  ['p', undefined],
-  ['li', undefined],
-  ['blockquote', undefined],
-  ['pre', undefined],
-  ['table', { markerPlacement: 'before' }],
-  ['th', { includeAnchorLine: false }],
-  ['td', { includeAnchorLine: false }],
-  ['h1', undefined],
-  ['h2', undefined],
-  ['h3', undefined],
-  ['h4', undefined],
-  ['h5', undefined],
-  ['h6', undefined],
-]
+type CommentAwareBlockComponents = Pick<Components, CommentAwareBlockTag>
 
 const BLOCKED_RESOURCE_PLACEHOLDER_TEXT = 'Image blocked by viewer policy'
 
@@ -106,19 +90,28 @@ function createPlainElementRenderer<Tag extends 'tr'>(tagName: Tag) {
 
 function createCommentAwareBlockRenderers(
   context: SpecViewerMarkdownComponentContext,
-) {
-  const renderers: Partial<Record<CommentAwareBlockTag, Components[CommentAwareBlockTag]>> =
-    {}
-
-  for (const [tagName, options] of COMMENT_AWARE_BLOCK_RENDERER_CONFIG) {
-    renderers[tagName] = createCommentAwareBlockRenderer(
-      tagName,
-      context,
-      options,
-    )
+): CommentAwareBlockComponents {
+  return {
+    p: createCommentAwareBlockRenderer('p', context),
+    li: createCommentAwareBlockRenderer('li', context),
+    blockquote: createCommentAwareBlockRenderer('blockquote', context),
+    pre: createCommentAwareBlockRenderer('pre', context),
+    table: createCommentAwareBlockRenderer('table', context, {
+      markerPlacement: 'before',
+    }),
+    th: createCommentAwareBlockRenderer('th', context, {
+      includeAnchorLine: false,
+    }),
+    td: createCommentAwareBlockRenderer('td', context, {
+      includeAnchorLine: false,
+    }),
+    h1: createCommentAwareBlockRenderer('h1', context),
+    h2: createCommentAwareBlockRenderer('h2', context),
+    h3: createCommentAwareBlockRenderer('h3', context),
+    h4: createCommentAwareBlockRenderer('h4', context),
+    h5: createCommentAwareBlockRenderer('h5', context),
+    h6: createCommentAwareBlockRenderer('h6', context),
   }
-
-  return renderers
 }
 
 function createMarkdownAnchorRenderer(

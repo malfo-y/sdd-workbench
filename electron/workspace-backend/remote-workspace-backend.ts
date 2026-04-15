@@ -84,6 +84,7 @@ const REMOTE_WORKSPACE_METHODS = {
   writeGlobalComments: 'workspace.writeGlobalComments',
   exportCommentsBundle: 'workspace.exportCommentsBundle',
   copyEntries: 'workspace.copyEntries',
+  watchStop: 'workspace.watchStop',
 } as const
 
 class RemoteWorkspaceBackend implements WorkspaceBackend {
