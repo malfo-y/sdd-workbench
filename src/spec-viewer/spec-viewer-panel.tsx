@@ -8,9 +8,11 @@ import {
   type UIEvent,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import type { AppearanceTheme } from '../appearance-theme'
 import {
   findMostRecentCommentInSelectionRange,
@@ -32,6 +34,7 @@ import {
   resolveSourceSelectionRangeFromSelection,
   resolveSourceLine,
 } from './source-line-resolver'
+import { buildSourceLineAttributes } from './source-line-metadata'
 import { resolveSpecLink, type SpecLinkLineRange } from './spec-link-utils'
 import { buildSearchMatchStartLines } from './spec-search'
 import { rehypeWrapSourceTextLeaves } from './rehype-source-text-leaves'
@@ -143,6 +146,103 @@ type CommentHoverState = {
 
 const HOVER_POPOVER_CLOSE_DELAY_MS = 120
 const NAVIGATION_HIGHLIGHT_DURATION_MS = 1600
+
+type HastNode = {
+  type?: string
+  tagName?: string
+  properties?: Record<string, unknown>
+  children?: HastNode[]
+  position?: {
+    start?: {
+      line?: number
+      offset?: number
+    }
+    end?: {
+      line?: number
+      offset?: number
+    }
+  }
+}
+
+function hasClassName(node: HastNode, className: string) {
+  const rawClassName = node.properties?.className
+  const classNames = Array.isArray(rawClassName)
+    ? rawClassName
+    : typeof rawClassName === 'string'
+      ? rawClassName.split(/\s+/)
+      : []
+  return classNames.includes(className)
+}
+
+function isInlineMathNode(node: HastNode) {
+  return (
+    node.type === 'element' &&
+    node.tagName === 'code' &&
+    hasClassName(node, 'language-math') &&
+    hasClassName(node, 'math-inline')
+  )
+}
+
+function isDisplayMathNode(node: HastNode) {
+  if (node.type !== 'element' || node.tagName !== 'pre') {
+    return false
+  }
+
+  const firstChild = Array.isArray(node.children) ? node.children[0] : null
+  return (
+    !!firstChild &&
+    firstChild.type === 'element' &&
+    firstChild.tagName === 'code' &&
+    hasClassName(firstChild, 'language-math') &&
+    hasClassName(firstChild, 'math-display')
+  )
+}
+
+function wrapMathNodeWithSourceMetadata(
+  node: HastNode,
+  includeAnchorLine: boolean,
+): HastNode {
+  return {
+    type: 'element',
+    tagName: 'span',
+    properties: {
+      className: ['spec-viewer-math-source'],
+      ...buildSourceLineAttributes(node, { includeAnchorLine }),
+    },
+    children: [node],
+  }
+}
+
+function visitMathNodes(node: HastNode) {
+  const children = Array.isArray(node.children) ? node.children : null
+  if (!children) {
+    return
+  }
+
+  const nextChildren: HastNode[] = []
+  for (const child of children) {
+    if (isInlineMathNode(child)) {
+      nextChildren.push(wrapMathNodeWithSourceMetadata(child, false))
+      continue
+    }
+
+    if (isDisplayMathNode(child)) {
+      nextChildren.push(wrapMathNodeWithSourceMetadata(child, true))
+      continue
+    }
+
+    visitMathNodes(child)
+    nextChildren.push(child)
+  }
+
+  node.children = nextChildren
+}
+
+function rehypeWrapMathWithSourceMetadata() {
+  return (tree: HastNode) => {
+    visitMathNodes(tree)
+  }
+}
 
 export function SpecViewerPanel({
   workspaceRootPath,
@@ -1077,10 +1177,12 @@ export function SpecViewerPanel({
               urlTransform={(url) => sanitizeMarkdownUri(url)}
               rehypePlugins={[
                 rehypeSlug,
+                rehypeWrapMathWithSourceMetadata,
+                rehypeKatex,
                 [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA],
                 rehypeWrapSourceTextLeaves,
               ]}
-              remarkPlugins={[remarkGfm, remarkCitationLinks]}
+              remarkPlugins={[remarkGfm, remarkMath, remarkCitationLinks]}
             >
               {markdownContent}
             </ReactMarkdown>

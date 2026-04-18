@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { sanitize } from 'hast-util-sanitize'
+import type { Element, Root } from 'hast'
 import {
+  MARKDOWN_SANITIZE_SCHEMA,
   isAllowedDataImageUri,
   resolveMarkdownImageSource,
   sanitizeMarkdownUri,
@@ -40,6 +43,96 @@ describe('markdown-security', () => {
         isAllowedDataImageUri('data:image/png;base64,iVBORw0KGgo AAAANSUhEUgAAAAUA'),
       ).toBe(false)
       expect(isAllowedDataImageUri('data:text/plain;base64,SGVsbG8=')).toBe(false)
+    })
+  })
+
+  describe('MARKDOWN_SANITIZE_SCHEMA', () => {
+    it('preserves the minimal KaTeX MathML subtree and drops unrelated attributes', () => {
+      const sanitized = sanitize(
+        {
+          type: 'root',
+          children: [
+            {
+              type: 'element',
+              tagName: 'span',
+              properties: {
+                className: ['katex-display'],
+                'data-source-line': 5,
+                'data-source-line-end': 7,
+                'data-source-line-start': 5,
+                style: 'display:block',
+                onClick: 'alert(1)',
+              },
+              children: [
+                {
+                  type: 'element',
+                  tagName: 'math',
+                  properties: {
+                    xmlns: 'http://www.w3.org/1998/Math/MathML',
+                    display: 'block',
+                    onClick: 'alert(1)',
+                  },
+                  children: [
+                    {
+                      type: 'element',
+                      tagName: 'semantics',
+                      properties: {},
+                      children: [
+                        {
+                          type: 'element',
+                          tagName: 'annotation',
+                          properties: {
+                            encoding: 'application/x-tex',
+                            onClick: 'alert(1)',
+                          },
+                          children: [{ type: 'text', value: '\\int_0^1 x^2 dx' }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        MARKDOWN_SANITIZE_SCHEMA,
+      ) as Root
+
+      const katexDisplay = sanitized.children[0] as Element
+      expect(katexDisplay).toMatchObject({
+        type: 'element',
+        tagName: 'span',
+        properties: {
+          className: ['katex-display'],
+          'data-source-line': 5,
+          'data-source-line-end': 7,
+          'data-source-line-start': 5,
+          style: 'display:block',
+        },
+      })
+      expect(katexDisplay.properties).not.toHaveProperty('onClick')
+
+      const math = (katexDisplay.children?.[0] ?? null) as Element | null
+      expect(math).toMatchObject({
+        type: 'element',
+        tagName: 'math',
+        properties: {
+          display: 'block',
+          xmlns: 'http://www.w3.org/1998/Math/MathML',
+        },
+      })
+      expect(math?.properties).not.toHaveProperty('onClick')
+
+      const semantics = (math?.children?.[0] ?? null) as Element | null
+      const annotation = (semantics?.children?.[0] ?? null) as Element | null
+      expect(annotation).toMatchObject({
+        type: 'element',
+        tagName: 'annotation',
+        properties: {
+          encoding: 'application/x-tex',
+        },
+      })
+      expect(annotation?.properties).not.toHaveProperty('onClick')
     })
   })
 

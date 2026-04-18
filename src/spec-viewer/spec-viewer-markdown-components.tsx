@@ -136,18 +136,30 @@ function createMarkdownAnchorRenderer(
 
 function createMarkdownSpanRenderer() {
   return (props: MarkdownComponentProps<'span'>) => {
-    const { node, children, ...spanProps } = props
+    const { node, children, className, ...spanProps } = props
     const isSourceTextLeaf =
       node?.properties?.[SOURCE_TEXT_LEAF_ATTRIBUTE] === 'true'
-    if (!isSourceTextLeaf) {
-      return <span {...spanProps}>{children}</span>
+    const classNames = typeof className === 'string' ? className.split(/\s+/) : []
+    const isKatexDisplayRoot = classNames.includes('katex-display')
+    const isKatexRoot =
+      classNames.includes('katex') &&
+      !classNames.includes('katex-html') &&
+      !classNames.includes('katex-mathml')
+
+    if (!isSourceTextLeaf && !isKatexRoot && !isKatexDisplayRoot) {
+      return (
+        <span className={className} {...spanProps}>
+          {children}
+        </span>
+      )
     }
 
     return (
       <span
+        className={className}
         {...spanProps}
         {...buildSourceLineAttributes(node, {
-          includeAnchorLine: false,
+          includeAnchorLine: isKatexDisplayRoot,
         })}
       >
         {children}

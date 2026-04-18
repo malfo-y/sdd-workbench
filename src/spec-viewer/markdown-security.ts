@@ -7,9 +7,38 @@ const DATA_IMAGE_URI_PATTERN =
   /^data:image\/[a-z0-9.+-]+(?:;[a-z0-9=.+-]+)*;base64,[a-z0-9+/=]+$/i
 
 const BASE_SANITIZE_ATTRIBUTES = defaultSchema.attributes ?? {}
+const BASE_SANITIZE_TAG_NAMES = defaultSchema.tagNames ?? []
 type SchemaProperty =
   | string
   | [string, ...(string | number | boolean | RegExp | null | undefined)[]]
+
+const KATEX_MATHML_TAG_NAMES = [
+  'annotation',
+  'math',
+  'menclose',
+  'mfrac',
+  'mi',
+  'mn',
+  'mo',
+  'mopen',
+  'mover',
+  'mpadded',
+  'mroot',
+  'mrow',
+  'msqrt',
+  'mspace',
+  'mstyle',
+  'msub',
+  'msubsup',
+  'msup',
+  'mtable',
+  'mtd',
+  'mtext',
+  'mtr',
+  'munder',
+  'munderover',
+  'semantics',
+] as const
 
 function normalizeUri(rawValue: string | null | undefined) {
   return rawValue?.trim() ?? ''
@@ -45,8 +74,35 @@ function withUniquePropertyNames(
   return merged
 }
 
+function withUniqueProperties(
+  currentProperties: SchemaProperty[],
+  additionalProperties: SchemaProperty[],
+): SchemaProperty[] {
+  const existingProperties = new Set(
+    currentProperties.map((property) => JSON.stringify(property)),
+  )
+  const merged = [...currentProperties]
+  for (const property of additionalProperties) {
+    const propertyKey = JSON.stringify(property)
+    if (existingProperties.has(propertyKey)) {
+      continue
+    }
+    merged.push(property)
+    existingProperties.add(propertyKey)
+  }
+  return merged
+}
+
+function withUniqueTagNames(currentTagNames: string[], additionalTagNames: string[]) {
+  return [...new Set([...currentTagNames, ...additionalTagNames])]
+}
+
 export const MARKDOWN_SANITIZE_SCHEMA: Schema = {
   ...defaultSchema,
+  tagNames: withUniqueTagNames(
+    BASE_SANITIZE_TAG_NAMES,
+    [...KATEX_MATHML_TAG_NAMES],
+  ),
   attributes: {
     ...BASE_SANITIZE_ATTRIBUTES,
     a: withUniquePropertyNames(
@@ -85,7 +141,30 @@ export const MARKDOWN_SANITIZE_SCHEMA: Schema = {
       toArrayValue(BASE_SANITIZE_ATTRIBUTES.code),
       ['className'],
     ),
-    span: toArrayValue(BASE_SANITIZE_ATTRIBUTES.span),
+    span: withUniquePropertyNames(
+      toArrayValue(BASE_SANITIZE_ATTRIBUTES.span),
+      [
+        'ariaHidden',
+        'className',
+        'data-source-line',
+        'data-source-line-end',
+        'data-source-line-start',
+        'data-source-offset-end',
+        'data-source-offset-start',
+        'style',
+      ],
+    ),
+    math: withUniqueProperties(
+      toArrayValue(BASE_SANITIZE_ATTRIBUTES.math),
+      [
+        ['display', 'block'],
+        ['xmlns', 'http://www.w3.org/1998/Math/MathML'],
+      ],
+    ),
+    annotation: withUniqueProperties(
+      toArrayValue(BASE_SANITIZE_ATTRIBUTES.annotation),
+      [['encoding', 'application/x-tex']],
+    ),
   },
 }
 

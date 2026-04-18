@@ -47,6 +47,21 @@ citation 세부 규칙:
 7. repeated rendered text 때문에 exact source span이 ambiguous하면 exact offset을 버리고 line fallback으로 degrade 한다.
 8. collapsed selection, cross-cell table selection, unsupported structure는 nearest line fallback으로 degrade 한다.
 
+## 3.1 markdown math 렌더링 계약
+
+1. Spec Viewer markdown pipeline은 `$...$` 인라인 수식과 `$$...$$` 블록 수식을 KaTeX 기반 DOM으로 렌더해야 한다.
+2. math 렌더링은 기존 `remark-gfm`, citation link 변환, heading slug, sanitize, source-text leaf wrapping 체인과 공존해야 하며, non-math markdown 동작을 약화시키면 안 된다.
+3. inline/display math wrapper는 source selection과 `Go to Source`가 계속 동작하도록 `data-source-line-start/end`를 유지해야 한다.
+4. display math wrapper는 블록 anchor 해석을 위해 필요한 경우 `data-source-line`을 포함할 수 있다.
+5. math vendor stylesheet는 앱 bootstrap 경로에서 1회 로드되어야 하며, panel mount 시점의 동적 주입에 의존하지 않는다.
+
+## 3.2 markdown math 보안 guardrail
+
+1. math 지원을 위해 sanitize schema는 KaTeX가 생성하는 최소 HTML/MathML subtree만 허용한다.
+2. math 지원을 이유로 `sanitizeMarkdownUri`의 unsafe scheme 차단 규칙(`javascript:`, `vbscript:`, `file:`, 비허용 `data:`)을 완화하지 않는다.
+3. sanitize allowlist 확장은 observed KaTeX output 기준의 최소 태그/속성 범위로만 수행한다.
+4. external 이미지 차단과 workspace-relative image resolution 규칙은 math 지원 이후에도 그대로 유지한다.
+
 ## 4. spec -> code / code -> spec 규칙
 
 ### 4.1 spec -> code

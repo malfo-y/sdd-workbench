@@ -1030,6 +1030,69 @@ describe('SpecViewerPanel', () => {
     expect(screen.queryByRole('img', { name: 'External' })).not.toBeInTheDocument()
   })
 
+  it('renders inline and display math without exposing raw delimiters', () => {
+    renderPanel({
+      markdownContent:
+        '# Title\n\nInline $E=mc^2$ math.\n\n$$\n\\int_0^1 x^2 dx\n$$\n',
+    })
+
+    const content = screen.getByTestId('spec-viewer-content')
+    const mathWrappers = content.querySelectorAll('.spec-viewer-math-source')
+    const inlineKatex = content.querySelector('p .katex')
+    const displayKatex = content.querySelector('.katex-display')
+
+    expect(mathWrappers).toHaveLength(2)
+    expect(inlineKatex).toBeTruthy()
+    expect(mathWrappers[0]?.getAttribute('data-source-line')).toBeNull()
+    expect(mathWrappers[0]?.getAttribute('data-source-line-start')).toBeTruthy()
+    expect(displayKatex).toBeTruthy()
+    expect(mathWrappers[1]?.getAttribute('data-source-line')).toBeTruthy()
+    expect(mathWrappers[1]?.getAttribute('data-source-line-start')).toBeTruthy()
+    expect(mathWrappers[1]?.getAttribute('data-source-line-end')).toBeTruthy()
+    expect(content.innerHTML).not.toContain('$E=mc^2$')
+    expect(content.innerHTML).not.toContain('$$')
+  })
+
+  it('resolves source actions from display math wrapper metadata', () => {
+    const { onGoToSourceLine } = renderPanel({
+      markdownContent: '# Title\n\n$$\n\\int_0^1 x^2 dx\n$$\n',
+    })
+    const selectionSpy = vi.spyOn(window, 'getSelection')
+    const content = screen.getByTestId('spec-viewer-content')
+    const displayMathWrapper = content.querySelectorAll('.spec-viewer-math-source')[0]
+    const displayKatex = content.querySelector('.katex-display')
+    const visibleMathRoot = displayKatex?.querySelector('.katex-html') ?? displayKatex
+    if (!displayMathWrapper || !displayKatex || !visibleMathRoot) {
+      throw new Error('Expected rendered display math')
+    }
+
+    const selectionTextNode = findTextNodeContaining(visibleMathRoot, '∫')
+    if (!selectionTextNode) {
+      throw new Error('Expected display math text node')
+    }
+
+    selectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: selectionTextNode,
+      anchorOffset: 0,
+      focusNode: selectionTextNode,
+      focusOffset: selectionTextNode.data.length,
+      toString: () => selectionTextNode.data,
+    } as unknown as Selection)
+
+    fireEvent.contextMenu(displayKatex, {
+      clientX: 180,
+      clientY: 220,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Source' }))
+
+    const resolvedLine = (onGoToSourceLine as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]
+    const sourceLineStart = Number(displayMathWrapper.getAttribute('data-source-line-start'))
+    const sourceLineEnd = Number(displayMathWrapper.getAttribute('data-source-line-end'))
+    expect(resolvedLine).toBeGreaterThanOrEqual(sourceLineStart)
+    expect(resolvedLine).toBeLessThanOrEqual(sourceLineEnd)
+  })
+
   it('shows source actions popover with copy actions on selected text context menu', async () => {
     const { onGoToSourceLine, onRequestAddComment } = renderPanel({
       markdownContent: '# Title\n\ntarget paragraph',

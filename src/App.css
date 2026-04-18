@@ -835,6 +835,18 @@
   max-width: 100%;
 }
 
+.spec-viewer-content .katex-display {
+  margin: 1rem 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0.1rem 0.3rem;
+}
+
+.spec-viewer-content .katex-display > .katex {
+  min-width: max-content;
+}
+
 .spec-viewer-blocked-resource {
   border: 1px dashed var(--theme-danger-border);
   border-radius: 6px;

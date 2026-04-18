@@ -68,6 +68,22 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-04-18 - F50 Spec Viewer markdown math 렌더링 계약 고정
+
+- Context:
+  - Spec Viewer는 기존에 markdown, citation, sanitize, source mapping workflow를 제공했지만 LaTeX 수식은 plain text delimiter로 남아 읽기 어려웠다.
+  - 이번 구현은 `remark-math`, `rehype-katex`, KaTeX stylesheet bootstrap import, math source metadata wrapper, sanitize allowlist 보강까지 함께 반영했다.
+- Decision:
+  - Spec Viewer markdown math는 KaTeX 기반 renderer chain으로 처리한다.
+  - math 지원은 기존 sanitize-after-render 경계를 유지하되, KaTeX/MathML 최소 subtree만 allowlist에 추가하는 방식으로 통합한다.
+  - math 스타일은 `src/main.tsx` bootstrap import로 1회 로드하고, inline/display math wrapper에는 source action fallback에 필요한 최소 source metadata만 남긴다.
+- Rationale:
+  - 수식이 보이기만 하는 것보다 기존 `Go to Source`, comment, rendered selection workflow를 유지하는 통합 방식이 사용자 가치가 크다.
+  - bootstrap style import와 최소 allowlist 정책은 renderer 일관성과 markdown security contract를 함께 지키기 쉽다.
+- Impact / follow-up:
+  - `spec-viewer/overview.md`, `spec-viewer/contracts.md`, `feature-index.md`는 F50 기준으로 동기화한다.
+  - single-dollar inline math와 일반 금액 표기 충돌 가능성은 현재 contract 변경 없이 후속 회귀 관찰 대상으로 남긴다.
+
 ## 2026-04-15 - pre-split audit remediation 완료 + source-line exactness 보정
 
 - Context:

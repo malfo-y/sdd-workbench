@@ -7,6 +7,7 @@
 ## 2. 사용자 가시 동작
 
 - markdown 파일을 rendered spec으로 읽을 수 있다.
+- rendered spec에서 `$...$` 인라인 수식과 `$$...$$` 블록 수식이 KaTeX 기반 math DOM으로 렌더된다.
 - 동일 경로의 markdown 파일이 Code 탭에서 편집 중(draft)이라면, Spec 탭은 저장본이 아니라 **현재 draft**를 렌더한다.
 - Code/Spec 탭 전환만으로 draft가 저장되거나 초기화되지 않으며, 두 탭은 같은 문서 세션(draft text)을 공유한다.
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
@@ -83,9 +84,16 @@
 - spec scroll position은 `workspaceId + activeSpecPath` 기준으로 persistence되며 앱 재시작 후에도 복원된다.
 - same-path markdown에서 content만 변하는 경우(저장 전 draft 반영)는 path navigation이 아니므로, 스크롤/문맥 보존은 best-effort로 유지하되 stale search/highlight 상태가 남지 않도록 reset 또는 재계산 규칙을 둔다.
 
+### 4.5 markdown math 렌더링
+
+- markdown 렌더링 파이프라인은 GFM, citation link, heading slug, sanitize, source-text leaf wrapping과 함께 math 렌더링을 통합한다.
+- inline/display math는 rendered selection, `Go to Source`, comment 진입 같은 기존 source mapping workflow를 깨지 않도록 source-line metadata를 유지한다.
+- math 스타일은 앱 bootstrap 경로에서 로드되며, Spec Viewer mount/unmount 여부와 무관하게 일관된 수식 레이아웃을 제공한다.
+
 ## 5. 주요 코드
 
 - `src/spec-viewer/spec-viewer-panel.tsx`
+- `src/spec-viewer/spec-viewer-markdown-components.tsx`
 - `src/spec-viewer/source-line-metadata.ts`
 - `src/spec-viewer/source-line-resolver.ts`
 - `src/spec-viewer/spec-search.ts`
@@ -107,6 +115,7 @@
 ## 7. 핵심 테스트
 
 - `src/spec-viewer/spec-viewer-panel.test.tsx`
+- `src/spec-viewer/markdown-security.test.ts`
 - `src/spec-viewer/source-line-resolver.test.ts`
 - `src/spec-viewer/source-line-metadata.test.ts`
 - `src/spec-viewer/spec-search.test.ts`
@@ -120,6 +129,7 @@
 
 - rendered block anchor와 interactive source metadata는 의도적으로 분리되어 있다.
 - source mapping을 바꾸면 comment anchor, copy payload, `Go to Source`, `Go to Spec`, navigation highlight 회귀를 같이 확인해야 한다.
+- math renderer chain이나 sanitize allowlist를 바꿀 때는 inline/display math DOM, unsafe URI 차단, source metadata wrapper 회귀를 함께 확인해야 한다.
 - draft 기반 렌더링을 도입하면 rendered DOM과 source baseline이 함께 움직여야 한다. draft 상태에서 search/copy/comment/go-to-source가 저장본을 참조해 어긋나지 않도록 회귀 테스트를 우선 고정한다.
 - table source mapping을 바꿀 때는 same-cell exact path뿐 아니라 multi-comment same-line marker count, offset-less legacy marker fallback도 함께 확인해야 한다.
 - 코드 블록 source mapping(`pre` suppression + 내부 `<span>` 줄번호)을 바꿀 때는 citation navigation, syntax highlighting, 기존 `pre`-level source action 회귀를 함께 확인해야 한다.
