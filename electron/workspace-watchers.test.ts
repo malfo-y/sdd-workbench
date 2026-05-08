@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,6 +36,7 @@ describe('workspace-watchers', () => {
   beforeEach(() => {
     errorHandler = null
     webContentsSend.mockReset()
+    chokidarWatchMock.mockReset()
     initWatchersWin(
       () =>
         ({
@@ -103,6 +104,36 @@ describe('workspace-watchers', () => {
       })
     } finally {
       setTimeoutSpy.mockRestore()
+      await rm(workspaceRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('uses polling in auto mode for large local workspaces', async () => {
+    const workspaceRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'sdd-workspace-watchers-large-'),
+    )
+
+    try {
+      await Promise.all(
+        Array.from({ length: 2_001 }, async (_, index) => {
+          await writeFile(path.join(workspaceRoot, `file-${index}.txt`), 'ok')
+        }),
+      )
+
+      const result = await handleWorkspaceWatchStart({} as never, {
+        workspaceId: 'large-workspace',
+        rootPath: workspaceRoot,
+        watchModePreference: 'auto',
+      })
+
+      expect(result).toEqual({
+        ok: true,
+        watchMode: 'polling',
+        isRemoteMounted: true,
+        fallbackApplied: true,
+      })
+      expect(chokidarWatchMock).not.toHaveBeenCalled()
+    } finally {
       await rm(workspaceRoot, { recursive: true, force: true })
     }
   })

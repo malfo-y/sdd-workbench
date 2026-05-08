@@ -4281,6 +4281,56 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
   })
 
+  it('refreshes the active markdown preview from the refresh button', async () => {
+    const workspaceRoot = '/Users/tester/manual-markdown-refresh'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'README.md', relativePath: 'README.md', kind: 'file' }],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [{ name: 'README.md', relativePath: 'README.md', kind: 'file' }],
+      })
+    readFileMock
+      .mockResolvedValueOnce({
+        ok: true,
+        content: '# V1',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        content: '# V2',
+      })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'README.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'README.md' }))
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'V1' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('file-tree-refresh-button'))
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('heading', { name: 'V2' })).toBeInTheDocument()
+    })
+  })
+
   it('keeps file tree visible while structure refresh is in flight', async () => {
     const workspaceRoot = '/Users/tester/watch-structure-inflight'
 

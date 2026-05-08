@@ -341,8 +341,32 @@ export function useWorkspaceSnapshot(input: {
         activeWorkspaceId,
         workspaceSession.rootPath,
       )
+      if (workspaceSession.activeFile) {
+        void loadWorkspaceFile(
+          activeWorkspaceId,
+          workspaceSession.activeFile,
+          'refresh',
+          'preserve',
+        )
+      }
+      if (
+        workspaceSession.activeSpec &&
+        workspaceSession.activeSpec !== workspaceSession.activeFile
+      ) {
+        void loadWorkspaceSpec(
+          activeWorkspaceId,
+          workspaceSession.activeSpec,
+          'refresh',
+        )
+      }
     }
-  }, [loadWorkspaceGitFileStatuses, loadWorkspaceIndex, workspaceStateRef])
+  }, [
+    loadWorkspaceFile,
+    loadWorkspaceGitFileStatuses,
+    loadWorkspaceIndex,
+    loadWorkspaceSpec,
+    workspaceStateRef,
+  ])
 
   useEffect(() => {
     let isDisposed = false

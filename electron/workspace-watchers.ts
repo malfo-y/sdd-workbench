@@ -83,6 +83,7 @@ type WorkspacePollingSnapshot = {
 const workspaceWatchers = new Map<string, WorkspaceWatcherEntry>()
 const workspacesInFallbackTransition = new Set<string>()
 let stopAllWorkspaceWatchersPromise: Promise<void> | null = null
+const MAX_AUTO_NATIVE_WATCH_FILES = 2_000
 
 // ---------------------------------------------------------------------------
 // Event senders
@@ -276,7 +277,7 @@ async function buildWorkspacePollingSnapshot(
         const fileStats = await stat(absolutePath)
         fileMetadataByRelativePath.set(
           relativePath,
-          `${fileStats.mtimeMs}:${fileStats.size}`,
+          `${fileStats.mtimeMs}:${fileStats.ctimeMs}:${fileStats.size}`,
         )
         fileCount += 1
       } catch {
@@ -290,6 +291,46 @@ async function buildWorkspacePollingSnapshot(
     fileMetadataByRelativePath,
     directoryPaths,
   }
+}
+
+async function countWatchableFilesUntilLimit(
+  rootPath: string,
+  limit: number,
+): Promise<number> {
+  let fileCount = 0
+
+  async function walkDirectory(currentDirectory: string): Promise<void> {
+    if (fileCount > limit) {
+      return
+    }
+
+    const entries = await readdir(currentDirectory, { withFileTypes: true })
+    for (const entry of entries) {
+      if (fileCount > limit) {
+        return
+      }
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+
+      const absolutePath = path.join(currentDirectory, entry.name)
+      if (shouldIgnoreWatchPath(rootPath, absolutePath)) {
+        continue
+      }
+
+      if (entry.isDirectory()) {
+        await walkDirectory(absolutePath)
+        continue
+      }
+
+      if (entry.isFile()) {
+        fileCount += 1
+      }
+    }
+  }
+
+  await walkDirectory(rootPath)
+  return fileCount
 }
 
 function diffWorkspacePollingSnapshot(
@@ -644,6 +685,21 @@ export async function handleWorkspaceWatchStart(
     let fallbackApplied = false
     let resolvedWatchMode = watchModeResolution.watchMode
     let watchEntry: WorkspaceWatcherEntry
+
+    if (
+      resolvedWatchMode === 'native' &&
+      watchModeResolution.resolvedBy === 'heuristic'
+    ) {
+      const watchableFileCount = await countWatchableFilesUntilLimit(
+        resolvedRootPath,
+        MAX_AUTO_NATIVE_WATCH_FILES,
+      )
+      if (watchableFileCount > MAX_AUTO_NATIVE_WATCH_FILES) {
+        resolvedWatchMode = 'polling'
+        fallbackApplied = true
+      }
+    }
+
     try {
       watchEntry =
         resolvedWatchMode === 'native'

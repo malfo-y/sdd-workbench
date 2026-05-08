@@ -146,7 +146,7 @@ async function buildWorkspacePollingSnapshot(
         const fileStats = await stat(absolutePath)
         fileMetadataByRelativePath.set(
           relativePath,
-          `${fileStats.mtimeMs}:${fileStats.size}`,
+          `${fileStats.mtimeMs}:${fileStats.ctimeMs}:${fileStats.size}`,
         )
         fileCount += 1
       } catch {
