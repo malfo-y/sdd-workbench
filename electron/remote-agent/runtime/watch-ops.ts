@@ -114,7 +114,15 @@ async function buildWorkspacePollingSnapshot(
       // Skip realpath de-duplication for unreadable/transient paths.
     }
 
-    const entries = await readdir(currentDirectory, { withFileTypes: true })
+    let entries: Dirent[]
+    try {
+      entries = await readdir(currentDirectory, { withFileTypes: true })
+    } catch (error) {
+      if (currentDirectory === rootPath) {
+        throw error
+      }
+      return
+    }
 
     for (const entry of entries) {
       if (fileCount >= MAX_WORKSPACE_POLL_FILES) {
@@ -298,6 +306,11 @@ export class RuntimeWatchService {
           hasStructureChanges: diff.hasStructureChanges,
         })
       }
+    } catch (error) {
+      // Never let a tick throw unhandled — that silently freezes the polling
+      // loop because the snapshot stops updating. Log and let the next tick retry.
+      const message = error instanceof Error ? error.message : String(error)
+      process.stderr.write(`Runtime polling tick failed: ${message}\n`)
     } finally {
       this.pollingInProgress = false
       this.scheduleNextTick()

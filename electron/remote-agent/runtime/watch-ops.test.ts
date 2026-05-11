@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -104,6 +104,39 @@ describe('remote-agent/runtime/watch-ops', () => {
 
       await service.stop()
     } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('continues polling when a child directory cannot be read', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-watch-denied-'))
+    const unreadablePath = path.join(rootPath, 'unreadable')
+    const emitted: Array<{ eventName: string; payload: unknown }> = []
+
+    try {
+      await mkdir(unreadablePath)
+      await chmod(unreadablePath, 0)
+      await writeFile(path.join(rootPath, 'watched.txt'), 'before\n', 'utf8')
+
+      const service = new RuntimeWatchService(rootPath, (eventName, payload) => {
+        emitted.push({ eventName, payload })
+      })
+
+      await service.start('native')
+
+      await writeFile(path.join(rootPath, 'watched.txt'), 'after\n', 'utf8')
+      await wait(1_800)
+
+      const watchEvent = emitted.find((event) => event.eventName === 'workspace.watchEvent')
+      expect(watchEvent).toBeDefined()
+      expect(watchEvent?.payload).toMatchObject({
+        changedRelativePaths: ['watched.txt'],
+        hasStructureChanges: false,
+      })
+
+      await service.stop()
+    } finally {
+      await chmod(unreadablePath, 0o700).catch(() => undefined)
       await rm(rootPath, { recursive: true, force: true })
     }
   })

@@ -6,6 +6,7 @@
 
 import type { BrowserWindow } from 'electron'
 import chokidar, { type FSWatcher } from 'chokidar'
+import type { Dirent } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import type { IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
@@ -232,7 +233,15 @@ async function buildWorkspacePollingSnapshot(
       return
     }
 
-    const entries = await readdir(currentDirectory, { withFileTypes: true })
+    let entries: Dirent[]
+    try {
+      entries = await readdir(currentDirectory, { withFileTypes: true })
+    } catch (error) {
+      if (currentDirectory === rootPath) {
+        throw error
+      }
+      return
+    }
 
     const eligibleCount = entries.filter(
       (entry) =>
@@ -304,7 +313,15 @@ async function countWatchableFilesUntilLimit(
       return
     }
 
-    const entries = await readdir(currentDirectory, { withFileTypes: true })
+    let entries: Dirent[]
+    try {
+      entries = await readdir(currentDirectory, { withFileTypes: true })
+    } catch (error) {
+      if (currentDirectory === rootPath) {
+        throw error
+      }
+      return
+    }
     for (const entry of entries) {
       if (fileCount > limit) {
         return
