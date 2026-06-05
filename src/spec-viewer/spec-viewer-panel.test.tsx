@@ -65,6 +65,7 @@ describe('SpecViewerPanel', () => {
         selectionRange?: { startLine: number; endLine: number },
       ) => void
     >(),
+    onRequestEditInVsCode = vi.fn<(relativePath: string) => void>(),
     onScrollPositionChange = vi.fn<
       (input: { relativePath: string; scrollTop: number }) => void
     >(),
@@ -127,6 +128,7 @@ describe('SpecViewerPanel', () => {
       relativePath: string,
       selectionRange?: { startLine: number; endLine: number },
     ) => void
+    onRequestEditInVsCode?: (relativePath: string) => void
     onScrollPositionChange?: (input: {
       relativePath: string
       scrollTop: number
@@ -161,6 +163,7 @@ describe('SpecViewerPanel', () => {
         onRequestCopyBoth={onRequestCopyBoth}
         onRequestCopyRelativePath={onRequestCopyRelativePath}
         onRequestCopySelectedContent={onRequestCopySelectedContent}
+        onRequestEditInVsCode={onRequestEditInVsCode}
         onGoToSourceLine={onGoToSourceLine}
         onOpenCitationTarget={onOpenCitationTarget}
         onOpenRelativePath={onOpenRelativePath}
@@ -180,6 +183,7 @@ describe('SpecViewerPanel', () => {
       onRequestCopyBoth,
       onRequestCopyRelativePath,
       onRequestCopySelectedContent,
+      onRequestEditInVsCode,
       onOpenRelativePath,
       onScrollPositionChange,
       rerender: renderResult.rerender,
@@ -238,6 +242,26 @@ describe('SpecViewerPanel', () => {
       'href',
       '#intro',
     )
+  })
+
+  it('opens and copies the active spec from header actions', () => {
+    const { onRequestCopyRelativePath, onRequestEditInVsCode } = renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit spec in VSCode' }))
+    expect(onRequestEditInVsCode).toHaveBeenCalledWith('docs/spec.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy active spec path' }))
+    expect(onRequestCopyRelativePath).toHaveBeenCalledWith('docs/spec.md')
+  })
+
+  it('disables active spec header actions without an active spec', () => {
+    renderPanel({
+      activeSpecPath: null,
+      markdownContent: null,
+    })
+
+    expect(screen.getByRole('button', { name: 'Edit spec in VSCode' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Copy active spec path' })).toBeDisabled()
   })
 
   it('scrolls to target heading when TOC link is clicked', () => {

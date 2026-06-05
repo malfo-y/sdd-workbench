@@ -13,6 +13,7 @@
 - same-document anchor와 내부 파일 링크를 안전하게 따라갈 수 있다.
 - TOC를 열면 현재 scroll 위치에 맞는 active heading이 표시되고, same-document heading jump는 normalized id + heading text fallback으로 처리된다.
 - rendered selection에서 `Copy Line Contents`, `Copy Contents and Path`, `Copy Relative Path`, `Go to Source`, `Add Comment`를 호출할 수 있다.
+- Spec Viewer 헤더에서 active spec을 VSCode로 열고 active spec 상대 경로를 복사할 수 있다.
 - spec 검색, block highlight, code->spec explicit navigation highlight를 사용할 수 있다.
 - prose, inline code span, 또는 fenced code block 안의 `[path.py:Symbol]` / `[path.py:Class.method]` bracket citation을 클릭해 Python 선언 위치로 점프할 수 있다.
 - citation 해석에 실패하면 기존 link popover 안에서 실패 이유를 확인할 수 있다.

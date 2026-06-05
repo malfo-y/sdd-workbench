@@ -1445,14 +1445,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       })
     })
 
-    await expandWorkspaceSummaryIfCollapsed()
     await waitFor(() => {
-      expect(screen.getByTestId('workspace-remote-retry-button')).toHaveTextContent(
-        'Retry Connect',
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'disconnected',
       )
     })
 
-    fireEvent.click(screen.getByTestId('workspace-remote-retry-button'))
+    fireEvent.click(screen.getByTestId('workspace-remote-connection-state'))
 
     await waitFor(() => {
       expect(connectRemoteMock).toHaveBeenCalledTimes(2)
@@ -1701,6 +1700,69 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       expect(openInVsCodeMock).toHaveBeenCalledWith({
         rootPath: '/Users/tester/projects/sdd-workbench',
         relativePath: 'src/auth.ts',
+        workspaceKind: 'local',
+      })
+    })
+  })
+
+  it('opens the active spec in VSCode from the Spec Viewer header', async () => {
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/sdd-workbench',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'docs',
+          relativePath: 'docs',
+          kind: 'directory',
+          children: [
+            {
+              name: 'spec.md',
+              relativePath: 'docs/spec.md',
+              kind: 'file',
+            },
+          ],
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: '# Active Spec',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'docs' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'docs' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'spec.md' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'spec.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/spec.md',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit spec in VSCode' }))
+
+    await waitFor(() => {
+      expect(openInVsCodeMock).toHaveBeenCalledWith({
+        rootPath: '/Users/tester/projects/sdd-workbench',
+        relativePath: 'docs/spec.md',
         workspaceKind: 'local',
       })
     })
@@ -2519,11 +2581,12 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
+    fireEvent.click(screen.getByTestId('workspace-switcher-button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Close workspace ~/project-b' }))
     await waitFor(() => {
       expect(screen.getByTestId('workspace-path')).toHaveAttribute(
         'title',
-        projectBRoot,
+        projectARoot,
       )
     })
 

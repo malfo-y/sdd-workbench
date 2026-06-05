@@ -111,6 +111,7 @@ type SpecViewerPanelProps = {
     relativePath: string,
     selectionRange?: { startLine: number; endLine: number },
   ) => void
+  onRequestEditInVsCode?: (relativePath: string) => void
   commentLineCounts: ReadonlyMap<number, number>
   commentLineEntries?: ReadonlyMap<number, readonly CodeComment[]>
   restoredScrollTop?: number | null
@@ -244,6 +245,54 @@ function rehypeWrapMathWithSourceMetadata() {
   }
 }
 
+function CopyPathIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <rect
+        fill="none"
+        height="11"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        width="10"
+        x="10"
+        y="7"
+      />
+      <rect
+        fill="none"
+        height="11"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        width="10"
+        x="4"
+        y="3"
+      />
+    </svg>
+  )
+}
+
+function EditInVsCodeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path
+        d="M4 17.25V20h2.75L17.8 8.94l-2.75-2.75L4 17.25Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M13.96 5.44 16.7 8.2"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
 export function SpecViewerPanel({
   workspaceRootPath,
   activeSpecPath,
@@ -262,6 +311,7 @@ export function SpecViewerPanel({
   onRequestCopySelectedContent,
   onRequestCopyBoth,
   onRequestCopyRelativePath,
+  onRequestEditInVsCode,
   commentLineCounts,
   commentLineEntries = EMPTY_COMMENT_LINE_ENTRIES,
   restoredScrollTop = null,
@@ -1028,7 +1078,46 @@ export function SpecViewerPanel({
       data-appearance-theme={appearanceTheme}
       data-testid="spec-viewer-panel"
     >
-      <p className="label">Rendered Spec</p>
+      <header className="spec-viewer-header">
+        <div className="spec-viewer-title-row">
+          <p className="label">Rendered Spec</p>
+          <div className="spec-viewer-header-actions">
+            <button
+              aria-label="Edit spec in VSCode"
+              className="spec-viewer-edit-button"
+              data-testid="spec-viewer-edit-in-vscode-button"
+              disabled={!activeSpecPath || !onRequestEditInVsCode}
+              onClick={() => {
+                if (!activeSpecPath || !onRequestEditInVsCode) {
+                  return
+                }
+                onRequestEditInVsCode(activeSpecPath)
+              }}
+              title="Edit spec in VSCode"
+              type="button"
+            >
+              <EditInVsCodeIcon />
+              <span>Edit</span>
+            </button>
+            <button
+              aria-label="Copy active spec path"
+              className="spec-viewer-copy-path-button"
+              data-testid="spec-viewer-copy-path-button"
+              disabled={!activeSpecPath}
+              onClick={() => {
+                if (!activeSpecPath) {
+                  return
+                }
+                onRequestCopyRelativePath(activeSpecPath)
+              }}
+              title="Copy active spec path"
+              type="button"
+            >
+              <CopyPathIcon />
+            </button>
+          </div>
+        </div>
+      </header>
       <p
         className="path spec-viewer-active-spec"
         data-testid="spec-viewer-active-spec"

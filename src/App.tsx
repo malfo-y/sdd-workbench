@@ -506,6 +506,7 @@ function App() {
               <div className="sidebar-workspace-controls">
                 <WorkspaceSwitcher
                   activeWorkspaceId={activeWorkspaceId}
+                  onCloseWorkspace={closeWorkspace}
                   onSelectWorkspace={setActiveWorkspace}
                   workspaces={workspaces}
                 />
@@ -587,14 +588,27 @@ function App() {
                     REMOTE
                   </span>
                 )}
-                {isActiveRemoteWorkspace && (
+                {shouldShowRetryRemoteButton ? (
+                  <button
+                    className={`workspace-remote-connection-state workspace-remote-connection-state-action workspace-remote-connection-state-${remoteConnectionLabel}`}
+                    data-testid="workspace-remote-connection-state"
+                    disabled={externalApp.isRetryingRemoteWorkspace || externalApp.isConnectingRemoteWorkspace}
+                    onClick={() => {
+                      void externalApp.handleRetryRemoteWorkspaceConnection()
+                    }}
+                    title={isFatalRemoteFailure ? 'Reconnect' : 'Retry Connect'}
+                    type="button"
+                  >
+                    {remoteConnectionLabel}
+                  </button>
+                ) : isActiveRemoteWorkspace ? (
                   <span
                     className={`workspace-remote-connection-state workspace-remote-connection-state-${remoteConnectionLabel}`}
                     data-testid="workspace-remote-connection-state"
                   >
                     {remoteConnectionLabel}
                   </span>
-                )}
+                ) : null}
               </div>
               {isWorkspaceSummaryExpanded && (
                 <>
@@ -802,6 +816,7 @@ function App() {
                 onRequestCopyBoth={commentActions.handleCopyBoth}
                 onRequestCopyRelativePath={commentActions.handleCopyRelativePath}
                 onRequestCopySelectedContent={commentActions.handleCopySelectedContent}
+                onRequestEditInVsCode={externalApp.openActiveFileInVsCode}
                 onOpenCitationTarget={historyNav.openCitationTarget}
                 onGoToSourceLine={historyNav.goToActiveSpecSourceLine}
                 onOpenRelativePath={historyNav.openSpecRelativePath}
