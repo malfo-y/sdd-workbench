@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { abbreviateWorkspacePath } from './path-format'
 import type { WorkspaceId } from './workspace-model'
 
@@ -16,7 +23,9 @@ export function WorkspaceSwitcher({
   onCloseWorkspace,
 }: WorkspaceSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({})
   const switcherRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const activeWorkspace = useMemo(
     () =>
       workspaces.find(({ id }) => id === activeWorkspaceId) ?? workspaces[0] ?? null,
@@ -41,6 +50,42 @@ export function WorkspaceSwitcher({
     window.addEventListener('pointerdown', handlePointerDown)
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [isOpen])
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const updateMenuPosition = () => {
+      const triggerRect = triggerRef.current?.getBoundingClientRect()
+      if (!triggerRect) {
+        return
+      }
+
+      const viewportWidth =
+        window.innerWidth || document.documentElement.clientWidth || 1024
+      const viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight || 768
+      const availableWidth = Math.max(260, viewportWidth - triggerRect.left - 12)
+      const maxHeight = Math.max(160, viewportHeight - triggerRect.bottom - 12)
+
+      setMenuStyle({
+        left: Math.round(triggerRect.left),
+        maxHeight: Math.round(maxHeight),
+        maxWidth: Math.round(availableWidth),
+        minWidth: Math.round(Math.min(triggerRect.width, availableWidth)),
+        top: Math.round(triggerRect.bottom + 4),
+      })
+    }
+
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
     }
   }, [isOpen])
 
@@ -92,6 +137,7 @@ export function WorkspaceSwitcher({
           onClick={() => {
             setIsOpen((previous) => !previous)
           }}
+          ref={triggerRef}
           title={activeWorkspace?.rootPath ?? activeWorkspaceLabel}
           type="button"
         >
@@ -107,6 +153,7 @@ export function WorkspaceSwitcher({
             aria-label="Open workspaces"
             className="workspace-switcher-menu"
             role="menu"
+            style={menuStyle}
           >
             {workspaces.map(({ id, rootPath }) => {
               const label = abbreviateWorkspacePath(rootPath)
