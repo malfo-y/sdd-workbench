@@ -88,6 +88,7 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
   private requestSequence = 0
   private hasStarted = false
   private isStopping = false
+  private hasReportedUnexpectedDisconnect = false
 
   private readonly onStdoutData = (chunk: Buffer | string) => {
     try {
@@ -124,6 +125,16 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
     this.failAllPending(normalized)
   }
 
+  private readonly onProcessStreamError = (error: Error) => {
+    const normalized = toRemoteAgentError(error, 'CONNECTION_CLOSED')
+    this.reportUnexpectedDisconnect(normalized)
+    void this.stop()
+  }
+
+  private readonly ignoreProcessStreamError = () => {
+    // Stream errors during intentional shutdown should not crash the main process.
+  }
+
   private readonly onProcessExit = (
     code: number | null,
     signal: NodeJS.Signals | null,
@@ -136,15 +147,7 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
         'CONNECTION_CLOSED',
         `Remote SSH process exited unexpectedly (code=${String(code)}, signal=${String(signal)}).`,
       )
-      this.failAllPending(reason)
-      this.emitEvent({
-        type: 'event',
-        event: 'session.disconnected',
-        payload: {
-          reason: reason.message,
-        },
-        protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
-      })
+      this.reportUnexpectedDisconnect(reason)
     }
   }
 
@@ -179,10 +182,14 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
 
       process.stdout.on('data', this.onStdoutData)
       process.stderr.on('data', this.onStderrData)
+      process.stdin.on('error', this.onProcessStreamError)
+      process.stdout.on('error', this.onProcessStreamError)
+      process.stderr.on('error', this.onProcessStreamError)
       process.on('error', this.onProcessError)
       process.on('exit', this.onProcessExit)
 
       this.hasStarted = true
+      this.hasReportedUnexpectedDisconnect = false
       this.stderrTail = ''
 
       try {
@@ -302,6 +309,12 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
       this.isStopping = true
       process.stdout.removeListener('data', this.onStdoutData)
       process.stderr.removeListener('data', this.onStderrData)
+      process.stdin.removeListener('error', this.onProcessStreamError)
+      process.stdout.removeListener('error', this.onProcessStreamError)
+      process.stderr.removeListener('error', this.onProcessStreamError)
+      process.stdin.on('error', this.ignoreProcessStreamError)
+      process.stdout.on('error', this.ignoreProcessStreamError)
+      process.stderr.on('error', this.ignoreProcessStreamError)
       process.removeListener('error', this.onProcessError)
       process.removeListener('exit', this.onProcessExit)
 
@@ -405,6 +418,23 @@ class SshRemoteAgentTransport implements RemoteAgentTransport {
     for (const listener of this.eventListeners) {
       listener(event)
     }
+  }
+
+  private reportUnexpectedDisconnect(error: RemoteAgentError): void {
+    if (this.isStopping || this.hasReportedUnexpectedDisconnect) {
+      return
+    }
+
+    this.hasReportedUnexpectedDisconnect = true
+    this.failAllPending(error)
+    this.emitEvent({
+      type: 'event',
+      event: 'session.disconnected',
+      payload: {
+        reason: error.message,
+      },
+      protocolVersion: REMOTE_AGENT_PROTOCOL_VERSION,
+    })
   }
 
   private failAllPending(error: Error | JsonLineFramingError | RemoteAgentError): void {

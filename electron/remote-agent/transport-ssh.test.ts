@@ -403,6 +403,47 @@ describe('remote-agent/transport-ssh', () => {
     })
   })
 
+  it('converts stdio stream errors to a disconnected event instead of crashing', async () => {
+    const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+    const events: string[] = []
+    transport.onEvent((event) => {
+      events.push(event.event)
+    })
+    await transport.start()
+
+    const requestPromise = transport.request('slow-op')
+    fakeProcess.stdout.emit('error', new Error('ECONNRESET: connection reset'))
+    fakeProcess.emit('exit', 255, null)
+
+    await expect(requestPromise).rejects.toMatchObject({
+      code: 'CONNECTION_CLOSED',
+      message: expect.stringContaining('connection reset'),
+    })
+    expect(events.filter((event) => event === 'session.disconnected')).toHaveLength(1)
+  })
+
+  it('ignores late stdio stream errors during intentional shutdown', async () => {
+    const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
+    const transport = createSshRemoteAgentTransport(profile, {
+      spawnProcess: () => fakeProcess.asChildProcess(),
+      bootstrapper: async () => bootstrapResult,
+      requestTimeoutMs: 5_000,
+    })
+    await transport.start()
+    await transport.stop()
+
+    expect(() => {
+      fakeProcess.stdin.emit('error', new Error('EPIPE: late shutdown error'))
+    }).not.toThrow()
+  })
+
   it('fails start when bootstrap reports protocol mismatch', async () => {
     const spawnProcess = vi.fn(() => {
       throw new Error('should not be called')
