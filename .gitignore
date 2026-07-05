@@ -38,3 +38,10 @@ _sdd/spec/prev/
 _sdd/drafts/prev/
 _sdd/implementation/prev/
 _sdd/spec/_processed_user_*.md
+
+# SDD-WORKSPACE:START — process artifact는 로컬 전용(커밋 제외)
+_sdd/discussion/
+_sdd/implementation/
+_sdd/pipeline/
+_sdd/pr/
+# SDD-WORKSPACE:END

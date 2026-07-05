@@ -1,38 +1,47 @@
-# AGENTS.md
+<!-- SDD-HARNESS:START -->
+# AGENTS.md — sdd-workbench 작업 하네스
 
-## 이 저장소에서 작업하는 에이전트를 위한 지침
+> 작업 규약(how). repo의 이해(what/why)·scope·guardrail은 여기 말고 `_sdd/spec/`.
 
-### 스펙 먼저
+## 0. 작업 원칙 (모든 작업에 우선)
 
-구현 전에 관련 스펙을 읽는다:
-1. `_sdd/spec/main.md` — 프로젝트 범위와 설계 판단
-2. 관련 `_sdd/spec/<component>/overview.md` + `contracts.md` — 컴포넌트 규칙
-3. `_sdd/spec/feature-index.md` — 기능 ID로 범위 추적
+1. Ask, don't assume. If something is unclear, ask before writing a single line. Never make silent assumptions about intent, architecture, or requirements. When running unattended, pick the most reasonable interpretation, proceed, and record the assumption rather than blocking.
 
-### 품질 게이트
+2. Implement the simplest solution for simple problems, better solutions for harder problems. Do not over-engineer or add flexibility that isn't needed yet.
 
-코드 변경 후 반드시 확인:
-```bash
-npm test
-npm run lint
-```
+3. Don't touch unrelated code but please do surface bad code or design smells you discover with me so we can address them as a separate issue.
 
-UI 변경 시 `npm run dev`로 Electron 앱에서 직접 확인한다.
+4. Flag uncertainty explicitly. If you're unsure about something, see point 1 above. If it makes sense to do so, conduct a small, localised and low-risk experiment and bring the hypothesis and results to me to discuss. Confidence without certainty causes more damage than admitting a gap.
 
-### 구현 코드 수정 규칙
+5. I'm always open to ideas on better ways to do things. Please don't hesitate to suggest a better way, or one that has long lasting impact over a tactical change. (as a few examples)
 
-- 기존 테스트가 깨지지 않도록 한다
-- 새 기능에는 테스트를 추가한다
-- IPC 채널 추가/변경 시 관련 contracts.md를 함께 업데이트한다
+## 1. 작업 시작 시 읽는 순서
 
-### 스펙 수정 규칙
+1. 이 파일 → 2. `_sdd/spec/main.md` → 3. `_sdd/env.md` → 4. 진행 중인 변경이면 관련 `_sdd/drafts/`·`_sdd/implementation/` temporary spec
 
-- `main.md`는 thin global spec — feature-level 상세를 넣지 않는다
-- feature-level 설명은 `<component>/overview.md`에, 계약은 `contracts.md`에 넣는다
-- 새 기능 추가 시 `feature-index.md`를 업데이트한다
-- 의사결정 이력은 `decision-log.md`에 기록한다
+## 2. 작업 규약 / 검증 표준
 
-### 환경
+- 테스트: `npm test` · 린트/타입체크: `npm run lint` (repo 변수, 없으면 줄 삭제)
+- Execute → Verify 필수 (문서/스킬 변경은 diff·grep·review가 유효한 검증). 작업을 닫기 전 그 단위를 `_sdd/work_log`에 기록한다(§5, 예외 없이).
+- 브랜치: 기능 추가/변경 시작 시 `codex/<topic>` 브랜치 생성 후 작업
+- 커밋/PR: 작고 검증된 단위로 커밋하고, PR이 필요하면 draft PR부터 연다 · 코드가 global spec과 어긋나면 코드보다 spec을 먼저 갱신
+- ⚠️ `_sdd/env.md`는 커밋되는 파일이다 — 비밀값(API 키·토큰·비밀번호)을 적지 말 것(환경변수/secret manager로 관리). 작업 산출물 중 `_sdd/{discussion,implementation,pipeline,pr}/`는 `.gitignore`로 로컬 전용이고, 커밋되는 `_sdd`는 `spec/`·`guides/`·`env.md`·`drafts/`·`work_log/`다(`drafts/`·`work_log/`는 구현 로그 자산).
 
-- Node.js 20.x, npm, macOS primary
-- 상세: `_sdd/env.md`
+## 3. SDD 워크플로우
+
+이 repo는 SDD를 따른다. 단계 순서:
+discussion → feature-draft / temporary spec → (spec-sync) → (implementation-plan) → implementation → review-fix → verify → spec-sync.
+괄호 단계(`spec-sync`·`implementation-plan`)는 **대규모 구현용 optional**이다 — 소규모 변경은 생략 가능. `spec-sync`는 단일 스킬로, 구현 전(planned 반영, 조건부)과 구현 후(동기화)에 같은 진입점이 evidence 차이로 동작을 적응하며 최대 2회 호출된다. 각 단계의 구체 스킬은 **설치된 SDD 스킬**을 사용한다. (스킬 카탈로그를 여기 복사하지 않는다 — 최신 스킬셋이 단일 소스다.)
+
+## 4. 판단 기준이 필요할 때 (가리키기, 복사 금지)
+
+- scope / 경계 → `_sdd/spec/main.md` §`2. Scope / Non-goals / Guardrails`
+- 핵심 결정의 '왜' → `_sdd/spec/main.md` §`3. 핵심 설계와 주요 결정`
+- ⚠️ repo-specific 주의·불변 규칙(이 모듈 read-only 등)은 **여기 말고 spec Guardrails가 단일 소스**다. 이 파일에 적지 말 것.
+
+## 5. 작업 기록 (work log)
+
+- 각 작업 단위 종료 시 예외 없이 `_sdd/work_log/<yyyy-mm-dd>.md`에 항목을 append 한다(그날 파일이 없으면 생성). 작업 단위 = SDD 단계(논의·계획·구현·리뷰) 종료, 또는 그 밖의 독립 커밋. *작성*은 항상, 과거 로그 *읽기*만 on-demand(포렌식, §1 읽기 대상 아님).
+- 항목: `## <순번/HH:MM> <제목>` 아래 `무엇/왜` · `결과` · `포인터`(관련 커밋·문서·decision log 링크) · `요약`(따로 남은 게 없을 때만 인라인).
+- 포인터로 충분하면 `요약` 생략(중복 금지). `_sdd/pipeline/log_*.md`(autopilot 전용)와 별개 트랙 — 수동 작업도 포함.
+<!-- SDD-HARNESS:END -->

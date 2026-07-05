@@ -5,7 +5,7 @@
 이 문서는 구현 변경 시 어느 파일부터 읽어야 하는지 빠르게 좁히기 위한 코드 인덱스다.
 
 - 제품 설명과 whitepaper 엔트리 포인트는 [main](./main.md)을 본다.
-- 상태/IPC/계약은 각 컴포넌트 `contracts.md`와 [main](./main.md)의 §7 API Reference를 본다.
+- 상태/IPC/계약은 각 컴포넌트 `contracts.md`를 보고, repo-wide 경계와 설계 판단은 [main](./main.md)의 Guardrails / Key Decisions를 본다.
 - 여기서는 “어디를 고칠 가능성이 높은가”만 빠르게 찾는다.
 
 ## 1. App Shell / Navigation
@@ -35,6 +35,8 @@
   - `src/workspace/workspace-context.tsx`
   - `src/workspace/workspace-model.ts`
   - `src/workspace/workspace-persistence.ts`
+  - `src/workspace/use-workspace-watcher.ts`
+  - `src/workspace/use-workspace-remote.ts`
 - 같이 보는 파일:
   - `src/workspace/workspace-switcher.tsx`
   - `src/App.tsx`
@@ -44,13 +46,15 @@
   - `src/App.test.tsx`
 - 변경 시 주의점:
   - renderer 상태 모델을 건드리면 거의 항상 IPC, file tree, code/spec panel까지 영향이 간다.
+  - active remote file/spec focus publication과 cleanup은 watcher lifecycle과 연결되어 있어, remote disconnect 및 watcher stop/restart 회귀를 함께 확인해야 한다.
 
 ## 3. File Tree / Search / Git File Status
 
 - 책임:
-  - 트리 렌더, lazy expand, CRUD/rename 메뉴, 파일 검색, changed marker, git file-level badge
+  - 트리 렌더, lazy expand, CRUD/rename 메뉴, 파일명 검색, 프로젝트 텍스트 검색, changed marker, git file-level badge
 - 핵심 파일:
   - `src/file-tree/file-tree-panel.tsx`
+  - `src/project-search/project-search-panel.tsx`
   - `electron/workspace-search.ts`
   - `electron/git-file-statuses.ts`
 - 같이 보는 파일:
@@ -60,10 +64,12 @@
   - `electron/workspace-backend/remote-workspace-backend.ts`
 - 핵심 테스트:
   - `src/file-tree/file-tree-panel.test.tsx`
+  - `src/project-search/project-search-panel.test.tsx`
   - `electron/workspace-search.test.ts`
   - `electron/git-file-statuses.test.ts`
 - 변경 시 주의점:
-  - 검색은 lazy-loaded tree와 독립적이며, remote/local 공통 contract를 유지해야 한다.
+  - 파일명 검색과 프로젝트 텍스트 검색은 lazy-loaded tree와 독립적이며, remote/local 공통 contract를 유지해야 한다.
+  - Project Text Search 결과 navigation은 App shell의 Code 탭 전환, file select, line highlight 경로와 연결된다.
 
 ## 4. Code Viewer / CM6 Viewer Engine
 
@@ -152,6 +158,9 @@
   - `electron/remote-agent/transport-ssh.ts`
   - `electron/remote-agent/bootstrap.ts`
   - `electron/remote-agent/connection-service.ts`
+  - `electron/workspace-backend/remote-watch-bridge.ts`
+  - `electron/remote-agent/security.ts`
+  - `electron/remote-agent/runtime/watch-ops.ts`
 - 같이 보는 파일:
   - `electron/workspace-watch-mode.ts`
   - `electron/remote-agent/runtime/*`
@@ -164,6 +173,8 @@
   - `electron/workspace-watch-mode.test.ts`
 - 변경 시 주의점:
   - remote contract를 바꾸면 preload type, renderer helper, spec contracts를 함께 갱신해야 한다.
+  - remote watcher fast lane은 active focused paths만 빠르게 검사해야 하며, full workspace polling interval과 git status refresh cadence를 함께 끌어올리면 안 된다.
+  - SSH transport stream error 처리는 연결 단절 이벤트와 pending RPC 실패 경로에 묶여 있으므로, stdin/stdout/stderr listener 변경 시 `transport-ssh.test.ts`의 단절/종료 회귀를 함께 확인해야 한다.
 
 ## 8. Appearance / Native Menu / Theming
 

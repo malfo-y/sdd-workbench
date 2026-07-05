@@ -48,6 +48,7 @@
 - (F27) remote 연결 상태는 `connecting -> connected -> degraded/disconnected` 상태 머신으로 관리한다.
 - (F27) 재시도 한도 초과 시 자동 재시도를 중단하고 명시적 사용자 재시도 액션으로 전환한다.
 - (F27) remote 프로토콜 버전 불일치 시 기능 강등 없이 즉시 연결 실패 처리(`AGENT_PROTOCOL_MISMATCH`)
+- (F27) remote SSH child process와 stdio stream 오류는 앱 크래시 없이 `CONNECTION_CLOSED` 단절 이벤트로 정규화하고, 명시적 shutdown 중 late stream error는 무시한다.
 - (F27) F15(SSHFS 기반) 연결 경로는 폐기되었고 remote-protocol 단일 경로를 사용한다.
 - (F28) remote directory browse 실패(`AUTH_FAILED`/`TIMEOUT`/`PATH_DENIED` 등)는 연결 실패와 분리해 모달 내 고정 오류로 표시한다.
 - swipe history는 supported macOS 계열 플랫폼에서만 활성화하고, 비지원 플랫폼에서는 `app-command` 경로만 유지한다.

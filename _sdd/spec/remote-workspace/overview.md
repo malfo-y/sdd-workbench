@@ -9,11 +9,14 @@
 - 원격 연결 모달에서 접속 정보를 입력하고 원격 워크스페이스를 연다.
 - 연결 전에 원격 디렉토리를 browse 해서 `remoteRoot`를 고른다.
 - 연결 이후에는 로컬 워크스페이스와 유사하게 파일 읽기/쓰기/감시/git/comments/파일 복사(copyEntries) 기능을 사용한다.
+- 프로젝트 텍스트 검색은 로컬과 같은 `workspace:searchText` renderer surface로 사용하며, remote agent runtime의 `workspace.searchText`가 원격 파일 내용을 scan한다.
+- 원격 워크스페이스에서 현재 보고 있는 active file/spec의 content-only 외부 변경은 focused fast lane을 통해 전체 workspace polling보다 빠르게 감지된다.
 - 연결 단절, degraded 상태, retry 가능 여부를 배너/상태로 확인한다.
 - 원격 워크스페이스에서 `Open in iTerm`을 누르면 SSH 접속 후 `remoteRoot`에서 셸이 시작된다.
 - 원격 워크스페이스에서 `Open in VSCode`를 누르면 VS Code Remote-SSH authority로 `remoteRoot`를 연다 (`sshAlias` 필수).
 - 원격 워크스페이스에서 `Open in Finder`를 누르면 unsupported 안내 메시지를 배너로 보여준다.
 - 원격 연결 모달에서 `sshAlias`를 입력하고, VSCode SSH config 자동 동기화를 선택할 수 있다.
+- SSH child process 또는 stdio stream이 예기치 않게 닫히면 앱 크래시 대신 원격 연결 단절 상태와 재시도 가능한 오류로 표시된다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -43,6 +46,8 @@
 
 - renderer는 local/remote 차이를 `workspace:*` contract 뒤에 숨긴다.
 - main process가 `WorkspaceBackend` 구현체를 골라 동일한 invoke surface를 유지한다.
+- project text search도 같은 backend abstraction을 따르며, remote backend는 `workspace.searchText` RPC를 remote agent runtime에 위임한다.
+- renderer가 active file/spec에서 파생한 focused path update도 같은 backend abstraction을 따르며, local backend는 no-op, remote backend는 `workspace.watchSetFocusedPaths` RPC로 위임한다.
 - `copyEntries`도 동일한 추상화를 따른다. remote backend는 `workspace.copyEntries` RPC를 remote agent runtime에 위임한다.
 - macOS Finder 클립보드 붙여넣기는 로컬 전용이다. 원격 워크스페이스에서 Finder 소스만 있으면 안내 메시지를 반환한다.
 
@@ -58,7 +63,12 @@
 ### 4.4 watch / scale / fallback
 
 - remote runtime polling watcher는 `1500ms`, 파일 상한 `100000`, symlink 추적을 사용한다.
+- remote runtime은 focused active file/spec metadata를 `400ms` fast lane으로 별도 검사한다. 이 경로는 기존 `workspace.watchEvent` payload를 재사용하고 content-only 변경은 `hasStructureChanges=false`로 보낸다.
+- focused path set은 connected/degraded remote workspace의 active file과 active spec에서 파생되며, focus 이동, remote disconnect/non-remote 전환, watcher stop/restart 시 빈 목록으로 정리된다.
+- inactive files, directory structure refresh, tree hydration, remote git status refresh는 기존 damped watcher policy를 유지한다.
+- remote project text search는 local scanner와 같은 guardrail 기본값과 partial flag shape를 사용한다. 세부 request/result 계약은 [workspace-and-file-tree/contracts.md](../workspace-and-file-tree/contracts.md)의 `workspace:searchText`를 따른다.
 - 연결 실패/강등은 오류 코드와 함께 renderer로 이벤트를 보낸다.
+- SSH process exit, stdin/stdout/stderr stream error, pending RPC 실패는 모두 `CONNECTION_CLOSED` 단절 경로로 정규화한다. 단절 이벤트는 세션당 한 번만 emit하고, 명시적 disconnect/shutdown 중 뒤늦게 도착한 stream error는 무시한다.
 - F15 SSHFS 경로는 이력으로 남기되, 현재 active 경로는 F27 remote-protocol 단일 경로다.
 
 ## 5. 주요 코드
@@ -74,6 +84,8 @@
 - `electron/remote-agent/connection-service.ts`
 - `electron/remote-agent/security.ts`
 - `electron/remote-agent/runtime/*` (incl. `copy-ops.ts`: remote copyEntries 구현)
+- `electron/workspace-backend/remote-watch-bridge.ts`
+- `electron/workspace-search.ts`
 - `electron/system-open.ts`
 - `electron/vscode-ssh-config.ts`
 
