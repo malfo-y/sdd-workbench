@@ -129,6 +129,22 @@ export function useWorkspaceRemote(input: {
     [clearRemoteBannerAutoDismissTimer],
   )
 
+  const clearFocusedWatchPaths = useCallback(
+    async (workspaceId: WorkspaceId, rootPath?: string) => {
+      const targetRootPath =
+        rootPath ?? workspaceStateRef.current.workspacesById[workspaceId]?.rootPath
+      if (!targetRootPath) {
+        return
+      }
+      try {
+        await window.workspace.watchSetFocusedPaths(workspaceId, targetRootPath, [])
+      } catch {
+        // Watcher shutdown/restart should continue even if focused-path cleanup fails.
+      }
+    },
+    [workspaceStateRef],
+  )
+
   const startWorkspaceWatch = useCallback(
     async (
       workspaceId: WorkspaceId,
@@ -152,6 +168,10 @@ export function useWorkspaceRemote(input: {
 
       if (forceRestart && watchedWorkspaceIdsRef.current.has(workspaceId)) {
         watchedWorkspaceIdsRef.current.delete(workspaceId)
+        await clearFocusedWatchPaths(
+          workspaceId,
+          existingWorkspaceSession?.rootPath ?? rootPath,
+        )
         try {
           await window.workspace.watchStop(workspaceId)
         } catch {
@@ -212,19 +232,31 @@ export function useWorkspaceRemote(input: {
       setWorkspaceState,
       watchedWorkspaceIdsRef,
       workspaceStateRef,
+      clearFocusedWatchPaths,
     ],
   )
 
-  const stopWorkspaceWatch = useCallback(async (workspaceId: WorkspaceId) => {
-    watchedWorkspaceIdsRef.current.delete(workspaceId)
-    try {
-      await window.workspace.watchStop(workspaceId)
-      return true
-    } catch {
-      setBannerMessage('Failed to stop watcher while closing the workspace.')
-      return false
-    }
-  }, [setBannerMessage, watchedWorkspaceIdsRef])
+  const stopWorkspaceWatch = useCallback(
+    async (workspaceId: WorkspaceId) => {
+      const rootPath =
+        workspaceStateRef.current.workspacesById[workspaceId]?.rootPath
+      watchedWorkspaceIdsRef.current.delete(workspaceId)
+      await clearFocusedWatchPaths(workspaceId, rootPath)
+      try {
+        await window.workspace.watchStop(workspaceId)
+        return true
+      } catch {
+        setBannerMessage('Failed to stop watcher while closing the workspace.')
+        return false
+      }
+    },
+    [
+      clearFocusedWatchPaths,
+      setBannerMessage,
+      watchedWorkspaceIdsRef,
+      workspaceStateRef,
+    ],
+  )
 
   const openWorkspace = useCallback(async () => {
     try {

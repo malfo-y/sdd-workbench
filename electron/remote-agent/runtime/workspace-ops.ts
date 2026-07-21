@@ -26,8 +26,16 @@ import {
   normalizeToWorkspaceRelativePath,
   resolveWorkspaceRelativePath,
 } from './path-guard'
-import type { RuntimeWorkspaceFileNode } from './runtime-types'
-import { searchWorkspaceFilesByName } from '../../workspace-search'
+import type {
+  RuntimeWorkspaceFileNode,
+  RuntimeWorkspaceSearchFilesResult,
+  RuntimeWorkspaceSearchTextResult,
+} from './runtime-types'
+import {
+  searchWorkspaceFilesByName,
+  searchWorkspaceText,
+  type WorkspaceSearchClassificationErrorReporter,
+} from '../../workspace-search'
 
 const WORKSPACE_INDEX_IGNORE_NAMES = new Set([
   '.git',
@@ -135,6 +143,7 @@ function sortWorkspaceTree(nodes: RuntimeWorkspaceFileNode[]): RuntimeWorkspaceF
 async function resolveWorkspaceEntryKind(
   absolutePath: string,
   entry: Dirent,
+  reportClassificationError?: WorkspaceSearchClassificationErrorReporter,
 ): Promise<Omit<IndexedWorkspaceEntry, 'name' | 'absolutePath'> | null> {
   if (entry.isFile()) {
     return {
@@ -168,7 +177,8 @@ async function resolveWorkspaceEntryKind(
         isSymbolicLink: true,
       }
     }
-  } catch {
+  } catch (error) {
+    reportClassificationError?.(error)
     return null
   }
 
@@ -177,6 +187,7 @@ async function resolveWorkspaceEntryKind(
 
 async function collectIndexedWorkspaceEntries(
   directoryPath: string,
+  reportClassificationError?: WorkspaceSearchClassificationErrorReporter,
 ): Promise<IndexedWorkspaceEntry[]> {
   const entries = await readdir(directoryPath, { withFileTypes: true })
   const indexedEntries: IndexedWorkspaceEntry[] = []
@@ -187,7 +198,11 @@ async function collectIndexedWorkspaceEntries(
     }
 
     const absolutePath = path.join(directoryPath, entry.name)
-    const entryKind = await resolveWorkspaceEntryKind(absolutePath, entry)
+    const entryKind = await resolveWorkspaceEntryKind(
+      absolutePath,
+      entry,
+      reportClassificationError,
+    )
     if (!entryKind) {
       continue
     }
@@ -548,18 +563,7 @@ export async function workspaceSearchFiles(
     maxDirectoryChildren?: unknown
     timeBudgetMs?: unknown
   },
-): Promise<{
-  ok: true
-  results: Array<{
-    relativePath: string
-    fileName: string
-    parentRelativePath: string
-  }>
-  truncated: boolean
-  skippedLargeDirectoryCount: number
-  depthLimitHit: boolean
-  timedOut: boolean
-}> {
+): Promise<RuntimeWorkspaceSearchFilesResult> {
   const query = typeof params.query === 'string' ? params.query : ''
   const maxDepth =
     typeof params.maxDepth === 'number' && Number.isFinite(params.maxDepth)
@@ -586,6 +590,27 @@ export async function workspaceSearchFiles(
     maxResults,
     maxDirectoryChildren,
     timeBudgetMs,
+    collectEntries: collectIndexedWorkspaceEntries,
+    normalizeRelativePath: normalizeToWorkspaceRelativePath,
+  })
+
+  return {
+    ok: true,
+    ...result,
+  }
+}
+
+export async function workspaceSearchText(
+  context: WorkspaceOpsContext,
+  params: {
+    query?: unknown
+  },
+): Promise<RuntimeWorkspaceSearchTextResult> {
+  const query = typeof params.query === 'string' ? params.query : ''
+
+  const result = await searchWorkspaceText({
+    rootPath: context.rootPath,
+    query,
     collectEntries: collectIndexedWorkspaceEntries,
     normalizeRelativePath: normalizeToWorkspaceRelativePath,
   })

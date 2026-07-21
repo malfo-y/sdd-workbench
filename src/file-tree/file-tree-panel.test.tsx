@@ -1226,6 +1226,7 @@ describe('FileTreePanel CRUD context menu', () => {
       ],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     }))
@@ -1283,6 +1284,7 @@ describe('FileTreePanel CRUD context menu', () => {
       results: [],
       truncated: true,
       skippedLargeDirectoryCount: 2,
+      skippedUnreadablePathCount: 2,
       depthLimitHit: true,
       timedOut: false,
     }))
@@ -1315,6 +1317,9 @@ describe('FileTreePanel CRUD context menu', () => {
     expect(screen.getByTestId('file-tree-search-hint')).toHaveTextContent(
       'Search results may be incomplete',
     )
+    expect(screen.getByTestId('file-tree-search-hint')).toHaveTextContent(
+      '2 unreadable paths skipped',
+    )
     vi.useRealTimers()
   })
 
@@ -1326,6 +1331,7 @@ describe('FileTreePanel CRUD context menu', () => {
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     }))
@@ -1417,6 +1423,7 @@ describe('FileTreePanel CRUD context menu', () => {
         ],
         truncated: false,
         skippedLargeDirectoryCount: 0,
+        skippedUnreadablePathCount: 0,
         depthLimitHit: false,
         timedOut: false,
       })
@@ -1435,6 +1442,7 @@ describe('FileTreePanel CRUD context menu', () => {
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     }))

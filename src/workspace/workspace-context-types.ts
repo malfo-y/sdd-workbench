@@ -93,6 +93,7 @@ export type WorkspaceContextActions = {
   ) => Promise<void>
   refreshFileTree: () => Promise<void>
   searchFiles: (query: string) => Promise<WorkspaceSearchFilesResult>
+  searchText: (query: string) => Promise<WorkspaceSearchTextResult>
   clearBanner: () => void
   reloadExternalChange: () => void
   dismissExternalChange: () => void

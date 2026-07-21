@@ -86,4 +86,24 @@ describe('workspace-backend/remote-watch-bridge', () => {
       'workspace.watchStop',
     )
   })
+
+  it('forwards focused paths updates to the remote watch RPC', async () => {
+    const requestRemote = vi.fn(async () => ({ ok: true }))
+    const bridge = new RemoteWatchBridge({
+      workspaceId: 'workspace-a',
+      requestRemote,
+      subscribeAgentEvents: () => () => undefined,
+      sendWatchEvent: () => undefined,
+      sendWatchFallback: () => undefined,
+    })
+    await expect(
+      bridge.watchSetFocusedPaths(['src/main.ts']),
+    ).resolves.toEqual({ ok: true })
+
+    expect(requestRemote).toHaveBeenCalledWith(
+      'workspace-a',
+      'workspace.watchSetFocusedPaths',
+      { focusedRelativePaths: ['src/main.ts'] },
+    )
+  })
 })

@@ -8,7 +8,7 @@ import { mkdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/pr
 import path from 'node:path'
 import { parseGitDiffLineMarkers } from './git-line-markers'
 import { parseGitStatusPorcelain } from './git-file-statuses'
-import { searchWorkspaceFilesByName } from './workspace-search'
+import { searchWorkspaceFilesByName, searchWorkspaceText } from './workspace-search'
 import { openWorkspaceInExternalTool } from './system-open'
 import { writeFileAtomic } from './atomic-write'
 import {
@@ -52,6 +52,8 @@ import type {
   WorkspaceRenameResult,
   WorkspaceSearchFilesRequest,
   WorkspaceSearchFilesResult,
+  WorkspaceSearchTextRequest,
+  WorkspaceSearchTextResult,
   WorkspaceWriteCommentsRequest,
   WorkspaceWriteCommentsResult,
   WorkspaceWriteFileRequest,
@@ -173,6 +175,7 @@ export async function handleWorkspaceSearchFiles(
         results: [],
         truncated: false,
         skippedLargeDirectoryCount: 0,
+        skippedUnreadablePathCount: 0,
         depthLimitHit: false,
         timedOut: false,
         error: 'rootPath is required.',
@@ -187,6 +190,7 @@ export async function handleWorkspaceSearchFiles(
         results: [],
         truncated: false,
         skippedLargeDirectoryCount: 0,
+        skippedUnreadablePathCount: 0,
         depthLimitHit: false,
         timedOut: false,
         error: 'Selected workspace root is not a directory.',
@@ -214,6 +218,7 @@ export async function handleWorkspaceSearchFiles(
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
       error:
@@ -221,6 +226,57 @@ export async function handleWorkspaceSearchFiles(
           ? error.message
           : 'Failed to search files.',
     }
+  }
+}
+
+function createWorkspaceSearchTextErrorResult(
+  error: string,
+): WorkspaceSearchTextResult {
+  return {
+    ok: false,
+    results: [],
+    truncated: false,
+    skippedLargeDirectoryCount: 0,
+    skippedLargeFileCount: 0,
+    skippedBinaryFileCount: 0,
+    skippedUnreadablePathCount: 0,
+    depthLimitHit: false,
+    timedOut: false,
+    error,
+  }
+}
+
+export async function handleWorkspaceSearchText(
+  _event: IpcMainInvokeEvent,
+  request: WorkspaceSearchTextRequest,
+): Promise<WorkspaceSearchTextResult> {
+  try {
+    const rootPath = request?.rootPath
+    if (!rootPath) {
+      return createWorkspaceSearchTextErrorResult('rootPath is required.')
+    }
+
+    const resolvedRootPath = path.resolve(rootPath)
+    const rootStats = await stat(resolvedRootPath)
+    if (!rootStats.isDirectory()) {
+      return createWorkspaceSearchTextErrorResult(
+        'Selected workspace root is not a directory.',
+      )
+    }
+
+    const searchResult = await searchWorkspaceText({
+      rootPath: resolvedRootPath,
+      query: request?.query ?? '',
+    })
+
+    return {
+      ok: true,
+      ...searchResult,
+    }
+  } catch (error) {
+    return createWorkspaceSearchTextErrorResult(
+      error instanceof Error ? error.message : 'Failed to search text.',
+    )
   }
 }
 

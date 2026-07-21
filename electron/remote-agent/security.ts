@@ -4,6 +4,7 @@ const REMOTE_WORKSPACE_METHOD_ALLOWLIST = [
   'workspace.index',
   'workspace.indexDirectory',
   'workspace.searchFiles',
+  'workspace.searchText',
   'workspace.readFile',
   'workspace.writeFile',
   'workspace.createFile',
@@ -20,6 +21,7 @@ const REMOTE_WORKSPACE_METHOD_ALLOWLIST = [
   'workspace.exportCommentsBundle',
   'workspace.copyEntries',
   'workspace.watchStart',
+  'workspace.watchSetFocusedPaths',
   'workspace.watchStop',
 ] as const
 

@@ -39,6 +39,7 @@
 9. runtime document session cache는 기본적으로 앱 재시작 snapshot persistence 범위에 포함하지 않는다.
 10. Code Viewer의 표준 renderer는 CM6 read-only engine이며, viewer-first 전환이 곧 정적 highlighter 전환을 의미하지는 않는다.
 11. `CodeEditorPanel` public surface는 viewer contract를 기준으로 유지하며, editor-centric save/draft mutation callback은 canonical contract가 아니다.
+12. focused remote watcher event가 active file/spec에 도착해도 dirty document의 `draftContent`를 자동으로 덮어쓰지 않고 기존 external-change conflict banner 경로를 사용한다.
 
 ## 4. source of truth
 

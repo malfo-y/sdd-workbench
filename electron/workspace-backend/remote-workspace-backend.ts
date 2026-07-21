@@ -29,8 +29,10 @@ import type {
   WorkspaceRenameRequest,
   WorkspaceWatchEventPayload,
   WorkspaceWatchFallbackEventPayload,
+  WorkspaceWatchSetFocusedPathsRequest,
   WorkspaceWatchStartRequest,
   WorkspaceWatchStopRequest,
+  WorkspaceSearchTextRequest,
   WorkspaceWriteCommentsRequest,
   WorkspaceWriteFileRequest,
   WorkspaceWriteGlobalCommentsRequest,
@@ -71,6 +73,7 @@ const REMOTE_WORKSPACE_METHODS = {
   index: 'workspace.index',
   indexDirectory: 'workspace.indexDirectory',
   searchFiles: 'workspace.searchFiles',
+  searchText: 'workspace.searchText',
   readFile: 'workspace.readFile',
   writeFile: 'workspace.writeFile',
   createFile: 'workspace.createFile',
@@ -84,6 +87,7 @@ const REMOTE_WORKSPACE_METHODS = {
   writeGlobalComments: 'workspace.writeGlobalComments',
   exportCommentsBundle: 'workspace.exportCommentsBundle',
   copyEntries: 'workspace.copyEntries',
+  watchSetFocusedPaths: 'workspace.watchSetFocusedPaths',
   watchStop: 'workspace.watchStop',
 } as const
 
@@ -151,6 +155,18 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
       maxResults: request.maxResults,
       maxDirectoryChildren: request.maxDirectoryChildren,
       timeBudgetMs: request.timeBudgetMs,
+    },
+    )
+  }
+
+  searchText(
+    request: WorkspaceSearchTextRequest,
+  ): Promise<WorkspaceBackendResult<'searchText'>> {
+    return this.forwardRootWorkspaceMethod(
+      request,
+      REMOTE_WORKSPACE_METHODS.searchText,
+      {
+      query: request.query,
     },
     )
   }
@@ -315,6 +331,16 @@ class RemoteWorkspaceBackend implements WorkspaceBackend {
   ): Promise<WorkspaceBackendResult<'watchStart'>> {
     this.assertRootPath(request.rootPath)
     return this.watchBridge.start(request.watchModePreference)
+  }
+
+  watchSetFocusedPaths(
+    request: WorkspaceWatchSetFocusedPathsRequest,
+  ): Promise<WorkspaceBackendResult<'watchSetFocusedPaths'>> {
+    this.assertRootPath(request.rootPath)
+    for (const focusedRelativePath of request.focusedRelativePaths) {
+      this.assertRelativePathInWorkspace(focusedRelativePath)
+    }
+    return this.watchBridge.watchSetFocusedPaths(request.focusedRelativePaths)
   }
 
   async watchStop(

@@ -84,6 +84,15 @@ export class RemoteWatchBridge {
     await this.requestWorkspaceMethod('workspace.watchStop')
   }
 
+  async watchSetFocusedPaths(
+    focusedRelativePaths: string[],
+  ): Promise<{ ok: true }> {
+    return this.requestWorkspaceMethod<{ ok: true }>(
+      'workspace.watchSetFocusedPaths',
+      { focusedRelativePaths },
+    )
+  }
+
   private readonly handleAgentEvent = (event: RemoteAgentEvent) => {
     if (event.event === 'workspace.watchEvent' || event.event === 'watch.event') {
       const payload = event.payload

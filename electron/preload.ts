@@ -38,6 +38,7 @@ import type {
   WorkspaceRenameResult,
   WorkspaceSearchFilesOptions,
   WorkspaceSearchFilesResult,
+  WorkspaceSearchTextResult,
   WorkspaceSetFileClipboardResult,
   WorkspaceSyncVsCodeSshConfigRequest,
   WorkspaceSyncVsCodeSshConfigResult,
@@ -45,6 +46,7 @@ import type {
   WorkspaceWatchFallbackEvent,
   WorkspaceWatchEventPayload,
   WorkspaceWatchModePreference,
+  WorkspaceWatchSetFocusedPathsResult,
   WorkspaceWriteCommentsResult,
   WorkspaceWriteFileResult,
   WorkspaceWriteGlobalCommentsResult,
@@ -87,6 +89,12 @@ const workspaceApi = {
       maxDirectoryChildren: options?.maxDirectoryChildren,
       timeBudgetMs: options?.timeBudgetMs,
     }) as Promise<WorkspaceSearchFilesResult>
+  },
+  searchText(rootPath: string, query: string) {
+    return ipcRenderer.invoke('workspace:searchText', {
+      rootPath,
+      query,
+    }) as Promise<WorkspaceSearchTextResult>
   },
   readFile(rootPath: string, relativePath: string) {
     return ipcRenderer.invoke('workspace:readFile', {
@@ -186,6 +194,17 @@ const workspaceApi = {
     return ipcRenderer.invoke('workspace:watchStop', {
       workspaceId,
     }) as Promise<WorkspaceWatchControlResult>
+  },
+  watchSetFocusedPaths(
+    workspaceId: string,
+    rootPath: string,
+    focusedRelativePaths: string[],
+  ) {
+    return ipcRenderer.invoke('workspace:watchSetFocusedPaths', {
+      workspaceId,
+      rootPath,
+      focusedRelativePaths,
+    }) as Promise<WorkspaceWatchSetFocusedPathsResult>
   },
   connectRemote(profile: WorkspaceRemoteConnectionProfile) {
     return ipcRenderer.invoke('workspace:connectRemote', {

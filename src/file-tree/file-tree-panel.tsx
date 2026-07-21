@@ -329,6 +329,7 @@ export function FileTreePanel({
     results: WorkspaceSearchFileMatch[]
     truncated: boolean
     skippedLargeDirectoryCount: number
+    skippedUnreadablePathCount: number
     depthLimitHit: boolean
     timedOut: boolean
   }>({
@@ -337,6 +338,7 @@ export function FileTreePanel({
     results: [],
     truncated: false,
     skippedLargeDirectoryCount: 0,
+    skippedUnreadablePathCount: 0,
     depthLimitHit: false,
     timedOut: false,
   })
@@ -375,6 +377,7 @@ export function FileTreePanel({
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     })
@@ -447,6 +450,7 @@ export function FileTreePanel({
         previous.results.length > 0 ||
         previous.truncated ||
         previous.skippedLargeDirectoryCount > 0 ||
+        previous.skippedUnreadablePathCount > 0 ||
         previous.depthLimitHit ||
         previous.timedOut
           ? {
@@ -455,6 +459,7 @@ export function FileTreePanel({
               results: [],
               truncated: false,
               skippedLargeDirectoryCount: 0,
+              skippedUnreadablePathCount: 0,
               depthLimitHit: false,
               timedOut: false,
             }
@@ -488,6 +493,9 @@ export function FileTreePanel({
             skippedLargeDirectoryCount: result.ok
               ? result.skippedLargeDirectoryCount
               : 0,
+            skippedUnreadablePathCount: result.ok
+              ? result.skippedUnreadablePathCount
+              : 0,
             depthLimitHit: result.ok ? result.depthLimitHit : false,
             timedOut: result.ok ? result.timedOut : false,
           })
@@ -502,6 +510,7 @@ export function FileTreePanel({
             results: [],
             truncated: false,
             skippedLargeDirectoryCount: 0,
+            skippedUnreadablePathCount: 0,
             depthLimitHit: false,
             timedOut: false,
           })
@@ -710,6 +719,7 @@ export function FileTreePanel({
   const shouldShowSearchHint =
     searchState.truncated ||
     searchState.skippedLargeDirectoryCount > 0 ||
+    searchState.skippedUnreadablePathCount > 0 ||
     searchState.depthLimitHit ||
     searchState.timedOut
 
@@ -863,7 +873,11 @@ export function FileTreePanel({
               className="tree-search-hint"
               data-testid="file-tree-search-hint"
             >
-              Search results may be incomplete.
+              {searchState.skippedUnreadablePathCount > 0
+                ? `${searchState.skippedUnreadablePathCount} unreadable ${
+                    searchState.skippedUnreadablePathCount === 1 ? 'path' : 'paths'
+                  } skipped. Search results may be incomplete.`
+                : 'Search results may be incomplete.'}
             </p>
           )}
         </>

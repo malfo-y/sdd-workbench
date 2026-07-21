@@ -68,6 +68,47 @@
 
 ## 정책/구조 결정 (Active)
 
+## 2026-07-04 - F52 Remote Active File Watch Fast Lane 범위 고정
+
+- Context:
+  - Remote Agent Protocol watcher는 전체 workspace polling을 `1500ms`로 유지해 대형 repo scan 비용과 refresh storm을 제한하고 있었다.
+  - 사용자가 현재 보고 있는 remote active file/spec의 외부 변경은 더 빠른 체감 반영이 필요했지만, inactive files, directory structure, remote git status까지 즉시화하면 기존 damped watcher policy가 깨질 수 있었다.
+  - 구현은 typed `workspace:watchSetFocusedPaths` IPC/backend/preload contract, remote `workspace.watchSetFocusedPaths` RPC, runtime focused metadata loop, renderer cleanup, dirty conflict regression으로 완료됐다.
+- Decision:
+  - Remote active file/spec 반영성 개선은 전체 polling interval 단축이 아니라 focused fast lane으로 처리한다.
+  - renderer는 connected/degraded remote workspace의 active file과 active spec을 workspace-relative focused paths로 발행하고, focus 이탈/remote disconnect/non-remote 전환/watcher stop 또는 restart 시 같은 API에 빈 목록을 보내 cleanup한다.
+  - local backend는 focused path update를 success no-op으로 처리하고, remote backend는 remote agent runtime `workspace.watchSetFocusedPaths`로 전달한다.
+  - remote runtime은 focused path metadata를 `400ms`로 검사하고, content-only focused 변경은 기존 `workspace.watchEvent`/`workspace:watchEvent` payload에 `hasStructureChanges=false`로 emit한다.
+  - runtime focused path validation은 workspace-relative path만 허용하며 empty, absolute, root-escape path를 차단한다.
+  - inactive files, directory structure refresh, tree hydration, remote git status refresh는 기존 damped watcher policy에 남긴다.
+  - dirty active file/spec는 fast lane event를 받아도 draft를 덮어쓰지 않고 기존 external-change conflict banner 경로를 사용한다.
+- Rationale:
+  - active file/spec만 빠르게 검사하면 사용자가 보고 있는 문서의 체감 지연을 줄이면서 remote 전체 scan 비용과 git/status refresh 빈도는 유지할 수 있다.
+  - 기존 watch event contract를 재사용하면 renderer refresh 책임을 새 경로로 분산하지 않고 clean refresh/dirty conflict 정책도 그대로 적용할 수 있다.
+- Impact / follow-up:
+  - `feature-index.md`, `remote-workspace/overview.md`, `remote-workspace/contracts.md`, `workspace-and-file-tree/contracts.md`, `code-editor/contracts.md`, `code-map.md`를 F52 기준으로 동기화한다.
+  - Verification: `rtk npm test` PASS (`80 files, 965 passed, 1 skipped`), `rtk npm run lint` PASS, `rtk npm run build:remote-agent-runtime` PASS.
+
+## 2026-06-05 - F51 Project Text Search MVP 범위와 검색 surface 분리
+
+- Context:
+  - 기존 검색 surface는 Code Viewer 현재 파일 검색, File Browser 파일명 검색(`workspace:searchFiles`), Spec Viewer 현재 문서 검색으로 나뉘어 있었고, 워크스페이스 전체 파일 내용을 찾는 기능은 없었다.
+  - 구현은 `workspace:searchText` IPC/preload/backend/context API, local scanner, remote `workspace.searchText` runtime parity, sidebar Search tab, result click line navigation으로 완료됐다.
+- Decision:
+  - Project Text Search는 기존 `workspace:searchFiles` 파일명 검색을 확장하지 않고 별도 `workspace:searchText` / remote `workspace.searchText` capability로 유지한다.
+  - MVP search semantics는 case-insensitive substring line scan으로 고정한다.
+  - public request는 cap option을 노출하지 않고 backend 기본값(`maxDepth=20`, `maxResults=200`, `maxDirectoryChildren=10000`, `timeBudgetMs=2000`, `maxFileBytes=1MiB`)을 canonical으로 사용한다.
+  - UI는 left sidebar의 `Files / Search` tab 구조로 두고, Search tab은 File Browser filename search와 별도 surface로 유지한다.
+  - result click은 기존 Code Viewer line selection + navigation highlight를 재사용하며, match-range highlight는 MVP 범위에 넣지 않는다.
+  - regex, replace, include/exclude glob, 파일 타입 필터, search index, persistence, shortcut은 현재 범위에서 제외한다.
+- Rationale:
+  - 파일명 검색과 내용 검색을 분리하면 wildcard filename semantics와 literal text scan semantics가 섞이지 않는다.
+  - cap option을 public surface로 열지 않으면 MVP 계약이 작고, 대형 repo 보호값을 backend에서 일관되게 강제하기 쉽다.
+  - local/remote가 같은 scanner와 result shape를 공유하면 remote workspace parity를 유지하면서 renderer 분기를 늘리지 않는다.
+- Impact / follow-up:
+  - `feature-index.md`, `workspace-and-file-tree/contracts.md`, `spec-viewer/contracts.md`, `remote-workspace/overview.md`, `remote-workspace/contracts.md`, `code-map.md`를 F51 기준으로 동기화한다.
+  - direct Electron window smoke는 아직 별도 follow-up으로 남아 있고, 자동 gate와 Vite dev server HTTP smoke는 통과했다.
+
 ## 2026-04-18 - F50 Spec Viewer markdown math 렌더링 계약 고정
 
 - Context:

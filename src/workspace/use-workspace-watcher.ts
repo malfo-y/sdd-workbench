@@ -7,9 +7,11 @@ import {
 } from 'react'
 import type { TrackedAsyncActionStatus } from './ipc-call-helper'
 import {
+  getWorkspaceDocumentSession,
   markWorkspaceDocumentConflict,
   setDirty,
   updateWorkspaceSession,
+  type DocumentSaveState,
   type WorkspaceId,
   type WorkspaceSession,
   type WorkspaceState,
@@ -19,6 +21,15 @@ import { collectStructureRefreshTargets, type ExpandedDirectoryHydrationTarget }
 type SetWorkspaceState = Dispatch<SetStateAction<WorkspaceState>>
 type WorkspaceStateRef = MutableRefObject<WorkspaceState>
 type WorkspaceLoadStatus = TrackedAsyncActionStatus
+type FocusedWatchRegistration = {
+  workspaceId: WorkspaceId
+  rootPath: string
+  pathsKey: string
+}
+
+type FocusedWatchTarget = FocusedWatchRegistration & {
+  relativePaths: string[]
+}
 
 function normalizeWatchRelativePath(relativePath: string): string | null {
   const normalized = relativePath.trim().replace(/\\/g, '/')
@@ -42,6 +53,71 @@ function buildSavedFileRefreshSuppressionKey(
   relativePath: string,
 ) {
   return `${workspaceId}::${relativePath}`
+}
+
+function getActiveFocusedWatchTarget(
+  activeWorkspaceId: WorkspaceId | null,
+  workspaceState: WorkspaceState,
+): FocusedWatchTarget | null {
+  if (!activeWorkspaceId) {
+    return null
+  }
+
+  const workspaceSession = workspaceState.workspacesById[activeWorkspaceId]
+  if (
+    !workspaceSession ||
+    workspaceSession.workspaceKind !== 'remote' ||
+    (workspaceSession.remoteConnectionState !== 'connected' &&
+      workspaceSession.remoteConnectionState !== 'degraded')
+  ) {
+    return null
+  }
+
+  const relativePaths = Array.from(
+    new Set(
+      [workspaceSession.activeFile, workspaceSession.activeSpec]
+        .map((relativePath) =>
+          relativePath ? normalizeWatchRelativePath(relativePath) : null,
+        )
+        .filter((relativePath): relativePath is string => relativePath !== null),
+    ),
+  )
+
+  if (relativePaths.length === 0) {
+    return null
+  }
+
+  return {
+    workspaceId: activeWorkspaceId,
+    rootPath: workspaceSession.rootPath,
+    relativePaths,
+    pathsKey: relativePaths.join('\0'),
+  }
+}
+
+function publishFocusedWatchPaths(
+  workspaceId: WorkspaceId,
+  rootPath: string,
+  focusedRelativePaths: string[],
+) {
+  void window.workspace
+    .watchSetFocusedPaths(workspaceId, rootPath, focusedRelativePaths)
+    .then((result) => {
+      if (!result.ok) {
+        console.warn('Failed to update focused workspace watch paths.', result.error)
+      }
+    })
+    .catch((error) => {
+      console.warn('Failed to update focused workspace watch paths.', error)
+    })
+}
+
+function clearFocusedWatchRegistration(registration: FocusedWatchRegistration) {
+  publishFocusedWatchPaths(registration.workspaceId, registration.rootPath, [])
+}
+
+function hasUnsavedDocumentChanges(saveState: DocumentSaveState | null): boolean {
+  return saveState !== null && saveState !== 'clean'
 }
 
 export function useWorkspaceWatcher(input: {
@@ -101,17 +177,28 @@ export function useWorkspaceWatcher(input: {
     hydrateExpandedDirectories,
     refreshActiveWorkspaceGitDecorations,
     getWorkspaceIsDirtyCompatibility,
-  syncWorkspaceDisplayedDocumentContent,
+    syncWorkspaceDisplayedDocumentContent,
   } = input
   const loadWorkspaceFileRef = useRef(loadWorkspaceFile)
   const loadWorkspaceSpecRef = useRef(loadWorkspaceSpec)
   const loadWorkspaceIndexRef = useRef(loadWorkspaceIndex)
   const loadWorkspaceGitFileStatusesRef = useRef(loadWorkspaceGitFileStatuses)
   const hydrateExpandedDirectoriesRef = useRef(hydrateExpandedDirectories)
+  const focusedWatchRegistrationRef = useRef<FocusedWatchRegistration | null>(null)
   const getWorkspaceIsDirtyCompatibilityRef = useRef(getWorkspaceIsDirtyCompatibility)
   const syncWorkspaceDisplayedDocumentContentRef = useRef(
     syncWorkspaceDisplayedDocumentContent,
   )
+  const activeFocusedWatchTarget = getActiveFocusedWatchTarget(
+    activeWorkspaceId,
+    workspaceStateRef.current,
+  )
+  const activeFocusedWatchWorkspaceId =
+    activeFocusedWatchTarget?.workspaceId ?? null
+  const activeFocusedWatchRootPath = activeFocusedWatchTarget?.rootPath ?? null
+  const activeFocusedWatchPathsKey = activeFocusedWatchTarget?.pathsKey ?? null
+  const activeFocusedWatchRelativePaths =
+    activeFocusedWatchTarget?.relativePaths ?? null
 
   loadWorkspaceFileRef.current = loadWorkspaceFile
   loadWorkspaceSpecRef.current = loadWorkspaceSpec
@@ -121,6 +208,67 @@ export function useWorkspaceWatcher(input: {
   getWorkspaceIsDirtyCompatibilityRef.current = getWorkspaceIsDirtyCompatibility
   syncWorkspaceDisplayedDocumentContentRef.current =
     syncWorkspaceDisplayedDocumentContent
+
+  useEffect(() => {
+    const previousRegistration = focusedWatchRegistrationRef.current
+    if (
+      !activeFocusedWatchWorkspaceId ||
+      !activeFocusedWatchRootPath ||
+      !activeFocusedWatchPathsKey ||
+      !activeFocusedWatchRelativePaths
+    ) {
+      if (previousRegistration) {
+        focusedWatchRegistrationRef.current = null
+        clearFocusedWatchRegistration(previousRegistration)
+      }
+      return
+    }
+
+    if (
+      previousRegistration &&
+      previousRegistration.workspaceId === activeFocusedWatchWorkspaceId &&
+      previousRegistration.rootPath === activeFocusedWatchRootPath &&
+      previousRegistration.pathsKey === activeFocusedWatchPathsKey
+    ) {
+      return
+    }
+
+    if (
+      previousRegistration &&
+      (previousRegistration.workspaceId !== activeFocusedWatchWorkspaceId ||
+        previousRegistration.rootPath !== activeFocusedWatchRootPath)
+    ) {
+      clearFocusedWatchRegistration(previousRegistration)
+    }
+
+    focusedWatchRegistrationRef.current = {
+      workspaceId: activeFocusedWatchWorkspaceId,
+      rootPath: activeFocusedWatchRootPath,
+      pathsKey: activeFocusedWatchPathsKey,
+    }
+    publishFocusedWatchPaths(
+      activeFocusedWatchWorkspaceId,
+      activeFocusedWatchRootPath,
+      activeFocusedWatchRelativePaths,
+    )
+  }, [
+    activeFocusedWatchPathsKey,
+    activeFocusedWatchRelativePaths,
+    activeFocusedWatchRootPath,
+    activeFocusedWatchWorkspaceId,
+  ])
+
+  useEffect(
+    () => () => {
+      const previousRegistration = focusedWatchRegistrationRef.current
+      if (!previousRegistration) {
+        return
+      }
+      focusedWatchRegistrationRef.current = null
+      clearFocusedWatchRegistration(previousRegistration)
+    },
+    [],
+  )
 
   useEffect(() => {
     const watchedWorkspaceIds = watchedWorkspaceIdsRef.current
@@ -143,6 +291,7 @@ export function useWorkspaceWatcher(input: {
       const workspaceSession =
         workspaceStateRef.current.workspacesById[watchEvent.workspaceId]
       const activeFile = workspaceSession?.activeFile ?? null
+      const isRemoteWorkspace = workspaceSession?.workspaceKind === 'remote'
       const structureRefreshTargets =
         hasStructureChanges && workspaceSession
           ? collectStructureRefreshTargets(
@@ -230,11 +379,33 @@ export function useWorkspaceWatcher(input: {
         activeSpec !== null &&
         activeSpec !== activeFile
       ) {
-        void loadWorkspaceSpecRef.current(
-          watchEvent.workspaceId,
-          activeSpec,
-          'refresh',
-        )
+        const activeSpecDocumentSession = workspaceSession
+          ? getWorkspaceDocumentSession(workspaceSession, activeSpec)
+          : null
+        const activeSpecSaveState = activeSpecDocumentSession?.saveState ?? null
+        if (hasUnsavedDocumentChanges(activeSpecSaveState)) {
+          setWorkspaceState((previous) =>
+            updateWorkspaceSession(
+              previous,
+              watchEvent.workspaceId,
+              (currentSession) => {
+                if (currentSession.activeSpec !== activeSpec) {
+                  return currentSession
+                }
+                return syncWorkspaceDisplayedDocumentContentRef.current(
+                  markWorkspaceDocumentConflict(currentSession, activeSpec, null),
+                )
+              },
+            ),
+          )
+          setExternalChangeDetected(true)
+        } else {
+          void loadWorkspaceSpecRef.current(
+            watchEvent.workspaceId,
+            activeSpec,
+            'refresh',
+          )
+        }
       }
 
       if (hasStructureChanges && workspaceSession) {
@@ -252,7 +423,9 @@ export function useWorkspaceWatcher(input: {
         }
       }
 
-      if (workspaceSession) {
+      const shouldRefreshGitStatuses =
+        workspaceSession && (!isRemoteWorkspace || hasStructureChanges)
+      if (shouldRefreshGitStatuses) {
         void loadWorkspaceGitFileStatusesRef.current(
           watchEvent.workspaceId,
           workspaceSession.rootPath,

@@ -96,6 +96,31 @@ export type WorkspaceSearchFilesResult = {
   results: WorkspaceSearchFileMatch[]
   truncated: boolean
   skippedLargeDirectoryCount: number
+  skippedUnreadablePathCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
+  error?: string
+}
+
+export type WorkspaceSearchTextRequest = {
+  rootPath: string
+  query: string
+}
+
+export type WorkspaceSearchTextMatch = {
+  relativePath: string
+  lineNumber: number
+  snippet: string
+}
+
+export type WorkspaceSearchTextResult = {
+  ok: boolean
+  results: WorkspaceSearchTextMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  skippedLargeFileCount: number
+  skippedBinaryFileCount: number
+  skippedUnreadablePathCount: number
   depthLimitHit: boolean
   timedOut: boolean
   error?: string
@@ -321,6 +346,17 @@ export type WorkspaceWatchStopRequest = {
   workspaceId: string
 }
 
+export type WorkspaceWatchSetFocusedPathsRequest = {
+  workspaceId: string
+  rootPath: string
+  focusedRelativePaths: string[]
+}
+
+export type WorkspaceWatchSetFocusedPathsResult = {
+  ok: boolean
+  error?: string
+}
+
 export type WorkspaceWatchControlResult = {
   ok: boolean
   watchMode?: WorkspaceWatchMode
@@ -499,6 +535,7 @@ export const IPC_CHANNELS = {
   WORKSPACE_INDEX: 'workspace:index',
   WORKSPACE_INDEX_DIRECTORY: 'workspace:indexDirectory',
   WORKSPACE_SEARCH_FILES: 'workspace:searchFiles',
+  WORKSPACE_SEARCH_TEXT: 'workspace:searchText',
   WORKSPACE_READ_FILE: 'workspace:readFile',
   WORKSPACE_WRITE_FILE: 'workspace:writeFile',
   WORKSPACE_CREATE_FILE: 'workspace:createFile',
@@ -515,6 +552,7 @@ export const IPC_CHANNELS = {
   WORKSPACE_EXPORT_COMMENTS_BUNDLE: 'workspace:exportCommentsBundle',
   WORKSPACE_WATCH_START: 'workspace:watchStart',
   WORKSPACE_WATCH_STOP: 'workspace:watchStop',
+  WORKSPACE_WATCH_SET_FOCUSED_PATHS: 'workspace:watchSetFocusedPaths',
   WORKSPACE_CONNECT_REMOTE: 'workspace:connectRemote',
   WORKSPACE_SYNC_VSCODE_SSH_CONFIG: 'workspace:syncVsCodeSshConfig',
   WORKSPACE_BROWSE_REMOTE_DIRECTORIES: 'workspace:browseRemoteDirectories',

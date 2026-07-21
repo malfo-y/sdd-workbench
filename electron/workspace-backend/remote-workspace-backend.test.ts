@@ -19,6 +19,10 @@ describe('workspace-backend/remote-workspace-backend', () => {
       rootPath: 'remote://workspace-a',
       query: 'main*test',
     })
+    await backend.searchText({
+      rootPath: 'remote://workspace-a',
+      query: 'needle',
+    })
     await backend.readFile({
       rootPath: 'remote://workspace-a',
       relativePath: 'src/main.ts',
@@ -43,11 +47,17 @@ describe('workspace-backend/remote-workspace-backend', () => {
     expect(requestRemote).toHaveBeenNthCalledWith(
       3,
       'workspace-a',
+      'workspace.searchText',
+      { query: 'needle' },
+    )
+    expect(requestRemote).toHaveBeenNthCalledWith(
+      4,
+      'workspace-a',
       'workspace.readFile',
       { relativePath: 'src/main.ts' },
     )
     expect(requestRemote).toHaveBeenNthCalledWith(
-      4,
+      5,
       'workspace-a',
       'workspace.rename',
       {
@@ -78,6 +88,18 @@ describe('workspace-backend/remote-workspace-backend', () => {
         code: 'PATH_DENIED',
       })
       expect(String(error)).not.toContain('remote://workspace-a')
+    }
+
+    try {
+      await backend.searchText({
+        rootPath: 'remote://workspace-b',
+        query: 'needle',
+      })
+      throw new Error('Expected searchText root path mismatch to throw.')
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'PATH_DENIED',
+      })
     }
 
     try {
@@ -153,5 +175,35 @@ describe('workspace-backend/remote-workspace-backend', () => {
       throw new Error('Expected remote backend to implement dispose().')
     }
     await expect(backend.dispose()).resolves.toBeUndefined()
+  })
+
+  it('forwards focused paths updates to the remote watch RPC', async () => {
+    const requestRemote = vi.fn(async () => ({ ok: true }))
+    const backend = createRemoteWorkspaceBackend({
+      workspaceId: 'workspace-a',
+      rootPath: 'remote://workspace-a',
+      requestRemote,
+      subscribeAgentEvents: () => () => undefined,
+      sendWatchEvent: () => undefined,
+      sendWatchFallback: () => undefined,
+    })
+
+    if (!backend.watchSetFocusedPaths) {
+      throw new Error('Expected remote backend to implement watchSetFocusedPaths().')
+    }
+
+    await expect(
+      backend.watchSetFocusedPaths({
+        workspaceId: 'workspace-a',
+        rootPath: 'remote://workspace-a',
+        focusedRelativePaths: ['src/main.ts'],
+      }),
+    ).resolves.toEqual({ ok: true })
+
+    expect(requestRemote).toHaveBeenCalledWith(
+      'workspace-a',
+      'workspace.watchSetFocusedPaths',
+      { focusedRelativePaths: ['src/main.ts'] },
+    )
   })
 })

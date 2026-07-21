@@ -10,6 +10,10 @@ describe('remote-agent/security', () => {
     for (const method of getAllowedRemoteWorkspaceMethods()) {
       expect(() => assertRemoteWorkspaceMethodAllowed(method)).not.toThrow()
     }
+    expect(getAllowedRemoteWorkspaceMethods()).toContain('workspace.searchText')
+    expect(getAllowedRemoteWorkspaceMethods()).toContain(
+      'workspace.watchSetFocusedPaths',
+    )
   })
 
   it('rejects non-whitelisted methods with METHOD_NOT_ALLOWED', () => {

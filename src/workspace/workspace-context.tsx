@@ -540,6 +540,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           results: [],
           truncated: false,
           skippedLargeDirectoryCount: 0,
+          skippedUnreadablePathCount: 0,
           depthLimitHit: false,
           timedOut: false,
           error: 'No active workspace selected.',
@@ -554,6 +555,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           results: [],
           truncated: false,
           skippedLargeDirectoryCount: 0,
+          skippedUnreadablePathCount: 0,
           depthLimitHit: false,
           timedOut: false,
           error: 'Active workspace is unavailable.',
@@ -577,6 +579,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           results: [],
           truncated: false,
           skippedLargeDirectoryCount: 0,
+          skippedUnreadablePathCount: 0,
           depthLimitHit: false,
           timedOut: false,
           error:
@@ -584,6 +587,45 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               ? error.message
               : 'Failed to search files.',
         }
+      }
+    },
+    [],
+  )
+
+  const searchText = useCallback(
+    async (query: string): Promise<WorkspaceSearchTextResult> => {
+      const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
+      const errorResult = (error: string): WorkspaceSearchTextResult => ({
+        ok: false,
+        results: [],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        skippedLargeFileCount: 0,
+        skippedBinaryFileCount: 0,
+        skippedUnreadablePathCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+        error,
+      })
+
+      if (!activeWorkspaceId) {
+        return errorResult('No active workspace selected.')
+      }
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      if (!workspaceSession) {
+        return errorResult('Active workspace is unavailable.')
+      }
+
+      try {
+        return await window.workspace.searchText(workspaceSession.rootPath, query)
+      } catch (error) {
+        return errorResult(
+          error instanceof Error
+            ? error.message
+            : 'Failed to search text.',
+        )
       }
     },
     [],
@@ -722,6 +764,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         loadDirectoryChildren,
         refreshFileTree,
         searchFiles,
+        searchText,
         clearBanner,
         reloadExternalChange,
         dismissExternalChange,
@@ -770,6 +813,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       loadDirectoryChildren,
       refreshFileTree,
       searchFiles,
+      searchText,
       setWatchModePreference,
       clearBanner,
       reloadExternalChange,

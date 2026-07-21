@@ -2,12 +2,25 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { RuntimeWatchService } from './watch-ops'
+import * as watchOps from './watch-ops'
 
 function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, durationMs)
   })
+}
+
+const FAST_LANE_VERIFICATION_WINDOW_MS = 1_100
+
+const { FOCUSED_WATCH_FAST_LANE_INTERVAL_MS, RuntimeWatchService } = watchOps
+
+async function setFocusedPaths(
+  service: InstanceType<typeof RuntimeWatchService>,
+  focusedRelativePaths: string[],
+): Promise<void> {
+  await expect(
+    Promise.resolve(service.setFocusedPaths(focusedRelativePaths)),
+  ).resolves.toEqual({ ok: true })
 }
 
 describe('remote-agent/runtime/watch-ops', () => {
@@ -137,6 +150,77 @@ describe('remote-agent/runtime/watch-ops', () => {
       await service.stop()
     } finally {
       await chmod(unreadablePath, 0o700).catch(() => undefined)
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('exports focused watch fast lane interval in the expected range', () => {
+    expect(FOCUSED_WATCH_FAST_LANE_INTERVAL_MS).toEqual(expect.any(Number))
+    expect(FOCUSED_WATCH_FAST_LANE_INTERVAL_MS).toBeGreaterThanOrEqual(300)
+    expect(FOCUSED_WATCH_FAST_LANE_INTERVAL_MS).toBeLessThanOrEqual(500)
+  })
+
+  it('emits focused file metadata changes before the full polling interval', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-watch-focused-'))
+    const emitted: Array<{ eventName: string; payload: unknown }> = []
+
+    try {
+      await writeFile(path.join(rootPath, 'focused.txt'), 'before\n', 'utf8')
+      await writeFile(path.join(rootPath, 'other.txt'), 'before\n', 'utf8')
+
+      const service = new RuntimeWatchService(rootPath, (eventName, payload) => {
+        emitted.push({ eventName, payload })
+      })
+
+      await service.start('native')
+      await setFocusedPaths(service, ['focused.txt'])
+
+      await writeFile(path.join(rootPath, 'focused.txt'), 'after\n', 'utf8')
+      await wait(FAST_LANE_VERIFICATION_WINDOW_MS)
+
+      const watchEvents = emitted.filter(
+        (event) => event.eventName === 'workspace.watchEvent',
+      )
+      expect(watchEvents).toEqual([
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            changedRelativePaths: ['focused.txt'],
+            hasStructureChanges: false,
+          }),
+        }),
+      ])
+
+      await service.stop()
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('does not emit non-focused file changes during the fast lane window', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-watch-nonfocused-'))
+    const emitted: Array<{ eventName: string; payload: unknown }> = []
+
+    try {
+      await writeFile(path.join(rootPath, 'focused.txt'), 'before\n', 'utf8')
+      await writeFile(path.join(rootPath, 'other.txt'), 'before\n', 'utf8')
+
+      const service = new RuntimeWatchService(rootPath, (eventName, payload) => {
+        emitted.push({ eventName, payload })
+      })
+
+      await service.start('native')
+      await setFocusedPaths(service, ['focused.txt'])
+
+      await writeFile(path.join(rootPath, 'other.txt'), 'after\n', 'utf8')
+      await wait(FAST_LANE_VERIFICATION_WINDOW_MS)
+
+      const watchEvents = emitted.filter(
+        (event) => event.eventName === 'workspace.watchEvent',
+      )
+      expect(watchEvents).toHaveLength(0)
+
+      await service.stop()
+    } finally {
       await rm(rootPath, { recursive: true, force: true })
     }
   })

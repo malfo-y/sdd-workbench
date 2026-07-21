@@ -19,6 +19,7 @@ import {
   CodeEditorPanel,
 } from './code-editor/code-editor-panel'
 import { FileTreePanel } from './file-tree/file-tree-panel'
+import { ProjectSearchPanel } from './project-search/project-search-panel'
 import {
   applyAppearanceThemeToRoot,
   loadAppearanceTheme,
@@ -61,6 +62,7 @@ import { useHistoryNavigation } from './hooks/use-history-navigation'
 import { usePaneResize } from './hooks/use-pane-resize'
 
 type ContentTab = 'code' | 'spec'
+type SidebarTab = 'files' | 'search'
 
 function App() {
   const {
@@ -119,6 +121,7 @@ function App() {
     loadDirectoryChildren,
     refreshFileTree,
     searchFiles,
+    searchText,
     setWatchModePreference,
     clearBanner,
     externalChangeDetected,
@@ -149,6 +152,7 @@ function App() {
       )
     : rootPath ?? ''
   const [activeTab, setActiveTab] = useState<ContentTab>('code')
+  const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>('files')
   const [appearanceTheme, setAppearanceTheme] =
     useState<AppearanceTheme>(() => loadAppearanceTheme())
   const resolvedTheme = resolveAppearanceTheme(appearanceTheme)
@@ -384,6 +388,23 @@ function App() {
       }
     },
     [rootPath, showBanner, workspaceKind],
+  )
+
+  const handleOpenSearchResult = useCallback(
+    (target: { relativePath: string; lineNumber: number }) => {
+      setActiveTab('code')
+      selectFile(target.relativePath)
+      setSelectionRange({
+        startLine: target.lineNumber,
+        endLine: target.lineNumber,
+      })
+      historyNav.queueCodeViewerJumpRequest({
+        targetRelativePath: target.relativePath,
+        lineNumber: target.lineNumber,
+        shouldHighlight: true,
+      })
+    },
+    [historyNav, selectFile, setSelectionRange],
   )
 
   return (
@@ -723,32 +744,60 @@ function App() {
                 </button>
               </div>
             </div>
-            <FileTreePanel
-              activeFile={activeFile}
-              expandedDirectories={expandedDirectories}
-              fileTree={fileTree}
-              changedFiles={changedFiles}
-              gitFileStatuses={gitFileStatuses}
-              loadingDirectories={loadingDirectories}
-              isIndexing={isIndexing}
-              onExpandedDirectoriesChange={setExpandedDirectories}
-              onRequestCopyFullPath={commentActions.handleCopyFullPath}
-              onRequestCopyRelativePath={commentActions.handleCopyRelativePath}
-              onRequestLoadDirectory={loadDirectoryChildren}
-              onSearchFiles={searchFiles}
-              onSelectFile={historyNav.handleSelectFileFromTree}
-              rootPath={rootPath}
-              onRequestCreateFile={handleRequestCreateFile}
-              onRequestCreateDirectory={handleRequestCreateDirectory}
-              onRequestConfirmedDeleteFile={handleRequestDeleteFile}
-              onRequestConfirmedDeleteDirectory={handleRequestDeleteDirectory}
-              onRequestRename={handleRequestRename}
-              onRequestCopyToClipboard={handleRequestCopyToClipboard}
-              onRequestPasteFromClipboard={handleRequestPasteFromClipboard}
-              onRequestRefresh={() => {
-                void refreshFileTree()
-              }}
-            />
+            <div className="sidebar-panel-tabs" role="tablist" aria-label="Sidebar panels">
+              <button
+                aria-selected={activeSidebarTab === 'files'}
+                className={`sidebar-panel-tab${activeSidebarTab === 'files' ? ' is-active' : ''}`}
+                onClick={() => setActiveSidebarTab('files')}
+                role="tab"
+                type="button"
+              >
+                Files
+              </button>
+              <button
+                aria-selected={activeSidebarTab === 'search'}
+                className={`sidebar-panel-tab${activeSidebarTab === 'search' ? ' is-active' : ''}`}
+                onClick={() => setActiveSidebarTab('search')}
+                role="tab"
+                type="button"
+              >
+                Search
+              </button>
+            </div>
+            {activeSidebarTab === 'files' ? (
+              <FileTreePanel
+                activeFile={activeFile}
+                expandedDirectories={expandedDirectories}
+                fileTree={fileTree}
+                changedFiles={changedFiles}
+                gitFileStatuses={gitFileStatuses}
+                loadingDirectories={loadingDirectories}
+                isIndexing={isIndexing}
+                onExpandedDirectoriesChange={setExpandedDirectories}
+                onRequestCopyFullPath={commentActions.handleCopyFullPath}
+                onRequestCopyRelativePath={commentActions.handleCopyRelativePath}
+                onRequestLoadDirectory={loadDirectoryChildren}
+                onSearchFiles={searchFiles}
+                onSelectFile={historyNav.handleSelectFileFromTree}
+                rootPath={rootPath}
+                onRequestCreateFile={handleRequestCreateFile}
+                onRequestCreateDirectory={handleRequestCreateDirectory}
+                onRequestConfirmedDeleteFile={handleRequestDeleteFile}
+                onRequestConfirmedDeleteDirectory={handleRequestDeleteDirectory}
+                onRequestRename={handleRequestRename}
+                onRequestCopyToClipboard={handleRequestCopyToClipboard}
+                onRequestPasteFromClipboard={handleRequestPasteFromClipboard}
+                onRequestRefresh={() => {
+                  void refreshFileTree()
+                }}
+              />
+            ) : (
+              <ProjectSearchPanel
+                onOpenSearchResult={handleOpenSearchResult}
+                onSearchText={searchText}
+                workspaceKey={activeWorkspaceId}
+              />
+            )}
           </section>
         </div>
 

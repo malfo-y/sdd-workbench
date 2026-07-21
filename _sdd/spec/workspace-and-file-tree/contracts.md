@@ -17,10 +17,12 @@
 | `workspace:deleteFile` / `workspace:deleteDirectory` | Renderer -> Main (`invoke`) | 트리 삭제 작업 |
 | `workspace:rename` | Renderer -> Main (`invoke`) | 파일/디렉토리 rename |
 | `workspace:watchStart` / `workspace:watchStop` | Renderer -> Main (`invoke`) | watcher lifecycle |
+| `workspace:watchSetFocusedPaths` | Renderer -> Main (`invoke`) | watcher focused active file/spec path set update |
 | `workspace:watchEvent` | Main -> Renderer (`send`) | 변경 파일/구조 변경 이벤트 |
 | `workspace:getGitLineMarkers` | Renderer -> Main (`invoke`) | active file git diff marker |
 | `workspace:getGitFileStatuses` | Renderer -> Main (`invoke`) | 파일 트리 git status badge 데이터 |
 | `workspace:searchFiles` | Renderer -> Main (`invoke`) | local/remote 공통 파일명 검색 |
+| `workspace:searchText` | Renderer -> Main (`invoke`) | local/remote 공통 프로젝트 텍스트 검색 |
 | `workspace:readComments` / `workspace:writeComments` | Renderer -> Main (`invoke`) | line comments 읽기/쓰기 |
 | `workspace:readGlobalComments` / `workspace:writeGlobalComments` | Renderer -> Main (`invoke`) | global comments 읽기/쓰기 |
 | `workspace:exportCommentsBundle` | Renderer -> Main (`invoke`) | `_COMMENTS.md`/bundle 저장 |
@@ -52,7 +54,21 @@
   - 우선순위는 `override > auto heuristic`
   - native 실패 시 polling fallback 가능
 
-### 2.3 `workspace:searchFiles`
+### 2.3 `workspace:watchSetFocusedPaths`
+
+- request:
+  - `{ workspaceId, rootPath, focusedRelativePaths }`
+- response:
+  - `{ ok, error? }`
+- 규칙:
+  - `focusedRelativePaths`는 workspace-relative path 목록이다.
+  - renderer는 connected/degraded remote workspace의 active file과 active spec을 de-dup해서 전달한다.
+  - focus가 다른 workspace로 이동하거나 remote workspace가 disconnected/non-remote가 되거나 watcher가 stop/restart될 때 같은 채널에 빈 목록을 보내 focus를 정리한다.
+  - local backend는 성공 no-op으로 처리한다.
+  - remote backend는 remote agent runtime `workspace.watchSetFocusedPaths`로 전달한다.
+  - focused fast lane watch event는 기존 `workspace:watchEvent`를 재사용하며, content-only focused 변경은 `hasStructureChanges=false`로 전달한다.
+
+### 2.4 `workspace:searchFiles`
 
 - request:
   - `{ rootPath, query, maxDepth?, maxResults?, maxDirectoryChildren?, timeBudgetMs? }`
@@ -60,7 +76,25 @@
   - `{ ok, results, truncated, skippedLargeDirectoryCount, depthLimitHit, timedOut, error? }`
 - 상세 규칙은 [search-rules](../spec-viewer/contracts.md) 참조
 
-### 2.4 파일 클립보드 Copy / Paste
+### 2.5 `workspace:searchText`
+
+- request:
+  - `{ rootPath, query }`
+- response:
+  - `{ ok, results, truncated, skippedLargeDirectoryCount, skippedLargeFileCount, skippedBinaryFileCount, depthLimitHit, timedOut, error? }`
+- result item:
+  - `{ relativePath, lineNumber, snippet }`
+- 규칙:
+  - public request는 cap option을 노출하지 않는다. backend 기본값은 `maxDepth=20`, `maxResults=200`, `maxDirectoryChildren=10000`, `timeBudgetMs=2000`, `maxFileBytes=1MiB`다.
+  - empty/whitespace query는 빈 결과를 반환한다.
+  - 검색 semantics는 case-insensitive substring line scan이다.
+  - 결과 `lineNumber`는 1-based다.
+  - `.git`, `node_modules`, `dist`, `build`, `out`, `.next`, `.turbo` 디렉토리는 제외한다.
+  - symlink directory 재귀 금지, large directory skip, large file skip, binary file skip, depth/time/result cap을 적용한다.
+  - regex, replace, include/exclude glob, 파일 타입 필터, 검색 index, 결과 persistence는 현재 계약에 없다.
+- 상세 search surface 경계는 [search-rules](../spec-viewer/contracts.md) 참조.
+
+### 2.6 파일 클립보드 Copy / Paste
 
 **`workspace:setFileClipboard`**
 - request: `{ rootPath, paths: { relativePath, kind }[] }`
@@ -100,6 +134,7 @@
 - `electron/workspace-backend/types.ts`
 - `electron/workspace-backend/local-workspace-backend.ts`
 - `electron/workspace-backend/remote-workspace-backend.ts`
+- `electron/workspace-search.ts`
 - `electron/file-clipboard.ts`
 - `electron/increment-file-name.ts`
 - `electron/workspace-backend/copy-entries.ts`
@@ -108,6 +143,7 @@
 ## 5. 관련 테스트
 
 - `electron/workspace-backend/*.test.ts`
+- `electron/workspace-search.test.ts`
 - `electron/workspace-watch-mode.test.ts`
 - `electron/file-clipboard.test.ts`
 - `electron/increment-file-name.test.ts`

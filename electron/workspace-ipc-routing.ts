@@ -33,6 +33,7 @@ import type {
   WorkspaceSyncVsCodeSshConfigIpcRequest,
   WorkspaceSyncVsCodeSshConfigResult,
   WorkspaceWatchControlResult,
+  WorkspaceWatchSetFocusedPathsResult,
   WorkspaceWatchStopRequest,
 } from './ipc-types'
 import {
@@ -50,6 +51,7 @@ import {
   handleWorkspaceReadGlobalComments,
   handleWorkspaceRename,
   handleWorkspaceSearchFiles,
+  handleWorkspaceSearchText,
   handleWorkspaceWriteComments,
   handleWorkspaceWriteFile,
   handleWorkspaceWriteGlobalComments,
@@ -143,6 +145,10 @@ export function initRouting(deps: RoutingDependencies): WorkspaceBackendRouter {
       'searchFiles',
       handleWorkspaceSearchFiles,
     ),
+    searchText: createLocalWorkspaceHandlerAdapter(
+      'searchText',
+      handleWorkspaceSearchText,
+    ),
     readFile: createLocalWorkspaceHandlerAdapter('readFile', handleWorkspaceReadFile),
     writeFile: createLocalWorkspaceHandlerAdapter(
       'writeFile',
@@ -205,6 +211,7 @@ export function initRouting(deps: RoutingDependencies): WorkspaceBackendRouter {
       'watchStop',
       handleWorkspaceWatchStop,
     ),
+    watchSetFocusedPaths: async () => ({ ok: true }),
   })
 
   workspaceBackendRouter = new WorkspaceBackendRouter(localWorkspaceBackend)
@@ -247,6 +254,7 @@ const workspaceBackendInvokers: {
   index: (backend, request) => backend.index(request),
   indexDirectory: (backend, request) => backend.indexDirectory(request),
   searchFiles: (backend, request) => backend.searchFiles(request),
+  searchText: (backend, request) => backend.searchText(request),
   readFile: (backend, request) => backend.readFile(request),
   writeFile: (backend, request) => backend.writeFile(request),
   createFile: (backend, request) => backend.createFile(request),
@@ -263,6 +271,14 @@ const workspaceBackendInvokers: {
   exportCommentsBundle: (backend, request) =>
     backend.exportCommentsBundle(request),
   watchStart: (backend, request) => backend.watchStart(request),
+  watchSetFocusedPaths: (backend, request) => {
+    if (!backend.watchSetFocusedPaths) {
+      throw new Error(
+        'Workspace backend does not support focused path watcher updates.',
+      )
+    }
+    return backend.watchSetFocusedPaths(request)
+  },
 }
 
 function invokeWorkspaceBackendMethod<Method extends RoutedWorkspaceBackendMethod>(
@@ -325,6 +341,23 @@ export const handleWorkspaceSearchFilesRouted = createRoutedWorkspaceHandler(
   results: [],
   truncated: false,
   skippedLargeDirectoryCount: 0,
+  skippedUnreadablePathCount: 0,
+  depthLimitHit: false,
+  timedOut: false,
+  error,
+}))
+
+export const handleWorkspaceSearchTextRouted = createRoutedWorkspaceHandler(
+  'searchText',
+  'Failed to search text',
+  (error) => ({
+  ok: false,
+  results: [],
+  truncated: false,
+  skippedLargeDirectoryCount: 0,
+  skippedLargeFileCount: 0,
+  skippedBinaryFileCount: 0,
+  skippedUnreadablePathCount: 0,
   depthLimitHit: false,
   timedOut: false,
   error,
@@ -459,6 +492,15 @@ export const handleWorkspaceWatchStartRouted = createRoutedWorkspaceHandler(
   ok: false,
   error,
 }))
+
+export const handleWorkspaceWatchSetFocusedPathsRouted =
+  createRoutedWorkspaceHandler(
+    'watchSetFocusedPaths',
+    'Failed to update focused watcher paths.',
+    (error) => ({
+  ok: false,
+  error,
+}) as WorkspaceWatchSetFocusedPathsResult)
 
 export async function handleWorkspaceWatchStopRouted(
   _event: IpcMainInvokeEvent,

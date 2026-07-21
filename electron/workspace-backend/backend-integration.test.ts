@@ -26,6 +26,19 @@ describe('workspace-backend/backend-integration', () => {
         results: [],
         truncated: false,
         skippedLargeDirectoryCount: 0,
+        skippedUnreadablePathCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+      }),
+      searchText: async () => ({
+        ok: true,
+        backend: 'local',
+        results: [{ relativePath: 'src/local.ts', lineNumber: 1, snippet: 'needle' }],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        skippedLargeFileCount: 0,
+        skippedBinaryFileCount: 0,
+        skippedUnreadablePathCount: 0,
         depthLimitHit: false,
         timedOut: false,
       }),
@@ -57,6 +70,21 @@ describe('workspace-backend/backend-integration', () => {
             results: [],
             truncated: false,
             skippedLargeDirectoryCount: 0,
+            skippedUnreadablePathCount: 0,
+            depthLimitHit: false,
+            timedOut: false,
+          }
+        }
+        if (method === 'workspace.searchText') {
+          return {
+            ok: true,
+            backend: 'remote',
+            results: [{ relativePath: 'src/remote.ts', lineNumber: 2, snippet: 'needle' }],
+            truncated: false,
+            skippedLargeDirectoryCount: 0,
+            skippedLargeFileCount: 0,
+            skippedBinaryFileCount: 0,
+            skippedUnreadablePathCount: 0,
             depthLimitHit: false,
             timedOut: false,
           }
@@ -86,6 +114,11 @@ describe('workspace-backend/backend-integration', () => {
     const remoteSearchResult = await router
       .resolveByRootPath('remote://workspace-a')
       .searchFiles({ rootPath: 'remote://workspace-a', query: 'guide*deep' })
+    const resolvedLocalBackend = router.resolveByRootPath('/Users/tester/project')
+    const localTextSearchResult = await resolvedLocalBackend.searchText({
+      rootPath: '/Users/tester/project',
+      query: 'needle',
+    })
 
     expect(localResult).toEqual({ ok: true, fileTree: [], backend: 'local' })
     expect(remoteResult).toEqual({ ok: true, fileTree: [], backend: 'remote' })
@@ -95,6 +128,7 @@ describe('workspace-backend/backend-integration', () => {
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     })
@@ -104,6 +138,19 @@ describe('workspace-backend/backend-integration', () => {
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
+    expect(localTextSearchResult).toEqual({
+      ok: true,
+      backend: 'local',
+      results: [{ relativePath: 'src/local.ts', lineNumber: 1, snippet: 'needle' }],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      skippedLargeFileCount: 0,
+      skippedBinaryFileCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     })

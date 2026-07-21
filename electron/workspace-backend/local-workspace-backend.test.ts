@@ -27,9 +27,22 @@ describe('workspace-backend/local-workspace-backend', () => {
         results: [],
         truncated: false,
         skippedLargeDirectoryCount: 0,
+        skippedUnreadablePathCount: 0,
         depthLimitHit: false,
         timedOut: false,
         source: 'searchFiles',
+      })),
+      searchText: vi.fn(async () => ({
+        ok: true,
+        results: [],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        skippedLargeFileCount: 0,
+        skippedBinaryFileCount: 0,
+        skippedUnreadablePathCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+        source: 'searchText',
       })),
       getGitLineMarkers: vi.fn(async () => ({
         ok: true,
@@ -71,6 +84,7 @@ describe('workspace-backend/local-workspace-backend', () => {
       newRelativePath: 'b.txt',
     })
     await backend.searchFiles({ rootPath: '/tmp/a', query: 'readme' })
+    await backend.searchText({ rootPath: '/tmp/a', query: 'content' })
     await backend.getGitLineMarkers({ rootPath: '/tmp/a', relativePath: 'a.ts' })
     await backend.getGitFileStatuses({ rootPath: '/tmp/a' })
     await backend.readComments({ rootPath: '/tmp/a' })
@@ -88,6 +102,7 @@ describe('workspace-backend/local-workspace-backend', () => {
     expect(backend.kind).toBe('local')
     expect(handlers.index).toHaveBeenCalledTimes(1)
     expect(handlers.searchFiles).toHaveBeenCalledTimes(1)
+    expect(handlers.searchText).toHaveBeenCalledTimes(1)
     expect(handlers.watchStop).toHaveBeenCalledTimes(1)
   })
 })

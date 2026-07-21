@@ -14,7 +14,9 @@ import type {
   WorkspaceReadGlobalCommentsResult,
   WorkspaceRenameResult,
   WorkspaceSearchFilesResult,
+  WorkspaceSearchTextResult,
   WorkspaceWatchControlResult,
+  WorkspaceWatchSetFocusedPathsResult,
   WorkspaceWriteCommentsResult,
   WorkspaceWriteFileResult,
   WorkspaceWriteGlobalCommentsResult,
@@ -41,6 +43,11 @@ export type WorkspaceSearchFilesRequest = {
   maxResults?: number
   maxDirectoryChildren?: number
   timeBudgetMs?: number
+}
+
+export type WorkspaceSearchTextRequest = {
+  rootPath: string
+  query: string
 }
 
 export type WorkspaceReadFileRequest = {
@@ -147,6 +154,12 @@ export type WorkspaceWatchStopRequest = {
   workspaceId: string
 }
 
+export type WorkspaceWatchSetFocusedPathsRequest = {
+  workspaceId: string
+  rootPath: string
+  focusedRelativePaths: string[]
+}
+
 export type WorkspaceWatchEventPayload = {
   workspaceId: string
   changedRelativePaths: string[]
@@ -172,6 +185,10 @@ export type WorkspaceBackendMethodMap = {
   searchFiles: {
     request: WorkspaceSearchFilesRequest
     result: WorkspaceSearchFilesResult
+  }
+  searchText: {
+    request: WorkspaceSearchTextRequest
+    result: WorkspaceSearchTextResult
   }
   readFile: {
     request: WorkspaceReadFileRequest
@@ -241,6 +258,10 @@ export type WorkspaceBackendMethodMap = {
     request: WorkspaceWatchStopRequest
     result: WorkspaceWatchControlResult
   }
+  watchSetFocusedPaths: {
+    request: WorkspaceWatchSetFocusedPathsRequest
+    result: WorkspaceWatchSetFocusedPathsResult
+  }
 }
 
 export type WorkspaceBackendMethodName = keyof WorkspaceBackendMethodMap
@@ -264,6 +285,9 @@ export interface WorkspaceBackend {
   searchFiles: (
     request: WorkspaceBackendRequest<'searchFiles'>,
   ) => Promise<WorkspaceBackendResult<'searchFiles'>>
+  searchText: (
+    request: WorkspaceBackendRequest<'searchText'>,
+  ) => Promise<WorkspaceBackendResult<'searchText'>>
   readFile: (
     request: WorkspaceBackendRequest<'readFile'>,
   ) => Promise<WorkspaceBackendResult<'readFile'>>
@@ -315,5 +339,8 @@ export interface WorkspaceBackend {
   watchStop: (
     request: WorkspaceBackendRequest<'watchStop'>,
   ) => Promise<WorkspaceBackendResult<'watchStop'>>
+  watchSetFocusedPaths?: (
+    request: WorkspaceBackendRequest<'watchSetFocusedPaths'>,
+  ) => Promise<WorkspaceBackendResult<'watchSetFocusedPaths'>>
   dispose?: () => Promise<void>
 }

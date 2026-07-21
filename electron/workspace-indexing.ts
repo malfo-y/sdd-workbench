@@ -8,6 +8,7 @@ import type { Dirent } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { WorkspaceFileNode } from './ipc-types'
+import type { WorkspaceSearchClassificationErrorReporter } from './workspace-search'
 import {
   normalizeToWorkspaceRelativePath,
   sortWorkspaceTree,
@@ -39,6 +40,7 @@ export type IndexedWorkspaceEntry = {
 async function resolveWorkspaceEntryKind(
   absolutePath: string,
   entry: Dirent,
+  reportClassificationError?: WorkspaceSearchClassificationErrorReporter,
 ): Promise<Omit<IndexedWorkspaceEntry, 'name' | 'absolutePath'> | null> {
   if (entry.isFile()) {
     return {
@@ -72,7 +74,8 @@ async function resolveWorkspaceEntryKind(
         isSymbolicLink: true,
       }
     }
-  } catch {
+  } catch (error) {
+    reportClassificationError?.(error)
     return null
   }
 
@@ -85,6 +88,7 @@ async function resolveWorkspaceEntryKind(
 
 export async function collectIndexedWorkspaceEntries(
   directoryPath: string,
+  reportClassificationError?: WorkspaceSearchClassificationErrorReporter,
 ): Promise<IndexedWorkspaceEntry[]> {
   const entries = await readdir(directoryPath, { withFileTypes: true })
   const indexedEntries: IndexedWorkspaceEntry[] = []
@@ -95,7 +99,11 @@ export async function collectIndexedWorkspaceEntries(
     }
 
     const absolutePath = path.join(directoryPath, entry.name)
-    const entryKind = await resolveWorkspaceEntryKind(absolutePath, entry)
+    const entryKind = await resolveWorkspaceEntryKind(
+      absolutePath,
+      entry,
+      reportClassificationError,
+    )
     if (!entryKind) {
       continue
     }

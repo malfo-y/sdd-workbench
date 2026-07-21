@@ -12,6 +12,7 @@ import {
   workspaceReadGlobalComments,
   workspaceRename,
   workspaceSearchFiles,
+  workspaceSearchText,
   workspaceWriteComments,
   workspaceWriteFile,
 } from './workspace-ops'
@@ -300,6 +301,45 @@ describe('remote-agent/runtime/workspace-ops', () => {
       expect(emptyWildcardResult.results).toEqual([])
       expect(emptyWildcardResult.truncated).toBe(false)
       expect(emptyWildcardResult.timedOut).toBe(false)
+    } finally {
+      await rm(rootPath, { recursive: true, force: true })
+    }
+  })
+
+  it('searches text with case-insensitive line results and binary skip metadata', async () => {
+    const rootPath = await mkdtemp(path.join(os.tmpdir(), 'sdd-runtime-text-search-'))
+
+    try {
+      await mkdir(path.join(rootPath, 'src'), { recursive: true })
+      await writeFile(
+        path.join(rootPath, 'src/app.ts'),
+        'const label = "Needle";\nconst other = "hay";\n',
+        'utf8',
+      )
+      await writeFile(path.join(rootPath, 'src/blob.bin'), Buffer.from([0, 1, 2]))
+
+      const result = await workspaceSearchText(
+        { rootPath },
+        { query: 'needle' },
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        results: [
+          {
+            relativePath: 'src/app.ts',
+            lineNumber: 1,
+            snippet: 'const label = "Needle";',
+          },
+        ],
+        truncated: false,
+        skippedLargeDirectoryCount: 0,
+        skippedLargeFileCount: 0,
+        skippedBinaryFileCount: 1,
+        skippedUnreadablePathCount: 0,
+        depthLimitHit: false,
+        timedOut: false,
+      })
     } finally {
       await rm(rootPath, { recursive: true, force: true })
     }

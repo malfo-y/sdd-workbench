@@ -121,16 +121,16 @@ citation 세부 규칙:
 
 ## 1. 목적
 
-Code Editor, File Browser, Spec Viewer 검색 규칙과 wildcard semantics를 모아 둔다.
+Code Viewer, File Browser, Project Text Search, Spec Viewer 검색 규칙과 각 surface의 semantics 경계를 모아 둔다.
 
 ## 2. 공통 규칙
 
 1. 검색은 기본적으로 case-insensitive다.
-2. `*`가 없는 query는 substring 검색이다.
-3. `*`가 있는 query는 ordered token wildcard match다.
-4. non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급한다.
+2. wildcard `*` semantics는 File Browser 파일명 검색과 Spec Viewer 현재 문서 검색에만 적용된다.
+3. Project Text Search는 MVP에서 wildcard/regex를 해석하지 않고 literal substring line scan만 수행한다.
+4. Code Viewer 검색은 CM6 `@codemirror/search`의 현재 파일 검색 surface다.
 
-## 3. Code Editor 검색
+## 3. Code Viewer 현재 파일 검색
 
 - 구현:
   - CM6 `@codemirror/search`
@@ -159,8 +159,46 @@ Code Editor, File Browser, Spec Viewer 검색 규칙과 wildcard semantics를 �
   - `skippedLargeDirectoryCount`
   - `depthLimitHit`
   - `timedOut`
+- semantics:
+  - `*`가 없는 query는 파일명 substring 검색이다.
+  - `*`가 있는 query는 ordered token wildcard match다.
+  - non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급한다.
 
-## 5. Spec Viewer 검색
+## 5. Project Text Search
+
+- 구현:
+  - `workspace:searchText`
+  - `electron/workspace-search.ts`
+  - `src/project-search/project-search-panel.tsx`
+- UI:
+  - left sidebar의 `Files / Search` tabs 중 `Search` tab이다.
+  - File Browser 파일명 검색 입력과 섞지 않는다.
+  - 결과는 `relativePath` 기준으로 group 되고, 1-based line number와 snippet을 표시한다.
+  - 결과 클릭은 Code 탭으로 전환하고 active file 선택, line selection, Code Viewer navigation highlight를 재사용한다.
+- 기본 보호값:
+  - depth limit `20`
+  - result cap `200`
+  - large-directory child cap `10000`
+  - time budget `2000ms`
+  - file size cap `1MiB`
+- 보호 규칙:
+  - `.git`, `node_modules`, `dist`, `build`, `out`, `.next`, `.turbo` ignore
+  - symlink directory 재귀 금지
+  - binary file skip
+- partial 상태:
+  - `truncated`
+  - `skippedLargeDirectoryCount`
+  - `skippedLargeFileCount`
+  - `skippedBinaryFileCount`
+  - `depthLimitHit`
+  - `timedOut`
+- semantics:
+  - empty/whitespace query는 빈 결과다.
+  - MVP는 case-insensitive substring line scan이다.
+  - regex, replace, include/exclude glob, 파일 타입 필터, search index, persistence, shortcut, Code Viewer match-range highlight는 현재 범위가 아니다.
+  - renderer는 query/workspace 변경 뒤 도착한 stale response를 표시하지 않는다.
+
+## 6. Spec Viewer 현재 문서 검색
 
 - 구현:
   - raw markdown line scan -> rendered block 매핑
@@ -171,23 +209,31 @@ Code Editor, File Browser, Spec Viewer 검색 규칙과 wildcard semantics를 �
   - `activeSpecPath` 변경 시 검색 상태를 초기화한다.
   - same-path markdown draft가 존재하면 검색은 저장본이 아니라 draft baseline을 대상으로 수행한다.
   - same-path markdown에서 content만 갱신되는 경우(저장 전 draft 반영) stale match/focus를 남기지 않도록 검색 상태를 reset하거나 즉시 재계산한다.
+  - `*`가 없는 query는 substring 검색이다.
+  - `*`가 있는 query는 ordered token wildcard match다.
+  - non-wildcard 문자가 없는 query(`*`, `**`)는 empty query로 취급한다.
 
-## 6. discoverability
+## 7. discoverability
 
 - File Browser와 Spec Viewer 검색 입력은 `(* supported)` placeholder를 사용한다.
+- Project Text Search 입력은 literal substring search를 반영해 별도 `Search text` placeholder를 사용한다.
 
-## 7. 관련 구현 파일
+## 8. 관련 구현 파일
 
 - `electron/workspace-search.ts`
 - `src/file-tree/file-tree-panel.tsx`
+- `src/project-search/project-search-panel.tsx`
 - `src/spec-viewer/spec-search.ts`
 - `src/spec-viewer/spec-viewer-panel.tsx`
 - `src/code-editor/code-editor-panel.tsx`
+- `src/App.tsx`
 
-## 8. 관련 테스트
+## 9. 관련 테스트
 
 - `electron/workspace-search.test.ts`
 - `src/file-tree/file-tree-panel.test.tsx`
+- `src/project-search/project-search-panel.test.tsx`
 - `src/spec-viewer/spec-search.test.ts`
 - `src/spec-viewer/spec-viewer-panel.test.tsx`
 - `src/code-editor/code-editor-panel.test.tsx`
+- `src/App.test.tsx`

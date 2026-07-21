@@ -17,6 +17,18 @@ function createBackend(kind: 'local' | 'remote', onDispose?: () => Promise<void>
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    }),
+    searchText: async () => ({
+      ok: true,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      skippedLargeFileCount: 0,
+      skippedBinaryFileCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     }),
@@ -154,5 +166,48 @@ describe('workspace-backend/backend-router', () => {
 
     expect(copyEntriesSpy).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ ok: true, copiedPaths: ['dest/b.ts'] })
+  })
+
+  it('routes searchText to remote backend for registered remote root path', async () => {
+    const localBackend = createBackend('local')
+    const remoteBackend = createBackend('remote')
+    const searchTextSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      results: [{ relativePath: 'src/a.ts', lineNumber: 3, snippet: 'needle' }],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      skippedLargeFileCount: 0,
+      skippedBinaryFileCount: 0,
+      skippedUnreadablePathCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
+    remoteBackend.searchText = searchTextSpy
+    const router = new WorkspaceBackendRouter(localBackend)
+
+    router.registerRemoteWorkspace({
+      workspaceId: 'workspace-a',
+      rootPath: 'remote://workspace-a',
+      backend: remoteBackend,
+    })
+
+    const resolved = router.resolveByRootPath('remote://workspace-a')
+    const result = await resolved.searchText({
+      rootPath: 'remote://workspace-a',
+      query: 'needle',
+    })
+
+    expect(searchTextSpy).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({
+      ok: true,
+      results: [{ relativePath: 'src/a.ts', lineNumber: 3, snippet: 'needle' }],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      skippedLargeFileCount: 0,
+      skippedBinaryFileCount: 0,
+      skippedUnreadablePathCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
   })
 })

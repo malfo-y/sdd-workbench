@@ -54,6 +54,26 @@ interface WorkspaceSearchFilesResult {
   results: WorkspaceSearchFileMatch[]
   truncated: boolean
   skippedLargeDirectoryCount: number
+  skippedUnreadablePathCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
+  error?: string
+}
+
+interface WorkspaceSearchTextMatch {
+  relativePath: string
+  lineNumber: number
+  snippet: string
+}
+
+interface WorkspaceSearchTextResult {
+  ok: boolean
+  results: WorkspaceSearchTextMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  skippedLargeFileCount: number
+  skippedBinaryFileCount: number
+  skippedUnreadablePathCount: number
   depthLimitHit: boolean
   timedOut: boolean
   error?: string
@@ -194,6 +214,11 @@ interface WorkspaceWatchControlResult {
   watchMode?: WorkspaceWatchMode
   isRemoteMounted?: boolean
   fallbackApplied?: boolean
+  error?: string
+}
+
+interface WorkspaceWatchSetFocusedPathsResult {
+  ok: boolean
   error?: string
 }
 
@@ -378,6 +403,10 @@ interface Window {
         timeBudgetMs?: number
       },
     ) => Promise<WorkspaceSearchFilesResult>
+    searchText: (
+      rootPath: string,
+      query: string,
+    ) => Promise<WorkspaceSearchTextResult>
     readFile: (
       rootPath: string,
       relativePath: string,
@@ -436,6 +465,11 @@ interface Window {
       watchModePreference?: WorkspaceWatchModePreference,
     ) => Promise<WorkspaceWatchControlResult>
     watchStop: (workspaceId: string) => Promise<WorkspaceWatchControlResult>
+    watchSetFocusedPaths: (
+      workspaceId: string,
+      rootPath: string,
+      focusedRelativePaths: string[],
+    ) => Promise<WorkspaceWatchSetFocusedPathsResult>
     connectRemote: (
       profile: WorkspaceRemoteConnectionProfile,
     ) => Promise<WorkspaceConnectRemoteResult>

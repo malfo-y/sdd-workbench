@@ -17,6 +17,7 @@ import {
   workspaceReadFile,
   workspaceReadGlobalComments,
   workspaceSearchFiles,
+  workspaceSearchText,
   workspaceRename,
   workspaceWriteComments,
   workspaceWriteFile,
@@ -137,6 +138,8 @@ export class RuntimeRequestRouter {
         return workspaceIndexDirectory({ rootPath: this.rootPath }, methodParams)
       case 'workspace.searchFiles':
         return workspaceSearchFiles({ rootPath: this.rootPath }, methodParams)
+      case 'workspace.searchText':
+        return workspaceSearchText({ rootPath: this.rootPath }, methodParams)
       case 'workspace.readFile':
         return workspaceReadFile({ rootPath: this.rootPath }, methodParams)
       case 'workspace.writeFile':
@@ -175,6 +178,12 @@ export class RuntimeRequestRouter {
           typeof methodParams.watchModePreference === 'string'
             ? methodParams.watchModePreference
             : undefined,
+        )
+      case 'workspace.watchSetFocusedPaths':
+        return this.watchService.setFocusedPaths(
+          Array.isArray(methodParams.focusedRelativePaths)
+            ? methodParams.focusedRelativePaths
+            : [],
         )
       case 'workspace.watchStop':
         return this.watchService.stop()

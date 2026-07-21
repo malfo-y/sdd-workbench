@@ -64,6 +64,25 @@ export type RuntimeWorkspaceSearchFilesResult = {
   results: RuntimeWorkspaceSearchFileMatch[]
   truncated: boolean
   skippedLargeDirectoryCount: number
+  skippedUnreadablePathCount: number
+  depthLimitHit: boolean
+  timedOut: boolean
+}
+
+export type RuntimeWorkspaceSearchTextMatch = {
+  relativePath: string
+  lineNumber: number
+  snippet: string
+}
+
+export type RuntimeWorkspaceSearchTextResult = {
+  ok: true
+  results: RuntimeWorkspaceSearchTextMatch[]
+  truncated: boolean
+  skippedLargeDirectoryCount: number
+  skippedLargeFileCount: number
+  skippedBinaryFileCount: number
+  skippedUnreadablePathCount: number
   depthLimitHit: boolean
   timedOut: boolean
 }

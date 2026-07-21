@@ -22,12 +22,16 @@ const indexCssSource = readFileSync(
 )
 const appCssSource = readFileSync(resolve(process.cwd(), 'src/App.css'), 'utf8')
 
-function MarkDirtyButton() {
+type MarkDirtyButtonProps = {
+  draftContent?: string
+}
+
+function MarkDirtyButton({ draftContent }: MarkDirtyButtonProps) {
   const { markFileDirty } = useWorkspace()
   return (
     <button
       data-testid="mark-dirty-btn"
-      onClick={() => markFileDirty()}
+      onClick={() => markFileDirty(draftContent)}
       type="button"
     >
       Mark Dirty
@@ -35,11 +39,11 @@ function MarkDirtyButton() {
   )
 }
 
-function AppWithMarkDirty() {
+function AppWithMarkDirty({ draftContent }: MarkDirtyButtonProps = {}) {
   return (
     <WorkspaceProvider>
       <App />
-      <MarkDirtyButton />
+      <MarkDirtyButton draftContent={draftContent} />
     </WorkspaceProvider>
   )
 }
@@ -232,6 +236,14 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     >()
   const watchStopMock =
     vi.fn<(workspaceId: string) => Promise<WorkspaceWatchControlResult>>()
+  const watchSetFocusedPathsMock =
+    vi.fn<
+      (
+        workspaceId: string,
+        rootPath: string,
+        focusedRelativePaths: string[],
+      ) => Promise<WorkspaceWatchSetFocusedPathsResult>
+    >()
   const connectRemoteMock =
     vi.fn<
       (
@@ -299,6 +311,13 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         },
       ) => Promise<WorkspaceSearchFilesResult>
     >()
+  const searchTextMock =
+    vi.fn<
+      (
+        rootPath: string,
+        query: string,
+      ) => Promise<WorkspaceSearchTextResult>
+    >()
   const watchListeners = new Set<(event: WorkspaceWatchEvent) => void>()
   const onWatchEventMock =
     vi.fn<(listener: (event: WorkspaceWatchEvent) => void) => () => void>()
@@ -345,6 +364,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     exportCommentsBundleMock.mockReset()
     watchStartMock.mockReset()
     watchStopMock.mockReset()
+    watchSetFocusedPathsMock.mockReset()
     connectRemoteMock.mockReset()
     syncVsCodeSshConfigMock.mockReset()
     browseRemoteDirectoriesMock.mockReset()
@@ -359,6 +379,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     deleteDirectoryMock.mockReset()
     renameMock.mockReset()
     searchFilesMock.mockReset()
+    searchTextMock.mockReset()
     onWatchEventMock.mockReset()
     onWatchFallbackMock.mockReset()
     onHistoryNavigateMock.mockReset()
@@ -377,6 +398,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       fallbackApplied: false,
     })
     watchStopMock.mockResolvedValue({ ok: true })
+    watchSetFocusedPathsMock.mockResolvedValue({ ok: true })
     connectRemoteMock.mockResolvedValue({
       ok: false,
       workspaceId: '',
@@ -438,6 +460,18 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       results: [],
       truncated: false,
       skippedLargeDirectoryCount: 0,
+      skippedUnreadablePathCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
+    searchTextMock.mockResolvedValue({
+      ok: true,
+      results: [],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      skippedLargeFileCount: 0,
+      skippedBinaryFileCount: 0,
+      skippedUnreadablePathCount: 0,
       depthLimitHit: false,
       timedOut: false,
     })
@@ -482,6 +516,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       index: indexWorkspaceMock,
       indexDirectory: indexDirectoryMock,
       searchFiles: searchFilesMock,
+      searchText: searchTextMock,
       readFile: readFileMock,
       writeFile: writeFileMock,
       getGitLineMarkers: getGitLineMarkersMock,
@@ -493,6 +528,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       exportCommentsBundle: exportCommentsBundleMock,
       watchStart: watchStartMock,
       watchStop: watchStopMock,
+      watchSetFocusedPaths: watchSetFocusedPathsMock,
       connectRemote: connectRemoteMock,
       syncVsCodeSshConfig: syncVsCodeSshConfigMock,
       browseRemoteDirectories: browseRemoteDirectoriesMock,
@@ -546,6 +582,113 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     for (const listener of remoteConnectionListeners) {
       listener(event)
     }
+  }
+
+  const connectRemoteWorkspaceForFocusedPaths = async (
+    options: { draftContent?: string } = {},
+  ) => {
+    const workspaceId = 'remote-workspace-focused'
+    const rootPath = 'remote://remote-workspace-focused'
+    const remoteRoot = '/srv/focused'
+
+    connectRemoteMock.mockResolvedValueOnce({
+      ok: true,
+      workspaceId,
+      sessionId: 'session-focused',
+      rootPath,
+      remoteConnectionState: 'connected',
+      state: 'connected',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [
+        {
+          name: 'spec.md',
+          relativePath: 'docs/spec.md',
+          kind: 'file',
+        },
+        {
+          name: 'main.ts',
+          relativePath: 'src/main.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content:
+        relativePath === 'docs/spec.md'
+          ? '# Focused Spec\n\nremote spec'
+          : 'export const focused = true',
+    }))
+
+    if (options.draftContent === undefined) {
+      render(
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>,
+      )
+    } else {
+      render(<AppWithMarkDirty draftContent={options.draftContent} />)
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Remote Workspace' }))
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: 'focused.example.com' },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: remoteRoot },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: workspaceId },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'connected',
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'spec.md' })).toBeInTheDocument()
+    })
+
+    return { workspaceId, rootPath, remoteRoot }
+  }
+
+  const selectFocusedRemoteSpecAndFile = async (
+    workspaceId: string,
+    rootPath: string,
+  ) => {
+    fireEvent.click(screen.getByRole('button', { name: 'spec.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/spec.md',
+      )
+    })
+    await waitFor(() => {
+      expect(watchSetFocusedPathsMock).toHaveBeenCalledWith(
+        workspaceId,
+        rootPath,
+        ['docs/spec.md'],
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/main.ts',
+      )
+    })
+    await waitFor(() => {
+      expect(watchSetFocusedPathsMock).toHaveBeenCalledWith(
+        workspaceId,
+        rootPath,
+        ['src/main.ts', 'docs/spec.md'],
+      )
+    })
   }
 
   afterEach(() => {
@@ -1115,6 +1258,129 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('workspace-remote-target')).toHaveTextContent(
       'example.com:/srv/project-a',
     )
+  })
+
+  it('focused remote paths publishes active file and active spec to the watcher', async () => {
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths()
+
+    fireEvent.click(screen.getByRole('button', { name: 'spec.md' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/spec.md',
+      )
+    })
+    await waitFor(() => {
+      expect(watchSetFocusedPathsMock).toHaveBeenCalledWith(
+        workspaceId,
+        rootPath,
+        ['docs/spec.md'],
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/main.ts',
+      )
+    })
+    await waitFor(() => {
+      expect(watchSetFocusedPathsMock).toHaveBeenCalledWith(
+        workspaceId,
+        rootPath,
+        ['src/main.ts', 'docs/spec.md'],
+      )
+    })
+  })
+
+  it('focused remote paths clears when focus switches away from the active remote workspace', async () => {
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths()
+    await selectFocusedRemoteSpecAndFile(workspaceId, rootPath)
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: '/Users/tester/projects/local-focused',
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-path')).toHaveTextContent(
+        '~/projects/local-focused',
+      )
+    })
+    await waitFor(() => {
+      expect(watchSetFocusedPathsMock).toHaveBeenCalledWith(
+        workspaceId,
+        rootPath,
+        [],
+      )
+    })
+  })
+
+  it('focused remote paths clears when the active remote workspace disconnects', async () => {
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths()
+    await selectFocusedRemoteSpecAndFile(workspaceId, rootPath)
+
+    watchSetFocusedPathsMock.mockClear()
+    emitRemoteConnectionEvent({
+      workspaceId,
+      state: 'disconnected',
+      errorCode: 'CONNECTION_CLOSED',
+      message: 'connection closed',
+      occurredAt: '2026-07-04T00:00:00.000Z',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'disconnected',
+      )
+    })
+    await waitFor(() => {
+      expect(watchSetFocusedPathsMock).toHaveBeenCalledWith(
+        workspaceId,
+        rootPath,
+        [],
+      )
+    })
+  })
+
+  it('focused remote paths clears before watcher restart on watch mode preference changes', async () => {
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths()
+    await selectFocusedRemoteSpecAndFile(workspaceId, rootPath)
+
+    watchSetFocusedPathsMock.mockClear()
+    await expandWorkspaceSummaryIfCollapsed()
+    const previousWatchStopCallCount = watchStopMock.mock.calls.length
+
+    fireEvent.change(screen.getByTestId('workspace-watch-mode-preference'), {
+      target: { value: 'native' },
+    })
+
+    await waitFor(() => {
+      expect(watchStopMock.mock.calls.length).toBeGreaterThan(
+        previousWatchStopCallCount,
+      )
+    })
+
+    const clearFocusedPathsCallIndex = watchSetFocusedPathsMock.mock.calls.findIndex(
+      ([calledWorkspaceId, calledRootPath, focusedRelativePaths]) =>
+        calledWorkspaceId === workspaceId &&
+        calledRootPath === rootPath &&
+        focusedRelativePaths.length === 0,
+    )
+    expect(clearFocusedPathsCallIndex).toBeGreaterThanOrEqual(0)
+
+    const clearFocusedPathsOrder =
+      watchSetFocusedPathsMock.mock.invocationCallOrder[clearFocusedPathsCallIndex]
+    const restartWatchStopOrder =
+      watchStopMock.mock.invocationCallOrder[previousWatchStopCallCount]
+    expect(clearFocusedPathsOrder).toBeLessThan(restartWatchStopOrder)
   })
 
   it('syncs VSCode SSH config before remote connect when opted in', async () => {
@@ -2582,6 +2848,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
 
     fireEvent.click(screen.getByTestId('workspace-switcher-button'))
+    expect(screen.getByRole('menu', { name: 'Open workspaces' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close workspace ~/project-b' }))
     await waitFor(() => {
       expect(screen.getByTestId('workspace-path')).toHaveAttribute(
@@ -2594,6 +2861,10 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement)
         .options,
     ).toHaveLength(1)
+    expect(screen.getByRole('menu', { name: 'Open workspaces' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Close workspace ~/project-b' }),
+    ).not.toBeInTheDocument()
   })
 
   it('restores workspace sessions and active file line on app mount', async () => {
@@ -4341,6 +4612,99 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     await waitFor(() => {
       expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
       expect(screen.getByRole('button', { name: 'notes' })).toBeInTheDocument()
+    })
+  })
+
+  it('searches project text from the sidebar Search tab', async () => {
+    const workspaceRoot = '/Users/tester/project-text-search'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'src', relativePath: 'src', kind: 'directory', children: [] }],
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search' }))
+    fireEvent.change(screen.getByTestId('project-search-input'), {
+      target: { value: 'needle' },
+    })
+
+    await waitFor(() => {
+      expect(searchTextMock).toHaveBeenCalledWith(workspaceRoot, 'needle')
+    })
+  })
+
+  it('opens a project text search result in the Code tab', async () => {
+    const workspaceRoot = '/Users/tester/project-text-search-open'
+
+    openDialogMock.mockResolvedValueOnce({
+      canceled: false,
+      selectedPath: workspaceRoot,
+    })
+    indexWorkspaceMock.mockResolvedValueOnce({
+      ok: true,
+      fileTree: [{ name: 'src', relativePath: 'src', kind: 'directory', children: [] }],
+    })
+    searchTextMock.mockResolvedValueOnce({
+      ok: true,
+      results: [
+        {
+          relativePath: 'src/app.ts',
+          lineNumber: 2,
+          snippet: 'const needle = true',
+        },
+      ],
+      truncated: false,
+      skippedLargeDirectoryCount: 0,
+      skippedLargeFileCount: 0,
+      skippedBinaryFileCount: 0,
+      skippedUnreadablePathCount: 0,
+      depthLimitHit: false,
+      timedOut: false,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'const before = false\nconst needle = true\n',
+    })
+
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Workspace' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search' }))
+    fireEvent.change(screen.getByTestId('project-search-input'), {
+      target: { value: 'needle' },
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'src/app.ts line 2' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src/app.ts line 2' }))
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledWith(workspaceRoot, 'src/app.ts')
+      expect(screen.getByRole('button', { name: 'Code' })).toHaveClass('is-active')
     })
   })
 
@@ -10842,6 +11206,166 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       'File changed on disk. Reload?',
     )
     expect(readFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reloads a clean active remote file from a focused watch event with hasStructureChanges false', async () => {
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths()
+    await selectFocusedRemoteSpecAndFile(workspaceId, rootPath)
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)?.state.doc.toString()).toBe(
+        'export const focused = true',
+      )
+    })
+
+    readFileMock.mockClear()
+    getGitFileStatusesMock.mockClear()
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content:
+        relativePath === 'src/main.ts'
+          ? 'export const focused = "refreshed"'
+          : '# Focused Spec\n\nremote spec',
+    }))
+
+    emitWatchEvent({
+      workspaceId,
+      changedRelativePaths: ['src/main.ts'],
+      hasStructureChanges: false,
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledWith(rootPath, 'src/main.ts')
+      expect(getCM6View(container)?.state.doc.toString()).toBe(
+        'export const focused = "refreshed"',
+      )
+    })
+    expect(screen.queryByTestId('external-change-banner')).not.toBeInTheDocument()
+    expect(getGitFileStatusesMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps dirty active remote file content and shows conflict UI for a focused watch event', async () => {
+    const localDraft = 'export const focused = "local draft"'
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths({
+      draftContent: localDraft,
+    })
+    await selectFocusedRemoteSpecAndFile(workspaceId, rootPath)
+
+    const container = screen.getByTestId('code-viewer-content')
+    fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+    await waitFor(() => {
+      expect(getCM6View(container)?.state.doc.toString()).toBe(localDraft)
+    })
+
+    readFileMock.mockClear()
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: 'export const focused = "remote update"',
+    })
+
+    emitWatchEvent({
+      workspaceId,
+      changedRelativePaths: ['src/main.ts'],
+      hasStructureChanges: false,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('external-change-banner')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('external-change-banner')).toHaveTextContent(
+      'File changed on disk. Reload?',
+    )
+    expect(readFileMock).not.toHaveBeenCalled()
+    expect(getCM6View(container)?.state.doc.toString()).toBe(localDraft)
+  })
+
+  it('keeps dirty active remote spec content and shows conflict UI for a focused spec watch event', async () => {
+    const localSpecDraft = '# Focused Spec\n\nlocal draft'
+    const originalConfirm = window.confirm
+    const confirmMock = vi.fn<() => boolean>().mockReturnValue(true)
+    window.confirm = confirmMock
+    const { workspaceId } = await connectRemoteWorkspaceForFocusedPaths({
+      draftContent: localSpecDraft,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'spec.md' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-viewer-active-spec')).toHaveTextContent(
+        'docs/spec.md',
+      )
+    })
+    fireEvent.click(screen.getByTestId('mark-dirty-btn'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'main.ts' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/main.ts',
+      )
+    })
+
+    readFileMock.mockClear()
+    readFileMock.mockResolvedValue({
+      ok: true,
+      content: '# Focused Spec\n\nremote update',
+    })
+
+    emitWatchEvent({
+      workspaceId,
+      changedRelativePaths: ['docs/spec.md'],
+      hasStructureChanges: false,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('external-change-banner')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('external-change-banner')).toHaveTextContent(
+      'File changed on disk. Reload?',
+    )
+    expect(readFileMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Spec' }))
+    await waitFor(() => {
+      expect(screen.getByText('local draft')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('remote update')).not.toBeInTheDocument()
+    window.confirm = originalConfirm
+  })
+
+  it('reloads a clean active remote file when focused watch event omits hasStructureChanges', async () => {
+    const { workspaceId, rootPath } = await connectRemoteWorkspaceForFocusedPaths()
+    await selectFocusedRemoteSpecAndFile(workspaceId, rootPath)
+
+    const container = screen.getByTestId('code-viewer-content')
+    await waitFor(() => {
+      expect(getCM6View(container)?.state.doc.toString()).toBe(
+        'export const focused = true',
+      )
+    })
+
+    readFileMock.mockClear()
+    indexWorkspaceMock.mockClear()
+    readFileMock.mockImplementation(async (_rootPath, relativePath) => ({
+      ok: true,
+      content:
+        relativePath === 'src/main.ts'
+          ? 'export const focused = "omitted flag refresh"'
+          : '# Focused Spec\n\nremote spec',
+    }))
+
+    emitWatchEvent({
+      workspaceId,
+      changedRelativePaths: ['src/main.ts'],
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledWith(rootPath, 'src/main.ts')
+      expect(getCM6View(container)?.state.doc.toString()).toBe(
+        'export const focused = "omitted flag refresh"',
+      )
+    })
+    expect(indexWorkspaceMock).not.toHaveBeenCalled()
   })
 
   it('reloads external file change when Reload button clicked and clears dirty', async () => {

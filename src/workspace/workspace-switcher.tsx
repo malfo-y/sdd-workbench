@@ -186,7 +186,6 @@ export function WorkspaceSwitcher({
                       className="workspace-switcher-option-close"
                       onClick={(event) => {
                         event.stopPropagation()
-                        setIsOpen(false)
                         void onCloseWorkspace(id)
                       }}
                       title="Close workspace"
