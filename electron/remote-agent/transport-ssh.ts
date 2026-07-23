@@ -525,5 +525,10 @@ export function buildSshProcessArgs(
     '--workspace-root',
     shellEscape(profile.remoteRoot),
   ].join(' ')
-  return [...buildSshBaseArgs(profile), 'sh', '-lc', shellEscape(remoteCommand)]
+  return [
+    ...buildSshBaseArgs(profile, { detectBrokenConnection: true }),
+    'sh',
+    '-lc',
+    shellEscape(remoteCommand),
+  ]
 }

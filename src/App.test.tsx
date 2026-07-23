@@ -1378,6 +1378,25 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(screen.getByRole('alert')).toHaveTextContent('TIMEOUT')
 
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-events',
+        state: 'disconnected',
+        errorCode: 'CONNECTION_CLOSED',
+        message: 'Remote session disconnected.',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'disconnected',
+      )
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Remote session disconnected.',
+    )
+
     fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
 
     await waitFor(() => {

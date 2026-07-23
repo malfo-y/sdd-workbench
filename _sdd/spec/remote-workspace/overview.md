@@ -16,7 +16,7 @@
 - 원격 워크스페이스에서 `Open in VSCode`를 누르면 VS Code Remote-SSH authority로 `remoteRoot`를 연다 (`sshAlias` 필수).
 - 원격 워크스페이스에서 `Open in Finder`를 누르면 unsupported 안내 메시지를 배너로 보여준다.
 - 원격 연결 모달에서 `sshAlias`를 입력하고, VSCode SSH config 자동 동기화를 선택할 수 있다.
-- SSH child process 또는 stdio stream이 예기치 않게 닫히면 앱 크래시 대신 원격 연결 단절 상태와 재시도 가능한 오류로 표시된다.
+- 장기 실행 remote agent SSH 연결은 connection sharing/multiplexing을 비활성화한 전용 transport를 사용한다. 응답 불능 상태가 되면 이 transport의 OpenSSH keepalive가 약 4초 내 process exit를 유도하고, 앱은 이를 `disconnected` 상태와 재시도 가능한 오류로 표시한다.
 
 ## 3. 핵심 상태와 source of truth
 
@@ -41,6 +41,7 @@
 - browse는 연결 전 SSH 단발 요청으로 수행한다.
 - connect는 remote agent bootstrap, healthcheck, 버전 검증을 포함한다.
 - `identityFile`이 있으면 SSH에 `-i ... -o IdentitiesOnly=yes`를 적용한다.
+- 장기 실행 remote agent transport에는 `-S none`으로 connection sharing/multiplexing을 비활성화하고 `ServerAliveInterval=2`, `ServerAliveCountMax=1`을 적용한다. 따라서 감시 대상 transport는 기존 `ControlMaster`/`ControlPersist` 연결을 재사용하지 않는다. browse/bootstrap 같은 단발 SSH 요청에는 이 정책을 적용하지 않는다.
 
 ### 4.2 backend abstraction
 
@@ -68,6 +69,7 @@
 - inactive files, directory structure refresh, tree hydration, remote git status refresh는 기존 damped watcher policy를 유지한다.
 - remote project text search는 local scanner와 같은 guardrail 기본값과 partial flag shape를 사용한다. 세부 request/result 계약은 [workspace-and-file-tree/contracts.md](../workspace-and-file-tree/contracts.md)의 `workspace:searchText`를 따른다.
 - 연결 실패/강등은 오류 코드와 함께 renderer로 이벤트를 보낸다.
+- keepalive가 응답 없는 장기 SSH 연결을 종료하면 기존 process-exit 경로를 재사용해 `session.disconnected`와 renderer `CONNECTION_CLOSED` 상태 전이로 전파한다.
 - SSH process exit, stdin/stdout/stderr stream error, pending RPC 실패는 모두 `CONNECTION_CLOSED` 단절 경로로 정규화한다. 단절 이벤트는 세션당 한 번만 emit하고, 명시적 disconnect/shutdown 중 뒤늦게 도착한 stream error는 무시한다.
 - F15 SSHFS 경로는 이력으로 남기되, 현재 active 경로는 F27 remote-protocol 단일 경로다.
 

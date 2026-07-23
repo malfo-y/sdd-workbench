@@ -11,6 +11,9 @@ type SshConnectionOptions = Pick<
   'host' | 'user' | 'port' | 'identityFile' | 'connectTimeoutMs'
 >
 
+const SERVER_ALIVE_INTERVAL_SECONDS = 2
+const SERVER_ALIVE_COUNT_MAX = 1
+
 export function shellEscape(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
@@ -55,7 +58,10 @@ export function buildSshArgs(
   return [...buildSshBaseArgs(profile), 'sh', '-lc', command]
 }
 
-export function buildSshBaseArgs(profile: SshConnectionOptions): string[] {
+export function buildSshBaseArgs(
+  profile: SshConnectionOptions,
+  options: { detectBrokenConnection?: boolean } = {},
+): string[] {
   const args: string[] = []
   if (profile.port) {
     args.push('-p', String(profile.port))
@@ -67,6 +73,11 @@ export function buildSshBaseArgs(profile: SshConnectionOptions): string[] {
     Math.floor((profile.connectTimeoutMs ?? 10_000) / 1000),
   )
   args.push('-o', `ConnectTimeout=${timeoutSeconds}`)
+  if (options.detectBrokenConnection) {
+    args.push('-S', 'none')
+    args.push('-o', `ServerAliveInterval=${SERVER_ALIVE_INTERVAL_SECONDS}`)
+    args.push('-o', `ServerAliveCountMax=${SERVER_ALIVE_COUNT_MAX}`)
+  }
   args.push(buildSshDestination(profile))
 
   return args
