@@ -387,14 +387,32 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   })
 
   const selectActiveWorkspaceFile = useCallback(
-    (relativePath: string, historyMode: 'push' | 'preserve') => {
+    async (relativePath: string, historyMode: 'push' | 'preserve') => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
       if (!activeWorkspaceId) {
         return
       }
-      loadWorkspaceFile(activeWorkspaceId, relativePath, 'select', historyMode)
+
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[activeWorkspaceId]
+      if (
+        workspaceSession?.workspaceKind === 'remote' &&
+        workspaceSession.remoteConnectionState === 'disconnected'
+      ) {
+        await retryRemoteWorkspaceConnection(activeWorkspaceId)
+        const currentWorkspaceSession =
+          workspaceStateRef.current.workspacesById[activeWorkspaceId]
+        const hasUsableRemoteConnection =
+          currentWorkspaceSession?.remoteConnectionState === 'connected' ||
+          currentWorkspaceSession?.remoteConnectionState === 'degraded'
+        if (!hasUsableRemoteConnection) {
+          return
+        }
+      }
+
+      await loadWorkspaceFile(activeWorkspaceId, relativePath, 'select', historyMode)
     },
-    [loadWorkspaceFile],
+    [loadWorkspaceFile, retryRemoteWorkspaceConnection, workspaceStateRef],
   )
 
   const selectFile = useCallback(
@@ -405,7 +423,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       ) {
         return
       }
-      selectActiveWorkspaceFile(relativePath, 'push')
+      void selectActiveWorkspaceFile(relativePath, 'push')
     },
     [getActiveIsDirty, selectActiveWorkspaceFile],
   )

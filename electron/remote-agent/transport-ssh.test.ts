@@ -4,12 +4,16 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+import { RemoteConnectionService } from './connection-service'
 import { REMOTE_AGENT_PROTOCOL_VERSION, RemoteAgentError } from './protocol'
 import {
   buildSshProcessArgs,
   createSshRemoteAgentTransport,
 } from './transport-ssh'
-import type { RemoteConnectionProfile } from './types'
+import type {
+  RemoteConnectionEvent,
+  RemoteConnectionProfile,
+} from './types'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import type { RemoteAgentBootstrapResult } from './bootstrap'
 
@@ -137,6 +141,12 @@ describe('remote-agent/transport-ssh', () => {
       'IdentitiesOnly=yes',
       '-o',
       'ConnectTimeout=10',
+      '-S',
+      'none',
+      '-o',
+      'ServerAliveInterval=2',
+      '-o',
+      'ServerAliveCountMax=1',
       'tester@example.com',
       'sh',
       '-lc',
@@ -157,6 +167,12 @@ describe('remote-agent/transport-ssh', () => {
     expect(args).toEqual([
       '-o',
       'ConnectTimeout=10',
+      '-S',
+      'none',
+      '-o',
+      'ServerAliveInterval=2',
+      '-o',
+      'ServerAliveCountMax=1',
       'example.com',
       'sh',
       '-lc',
@@ -169,6 +185,58 @@ describe('remote-agent/transport-ssh', () => {
     expect(args.at(-1)).toContain('/repo')
     expect(args.at(-1)?.startsWith("'")).toBe(true)
     expect(args.at(-1)?.endsWith("'")).toBe(true)
+  })
+
+  it('uses a dedicated SSH connection and reports unexpected exits as disconnected', async () => {
+    const args = buildSshProcessArgs(profile, bootstrapResult)
+    const destinationIndex = args.indexOf('example.com')
+
+    expect(args.slice(destinationIndex - 6, destinationIndex)).toEqual([
+      '-S',
+      'none',
+      '-o',
+      'ServerAliveInterval=2',
+      '-o',
+      'ServerAliveCountMax=1',
+    ])
+
+    const fakeProcess = new FakeChildProcess()
+    wireHealthcheckResponder(fakeProcess)
+    const events: RemoteConnectionEvent[] = []
+    const service = new RemoteConnectionService({
+      transportFactory: (remoteProfile) =>
+        createSshRemoteAgentTransport(remoteProfile, {
+          spawnProcess: () => fakeProcess.asChildProcess(),
+          bootstrapper: async () => bootstrapResult,
+          requestTimeoutMs: 5_000,
+        }),
+      emitEvent: (event) => {
+        events.push(event)
+      },
+      now: () => 100,
+    })
+
+    await expect(service.connect(profile)).resolves.toMatchObject({
+      ok: true,
+      remoteConnectionState: 'connected',
+    })
+
+    fakeProcess.emit('exit', 255, null)
+
+    await vi.waitFor(() => {
+      expect(events.at(-1)).toMatchObject({
+        workspaceId: profile.workspaceId,
+        state: 'disconnected',
+        errorCode: 'CONNECTION_CLOSED',
+      })
+    })
+    expect(events.map((event) => event.state)).toEqual([
+      'connecting',
+      'connected',
+      'disconnected',
+    ])
+
+    await service.shutdown()
   })
 
   it('preserves $HOME expansion in the remote stdio command', () => {

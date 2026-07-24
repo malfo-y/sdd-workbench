@@ -26,8 +26,11 @@ Remote agent runtime allowlist includes `workspace.searchText` for project text 
   - `{ profile: { workspaceId, host, remoteRoot, user?, port?, agentPath?, identityFile?, requestTimeoutMs?, connectTimeoutMs? } }`
 - response:
   - `{ ok, workspaceId?, sessionId?, rootPath?, remoteConnectionState?, state?, errorCode?, error? }`
+- 장기 실행 remote agent SSH transport는 `-S none`으로 connection sharing/multiplexing을 비활성화하고 `ServerAliveInterval=2`, `ServerAliveCountMax=1`을 사용해 응답 없는 연결이 약 4초 내 종료되도록 구성한다. 이 옵션은 active transport에만 적용하며 bootstrap/browse 단발 SSH 요청에는 적용하지 않는다.
+- keepalive로 SSH process가 종료되면 기존 `session.disconnected` 경로가 renderer의 `remoteConnectionState='disconnected'`, `remoteErrorCode='CONNECTION_CLOSED'` 전이까지 전파한다.
 - 연결 중/이후 SSH process 또는 stdin/stdout/stderr stream이 예기치 않게 실패하면 pending RPC는 `CONNECTION_CLOSED`로 reject 되고, main process는 `workspace:remoteConnectionEvent`를 `state='disconnected'`, `errorCode='CONNECTION_CLOSED'`로 보낸다.
 - 같은 단절 원인에서 `session.disconnected`는 한 번만 전파된다. 명시적 `workspace:disconnectRemote` 또는 shutdown 중 도착한 late stream error는 앱 크래시나 추가 단절 이벤트를 만들지 않는다.
+- 파일 선택 시 `disconnected` 세션의 재연결과 `workspace:readFile` 호출 순서는 [workspace core `workspace:readFile` 계약](../workspace-and-file-tree/contracts.md#21-workspacereadfile)을 따른다.
 
 ### 2.2 `workspace:browseRemoteDirectories`
 
@@ -95,6 +98,7 @@ Remote agent runtime allowlist includes `workspace.searchText` for project text 
 3. renderer는 local/remote backend 차이를 IPC surface 뒤에 숨긴다.
 4. typed preload bridge와 spec 계약은 함께 갱신한다.
 5. Remote SSH transport의 process/stdio 오류는 renderer에 raw stream exception으로 새지 않고 remote connection state/error code로 정규화한다.
+6. SSH connection sharing 비활성화와 keepalive는 장기 remote agent transport에만 opt-in으로 적용해 감시 대상 process가 전용 연결을 소유하게 하고, 단발 SSH 작업의 timeout 정책은 바꾸지 않는다.
 
 ## 4. 관련 구현 파일
 

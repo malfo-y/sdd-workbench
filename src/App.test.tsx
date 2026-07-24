@@ -548,6 +548,55 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     }
   }
 
+  async function renderDisconnectedRemoteFile(input: {
+    workspaceId: string
+    host: string
+    remoteRoot: string
+    fileName: string
+    disconnectMessage?: string
+  }) {
+    render(
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Connect Remote Workspace' }),
+    )
+    fireEvent.change(screen.getByTestId('remote-connect-host-input'), {
+      target: { value: input.host },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-root-input'), {
+      target: { value: input.remoteRoot },
+    })
+    fireEvent.change(screen.getByTestId('remote-connect-workspace-id-input'), {
+      target: { value: input.workspaceId },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: input.fileName }),
+      ).toBeInTheDocument()
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: input.workspaceId,
+        state: 'disconnected',
+        errorCode: 'CONNECTION_CLOSED',
+        message: input.disconnectMessage,
+        occurredAt: new Date().toISOString(),
+      })
+    })
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('workspace-remote-connection-state'),
+      ).toHaveTextContent('disconnected')
+    })
+  }
+
   afterEach(() => {
     cleanup()
   })
@@ -1378,6 +1427,25 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     })
     expect(screen.getByRole('alert')).toHaveTextContent('TIMEOUT')
 
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId: 'remote-workspace-events',
+        state: 'disconnected',
+        errorCode: 'CONNECTION_CLOSED',
+        message: 'Remote session disconnected.',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+        'disconnected',
+      )
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Remote session disconnected.',
+    )
+
     fireEvent.click(screen.getByRole('button', { name: 'Close Workspace' }))
 
     await waitFor(() => {
@@ -1463,6 +1531,422 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         remoteRoot: '/srv/retry',
         identityFile: '~/.ssh/id_ed25519',
       }),
+    )
+  })
+
+  it('reconnects and opens a selected remote file when disconnected', async () => {
+    const workspaceId = 'remote-workspace-auto-open'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-auto-open-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-auto-open-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'auto-open.ts',
+          relativePath: 'auto-open.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'export const reconnected = true',
+    })
+
+    await renderDisconnectedRemoteFile({
+      workspaceId,
+      host: 'auto-open.example.com',
+      remoteRoot: '/srv/auto-open',
+      fileName: 'auto-open.ts',
+      disconnectMessage: 'Remote session disconnected.',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'auto-open.ts' }))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(readFileMock).toHaveBeenCalledWith(rootPath, 'auto-open.ts')
+    })
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+      'connected',
+    )
+    expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+      'export const reconnected = true',
+    )
+  })
+
+  it('keeps the remote connection after the retried file read fails', async () => {
+    const workspaceId = 'remote-workspace-auto-open-read-failure'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-read-failure-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-read-failure-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'missing-after-reconnect.ts',
+          relativePath: 'missing-after-reconnect.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: false,
+      content: null,
+      error: 'file disappeared',
+    })
+
+    await renderDisconnectedRemoteFile({
+      workspaceId,
+      host: 'read-failure.example.com',
+      remoteRoot: '/srv/read-failure',
+      fileName: 'missing-after-reconnect.ts',
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'missing-after-reconnect.ts' }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('code-viewer-error')).toHaveTextContent(
+        'Failed to read file: file disappeared',
+      )
+    })
+    expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+      'connected',
+    )
+  })
+
+  it('does not read the selected file when automatic reconnect fails', async () => {
+    const workspaceId = 'remote-workspace-auto-open-reconnect-failure'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-reconnect-failure-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        workspaceId,
+        errorCode: 'TIMEOUT',
+        error: 'reconnect timed out',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'unavailable.ts',
+          relativePath: 'unavailable.ts',
+          kind: 'file',
+        },
+      ],
+    })
+
+    await renderDisconnectedRemoteFile({
+      workspaceId,
+      host: 'reconnect-failure.example.com',
+      remoteRoot: '/srv/reconnect-failure',
+      fileName: 'unavailable.ts',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'unavailable.ts' }))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Remote connection timed out (TIMEOUT).',
+      )
+    })
+    expect(readFileMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+      'disconnected',
+    )
+  })
+
+  it(
+    'still attempts the selected file read when reconnect succeeds but index setup fails',
+    async () => {
+      const workspaceId = 'remote-workspace-auto-open-index-failure'
+      const rootPath = `remote://${workspaceId}`
+      connectRemoteMock
+        .mockResolvedValueOnce({
+          ok: true,
+          workspaceId,
+          sessionId: 'session-index-failure-1',
+          rootPath,
+          remoteConnectionState: 'connected',
+          state: 'connected',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          workspaceId,
+          sessionId: 'session-index-failure-2',
+          rootPath,
+          remoteConnectionState: 'connected',
+          state: 'connected',
+        })
+      indexWorkspaceMock
+        .mockResolvedValueOnce({
+          ok: true,
+          fileTree: [
+            {
+              name: 'known-before-reconnect.ts',
+              relativePath: 'known-before-reconnect.ts',
+              kind: 'file',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          fileTree: [],
+          error: 'index unavailable',
+        })
+      readFileMock.mockResolvedValueOnce({
+        ok: true,
+        content: 'export const openedFromKnownPath = true',
+      })
+
+      await renderDisconnectedRemoteFile({
+        workspaceId,
+        host: 'index-failure.example.com',
+        remoteRoot: '/srv/index-failure',
+        fileName: 'known-before-reconnect.ts',
+      })
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'known-before-reconnect.ts' }),
+      )
+
+      await waitFor(() => {
+        expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+        expect(readFileMock).toHaveBeenCalledWith(
+          rootPath,
+          'known-before-reconnect.ts',
+        )
+      })
+      expect(readFileMock).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByTestId('workspace-remote-connection-state'),
+      ).toHaveTextContent('connected')
+      expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+        'export const openedFromKnownPath = true',
+      )
+    },
+  )
+
+  it('does not read the selected file when reconnect setup finishes after disconnection', async () => {
+    const workspaceId = 'remote-workspace-auto-open-disconnect-race'
+    const rootPath = `remote://${workspaceId}`
+    let resolveReconnectIndex!: (result: WorkspaceIndexResult) => void
+    const reconnectIndexPromise = new Promise<WorkspaceIndexResult>((resolve) => {
+      resolveReconnectIndex = resolve
+    })
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-disconnect-race-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-disconnect-race-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'offline-before-read.ts',
+            relativePath: 'offline-before-read.ts',
+            kind: 'file',
+          },
+        ],
+      })
+      .mockReturnValueOnce(reconnectIndexPromise)
+
+    await renderDisconnectedRemoteFile({
+      workspaceId,
+      host: 'disconnect-race.example.com',
+      remoteRoot: '/srv/disconnect-race',
+      fileName: 'offline-before-read.ts',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'offline-before-read.ts' }))
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId,
+        state: 'disconnected',
+        errorCode: 'CONNECTION_CLOSED',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('workspace-remote-connection-state'),
+      ).toHaveTextContent('disconnected')
+    })
+
+    await act(async () => {
+      resolveReconnectIndex({
+        ok: true,
+        fileTree: [
+          {
+            name: 'offline-before-read.ts',
+            relativePath: 'offline-before-read.ts',
+            kind: 'file',
+          },
+        ],
+      })
+      await reconnectIndexPromise
+      await Promise.resolve()
+    })
+
+    expect(readFileMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+      'disconnected',
+    )
+  })
+
+  it('reads the selected file when reconnect setup leaves the session degraded', async () => {
+    const workspaceId = 'remote-workspace-auto-open-degraded'
+    const rootPath = `remote://${workspaceId}`
+    let resolveReconnectIndex!: (result: WorkspaceIndexResult) => void
+    const reconnectIndexPromise = new Promise<WorkspaceIndexResult>((resolve) => {
+      resolveReconnectIndex = resolve
+    })
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-degraded-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-degraded-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock
+      .mockResolvedValueOnce({
+        ok: true,
+        fileTree: [
+          {
+            name: 'available-while-degraded.ts',
+            relativePath: 'available-while-degraded.ts',
+            kind: 'file',
+          },
+        ],
+      })
+      .mockReturnValueOnce(reconnectIndexPromise)
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'export const degradedConnectionIsUsable = true',
+    })
+
+    await renderDisconnectedRemoteFile({
+      workspaceId,
+      host: 'degraded.example.com',
+      remoteRoot: '/srv/degraded',
+      fileName: 'available-while-degraded.ts',
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'available-while-degraded.ts' }),
+    )
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId,
+        state: 'degraded',
+        errorCode: 'TIMEOUT',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('workspace-remote-connection-state'),
+      ).toHaveTextContent('degraded')
+    })
+
+    await act(async () => {
+      resolveReconnectIndex({
+        ok: false,
+        fileTree: [],
+        error: 'index unavailable',
+      })
+      await reconnectIndexPromise
+      await Promise.resolve()
+    })
+
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+    expect(readFileMock).toHaveBeenCalledWith(
+      rootPath,
+      'available-while-degraded.ts',
+    )
+    expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+      'degraded',
+    )
+    expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
+      'export const degradedConnectionIsUsable = true',
     )
   })
 

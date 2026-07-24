@@ -32,7 +32,21 @@
 
 ## 2. 핵심 request/response 요약
 
-### 2.1 `workspace:indexDirectory`
+### 2.1 `workspace:readFile`
+
+- request:
+  - `{ rootPath, relativePath }`
+- response:
+  - `{ ok, content, imagePreview?, previewUnavailableReason?, error? }`
+- 파일 선택 규칙:
+  - local 및 `connected`/`degraded` 원격 세션은 기존 direct read 경로를 사용한다.
+  - active remote session이 `disconnected`이면 renderer는 해당 세션에 저장된 `remoteProfile`로 `workspace:connectRemote`를 먼저 호출한다.
+  - 재연결 후 read 여부는 reconnect helper의 boolean이 아니라 재시도 완료 시점의 실제 renderer session 상태로 결정한다.
+  - 실제 상태가 `connected` 또는 `degraded`이면 최초 선택의 `relativePath`와 history mode를 보존해 `workspace:readFile`을 정확히 한 번 호출한다. watcher/index setup 실패로 helper가 `false`를 반환해도 실제 상태가 사용 가능하면 read한다.
+  - 실제 상태가 `disconnected`이면 `workspace:readFile`을 호출하지 않는다. helper가 `true`를 반환했더라도 reconnect setup 중 단절 이벤트가 도착해 실제 상태가 다시 `disconnected`가 된 경우도 동일하다.
+  - 재연결 뒤 파일 read가 실패하면 재연결/read를 반복하지 않는다. 성공한 원격 연결은 유지하고 기존 파일 읽기 오류 surface로 실패를 표시한다.
+
+### 2.2 `workspace:indexDirectory`
 
 - request:
   - `{ rootPath, relativePath, offset?: number, limit?: number }`
@@ -42,7 +56,7 @@
   - 디렉토리 child cap `500`
   - 초과 시 `childrenStatus='partial'`
 
-### 2.2 `workspace:watchStart`
+### 2.3 `workspace:watchStart`
 
 - request:
   - `{ workspaceId, rootPath, watchModePreference?: 'auto'|'native'|'polling' }`
@@ -52,7 +66,7 @@
   - 우선순위는 `override > auto heuristic`
   - native 실패 시 polling fallback 가능
 
-### 2.3 `workspace:searchFiles`
+### 2.4 `workspace:searchFiles`
 
 - request:
   - `{ rootPath, query, maxDepth?, maxResults?, maxDirectoryChildren?, timeBudgetMs? }`
@@ -60,7 +74,7 @@
   - `{ ok, results, truncated, skippedLargeDirectoryCount, depthLimitHit, timedOut, error? }`
 - 상세 규칙은 [search-rules](../spec-viewer/contracts.md) 참조
 
-### 2.4 파일 클립보드 Copy / Paste
+### 2.5 파일 클립보드 Copy / Paste
 
 **`workspace:setFileClipboard`**
 - request: `{ rootPath, paths: { relativePath, kind }[] }`
