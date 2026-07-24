@@ -30,6 +30,7 @@ Remote agent runtime allowlist includes `workspace.searchText` for project text 
 - keepalive로 SSH process가 종료되면 기존 `session.disconnected` 경로가 renderer의 `remoteConnectionState='disconnected'`, `remoteErrorCode='CONNECTION_CLOSED'` 전이까지 전파한다.
 - 연결 중/이후 SSH process 또는 stdin/stdout/stderr stream이 예기치 않게 실패하면 pending RPC는 `CONNECTION_CLOSED`로 reject 되고, main process는 `workspace:remoteConnectionEvent`를 `state='disconnected'`, `errorCode='CONNECTION_CLOSED'`로 보낸다.
 - 같은 단절 원인에서 `session.disconnected`는 한 번만 전파된다. 명시적 `workspace:disconnectRemote` 또는 shutdown 중 도착한 late stream error는 앱 크래시나 추가 단절 이벤트를 만들지 않는다.
+- 파일 선택 시 `disconnected` 세션의 재연결과 `workspace:readFile` 호출 순서는 [workspace core `workspace:readFile` 계약](../workspace-and-file-tree/contracts.md#21-workspacereadfile)을 따른다.
 
 ### 2.2 `workspace:browseRemoteDirectories`
 
