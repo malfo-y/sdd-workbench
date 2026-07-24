@@ -115,6 +115,13 @@ export function useWorkspaceSnapshot(input: {
     mode?: 'select' | 'refresh',
   ) => Promise<WorkspaceLoadStatus>
   connectRemoteWorkspace: (profile: WorkspaceRemoteProfile) => Promise<boolean>
+  ensureWorkspaceConnectionForUserAction: (
+    workspaceId: WorkspaceId,
+  ) => boolean | Promise<boolean>
+  getWorkspaceDirectoryExpansionIntent: (
+    workspaceId: WorkspaceId,
+    relativePath: string,
+  ) => boolean | null
   handleRestoreFailure: (workspaceId: WorkspaceId) => void
   startWorkspaceWatch: (
     workspaceId: WorkspaceId,
@@ -137,6 +144,8 @@ export function useWorkspaceSnapshot(input: {
     loadWorkspaceFile,
     loadWorkspaceSpec,
     connectRemoteWorkspace,
+    ensureWorkspaceConnectionForUserAction,
+    getWorkspaceDirectoryExpansionIntent,
     handleRestoreFailure,
     startWorkspaceWatch,
     stopWorkspaceWatch,
@@ -314,9 +323,56 @@ export function useWorkspaceSnapshot(input: {
         return
       }
 
+      const connectionResult =
+        ensureWorkspaceConnectionForUserAction(activeWorkspaceId)
+      if (connectionResult !== true) {
+        const expansionRequestedBeforeConnection =
+          getWorkspaceDirectoryExpansionIntent(
+            activeWorkspaceId,
+            relativePath,
+          ) ??
+          (workspaceStateRef.current.workspacesById[
+            activeWorkspaceId
+          ]?.expandedDirectories.includes(relativePath) ??
+            false)
+        const hasUsableConnection = await connectionResult
+        const latestExpansionIntent =
+          getWorkspaceDirectoryExpansionIntent(
+            activeWorkspaceId,
+            relativePath,
+          )
+        if (
+          !hasUsableConnection ||
+          !(latestExpansionIntent ?? expansionRequestedBeforeConnection)
+        ) {
+          return
+        }
+
+        setWorkspaceState((previous) =>
+          updateWorkspaceSession(
+            previous,
+            activeWorkspaceId,
+            (currentSession) => ({
+              ...currentSession,
+              expandedDirectories: currentSession.expandedDirectories.includes(
+                relativePath,
+              )
+                ? currentSession.expandedDirectories
+                : [...currentSession.expandedDirectories, relativePath],
+            }),
+          ),
+        )
+      }
+
       await loadWorkspaceDirectoryChildren(activeWorkspaceId, relativePath, options)
     },
-    [loadWorkspaceDirectoryChildren, workspaceStateRef],
+    [
+      ensureWorkspaceConnectionForUserAction,
+      getWorkspaceDirectoryExpansionIntent,
+      loadWorkspaceDirectoryChildren,
+      setWorkspaceState,
+      workspaceStateRef,
+    ],
   )
 
   const refreshFileTree = useCallback(async () => {

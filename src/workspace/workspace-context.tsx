@@ -89,6 +89,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   >({})
   const watchedWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
   const savedFileRefreshSuppressionRef = useRef<Set<string>>(new Set())
+  const userActionConnectionPromiseByWorkspaceRef = useRef<
+    Map<WorkspaceId, Promise<boolean>>
+  >(new Map())
+  const expandedDirectoryIntentsByWorkspaceRef = useRef<
+    Map<WorkspaceId, Set<string>>
+  >(new Map())
 
   const loadWorkspaceIndex = useCallback(
     async (
@@ -317,6 +323,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     delete writeCommentsRequestIdByWorkspaceRef.current[workspaceId]
     delete readGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
     delete writeGlobalCommentsRequestIdByWorkspaceRef.current[workspaceId]
+    userActionConnectionPromiseByWorkspaceRef.current.delete(workspaceId)
+    expandedDirectoryIntentsByWorkspaceRef.current.delete(workspaceId)
     savedFileRefreshSuppressionRef.current.forEach((entryKey) => {
       if (entryKey.startsWith(`${workspaceId}::`)) {
         savedFileRefreshSuppressionRef.current.delete(entryKey)
@@ -386,6 +394,66 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     loadWorkspaceGitFileStatuses,
   })
 
+  const ensureWorkspaceConnectionForUserAction = useCallback(
+    (workspaceId: WorkspaceId): boolean | Promise<boolean> => {
+      const workspaceSession =
+        workspaceStateRef.current.workspacesById[workspaceId]
+      if (!workspaceSession) {
+        return false
+      }
+
+      if (workspaceSession.workspaceKind !== 'remote') {
+        return true
+      }
+
+      const pendingConnection =
+        userActionConnectionPromiseByWorkspaceRef.current.get(workspaceId)
+      if (pendingConnection) {
+        return pendingConnection
+      }
+
+      if (
+        workspaceSession.remoteConnectionState === 'connected' ||
+        workspaceSession.remoteConnectionState === 'degraded'
+      ) {
+        return true
+      }
+
+      if (workspaceSession.remoteConnectionState !== 'disconnected') {
+        return false
+      }
+
+      const connectionPromise = retryRemoteWorkspaceConnection(workspaceId).then(
+        () => {
+          const currentWorkspaceSession =
+            workspaceStateRef.current.workspacesById[workspaceId]
+          return (
+            currentWorkspaceSession?.remoteConnectionState === 'connected' ||
+            currentWorkspaceSession?.remoteConnectionState === 'degraded'
+          )
+        },
+      )
+      userActionConnectionPromiseByWorkspaceRef.current.set(
+        workspaceId,
+        connectionPromise,
+      )
+      const clearPendingConnection = () => {
+        if (
+          userActionConnectionPromiseByWorkspaceRef.current.get(workspaceId) ===
+          connectionPromise
+        ) {
+          userActionConnectionPromiseByWorkspaceRef.current.delete(workspaceId)
+        }
+      }
+      void connectionPromise.then(
+        clearPendingConnection,
+        clearPendingConnection,
+      )
+      return connectionPromise
+    },
+    [retryRemoteWorkspaceConnection, workspaceStateRef],
+  )
+
   const selectActiveWorkspaceFile = useCallback(
     async (relativePath: string, historyMode: 'push' | 'preserve') => {
       const activeWorkspaceId = workspaceStateRef.current.activeWorkspaceId
@@ -393,26 +461,31 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         return
       }
 
-      const workspaceSession =
-        workspaceStateRef.current.workspacesById[activeWorkspaceId]
-      if (
-        workspaceSession?.workspaceKind === 'remote' &&
-        workspaceSession.remoteConnectionState === 'disconnected'
-      ) {
-        await retryRemoteWorkspaceConnection(activeWorkspaceId)
-        const currentWorkspaceSession =
-          workspaceStateRef.current.workspacesById[activeWorkspaceId]
-        const hasUsableRemoteConnection =
-          currentWorkspaceSession?.remoteConnectionState === 'connected' ||
-          currentWorkspaceSession?.remoteConnectionState === 'degraded'
-        if (!hasUsableRemoteConnection) {
+      const connectionResult =
+        ensureWorkspaceConnectionForUserAction(activeWorkspaceId)
+      if (connectionResult !== true) {
+        const hasUsableConnection = await connectionResult
+        if (!hasUsableConnection) {
           return
         }
       }
 
       await loadWorkspaceFile(activeWorkspaceId, relativePath, 'select', historyMode)
     },
-    [loadWorkspaceFile, retryRemoteWorkspaceConnection, workspaceStateRef],
+    [
+      ensureWorkspaceConnectionForUserAction,
+      loadWorkspaceFile,
+      workspaceStateRef,
+    ],
+  )
+
+  const getWorkspaceDirectoryExpansionIntent = useCallback(
+    (workspaceId: WorkspaceId, relativePath: string) => {
+      const latestIntent =
+        expandedDirectoryIntentsByWorkspaceRef.current.get(workspaceId)
+      return latestIntent ? latestIntent.has(relativePath) : null
+    },
+    [],
   )
 
   const selectFile = useCallback(
@@ -451,6 +524,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       loadWorkspaceFile,
       loadWorkspaceSpec,
       connectRemoteWorkspace,
+      ensureWorkspaceConnectionForUserAction,
+      getWorkspaceDirectoryExpansionIntent,
       handleRestoreFailure,
       startWorkspaceWatch,
       stopWorkspaceWatch,
@@ -539,6 +614,10 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       }
 
       const nextExpandedDirectories = Array.from(new Set(expandedDirectories))
+      expandedDirectoryIntentsByWorkspaceRef.current.set(
+        activeWorkspaceId,
+        new Set(nextExpandedDirectories),
+      )
       setWorkspaceState((previous) =>
         updateWorkspaceSession(previous, activeWorkspaceId, (currentSession) => ({
           ...currentSession,
