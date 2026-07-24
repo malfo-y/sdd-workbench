@@ -12,6 +12,7 @@
 - 프로젝트 텍스트 검색은 로컬과 같은 `workspace:searchText` renderer surface로 사용하며, remote agent runtime의 `workspace.searchText`가 원격 파일 내용을 scan한다.
 - 원격 워크스페이스에서 현재 보고 있는 active file/spec의 content-only 외부 변경은 focused fast lane을 통해 전체 workspace polling보다 빠르게 감지된다.
 - 연결 단절, degraded 상태, retry 가능 여부를 배너/상태로 확인한다.
+- 파일 브라우저에서 `disconnected` 원격 워크스페이스의 파일을 선택하면 저장된 원격 프로필로 먼저 재연결하고, 실제 연결 상태가 사용 가능한 경우 선택한 파일을 한 번 연다. 세부 판정과 호출 순서는 [workspace core `workspace:readFile` 계약](../workspace-and-file-tree/contracts.md#21-workspacereadfile)을 따른다.
 - 원격 워크스페이스에서 `Open in iTerm`을 누르면 SSH 접속 후 `remoteRoot`에서 셸이 시작된다.
 - 원격 워크스페이스에서 `Open in VSCode`를 누르면 VS Code Remote-SSH authority로 `remoteRoot`를 연다 (`sshAlias` 필수).
 - 원격 워크스페이스에서 `Open in Finder`를 누르면 unsupported 안내 메시지를 배너로 보여준다.
