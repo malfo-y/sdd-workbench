@@ -50,7 +50,7 @@
 - (F27) remote 프로토콜 버전 불일치 시 기능 강등 없이 즉시 연결 실패 처리(`AGENT_PROTOCOL_MISMATCH`)
 - (F27) remote SSH child process와 stdio stream 오류는 앱 크래시 없이 `CONNECTION_CLOSED` 단절 이벤트로 정규화하고, 명시적 shutdown 중 late stream error는 무시한다.
 - (F27) 장기 remote agent SSH transport는 `-S none`으로 connection sharing/multiplexing을 비활성화한 전용 연결에서 `ServerAliveInterval=2`, `ServerAliveCountMax=1`을 사용한다. 응답 없는 연결은 약 4초 내 process exit로 수렴하고 기존 이벤트 경로가 renderer 상태를 `disconnected`로 전환한다. bootstrap/browse 단발 SSH 요청은 이 정책에서 제외한다.
-- (BUG-05) disconnected remote file-open의 상태 판정과 read 호출 순서는 [workspace core `workspace:readFile` 계약](./workspace-and-file-tree/contracts.md#21-workspacereadfile)을 따른다.
+- (BUG-05/BUG-06) disconnected remote file-open과 lazy directory expansion은 workspace core의 [`workspace:readFile`](./workspace-and-file-tree/contracts.md#21-workspacereadfile) 및 [`workspace:indexDirectory`](./workspace-and-file-tree/contracts.md#22-workspaceindexdirectory) user-action guard를 따른다.
 - (F27) F15(SSHFS 기반) 연결 경로는 폐기되었고 remote-protocol 단일 경로를 사용한다.
 - (F28) remote directory browse 실패(`AUTH_FAILED`/`TIMEOUT`/`PATH_DENIED` 등)는 연결 실패와 분리해 모달 내 고정 오류로 표시한다.
 - swipe history는 supported macOS 계열 플랫폼에서만 활성화하고, 비지원 플랫폼에서는 `app-command` 경로만 유지한다.
@@ -59,10 +59,14 @@
 
 ### 4.1 자동 게이트
 
-- **Remote file-open reconnect targeted gate (2026-07-24)**
-  - `rtk npm test -- --run src/App.test.tsx -t "<6 reconnect test names>"` -> `1 file passed, 6 passed, 160 skipped (166 total)`
-  - `rtk npm test -- --run src/App.test.tsx` -> `1 file passed, 165 passed, 1 skipped (166 total)`
-  - [workspace core `workspace:readFile` 계약](./workspace-and-file-tree/contracts.md#21-workspacereadfile)의 원격 재연결 회귀 6건을 검증한다. 신규 edge-case는 helper `true`여도 실제 상태가 `disconnected`이면 read하지 않는 경우와 helper `false`/index 실패여도 실제 상태가 `degraded`이면 한 번 read하는 경우를 포함한다.
+- **Remote file-open + directory-expand reconnect targeted gate (2026-07-24)**
+  - `rtk npm test -- --run src/App.test.tsx -t "<10 reconnect test names>"` -> `1 file passed, 10 passed, 160 skipped (170 total)`
+  - `rtk npm test -- --run src/file-tree/file-tree-panel.test.tsx` -> `1 file passed, 50 passed`
+  - `rtk npm test -- --run src/App.test.tsx` -> `1 file passed, 169 passed, 1 skipped (170 total)`
+  - `rtk npm test` -> `79 files passed, 941 passed, 1 skipped`
+  - `rtk npm run lint` -> pass
+  - TypeScript validation -> no errors
+  - workspace core의 [`workspace:readFile`](./workspace-and-file-tree/contracts.md#21-workspacereadfile) 및 [`workspace:indexDirectory`](./workspace-and-file-tree/contracts.md#22-workspaceindexdirectory) 원격 재연결 회귀 10건을 검증한다. 추가 review-fix 시나리오는 reconnect setup 중 두 번째 사용자 액션이 조기 read하지 않는 경우와, expand 후 reconnect 대기 중 collapse한 디렉토리가 닫힌 상태를 유지하며 자식을 로드하지 않는 경우다.
 - **Remote disconnect targeted gate (2026-07-23)**
   - `npx vitest run electron/remote-agent/transport-ssh.test.ts src/App.test.tsx` -> `2 files passed, 175 passed, 1 skipped`
   - `npm run lint` -> pass
@@ -129,7 +133,7 @@
 40. (F27) remote 연결 직후 `workspace:index/read/write/create/delete/rename`이 기존 로컬 계약과 동일하게 동작하는지 확인
 41. (F27) remote watch 이벤트가 `changedRelativePaths`, `hasStructureChanges` 형식으로 반영되는지 확인
 42. (F27, 수동 미검증) 연결된 원격 호스트의 네트워크를 실제로 차단했을 때 3~5초 안에 상태가 `disconnected`로 반영되고 `CONNECTION_CLOSED` 재시도 UI가 표시되는지 확인
-43. (BUG-05) disconnected remote file-open이 [workspace core `workspace:readFile` 계약](./workspace-and-file-tree/contracts.md#21-workspacereadfile)의 상태 판정과 호출 횟수를 따르는지 확인한다.
+43. (BUG-05/BUG-06) disconnected remote file-open과 lazy directory expansion이 workspace core의 [`workspace:readFile`](./workspace-and-file-tree/contracts.md#21-workspacereadfile) 및 [`workspace:indexDirectory`](./workspace-and-file-tree/contracts.md#22-workspaceindexdirectory) 상태 판정·intent·호출 횟수를 따르는지 확인한다.
 44. (F27) remote root 경계 밖 접근 시 `PATH_DENIED` 오류로 거부되는지 확인
 45. (F28) remote connect 모달에서 `Browse Directories` -> `Use Current Directory`로 `remoteRoot`를 선택해 연결 가능한지 확인
 46. (F27) remote polling watcher에서 symlink 디렉토리 내부 파일 변경이 `changedRelativePaths`에 반영되는지 확인

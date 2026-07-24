@@ -39,11 +39,12 @@
 - response:
   - `{ ok, content, imagePreview?, previewUnavailableReason?, error? }`
 - 파일 선택 규칙:
-  - local 및 `connected`/`degraded` 원격 세션은 기존 direct read 경로를 사용한다.
-  - active remote session이 `disconnected`이면 renderer는 해당 세션에 저장된 `remoteProfile`로 `workspace:connectRemote`를 먼저 호출한다.
-  - 재연결 후 read 여부는 reconnect helper의 boolean이 아니라 재시도 완료 시점의 실제 renderer session 상태로 결정한다.
+  - user-action connection guard의 synchronous direct path는 local 또는 실제 renderer 상태가 `connected`/`degraded`인 원격 세션만 허용한다. 추적 중인 reconnect가 없는 `connecting`/미확정 원격 상태는 usable connection으로 간주하지 않으며 read를 호출하지 않는다.
+  - active remote session이 `disconnected`이면 renderer는 해당 세션에 저장된 `remoteProfile`로 `workspace:connectRemote`를 먼저 호출한다. 같은 workspace에서 이미 user-action reconnect가 진행 중이면 추가 파일 선택/디렉토리 확장은 그 in-flight 작업을 공유하고 setup 완료까지 기다린다.
+  - in-flight reconnect 확인은 `connected`/`degraded` fast path보다 먼저 수행한다. 따라서 reconnect 도중 renderer 상태가 일시적으로 usable해 보여도 queued user action은 index/watcher setup을 포함한 재연결 작업 완료 전에 진행하지 않는다.
+  - 재연결 후 read 여부는 하위 reconnect helper 반환값이 아니라 재시도 완료 시점의 실제 renderer session 상태로 결정한다.
   - 실제 상태가 `connected` 또는 `degraded`이면 최초 선택의 `relativePath`와 history mode를 보존해 `workspace:readFile`을 정확히 한 번 호출한다. watcher/index setup 실패로 helper가 `false`를 반환해도 실제 상태가 사용 가능하면 read한다.
-  - 실제 상태가 `disconnected`이면 `workspace:readFile`을 호출하지 않는다. helper가 `true`를 반환했더라도 reconnect setup 중 단절 이벤트가 도착해 실제 상태가 다시 `disconnected`가 된 경우도 동일하다.
+  - 실제 상태가 `connected`/`degraded`가 아니면 `workspace:readFile`을 호출하지 않는다. helper가 `true`를 반환했더라도 reconnect setup 중 단절 이벤트가 도착해 실제 상태가 다시 `disconnected`가 된 경우도 동일하다.
   - 재연결 뒤 파일 read가 실패하면 재연결/read를 반복하지 않는다. 성공한 원격 연결은 유지하고 기존 파일 읽기 오류 surface로 실패를 표시한다.
 
 ### 2.2 `workspace:indexDirectory`
@@ -55,6 +56,11 @@
 - 규칙:
   - 디렉토리 child cap `500`
   - 초과 시 `childrenStatus='partial'`
+  - 사용자가 `not-loaded` 디렉토리를 확장하는 경로는 [파일 선택의 actual-state user-action guard](#21-workspacereadfile)를 공통으로 사용한다. local 및 `connected`/`degraded` 원격 세션은 direct path를 유지하고, 실제 renderer 상태가 `disconnected`인 원격 세션만 저장된 `remoteProfile`로 재연결한다.
+  - file tree는 lazy load를 시작하기 전에 해당 `relativePath`의 expanded intent를 기록하며, synchronous direct path는 이 intent에서 바로 진행한다.
+  - async connection guard가 끝났을 때도 해당 `relativePath`가 최신 expanded intent에 남아 있는 경우에만, reconnect의 full-index reset으로 사라질 수 있는 경로를 `expandedDirectories`에 복구하고 `workspace:indexDirectory`를 정확히 한 번 호출한다.
+  - reconnect 대기 중 사용자가 같은 경로를 collapse하면 최신 intent를 우선해 collapsed 상태를 유지하고 `workspace:indexDirectory`를 호출하지 않는다. connection guard가 실패하거나 usable하지 않은 상태로 끝난 경우도 호출하지 않는다.
+  - watcher가 내부적으로 수행하는 expanded-directory hydration은 사용자 액션 guard의 대상이 아니며 자동 재연결을 시작하지 않는다.
 
 ### 2.3 `workspace:watchStart`
 

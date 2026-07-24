@@ -548,11 +548,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     }
   }
 
-  async function renderDisconnectedRemoteFile(input: {
+  async function renderDisconnectedRemoteEntry(input: {
     workspaceId: string
     host: string
     remoteRoot: string
-    fileName: string
+    entryName: string
     disconnectMessage?: string
   }) {
     render(
@@ -577,7 +577,7 @@ describe('F01/F02/F03/F04 workspace flow', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: input.fileName }),
+        screen.getByRole('button', { name: input.entryName }),
       ).toBeInTheDocument()
     })
 
@@ -1569,11 +1569,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       content: 'export const reconnected = true',
     })
 
-    await renderDisconnectedRemoteFile({
+    await renderDisconnectedRemoteEntry({
       workspaceId,
       host: 'auto-open.example.com',
       remoteRoot: '/srv/auto-open',
-      fileName: 'auto-open.ts',
+      entryName: 'auto-open.ts',
       disconnectMessage: 'Remote session disconnected.',
     })
 
@@ -1628,11 +1628,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       error: 'file disappeared',
     })
 
-    await renderDisconnectedRemoteFile({
+    await renderDisconnectedRemoteEntry({
       workspaceId,
       host: 'read-failure.example.com',
       remoteRoot: '/srv/read-failure',
-      fileName: 'missing-after-reconnect.ts',
+      entryName: 'missing-after-reconnect.ts',
     })
 
     fireEvent.click(
@@ -1680,11 +1680,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       ],
     })
 
-    await renderDisconnectedRemoteFile({
+    await renderDisconnectedRemoteEntry({
       workspaceId,
       host: 'reconnect-failure.example.com',
       remoteRoot: '/srv/reconnect-failure',
-      fileName: 'unavailable.ts',
+      entryName: 'unavailable.ts',
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'unavailable.ts' }))
@@ -1744,11 +1744,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         content: 'export const openedFromKnownPath = true',
       })
 
-      await renderDisconnectedRemoteFile({
+      await renderDisconnectedRemoteEntry({
         workspaceId,
         host: 'index-failure.example.com',
         remoteRoot: '/srv/index-failure',
-        fileName: 'known-before-reconnect.ts',
+        entryName: 'known-before-reconnect.ts',
       })
 
       fireEvent.click(
@@ -1809,11 +1809,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       })
       .mockReturnValueOnce(reconnectIndexPromise)
 
-    await renderDisconnectedRemoteFile({
+    await renderDisconnectedRemoteEntry({
       workspaceId,
       host: 'disconnect-race.example.com',
       remoteRoot: '/srv/disconnect-race',
-      fileName: 'offline-before-read.ts',
+      entryName: 'offline-before-read.ts',
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'offline-before-read.ts' }))
@@ -1898,11 +1898,11 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       content: 'export const degradedConnectionIsUsable = true',
     })
 
-    await renderDisconnectedRemoteFile({
+    await renderDisconnectedRemoteEntry({
       workspaceId,
       host: 'degraded.example.com',
       remoteRoot: '/srv/degraded',
-      fileName: 'available-while-degraded.ts',
+      entryName: 'available-while-degraded.ts',
     })
 
     fireEvent.click(
@@ -1948,6 +1948,330 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     expect(screen.getByTestId('code-viewer-content')).toHaveTextContent(
       'export const degradedConnectionIsUsable = true',
     )
+  })
+
+  it('reconnects and expands a selected remote directory when disconnected', async () => {
+    const workspaceId = 'remote-workspace-auto-expand'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-auto-expand-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-auto-expand-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [],
+          childrenStatus: 'not-loaded',
+        },
+      ],
+    })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [
+        {
+          name: 'after-reconnect.ts',
+          relativePath: 'src/after-reconnect.ts',
+          kind: 'file',
+        },
+      ],
+      childrenStatus: 'complete',
+      totalChildCount: 1,
+    })
+
+    await renderDisconnectedRemoteEntry({
+      workspaceId,
+      host: 'auto-expand.example.com',
+      remoteRoot: '/srv/auto-expand',
+      entryName: 'src',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(indexDirectoryMock).toHaveBeenCalledWith(rootPath, 'src', {
+        offset: 0,
+        limit: 500,
+      })
+    })
+    expect(connectRemoteMock.mock.invocationCallOrder[1]).toBeLessThan(
+      indexDirectoryMock.mock.invocationCallOrder[0],
+    )
+    expect(indexDirectoryMock).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getByRole('button', { name: 'after-reconnect.ts' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('does not load a selected remote directory when automatic reconnect fails', async () => {
+    const workspaceId = 'remote-workspace-auto-expand-reconnect-failure'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-auto-expand-failure-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        workspaceId,
+        errorCode: 'TIMEOUT',
+        error: 'reconnect timed out',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'unavailable-directory',
+          relativePath: 'unavailable-directory',
+          kind: 'directory',
+          children: [],
+          childrenStatus: 'not-loaded',
+        },
+      ],
+    })
+
+    await renderDisconnectedRemoteEntry({
+      workspaceId,
+      host: 'auto-expand-failure.example.com',
+      remoteRoot: '/srv/auto-expand-failure',
+      entryName: 'unavailable-directory',
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'unavailable-directory' }),
+    )
+
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Remote connection timed out (TIMEOUT).',
+      )
+    })
+    expect(indexDirectoryMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('workspace-remote-connection-state')).toHaveTextContent(
+      'disconnected',
+    )
+  })
+
+  it('waits for an in-flight reconnect before handling another remote entry', async () => {
+    const workspaceId = 'remote-workspace-shared-auto-reconnect'
+    const rootPath = `remote://${workspaceId}`
+    let resolveReconnect!: (result: WorkspaceConnectRemoteResult) => void
+    const reconnectPromise = new Promise<WorkspaceConnectRemoteResult>(
+      (resolve) => {
+        resolveReconnect = resolve
+      },
+    )
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-shared-auto-reconnect-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockReturnValueOnce(reconnectPromise)
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [],
+          childrenStatus: 'not-loaded',
+        },
+        {
+          name: 'queued.ts',
+          relativePath: 'queued.ts',
+          kind: 'file',
+        },
+      ],
+    })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [],
+      childrenStatus: 'complete',
+      totalChildCount: 0,
+    })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'export const openedAfterReconnect = true',
+    })
+
+    await renderDisconnectedRemoteEntry({
+      workspaceId,
+      host: 'shared-auto-reconnect.example.com',
+      remoteRoot: '/srv/shared-auto-reconnect',
+      entryName: 'src',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+    })
+
+    act(() => {
+      emitRemoteConnectionEvent({
+        workspaceId,
+        state: 'connecting',
+        occurredAt: new Date().toISOString(),
+      })
+    })
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('workspace-remote-connection-state'),
+      ).toHaveTextContent('connecting')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'queued.ts' }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+    expect(readFileMock).not.toHaveBeenCalled()
+    expect(indexDirectoryMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveReconnect({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-shared-auto-reconnect-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      await reconnectPromise
+    })
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledWith(rootPath, 'queued.ts')
+      expect(indexDirectoryMock).toHaveBeenCalledWith(rootPath, 'src', {
+        offset: 0,
+        limit: 500,
+      })
+    })
+    expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+    expect(readFileMock).toHaveBeenCalledTimes(1)
+    expect(indexDirectoryMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a remote directory collapsed when reconnect finishes after a second toggle', async () => {
+    const workspaceId = 'remote-workspace-collapse-during-auto-reconnect'
+    const rootPath = `remote://${workspaceId}`
+    let resolveReconnect!: (result: WorkspaceConnectRemoteResult) => void
+    const reconnectPromise = new Promise<WorkspaceConnectRemoteResult>(
+      (resolve) => {
+        resolveReconnect = resolve
+      },
+    )
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-collapse-during-auto-reconnect-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockReturnValueOnce(reconnectPromise)
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: [
+        {
+          name: 'src',
+          relativePath: 'src',
+          kind: 'directory',
+          children: [],
+          childrenStatus: 'not-loaded',
+        },
+      ],
+    })
+    indexDirectoryMock.mockResolvedValueOnce({
+      ok: true,
+      children: [
+        {
+          name: 'stale-expand.ts',
+          relativePath: 'src/stale-expand.ts',
+          kind: 'file',
+        },
+      ],
+      childrenStatus: 'complete',
+      totalChildCount: 1,
+    })
+
+    await renderDisconnectedRemoteEntry({
+      workspaceId,
+      host: 'collapse-during-auto-reconnect.example.com',
+      remoteRoot: '/srv/collapse-during-auto-reconnect',
+      entryName: 'src',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    await waitFor(() => {
+      expect(connectRemoteMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'src' }))
+    expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+
+    await act(async () => {
+      resolveReconnect({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-collapse-during-auto-reconnect-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      await reconnectPromise
+    })
+
+    await waitFor(() => {
+      expect(indexWorkspaceMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+    })
+    expect(indexDirectoryMock).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('button', { name: 'stale-expand.ts' }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows reconnect guidance for fatal remote errors', async () => {

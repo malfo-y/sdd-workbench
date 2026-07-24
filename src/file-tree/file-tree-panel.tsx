@@ -597,17 +597,19 @@ export function FileTreePanel({
   const toggleDirectory = (relativePath: string) => {
     const nextExpandedDirectories = new Set(expandedDirectoriesSet)
     const isExpanding = !nextExpandedDirectories.has(relativePath)
+    let shouldLoadDirectory = false
     if (isExpanding) {
       nextExpandedDirectories.add(relativePath)
       const directoryNode = findDirectoryNode(fileTree, relativePath)
-      if (directoryNode?.childrenStatus === 'not-loaded') {
-        onRequestLoadDirectory(relativePath)
-      }
+      shouldLoadDirectory = directoryNode?.childrenStatus === 'not-loaded'
     } else {
       nextExpandedDirectories.delete(relativePath)
     }
 
     onExpandedDirectoriesChange([...nextExpandedDirectories])
+    if (shouldLoadDirectory) {
+      onRequestLoadDirectory(relativePath)
+    }
   }
 
   const handleNodeContextMenu = useCallback(
