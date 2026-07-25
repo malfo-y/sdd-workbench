@@ -24,6 +24,10 @@ export function WorkspaceSwitcher({
 }: WorkspaceSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({})
+  const [pendingCloseWorkspaceIds, setPendingCloseWorkspaceIds] = useState<
+    Set<WorkspaceId>
+  >(new Set())
+  const pendingCloseWorkspaceIdsRef = useRef<Set<WorkspaceId>>(new Set())
   const switcherRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const activeWorkspace = useMemo(
@@ -31,6 +35,12 @@ export function WorkspaceSwitcher({
       workspaces.find(({ id }) => id === activeWorkspaceId) ?? workspaces[0] ?? null,
     [activeWorkspaceId, workspaces],
   )
+
+  useEffect(() => {
+    if (workspaces.length === 0) {
+      setIsOpen(false)
+    }
+  }, [workspaces.length])
 
   useEffect(() => {
     if (!isOpen) {
@@ -88,6 +98,29 @@ export function WorkspaceSwitcher({
       window.removeEventListener('scroll', updateMenuPosition, true)
     }
   }, [isOpen])
+
+  const handleCloseWorkspace = async (workspaceId: WorkspaceId) => {
+    if (
+      !onCloseWorkspace ||
+      pendingCloseWorkspaceIdsRef.current.has(workspaceId)
+    ) {
+      return
+    }
+
+    pendingCloseWorkspaceIdsRef.current.add(workspaceId)
+    setPendingCloseWorkspaceIds(
+      new Set(pendingCloseWorkspaceIdsRef.current),
+    )
+
+    try {
+      await onCloseWorkspace(workspaceId)
+    } finally {
+      pendingCloseWorkspaceIdsRef.current.delete(workspaceId)
+      setPendingCloseWorkspaceIds(
+        new Set(pendingCloseWorkspaceIdsRef.current),
+      )
+    }
+  }
 
   if (workspaces.length === 0) {
     return (
@@ -184,10 +217,10 @@ export function WorkspaceSwitcher({
                     <button
                       aria-label={`Close workspace ${label}`}
                       className="workspace-switcher-option-close"
+                      disabled={pendingCloseWorkspaceIds.has(id)}
                       onClick={(event) => {
                         event.stopPropagation()
-                        setIsOpen(false)
-                        void onCloseWorkspace(id)
+                        void handleCloseWorkspace(id)
                       }}
                       title="Close workspace"
                       type="button"

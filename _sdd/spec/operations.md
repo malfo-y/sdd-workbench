@@ -59,6 +59,14 @@
 
 ### 4.1 자동 게이트
 
+- **Workspace selector close-menu targeted gate (2026-07-25)**
+  - `rtk npm test -- --run src/App.test.tsx -t "supports multi-workspace switch, duplicate focus, close, and selection reset"` -> `1 file passed, 1 passed, 169 skipped (170 total)`
+  - `rtk npm test -- --run src/workspace/workspace-switcher.test.tsx` -> `1 file passed, 2 passed`
+  - `rtk npm test -- --run src/App.test.tsx` -> `1 file passed, 169 passed, 1 skipped (170 total)`
+  - `rtk npm test` -> `80 files passed, 943 passed, 1 skipped`
+  - `rtk npm run lint` -> pass
+  - TypeScript validation -> no errors
+  - 여러 워크스페이스가 열린 selector에서 항목 `X`를 누르면 selector가 유지되고 닫힌 항목만 사라지며 나머지 항목이 계속 표시되는지 검증한다. async close 중 같은 항목의 중복 요청 차단과 마지막 workspace 제거 후 selector open state 초기화도 포함한다.
 - **Remote file-open + directory-expand reconnect targeted gate (2026-07-24)**
   - `rtk npm test -- --run src/App.test.tsx -t "<10 reconnect test names>"` -> `1 file passed, 10 passed, 160 skipped (170 total)`
   - `rtk npm test -- --run src/file-tree/file-tree-panel.test.tsx` -> `1 file passed, 50 passed`
@@ -91,7 +99,7 @@
 
 ### 4.3 수동 스모크 체크
 
-1. 멀티 워크스페이스 추가/전환/닫기
+1. 멀티 워크스페이스 추가/전환/닫기: selector 항목 선택과 바깥 클릭은 메뉴를 닫고, 항목 `X`는 pending 동안 비활성화되어 중복 close를 막으면서 남은 워크스페이스가 있으면 갱신된 메뉴를 유지하고, 마지막 항목 제거 후 다시 추가했을 때 selector가 닫힌 상태인지 확인
 2. Code/Spec 탭 전환(클릭 + `Cmd+Shift+Left/Right`) + 탭 전환 시 스크롤 위치 유지 확인
 3. watcher 변경 마커 및 active file 자동 반영
 4. collapse 상태에서 변경 마커가 상위 디렉토리로 버블링되는지 확인(`not-loaded`/`partial` lazy 디렉토리 포함)
