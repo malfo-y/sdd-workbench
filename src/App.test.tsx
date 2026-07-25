@@ -3397,6 +3397,15 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         projectARoot,
       )
     })
+    expect(
+      screen.getByRole('menu', { name: 'Open workspaces' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Close workspace ~/project-b' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Close workspace ~/project-a' }),
+    ).toBeInTheDocument()
 
     expect(
       (screen.getByTestId('workspace-switcher-select') as HTMLSelectElement)

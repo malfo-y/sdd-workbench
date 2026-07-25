@@ -35,6 +35,9 @@
 - 워크스페이스 상태는 `workspaceId` 기준으로 분리한다.
 - active file/content/dirty/git line marker는 renderer session 상태에서 보이지만, text/markdown draft/save state는 path-keyed document session으로 관리한다.
 - active workspace 전환은 드롭다운(MRU 성격)과 키보드 순차 전환(`switchActiveWorkspace`)을 구분한다.
+- `Open workspaces` selector는 워크스페이스를 선택하거나 바깥을 누르면 닫힌다.
+- 각 항목의 `X`는 해당 워크스페이스만 제거하고, async close가 진행 중인 동안에는 비활성화되어 같은 workspace의 중복 close 요청을 허용하지 않는다. 남은 항목이 있으면 갱신된 selector를 계속 열어 둔다.
+- 마지막 워크스페이스를 제거하면 selector의 open state를 초기화하고 zero-workspace UI로 전환한다. 이후 워크스페이스를 다시 추가해도 selector는 닫힌 상태에서 시작한다.
 - text/markdown 문서의 내용 lifecycle은 `activeFileContent`/`activeSpecContent` 같은 탭별 필드가 아니라 path-keyed `document session`으로 통합한다.
 - `activeFile`/`activeSpec`는 navigation pointer로 유지하되, `savedContent`/`draftContent`/`saveState(clean|dirty|saving|conflict)`가 문서 상태의 source of truth가 된다.
 - runtime document session cache는 기본적으로 앱 재시작 persistence 범위에 포함하지 않는다(unsaved draft 복원은 기본 범위 밖).
