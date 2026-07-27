@@ -15,6 +15,7 @@ import {
   type WorkspaceState,
   type WorkspaceWatchModePreference,
 } from './workspace-model'
+import type { WorkspaceIndexMode } from './workspace-context-types'
 
 type SetWorkspaceState = Dispatch<SetStateAction<WorkspaceState>>
 type SetBannerMessage = Dispatch<SetStateAction<string | null>>
@@ -74,7 +75,7 @@ export function useWorkspaceRemote(input: {
   loadWorkspaceIndex: (
     workspaceId: WorkspaceId,
     rootPath: string,
-    mode?: 'reset' | 'refresh',
+    mode?: WorkspaceIndexMode,
   ) => Promise<'success' | 'failed' | 'stale'>
   loadWorkspaceGitFileStatuses: (
     workspaceId: WorkspaceId,
@@ -294,7 +295,10 @@ export function useWorkspaceRemote(input: {
   )
 
   const connectRemoteWorkspace = useCallback(
-    async (profile: WorkspaceRemoteProfile) => {
+    async (
+      profile: WorkspaceRemoteProfile,
+      indexMode?: WorkspaceIndexMode,
+    ) => {
       const workspaceId = profile.workspaceId?.trim()
       const host = profile.host?.trim()
       const remoteRoot = profile.remoteRoot?.trim()
@@ -377,7 +381,11 @@ export function useWorkspaceRemote(input: {
         })
 
         const watchStarted = await startWorkspaceWatch(rendererWorkspaceId, rootPath)
-        const indexStatus = await loadWorkspaceIndex(rendererWorkspaceId, rootPath)
+        const indexStatus = await loadWorkspaceIndex(
+          rendererWorkspaceId,
+          rootPath,
+          indexMode,
+        )
         if (indexStatus === 'success') {
           void loadWorkspaceGitFileStatuses(rendererWorkspaceId, rootPath)
         }
@@ -490,7 +498,7 @@ export function useWorkspaceRemote(input: {
         return false
       }
 
-      return connectRemoteWorkspace(workspaceSession.remoteProfile)
+      return connectRemoteWorkspace(workspaceSession.remoteProfile, 'reconnect')
     },
     [connectRemoteWorkspace, setBannerMessage, workspaceStateRef],
   )

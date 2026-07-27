@@ -12,6 +12,8 @@ import type {
   WorkspaceWatchModePreference,
 } from './workspace-model'
 
+export type WorkspaceIndexMode = 'reset' | 'refresh' | 'reconnect'
+
 export type WorkspaceContextState = {
   workspaceOrder: WorkspaceId[]
   workspaces: Array<{ id: WorkspaceId; rootPath: string }>

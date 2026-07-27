@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type MutableRefObject,
@@ -31,6 +32,7 @@ import {
   reconcileWorkspaceSessionTreeState,
   type ExpandedDirectoryHydrationTarget,
 } from './workspace-tree-state'
+import type { WorkspaceIndexMode } from './workspace-context-types'
 
 type SetWorkspaceState = Dispatch<SetStateAction<WorkspaceState>>
 type SetBannerMessage = Dispatch<SetStateAction<string | null>>
@@ -97,7 +99,7 @@ export function useWorkspaceSnapshot(input: {
   loadWorkspaceIndex: (
     workspaceId: WorkspaceId,
     rootPath: string,
-    mode?: 'reset' | 'refresh',
+    mode?: WorkspaceIndexMode,
   ) => Promise<WorkspaceIndexStatus>
   loadWorkspaceGitFileStatuses: (
     workspaceId: WorkspaceId,
@@ -152,6 +154,36 @@ export function useWorkspaceSnapshot(input: {
   } = input
 
   const [hasHydratedSnapshot, setHasHydratedSnapshot] = useState(false)
+  const successfulDirectoryLoadCountByWorkspaceRef = useRef<
+    Map<WorkspaceId, Map<string, number>>
+  >(new Map())
+
+  const getSuccessfulDirectoryLoadCount = useCallback(
+    (workspaceId: WorkspaceId, relativePath: string) =>
+      successfulDirectoryLoadCountByWorkspaceRef.current
+        .get(workspaceId)
+        ?.get(relativePath) ?? 0,
+    [],
+  )
+
+  const recordSuccessfulDirectoryLoad = useCallback(
+    (workspaceId: WorkspaceId, relativePath: string) => {
+      let loadCountByPath =
+        successfulDirectoryLoadCountByWorkspaceRef.current.get(workspaceId)
+      if (!loadCountByPath) {
+        loadCountByPath = new Map()
+        successfulDirectoryLoadCountByWorkspaceRef.current.set(
+          workspaceId,
+          loadCountByPath,
+        )
+      }
+      loadCountByPath.set(
+        relativePath,
+        (loadCountByPath.get(relativePath) ?? 0) + 1,
+      )
+    },
+    [],
+  )
 
   const loadWorkspaceDirectoryChildren = useCallback(
     async (
@@ -252,6 +284,7 @@ export function useWorkspaceSnapshot(input: {
               }
             }),
           )
+          recordSuccessfulDirectoryLoad(workspaceId, relativePath)
 
           loadedChildCount =
             (appendChildren ? loadedChildCount : 0) + result.children.length
@@ -298,7 +331,12 @@ export function useWorkspaceSnapshot(input: {
         )
       }
     },
-    [setBannerMessage, setWorkspaceState, workspaceStateRef],
+    [
+      recordSuccessfulDirectoryLoad,
+      setBannerMessage,
+      setWorkspaceState,
+      workspaceStateRef,
+    ],
   )
 
   const hydrateExpandedDirectories = useCallback(
@@ -323,6 +361,8 @@ export function useWorkspaceSnapshot(input: {
         return
       }
 
+      const successfulLoadCountBeforeConnection =
+        getSuccessfulDirectoryLoadCount(activeWorkspaceId, relativePath)
       const connectionResult =
         ensureWorkspaceConnectionForUserAction(activeWorkspaceId)
       if (connectionResult !== true) {
@@ -362,12 +402,21 @@ export function useWorkspaceSnapshot(input: {
             }),
           ),
         )
+
+        if (
+          !options?.append &&
+          getSuccessfulDirectoryLoadCount(activeWorkspaceId, relativePath) >
+            successfulLoadCountBeforeConnection
+        ) {
+          return
+        }
       }
 
       await loadWorkspaceDirectoryChildren(activeWorkspaceId, relativePath, options)
     },
     [
       ensureWorkspaceConnectionForUserAction,
+      getSuccessfulDirectoryLoadCount,
       getWorkspaceDirectoryExpansionIntent,
       loadWorkspaceDirectoryChildren,
       setWorkspaceState,

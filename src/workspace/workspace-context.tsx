@@ -29,6 +29,7 @@ import {
   type WorkspaceContextRemote,
   type WorkspaceContextState,
   type WorkspaceContextValue,
+  type WorkspaceIndexMode,
   type WorkspaceProviderProps,
 } from './workspace-context-types'
 import { useWorkspaceComments } from './use-workspace-comments'
@@ -100,7 +101,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     async (
       workspaceId: WorkspaceId,
       rootPath: string,
-      mode: 'reset' | 'refresh' = 'reset',
+      mode: WorkspaceIndexMode = 'reset',
     ): Promise<WorkspaceIndexStatus> => {
       const requestId =
         (indexRequestIdByWorkspaceRef.current[workspaceId] ?? 0) + 1
@@ -156,24 +157,24 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
         // Read the latest session snapshot after the async index call resolves so
         // refresh logic does not depend on the render that scheduled the request.
-        const refreshBaselineSession =
-          mode === 'refresh'
+        const preservedSessionBaseline =
+          mode !== 'reset'
             ? workspaceStateRef.current.workspacesById[workspaceId]
             : null
         const nextFileTree =
-          refreshBaselineSession
+          preservedSessionBaseline
             ? preserveExpandedDirectoryChildren(
                 indexResult.fileTree,
-                refreshBaselineSession.fileTree,
-                refreshBaselineSession.expandedDirectories,
+                preservedSessionBaseline.fileTree,
+                preservedSessionBaseline.expandedDirectories,
               )
             : indexResult.fileTree
         const expandedDirectoryHydrationTargets =
-          refreshBaselineSession
+          preservedSessionBaseline
             ? collectExpandedDirectoryHydrationTargets(
-                refreshBaselineSession.fileTree,
+                preservedSessionBaseline.fileTree,
                 indexResult.fileTree,
-                refreshBaselineSession.expandedDirectories,
+                preservedSessionBaseline.expandedDirectories,
               )
             : []
         setWorkspaceState((previous) =>
@@ -196,10 +197,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           }),
         )
         if (expandedDirectoryHydrationTargets.length > 0) {
-          void hydrateExpandedDirectoriesRef.current(
+          const hydrationPromise = hydrateExpandedDirectoriesRef.current(
             workspaceId,
             expandedDirectoryHydrationTargets,
           )
+          if (mode === 'reconnect') {
+            await hydrationPromise
+          } else {
+            void hydrationPromise
+          }
         }
         if (indexResult.truncated) {
           setBannerMessage(

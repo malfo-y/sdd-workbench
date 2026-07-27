@@ -548,12 +548,62 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     }
   }
 
+  const createRemoteReconnectRootTree = () => [
+    {
+      name: 'src',
+      relativePath: 'src',
+      kind: 'directory' as const,
+      childrenStatus: 'not-loaded' as const,
+      children: [],
+    },
+  ]
+
+  const createRemoteReconnectSrcChildren = () => [
+    {
+      name: 'nested',
+      relativePath: 'src/nested',
+      kind: 'directory' as const,
+      childrenStatus: 'not-loaded' as const,
+      children: [],
+    },
+  ]
+
+  const createRemoteReconnectNestedChildren = (extraFileName?: string) => [
+    {
+      name: 'current.ts',
+      relativePath: 'src/nested/current.ts',
+      kind: 'file' as const,
+    },
+    {
+      name: 'target.ts',
+      relativePath: 'src/nested/target.ts',
+      kind: 'file' as const,
+    },
+    {
+      name: 'lazy',
+      relativePath: 'src/nested/lazy',
+      kind: 'directory' as const,
+      childrenStatus: 'not-loaded' as const,
+      children: [],
+    },
+    ...(extraFileName
+      ? [
+          {
+            name: extraFileName,
+            relativePath: `src/nested/${extraFileName}`,
+            kind: 'file' as const,
+          },
+        ]
+      : []),
+  ]
+
   async function renderDisconnectedRemoteEntry(input: {
     workspaceId: string
     host: string
     remoteRoot: string
     entryName: string
     disconnectMessage?: string
+    beforeDisconnect?: () => void | Promise<void>
   }) {
     render(
       <WorkspaceProvider>
@@ -580,6 +630,8 @@ describe('F01/F02/F03/F04 workspace flow', () => {
         screen.getByRole('button', { name: input.entryName }),
       ).toBeInTheDocument()
     })
+
+    await input.beforeDisconnect?.()
 
     act(() => {
       emitRemoteConnectionEvent({
@@ -1592,6 +1644,115 @@ describe('F01/F02/F03/F04 workspace flow', () => {
     )
   })
 
+  it('preserves expanded remote directories when reconnecting to open a file', async () => {
+    const workspaceId = 'remote-workspace-preserve-tree-file-open'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-preserve-tree-file-open-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-preserve-tree-file-open-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: createRemoteReconnectRootTree(),
+    })
+    indexDirectoryMock
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectSrcChildren(),
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectNestedChildren(
+          'removed-during-disconnect.ts',
+        ),
+        childrenStatus: 'complete',
+        totalChildCount: 4,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectSrcChildren(),
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectNestedChildren(
+          'added-during-disconnect.ts',
+        ),
+        childrenStatus: 'complete',
+        totalChildCount: 4,
+      })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'export const targetOpened = true',
+    })
+
+    await renderDisconnectedRemoteEntry({
+      workspaceId,
+      host: 'preserve-tree-file-open.example.com',
+      remoteRoot: '/srv/preserve-tree-file-open',
+      entryName: 'src',
+      beforeDisconnect: async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'src' }))
+        await waitFor(() => {
+          expect(
+            screen.getByRole('button', { name: 'nested' }),
+          ).toBeInTheDocument()
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'nested' }))
+        await waitFor(() => {
+          expect(
+            screen.getByRole('button', {
+              name: 'removed-during-disconnect.ts',
+            }),
+          ).toBeInTheDocument()
+        })
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'target.ts' }))
+
+    await waitFor(() => {
+      expect(readFileMock).toHaveBeenCalledWith(
+        rootPath,
+        'src/nested/target.ts',
+      )
+      expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+        'src/nested/target.ts',
+      )
+    })
+    expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'nested' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(
+      screen.getByRole('button', { name: 'added-during-disconnect.ts' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'removed-during-disconnect.ts' }),
+    ).not.toBeInTheDocument()
+    expect(indexDirectoryMock).toHaveBeenCalledTimes(4)
+  })
+
   it('keeps the remote connection after the retried file read fails', async () => {
     const workspaceId = 'remote-workspace-auto-open-read-failure'
     const rootPath = `remote://${workspaceId}`
@@ -2022,6 +2183,132 @@ describe('F01/F02/F03/F04 workspace flow', () => {
       'aria-expanded',
       'true',
     )
+  })
+
+  it('preserves the active file and parent directories while reconnecting to expand a directory', async () => {
+    const workspaceId = 'remote-workspace-preserve-state-directory-expand'
+    const rootPath = `remote://${workspaceId}`
+    connectRemoteMock
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-preserve-state-directory-expand-1',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        workspaceId,
+        sessionId: 'session-preserve-state-directory-expand-2',
+        rootPath,
+        remoteConnectionState: 'connected',
+        state: 'connected',
+      })
+    indexWorkspaceMock.mockResolvedValue({
+      ok: true,
+      fileTree: createRemoteReconnectRootTree(),
+    })
+    indexDirectoryMock
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectSrcChildren(),
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectNestedChildren(),
+        childrenStatus: 'complete',
+        totalChildCount: 3,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectSrcChildren(),
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: createRemoteReconnectNestedChildren(),
+        childrenStatus: 'complete',
+        totalChildCount: 3,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        children: [
+          {
+            name: 'after-reconnect.ts',
+            relativePath: 'src/nested/lazy/after-reconnect.ts',
+            kind: 'file',
+          },
+        ],
+        childrenStatus: 'complete',
+        totalChildCount: 1,
+      })
+    readFileMock.mockResolvedValueOnce({
+      ok: true,
+      content: 'export const currentStaysOpen = true',
+    })
+
+    await renderDisconnectedRemoteEntry({
+      workspaceId,
+      host: 'preserve-state-directory-expand.example.com',
+      remoteRoot: '/srv/preserve-state-directory-expand',
+      entryName: 'src',
+      beforeDisconnect: async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'src' }))
+        await waitFor(() => {
+          expect(
+            screen.getByRole('button', { name: 'nested' }),
+          ).toBeInTheDocument()
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'nested' }))
+        await waitFor(() => {
+          expect(
+            screen.getByRole('button', { name: 'current.ts' }),
+          ).toBeInTheDocument()
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'current.ts' }))
+        await waitFor(() => {
+          expect(
+            screen.getByTestId('code-viewer-active-file'),
+          ).toHaveTextContent('src/nested/current.ts')
+        })
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'lazy' }))
+
+    await waitFor(() => {
+      expect(indexDirectoryMock).toHaveBeenCalledWith(
+        rootPath,
+        'src/nested/lazy',
+        {
+          offset: 0,
+          limit: 500,
+        },
+      )
+      expect(
+        screen.getByRole('button', { name: 'after-reconnect.ts' }),
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('code-viewer-active-file')).toHaveTextContent(
+      'src/nested/current.ts',
+    )
+    expect(screen.getByRole('button', { name: 'src' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'nested' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'lazy' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(indexDirectoryMock).toHaveBeenCalledTimes(5)
   })
 
   it('does not load a selected remote directory when automatic reconnect fails', async () => {
